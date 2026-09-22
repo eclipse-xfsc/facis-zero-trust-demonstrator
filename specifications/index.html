@@ -89,6 +89,10 @@
                 </li>
               </ul>
               <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../tspa-publish-api/">TRAIN trust-list publishing</a>
+                </li>
+              </ul>
+              <ul>
                 <li class="toctree-l1"><a class="reference internal" href="../bdd/">BDD acceptance</a>
                 </li>
               </ul>
@@ -224,6 +228,12 @@ the decision.</p>
 <td>Evidence is produced by the CMC software driver in a vendor-agnostic report envelope, with one sample artefact per vendor profile</td>
 <td>No TEE hardware is in scope; the mock has to be honest about being a mock and carry the same structure a real driver would emit</td>
 <td>pending spike outcome</td>
+</tr>
+<tr>
+<td>ZT-35, ZT-64 — expected launch digests uploaded to TRAIN by the pipeline and fetched by the peer</td>
+<td>TSPA's trust-list entry has no digest field; the value must ride in an existing <code>Type</code>/<code>Value</code> list, with the connector's identifier in <code>ServiceTypeIdentifier</code> (the TCR lookup key)</td>
+<td>TRAIN's data model was built for credential issuers; the SRS assumes TRAIN stores measurements without fixing where</td>
+<td><a href="../tspa-publish-api/">TRAIN trust-list publishing</a> · pending (ADR-011 update)</td>
 </tr>
 </tbody>
 </table>

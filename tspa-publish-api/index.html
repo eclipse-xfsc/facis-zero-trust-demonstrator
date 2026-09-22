@@ -1,0 +1,693 @@
+<!DOCTYPE html>
+<html class="writer-html5" lang="en" >
+<head>
+    <meta charset="utf-8" />
+    <meta http-equiv="X-UA-Compatible" content="IE=edge" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+      <link rel="shortcut icon" href="../img/favicon.ico" />
+    <title>TRAIN trust-list publishing - FACIS Zero Trust Demonstrator</title>
+    <link rel="stylesheet" href="../css/theme.css" />
+    <link rel="stylesheet" href="../css/theme_extra.css" />
+        <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.8.0/styles/github.min.css" />
+    
+      <script>
+        // Current page data
+        var mkdocs_page_name = "TRAIN trust-list publishing";
+        var mkdocs_page_input_path = "tspa-publish-api.md";
+        var mkdocs_page_url = null;
+      </script>
+    
+    <!--[if lt IE 9]>
+      <script src="../js/html5shiv.min.js"></script>
+    <![endif]-->
+      <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.8.0/highlight.min.js"></script>
+      <script>hljs.highlightAll();</script> 
+</head>
+
+<body class="wy-body-for-nav" role="document">
+
+  <div class="wy-grid-for-nav">
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side stickynav">
+    <div class="wy-side-scroll">
+      <div class="wy-side-nav-search">
+          <a href=".." class="icon icon-home"> FACIS Zero Trust Demonstrator
+        </a><div role="search">
+  <form id ="rtd-search-form" class="wy-form" action="../search.html" method="get">
+      <input type="text" name="q" placeholder="Search docs" aria-label="Search docs" title="Type search term here" />
+  </form>
+</div>
+      </div>
+
+      <div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="..">Home</a>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../features/">Features and journeys</a>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../architecture/">Architecture</a>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../usage/">Using the demonstrator</a>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../deployment/">Deployment</a>
+                </li>
+              </ul>
+              <p class="caption"><span class="caption-text">Environments</span></p>
+              <ul>
+                  <li class="toctree-l1"><a class="reference internal" href="../environments/">Overview</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../environments/osc/">T-Systems OSC</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../environments/ionos/">IONOS Cloud</a>
+                  </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../packaging/">Packaging and containers</a>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../flows/">Orchestrated flows</a>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../keycloak/">Keycloak integration</a>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../oauth2-provider/">Connector OAuth2 provider</a>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../api-docs/">API documentation</a>
+                </li>
+              </ul>
+              <ul class="current">
+                <li class="toctree-l1 current"><a class="reference internal current" href="#">TRAIN trust-list publishing</a>
+    <ul class="current">
+    <li class="toctree-l2"><a class="reference internal" href="#1-summary">1. Summary</a>
+    </li>
+    <li class="toctree-l2"><a class="reference internal" href="#2-what-tspa-checks-and-what-it-does-not">2. What TSPA checks, and what it does not</a>
+    </li>
+    <li class="toctree-l2"><a class="reference internal" href="#3-what-tspa-is-in-the-zt-35-flow">3. What TSPA is in the ZT-35 flow</a>
+    </li>
+    <li class="toctree-l2"><a class="reference internal" href="#4-endpoints-all-under-httphost16003tspa-servicetspav1">4. Endpoints (all under http://&lt;host&gt;:16003/tspa-service/tspa/v1)</a>
+    </li>
+    <li class="toctree-l2"><a class="reference internal" href="#5-auth-model">5. Auth model</a>
+    </li>
+    <li class="toctree-l2"><a class="reference internal" href="#6-payload-shape-tsp-one-entry-one-connector">6. Payload shape (TSP = one entry = one connector)</a>
+    </li>
+    <li class="toctree-l2"><a class="reference internal" href="#7-idempotency-and-update-semantics-from-trustlistpublicationserviceimpl">7. Idempotency and update semantics (from TrustListPublicationServiceImpl)</a>
+        <ul>
+    <li class="toctree-l3"><a class="reference internal" href="#71-what-this-means-for-the-wp12-pipeline-step-design-requirement-not-a-note">7.1 What this means for the WP12 pipeline step (design requirement, not a note)</a>
+    </li>
+        </ul>
+    </li>
+    <li class="toctree-l2"><a class="reference internal" href="#8-running-it-locally-what-was-needed-beyond-upstreams-compose">8. Running it locally (what was needed beyond upstream's compose)</a>
+        <ul>
+    <li class="toctree-l3"><a class="reference internal" href="#runtime-observations-worth-knowing-before-the-client-instance">Runtime observations worth knowing before the client instance</a>
+    </li>
+        </ul>
+    </li>
+    <li class="toctree-l2"><a class="reference internal" href="#9-adr-011-blocked-external-what-is-closed-and-what-remains">9. ADR-011 "Blocked-external" — what is closed and what remains</a>
+    </li>
+    <li class="toctree-l2"><a class="reference internal" href="#10-round-trip-evidence-local-2026-09-16-re-run-2026-09-18">10. Round-trip evidence (local, 2026-09-16; re-run 2026-09-18)</a>
+    </li>
+    </ul>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../bdd/">BDD acceptance</a>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../ci-cd/">CI/CD</a>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../troubleshooting/">Troubleshooting</a>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../dependencies/">OSS dependencies</a>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../specifications/">Specification changes</a>
+                </li>
+              </ul>
+              <p class="caption"><span class="caption-text">Architecture decisions</span></p>
+              <ul>
+                  <li class="toctree-l1"><a class="reference internal" href="../adr/">Overview</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../adr/0001-service-mesh-mode-istio-ambient-with-cilium/">0001 Service mesh mode</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../adr/0002-gatekeeper-external-data-provider-for-cosign-verification/">0002 Gatekeeper external data provider</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../adr/0003-oauth2-authorisation-surface-in-the-go-connector/">0003 OAuth2 surface in the Go connector</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../adr/0004-openbao-as-x509-key-value-store/">0004 OpenBao as X.509 key-value store</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../adr/0005-three-cluster-reading-of-the-target-environment/">0005 Three-cluster target environment</a>
+                  </li>
+              </ul>
+      </div>
+    </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap">
+      <nav class="wy-nav-top" role="navigation" aria-label="Mobile navigation menu">
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="..">FACIS Zero Trust Demonstrator</a>
+        
+      </nav>
+      <div class="wy-nav-content">
+        <div class="rst-content"><div role="navigation" aria-label="breadcrumbs navigation">
+  <ul class="wy-breadcrumbs">
+    <li><a href=".." class="icon icon-home" aria-label="Docs"></a></li>
+      <li class="breadcrumb-item active">TRAIN trust-list publishing</li>
+    <li class="wy-breadcrumbs-aside">
+          <a href="https://github.com/eclipse-xfsc/facis-zero-trust-demonstrator/edit/main/docs/tspa-publish-api.md" class="icon icon-github"> Edit on GitHub</a>
+    </li>
+  </ul>
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+            <div class="section" itemprop="articleBody">
+              
+                <h1 id="publishing-to-train-the-tspa-trust-list-api">Publishing to TRAIN: the TSPA trust-list API<a class="headerlink" href="#publishing-to-train-the-tspa-trust-list-api" title="Permanent link">&para;</a></h1>
+<p><em>Established in FZTD-162 for ZT-35 (gate G4), 2026-09-16/18. Re-confirmation against the client's instance is
+pending (EXT-C-XFSC).</em></p>
+<p>Source of truth: <code>eclipse-xfsc/train-trust-framework-manager</code> on GitHub, commit <code>ecd5fdc</code> (2025-05-25), which was
+the <code>main</code> HEAD on 2026-09-16 and still is on 2026-09-19; the repository is not archived but has had no commit on
+<code>main</code> since then. The original GitLab project <code>eclipse/xfsc/train/tspa</code> is archived and read-only (last activity
+May 2025) but still readable, so the "404 against the wrong repository" mentioned in FZTD-162 did not come from it;
+that earlier attempt is not characterised further here. Everything below was read from that commit plus
+<code>eclipse-xfsc/train-shared</code> <code>6a0abe4</code> (the trust-list model) and, where marked, exercised against a local instance
+built from those two commits.</p>
+<h2 id="1-summary">1. Summary<a class="headerlink" href="#1-summary" title="Permanent link">&para;</a></h2>
+<p><strong>The publish API surface is confirmed and a measurement value round-trips locally</strong> (§4–§7, §10). Three of the
+four "done when" items are closed. What ADR-011's <em>Blocked-external</em> item still lacks is now named precisely:</p>
+<ol>
+<li><strong>There is no field for the measurement.</strong> TSPA's entry schema (<code>TSPSchema.json</code>) has no
+   measurement/hash/TEEM attribute. The value can only ride in a free-form <code>Type</code>/<code>Value</code> pair. Until the project
+   decides <em>which</em> pair, and the TCR/policy side agrees to read it, ZT-35's "upload the hash to TRAIN" is not
+   implementable in a way the verifier can consume. Candidates, in order of how naturally they read:</li>
+</ol>
+<table>
+<thead>
+<tr>
+<th>Carrier</th>
+<th>Path</th>
+<th>For</th>
+<th>Against</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>A</td>
+<td><code>TSPInformation.TSPCertificationList.TSPCertification[] {Type,Value}</code></td>
+<td>semantically "an attestation about the TSP"; used in the local round-trip as <code>TEEM-sha256</code></td>
+<td>list is typed as certifications (ISO, VAT)</td>
+</tr>
+<tr>
+<td>B</td>
+<td><code>TSPServices.TSPService[].ServiceDigitalIdentity.DigitalId.X509Certificate</code></td>
+<td>per-service, next to the DID the peer presents</td>
+<td>field name says X509; only one slot per service</td>
+</tr>
+<tr>
+<td>C</td>
+<td><code>TSPInformation.TSPEntityIdentifierList.TSPEntityIdendifier[] {Type,Value}</code></td>
+<td>per-TSP identifiers</td>
+<td>"identifier" is a stretch for a launch digest</td>
+</tr>
+<tr>
+<td>D</td>
+<td>an extra key (schema has no <code>additionalProperties:false</code>)</td>
+<td>clean name, e.g. <code>TEEM</code></td>
+<td><strong>ruled out by test (2026-09-18):</strong> accepted with 201, then silently dropped on storage at all three levels tried (TSP root, <code>TSPInformation</code>, <code>TSPService</code>) — the entry is re-serialised from the shared Java model, which has no such fields</td>
+</tr>
+<tr>
+<td>(other)</td>
+<td>any other free-text string of the entry (<code>ServiceDefinitionURI</code>, <code>ServicePolicySet</code>, <code>ServiceSchemaURI</code>, <code>ServiceSupplyPoint</code>, <code>TSPInformationURI</code>, …)</td>
+<td>exists and survives storage</td>
+<td>single-valued, named for something else; listed only for completeness — A–C are the structurally plausible ones</td>
+</tr>
+</tbody>
+</table>
+<p><strong>Read-side constraint (verified in TCR source, <code>train-trust-validator</code> <code>ResolutionService.findIssuerProvider</code>,
+   2026-09-18 — by code reading, see the scope note in §10):</strong> the TCR selects the entry whose
+   <code>TSPServices.TSPService[].ServiceTypeIdentifier</code> <strong>equals the <code>issuer</code> string of the resolve/validate request</strong>,
+   and returns that whole entry as <code>trustList</code>. So:
+   - the lookup key is <code>ServiceTypeIdentifier</code>, <strong>not</strong> <code>ServiceDigitalIdentity.DigitalId.DID</code> — the connector's
+     identifier (whatever the peer presents, e.g. its DID) must be written into <code>ServiceTypeIdentifier</code>.
+     Upstream convention agrees: every example trust list in the TSPA and TCR repos puts the issuer's DID there
+     (<code>&lt;ServiceTypeIdentifier&gt;did:web:companyA.de&lt;/ServiceTypeIdentifier&gt;</code>), despite the field's name;
+     <code>DigitalId.DID</code> is informational. The round-trip payloads in <code>scripts/verify-tspa-api/payloads/</code> carry the connector's DID there
+     (corrected 2026-09-18; the first run had <code>urn:facis:ztd:attested-tls</code>, which the TCR would never match);
+   - any field of the entry is available to the connector after lookup, so carriers A–C are all reachable;
+   - the TCR verifies the VC signature and the list hash (<code>vcVerified</code>) but <strong>does not check the VC's
+     <code>expirationDate</code></strong> (<code>DIDResolver.resolveVC</code> reads only <code>trustlistURI</code> and <code>hash</code>), so TSPA's static 2025
+     expiry is harmless for the TCR path.</p>
+<p>The model is a reduced form of ETSI TS 119 612 (the EU trusted-list standard; TSPA's own
+   <code>TrustList_DataModel_Design</code> cites it), and that standard defines exactly the place for framework-specific data —
+   "TSP information extensions" and "Service information extensions", "to be interpreted according to the specific
+   framework's rules" — but the TSPA/TCR implementation does not carry either. That leaves a third route next to
+   A–C: implement the standard's extension elements in the shared model, TSPA and TCR, and contribute it upstream;
+   cleaner, but development in another project.</p>
+<p><strong>Decision owner:</strong> whoever owns the connector/attestation design (ZT-64/ZT-67 verifier side), not WP12.
+   This document deliberately does not pick one. <strong>The carrier used in the local round-trip
+   (<code>TSPCertificationList</code>, <code>Type = TEEM-sha256</code>) is a test choice only, made so that a value could be written and
+   read back; it is not a recommendation and the design decision remains open.</strong>
+2. <strong>Client-side inputs still external</strong> (EXT-C-XFSC): TSPA base URL, framework name, OIDC issuer + a
+   confidential client whose service account holds realm role <code>enrolltf</code>, Zone Manager reachability, and the
+   TSPA version actually deployed.</p>
+<p>Everything else in this document is the evidence behind those two statements.</p>
+<h2 id="2-what-tspa-checks-and-what-it-does-not">2. What TSPA checks, and what it does not<a class="headerlink" href="#2-what-tspa-checks-and-what-it-does-not" title="Permanent link">&para;</a></h2>
+<p>Every acceptance TSPA performs is structural (JSON Schema, UUID uniqueness, URL/body UUID match). It does not
+check that a write is meaningful for the read side, and its HTTP status does not reliably say what happened:</p>
+<ul>
+<li>a write <strong>without a token</strong> is answered <code>200</code> with an empty body, and nothing is written (§5);</li>
+<li>an entry whose <code>ServiceTypeIdentifier</code> holds anything other than the identifier the verifier will ask for is
+  accepted, stored and signed, and <strong>the TCR will never find it</strong> (§1);</li>
+<li>the signed VC it emits carries an <code>expirationDate</code> already in the past (§8) and is still served as valid.</li>
+</ul>
+<p><strong>Consequence for the WP12 pipeline step:</strong> the HTTP status of the publish call is not a confirmation. After
+every <code>PUT</code>/<code>PATCH</code> the pipeline must re-read <code>GET /{fw}/trust-list</code> and assert that the entry with the stable UUID
+exists, that <code>ServiceTypeIdentifier</code> equals the connector's identifier, and that the measurement field carries the
+value just deployed. Only that read-back is evidence of publication; see §7.1.</p>
+<h2 id="3-what-tspa-is-in-the-zt-35-flow">3. What TSPA is in the ZT-35 flow<a class="headerlink" href="#3-what-tspa-is-in-the-zt-35-flow" title="Permanent link">&para;</a></h2>
+<p>ZT-35: each attested-TLS endpoint's CI/CD pipeline pre-generates its measurement (TEEM / launch digest)
+and uploads it to TRAIN on deployment; the peer fetches the expected value from TRAIN (via the TCR) at
+connection time. TSPA is the <strong>write side</strong> of TRAIN: it owns the trust framework, the trust list and the
+signed Verifiable Credential (VC) that wraps the list. The TCR is the read side.</p>
+<h2 id="4-endpoints-all-under-httphost16003tspa-servicetspav1">4. Endpoints (all under <code>http://&lt;host&gt;:16003/tspa-service/tspa/v1</code>)<a class="headerlink" href="#4-endpoints-all-under-httphost16003tspa-servicetspav1" title="Permanent link">&para;</a></h2>
+<p>The <code>tspa-service</code> prefix is the WAR context path (Dockerfile: <code>tspa-service.war</code>); the REST prefix is
+<code>@RequestMapping("tspa/v1")</code> on both controllers.</p>
+<table>
+<thead>
+<tr>
+<th>Step</th>
+<th>Method + path</th>
+<th>Auth</th>
+<th>Purpose</th>
+<th>Notes</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>1</td>
+<td><code>PUT /trustframework/{fw}</code></td>
+<td><code>enrolltf</code></td>
+<td>Register the framework and publish its PTR to DNS</td>
+<td><strong>Calls the Zone Manager first</strong> (<code>ZoneManager.publishTrustSchemes</code>) and only then stores locally. Needs a reachable Zone Manager. Body: <code>{"schemes":["&lt;fw&gt;"]}</code></td>
+</tr>
+<tr>
+<td>2</td>
+<td><code>PUT /init/json/{fw}/trust-list</code> (or <code>/init/xml/...</code>)</td>
+<td><code>enrolltf</code></td>
+<td>Create the empty trust list and its first signed VC</td>
+<td>Fails with <code>FileExistsException</code> if the list already exists. Does <strong>not</strong> require step 1 locally (only checks the store).</td>
+</tr>
+<tr>
+<td>3</td>
+<td><code>PUT /{fw}/trust-list/tsp</code></td>
+<td><code>enrolltf</code></td>
+<td><strong>Add one entry (TSP)</strong> — the write for a new endpoint</td>
+<td>201 on success, 400 with schema errors, 404 if the list does not exist, error if the UUID already exists</td>
+</tr>
+<tr>
+<td>4</td>
+<td><code>PATCH /{fw}/trust-list/tsp/{uuid}</code></td>
+<td><code>enrolltf</code></td>
+<td><strong>Replace an entry</strong> — the write for a redeploy with a new measurement</td>
+<td>UUID in URL must equal UUID in body</td>
+</tr>
+<tr>
+<td>5</td>
+<td><code>DELETE /{fw}/trust-list/tsp/{uuid}</code></td>
+<td><code>enrolltf</code></td>
+<td>Remove an entry</td>
+<td></td>
+</tr>
+<tr>
+<td>r</td>
+<td><code>GET /{fw}/trust-list</code></td>
+<td>none</td>
+<td>Raw list (JSON or XML as initialised)</td>
+<td></td>
+</tr>
+<tr>
+<td>r</td>
+<td><code>GET /{fw}/vc/trust-list</code></td>
+<td>none</td>
+<td>Signed VC of the list — what the TCR consumes</td>
+<td></td>
+</tr>
+<tr>
+<td>opt</td>
+<td><code>PUT /{fw}/did</code> · <code>DELETE /{fw}/did</code></td>
+<td><code>enrolltf</code></td>
+<td>Publish/remove the URI(DID) record via Zone Manager</td>
+<td>did:web triggers a well-known check</td>
+</tr>
+<tr>
+<td>opt</td>
+<td><code>DELETE /trustframework/{fw}</code> · <code>DELETE /{fw}/trust-list</code></td>
+<td><code>enrolltf</code></td>
+<td>Teardown</td>
+<td></td>
+</tr>
+</tbody>
+</table>
+<p>Health: <code>GET /tspa-service/actuator/health</code> (public).</p>
+<p>Read side, for orientation (TCR <code>eclipse-xfsc/train-trust-validator</code>, commit <code>e27b1ed</code> of 2025-05-25, read 2026-09-18): <code>POST /tcr/v1/resolve</code>
+{<code>issuer</code>, <code>trustSchemePointers</code>[, <code>endpointTypes</code>]} → DNS <code>PTR</code> at <code>_scheme._trust.&lt;pointer&gt;</code> → <code>URI</code> records →
+DIDs → DID document service endpoints → trust-list VC (<code>trustlistURI</code>, <code>hash</code>) → list fetched, hash recomputed,
+signature verified → entry with <code>ServiceTypeIdentifier == issuer</code> returned. DNSSEC validation is optional
+(<code>tcr.dns.dnssec.enabled</code>). A Go client library ships in the TCR repo (<code>clients/go</code>).</p>
+<h2 id="5-auth-model">5. Auth model<a class="headerlink" href="#5-auth-model" title="Permanent link">&para;</a></h2>
+<ul>
+<li>Bearer JWT, validated as an OAuth2 resource server against <code>spring.security.oauth2.resourceserver.jwt.issuer-uri</code>
+  (<code>application.yml</code>; upstream default points at a Fraunhofer realm — must be overridden per deployment).</li>
+<li>Authority required: <strong><code>enrolltf</code></strong>. Enforced twice: <code>SecurityConfig</code> matchers for <code>PUT</code>/<code>PATCH /tspa/v1/**</code>
+  (lines 72–73) and <code>@PreAuthorize("hasAuthority('enrolltf')")</code> on every mutating controller method,
+  <strong>including all DELETEs</strong> (TrustListPublicationController lines 179, 275; TrustFrameWorkPublishController 73, 138).
+  Verified at runtime: <code>DELETE .../tsp/{uuid}</code> without a token did not remove the entry (evidence §7a → §7b: the
+  authenticated DELETE afterwards still found and removed it). No unauthenticated deletion path was found.</li>
+<li>Where the authority comes from: <code>SecurityConfig</code> reads <code>realm_access.roles</code> from the token and maps each role
+  1:1 to an authority (no <code>ROLE_</code> prefix). So <code>enrolltf</code> must be a <strong>Keycloak realm role</strong> on the caller
+  (a client role is not read). The bundled realm export has <code>enrolltf</code> as a realm role granted to the
+  service account of the confidential client <code>xfsctest</code> — the CI/CD pipeline shape is therefore
+  <code>client_credentials</code> with a client whose service account holds <code>enrolltf</code>.</li>
+<li>GET endpoints are public (<code>anyRequest().permitAll()</code>).</li>
+<li><strong>Observed on the local instance (see evidence.md §6b):</strong></li>
+</ul>
+<table>
+<thead>
+<tr>
+<th>Caller</th>
+<th>Result</th>
+<th>Trust list</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>no <code>Authorization</code> header</td>
+<td><strong>200 with an empty body</strong> — controller never runs (no log line, list unchanged)</td>
+<td>unchanged</td>
+</tr>
+<tr>
+<td>malformed token</td>
+<td>401 <code>{"error":"...Malformed token","status":401}</code></td>
+<td>unchanged</td>
+</tr>
+<tr>
+<td>valid token, <code>enrolltf</code> only as a <strong>client</strong> role (testuser)</td>
+<td>403, empty body</td>
+<td>unchanged</td>
+</tr>
+<tr>
+<td>valid token, <code>enrolltf</code> as <strong>realm</strong> role (service account of <code>xfsctest</code>)</td>
+<td>201 / 200</td>
+<td>written</td>
+</tr>
+</tbody>
+</table>
+<p>The 200-on-missing-token is an upstream quirk, not a bypass: <code>RestAuthenticationEntryPoint</code> hands the
+  <code>InsufficientAuthenticationException</code> to the MVC <code>HandlerExceptionResolver</code>, and <code>CentralControllerAdvisory</code>
+  only maps <code>InvalidBearerTokenException</code> (→ 401); nothing writes a status for the missing-token case, so Tomcat
+  returns the default 200 with no body. A pipeline must therefore <strong>not</strong> treat 2xx as proof of publication —
+  check the JSON body (<code>{"MapN":{"message":"TSP published...","status":201}}</code>) or re-read the list.
+- Token <code>iss</code> must match <code>issuer-uri</code> byte-for-byte (standard Spring behaviour) — relevant when Keycloak is
+  reached under different hostnames from the pipeline and from TSPA.</p>
+<h2 id="6-payload-shape-tsp-one-entry-one-connector">6. Payload shape (TSP = one entry = one connector)<a class="headerlink" href="#6-payload-shape-tsp-one-entry-one-connector" title="Permanent link">&para;</a></h2>
+<p>Validated against <code>src/main/resources/templates/TSPSchema.json</code> before anything is written (400 with the
+validation messages otherwise). Root <code>TrustServiceProvider</code> with <strong>required</strong> <code>UUID</code>, <code>TSPName</code>,
+<code>TSPTradeName</code>, <code>TSPInformation</code> (Address with full PostalAddress, TSPCertificationList, TSPEntityIdentifierList,
+TSPInformationURI) and <code>TSPServices.TSPService[]</code> (each with ServiceDigitalIdentity.DigitalId
+{X509Certificate, DID} and a fully populated AdditionalServiceInformation). The schema is deep-required but has
+no <code>additionalProperties: false</code>, so extra keys pass validation — <strong>and are then dropped</strong>: the entry is parsed
+into the shared Java model (<code>train-shared</code>, <code>TSPCustomType</code> and children) and re-serialised, so anything the model
+does not know is not stored (tested 2026-09-18 with extra keys at three levels: 201, nothing persisted).</p>
+<p><strong>There is no measurement/hash field in the schema.</strong> Candidate carriers, all free-form <code>Type</code>/<code>Value</code> pairs:
+<code>TSPInformation.TSPCertificationList.TSPCertification[]</code> (used in the local round-trip as
+<code>{"Type":"TEEM-sha256","Value":"&lt;hex&gt;"}</code>), <code>TSPEntityIdentifierList</code>, or <code>ServiceDigitalIdentity.DigitalId.X509Certificate</code>.
+Which one the TCR-side policy will read is a design decision (see §9).</p>
+<h2 id="7-idempotency-and-update-semantics-from-trustlistpublicationserviceimpl">7. Idempotency and update semantics (from <code>TrustListPublicationServiceImpl</code>)<a class="headerlink" href="#7-idempotency-and-update-semantics-from-trustlistpublicationserviceimpl" title="Permanent link">&para;</a></h2>
+<ul>
+<li><code>PUT .../tsp</code> is <strong>create-only</strong>: a second PUT with a UUID already in the list is rejected
+  (<code>"TSP with UUID ... already exists"</code>, line 611–613). A PUT body carrying the same UUID twice is also rejected (584).</li>
+<li>Redeploy with a new measurement must therefore be <code>PATCH .../tsp/{uuid}</code> with the <strong>same stable UUID</strong>
+  (URL and body UUID must match, line 757), or <code>DELETE</code> + <code>PUT</code>.</li>
+<li><code>PUT /init/.../trust-list</code> is create-only as well (<code>"Trustlist is already Existing"</code>, line 261).</li>
+<li>Every mutation rewrites the whole list file and re-derives the VC; there is no ETag/version precondition
+  and no request-level idempotency key. Concurrent pipelines writing the same list race on the file.</li>
+<li>Storage is <code>INTERNAL</code> (files under <code>/tmp/train-tspa/store/...</code>) or <code>IPFS</code>, per <code>storage.type.trustlist</code>.</li>
+</ul>
+<h3 id="71-what-this-means-for-the-wp12-pipeline-step-design-requirement-not-a-note">7.1 What this means for the WP12 pipeline step (design requirement, not a note)<a class="headerlink" href="#71-what-this-means-for-the-wp12-pipeline-step-design-requirement-not-a-note" title="Permanent link">&para;</a></h3>
+<p>Every deployment republishes the <em>same</em> endpoint with a <em>new</em> measurement, and <code>PUT .../tsp</code> rejects an existing
+UUID. So "upload the hash to TRAIN on deployment" cannot be a single PUT. The pipeline step must:</p>
+<ol>
+<li><strong>Use a stable UUID per endpoint</strong> (e.g. UUIDv5 over <code>cluster + workload</code>), never a fresh random one per run;
+   otherwise the list accumulates stale measurements and the verifier has no way to know which is current.</li>
+<li><strong>Update, not create:</strong> <code>PATCH /{fw}/trust-list/tsp/{uuid}</code> with the full entry (the body's UUID must equal the
+   URL's). Use <code>PUT</code> only on first publication, i.e. <code>PATCH</code> → on 400/404 for a missing entry fall back to <code>PUT</code>
+   (or <code>PUT</code> → on 400 "already exists" fall back to <code>PATCH</code>). <code>DELETE</code>+<code>PUT</code> also works but leaves a window
+   with no entry, which would make the peer refuse connections (ZT-70) during the deploy.</li>
+<li><strong>Verify by reading back</strong>, not by HTTP status: a missing token yields 200 with an empty body (§5), and
+   success bodies are JSON with <code>"status":201/200</code>. Read <code>GET /{fw}/trust-list</code> (or the VC's <code>hash</code>) after writing.</li>
+<li><strong>Serialize writers per framework:</strong> every mutation rewrites the whole list file with no version precondition;
+   two clusters deploying at once race. One publishing job per framework, or a lock in the pipeline.</li>
+<li><strong>Expect the list to exist:</strong> <code>PUT .../tsp</code> returns 404 if <code>/init/json/{fw}/trust-list</code> was never run; list
+   creation is a one-time federation-setup step, not a per-deploy step.</li>
+</ol>
+<h2 id="8-running-it-locally-what-was-needed-beyond-upstreams-compose">8. Running it locally (what was needed beyond upstream's compose)<a class="headerlink" href="#8-running-it-locally-what-was-needed-beyond-upstreams-compose" title="Permanent link">&para;</a></h2>
+<p><code>docker compose up -d --build</code> from the TSPA repo root, plus <code>scripts/verify-tspa-api/docker-compose.override.yml</code>, which:
+1. sets <code>SPRING_APPLICATION_JSON</code> on <code>tspa-service</code> to point <code>issuer-uri</code> at the compose Keycloak
+   (<code>http://keycloak:8080/realms/gxfs-dev-test</code>), switch <code>trustlist.vc.signer.type</code> to <code>INTERNAL</code>
+   (upstream default is an external TSA signer) and set <code>zonemanager.query.status=false</code>;
+2. pins Keycloak to <code>26.0</code> and disables its curl-based healthcheck (no curl in the image);
+3. <strong>Build trap:</strong> the trust-list model classes (<code>eu.xfsc.train.tspa.model.trustlist.*</code>) live in a separate repo,
+   <code>eclipse-xfsc/train-shared</code>, wired in via <code>.gitmodules</code> (path <code>shared</code>) and <code>build-helper-maven-plugin</code>
+   (<code>shared/src</code>). The GitHub copy has the <code>.gitmodules</code> entry but <strong>no gitlink in the index</strong>, so neither a plain
+   clone nor <code>--recurse-submodules</code> fetches it and <code>mvn package</code> fails with <code>package ...model.trustlist does not exist</code>.
+   Fix: <code>git clone --depth 1 https://github.com/eclipse-xfsc/train-shared.git shared</code> before building.</p>
+<p>Token is requested from <strong>inside</strong> the docker network so that <code>iss</code> equals the issuer TSPA validates.
+No Java/Maven needed on the host: the Dockerfile builds the WAR in a Maven stage.</p>
+<p><strong>To reproduce the evidence</strong> (from <code>scripts/verify-tspa-api/</code>):</p>
+<pre><code class="language-bash">git clone --depth 1 https://github.com/eclipse-xfsc/train-trust-framework-manager.git tspa
+git clone --depth 1 https://github.com/eclipse-xfsc/train-shared.git tspa/shared
+cp docker-compose.override.yml tspa/ &amp;&amp; (cd tspa &amp;&amp; docker compose up -d --build)   # first build ≈ 15 min
+TSPA_REPO=./tspa bash roundtrip.sh      # writes evidence.md and bodies/ next to the script
+</code></pre>
+<p><code>scripts/verify-tspa-api/tcr-findings/tcr-findings.md</code> holds an out-of-scope finding about the TCR; it is not
+part of this ticket's evidence.</p>
+<h3 id="runtime-observations-worth-knowing-before-the-client-instance">Runtime observations worth knowing before the client instance<a class="headerlink" href="#runtime-observations-worth-knowing-before-the-client-instance" title="Permanent link">&para;</a></h3>
+<ul>
+<li><code>GET /actuator/health</code> returns <strong>503 DOWN</strong> whenever the Zone Manager is unreachable: <code>ZonemanagerHealthCheck</code>
+  probes <code>${zonemanager.Address}/status</code> unconditionally (the <code>zonemanager.query.status</code> flag is not read by it).
+  The write API keeps working regardless. Relevant for Kubernetes readiness probes in the Helm chart (WP12).</li>
+<li><code>PUT /trustframework/{fw}</code> failed with 500 locally because TSPA first fetches a Zone Manager token from the
+  upstream default <code>zonemanager.token-server-url</code> (essif.iao.fraunhofer.de), whose TLS certificate <strong>expired on
+  2026-02-27</strong> (<code>CertificateExpiredException</code> in the log). The upstream defaults are dead; the client's values are required.</li>
+<li>The signed VC (<code>GET /{fw}/vc/trust-list</code>) is built from <code>templates/VC.json</code>; TSPA overwrites <code>issuer</code>, <code>id</code>
+  (<code>&lt;issuer&gt;#issuer-lists</code>), <code>issuanceDate</code>, <code>credentialSubject.trustlistURI</code> (from <code>request.get.mapping</code>) and
+  <code>credentialSubject.hash</code> (multihash of the list), and signs with <code>JsonWebSignature2020</code>/EdDSA using
+  <code>verificationMethod = &lt;issuer&gt;#&lt;signer.key&gt;</code>. <strong><code>expirationDate</code> is never set and stays at the template's
+  <code>2025-06-15</code></strong>, i.e. already in the past; <code>credentialSubject.id</code> is the template's static <code>uuid:2632367287r82729</code>.
+  Verified 2026-09-18 in TCR source: the TCR does not evaluate <code>expirationDate</code> when resolving the trust-list VC,
+  so this does not break the TCR path; other consumers of the VC may differ.</li>
+<li><code>request.get.mapping</code> must be the public base URL of TSPA in a real deployment: the TCR follows
+  <code>credentialSubject.trustlistURI</code> to fetch the list.</li>
+</ul>
+<h2 id="9-adr-011-blocked-external-what-is-closed-and-what-remains">9. ADR-011 "Blocked-external" — what is closed and what remains<a class="headerlink" href="#9-adr-011-blocked-external-what-is-closed-and-what-remains" title="Permanent link">&para;</a></h2>
+<p>ADR-011 (2026-09-09) places reference measurements (launch digests) in its artifact class 3 and states:
+<em>"Publication path = TSPA (Trust Framework Manager) + DNS zone manager — the TCR is the read side. TSPA's exact
+publish API is UNVERIFIED (Blocked-external-verify): read the TSPA repo / ask the client before building E02-09's
+task on it; until then that task is not Ready."</em></p>
+<p>The "read the TSPA repo" half is done by this document. <strong>Proposed replacement for that sentence in ADR-011:</strong></p>
+<blockquote>
+<p>TSPA's publish API is <strong>VERIFIED against source and a local instance (FZTD-162, 2026-09-16)</strong>:
+<code>PUT /tspa/v1/{fw}/trust-list/tsp</code> (create) and <code>PATCH .../tsp/{uuid}</code> (update), Bearer JWT with Keycloak
+realm role <code>enrolltf</code>, entry schema <code>TSPSchema.json</code>, create-only PUT. Two items remain before E02-09 is Ready:
+<strong>(a) Open-decision:</strong> TSPA's entry schema has no measurement field — the carrier for the launch digest
+(candidates A–C in FZTD-162 §1) must be chosen together with whoever consumes it on the read side
+(TCR → connector/cmcd comparison, ZT-64/ZT-67); <strong>(b) Blocked-external (EXT-C-XFSC):</strong> client TSPA URL,
+framework name, OIDC client with <code>enrolltf</code>, Zone Manager reachability, deployed TSPA version.</p>
+</blockquote>
+<p>Note for (a): ADR-011's chain is <em>Git-versioned metadata → pipeline-signed → per-zone CMC estserver → cmcd, with
+expected values published into TRAIN</em>. The value published to TRAIN must therefore be <strong>derived from the same
+signed reference metadata</strong> the pipeline already produces for cmcd, not computed separately, or the two sources
+of truth can disagree. Which representation of that metadata goes into the trust-list entry is the decision.</p>
+<p>Closed now (no client instance needed): endpoint list, HTTP methods, auth mechanism and required authority,
+payload schema, error/idempotency semantics, and a working local round-trip.</p>
+<p>Still open — <strong>first, and not external:</strong>
+- <strong>decision</strong>: which TSP field carries the TEEM and what the TCR/policy side reads (candidates in §1). This is a
+  project convention to agree with the connector/attestation owner; nothing in TSPA forces it.</p>
+<p>Still external (needs EXT-C-XFSC / the client's XFSC stack):
+- the client's TSPA base URL and framework name;
+- an OIDC issuer + confidential client whose service account has realm role <code>enrolltf</code>, provisioned for the pipeline;
+- Zone Manager availability (framework/DID publication cannot be exercised offline);
+- confirmation that the client runs this same TSPA version (schema and paths could differ).</p>
+<h2 id="10-round-trip-evidence-local-2026-09-16-re-run-2026-09-18">10. Round-trip evidence (local, 2026-09-16; re-run 2026-09-18)<a class="headerlink" href="#10-round-trip-evidence-local-2026-09-16-re-run-2026-09-18" title="Permanent link">&para;</a></h2>
+<p>Full request/response log in <code>scripts/verify-tspa-api/evidence.md</code>, generated by <code>scripts/verify-tspa-api/roundtrip.sh</code> against <code>tspa-service</code> built from
+commit <code>ecd5fdc</code> (+ <code>train-shared</code> <code>6a0abe4</code>), Keycloak 26.0 with the bundled realm, framework <code>facis-ztd.local</code>.</p>
+<table>
+<thead>
+<tr>
+<th>#</th>
+<th>Call</th>
+<th>Status</th>
+<th>Meaning</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>2b</td>
+<td>PUT tsp before the list exists (token)</td>
+<td>404</td>
+<td>order matters: list first, then entries</td>
+</tr>
+<tr>
+<td>3</td>
+<td>PUT trustframework (token)</td>
+<td>500</td>
+<td>needs Zone Manager (external)</td>
+</tr>
+<tr>
+<td>4a</td>
+<td>PUT init/json trust-list (token)</td>
+<td>201</td>
+<td>list + first signed VC created</td>
+</tr>
+<tr>
+<td>4b</td>
+<td>PUT tsp, UUID U, <code>TEEM-sha256 = 1111…</code> (token)</td>
+<td>201</td>
+<td><strong>measurement written</strong></td>
+</tr>
+<tr>
+<td>4c</td>
+<td>GET trust-list</td>
+<td>200</td>
+<td><strong><code>1111…</code> read back</strong></td>
+</tr>
+<tr>
+<td>5a</td>
+<td>PUT tsp again, same UUID (token)</td>
+<td>400 <code>already exists</code></td>
+<td>PUT is create-only</td>
+</tr>
+<tr>
+<td>5b</td>
+<td>PATCH tsp/U, <code>TEEM-sha256 = 2222…</code> (token)</td>
+<td>200</td>
+<td>redeploy path</td>
+</tr>
+<tr>
+<td>5c</td>
+<td>GET trust-list</td>
+<td>200</td>
+<td><code>2222…</code> present, <code>1111…</code> gone</td>
+</tr>
+<tr>
+<td>5d</td>
+<td>PATCH tsp/other-uuid with body UUID U</td>
+<td>400</td>
+<td>URL/body UUID must match</td>
+</tr>
+<tr>
+<td>6</td>
+<td>GET vc/trust-list</td>
+<td>200</td>
+<td>signed VC, hash of the list, expired <code>expirationDate</code></td>
+</tr>
+<tr>
+<td>6b</td>
+<td>auth matrix (no token / malformed / client-role only)</td>
+<td>200-empty / 401 / 403</td>
+<td>list unchanged in all three</td>
+</tr>
+<tr>
+<td>7b</td>
+<td>DELETE tsp/U (token)</td>
+<td>200</td>
+<td>entry removed, confirmed by GET</td>
+</tr>
+</tbody>
+</table>
+<p>The value round-tripped is carried in <code>TSPInformation.TSPCertificationList.TSPCertification[]</code> as
+<code>{"Type":"TEEM-sha256","Value":"&lt;hex&gt;"}</code> — a placement chosen for the test, not yet a project decision (§6, §9).</p>
+<p>Re-run 2026-09-18 after correcting the payloads to put the connector's DID in <code>ServiceTypeIdentifier</code> (the TCR
+lookup key, §1): every status and check identical to 2026-09-16; <code>scripts/verify-tspa-api/evidence.md</code> is from this run and its steps
+4c/5c carry an explicit check that the read-back entry has <code>ServiceTypeIdentifier = did:web:connector-b.facis-ztd.local</code>.</p>
+<p><strong>Scope of this evidence.</strong> What the round-trip proves is that TSPA accepts, stores, updates, signs and returns the
+entry. <strong>That the TCR finds the entry by that value is confirmed by reading the TCR source
+(<code>ResolutionService.findIssuerProvider</code>), not by execution</strong>, because the stock TCR does not run against this
+instance without additional infrastructure. Concretely: the VC issuer TSPA uses by default,
+<code>did:web:essif.iao.fraunhofer.de</code>, no longer has a DID document (HTTP 404), so the TCR cannot verify the signature;
+and switching the issuer to a self-contained <code>did:key</code> makes the TCR's <code>resolveDid</code> fail with a null
+<code>getServices()</code> for documents without a <code>service</code> section (HTTP 500). An exploratory run with a locally patched
+TCR exists outside this ticket's scope and is recorded in <code>scripts/verify-tspa-api/tcr-findings/tcr-findings.md</code>; it is not evidence for the
+"done when" criteria, which are all on the write side.</p>
+              
+            </div>
+          </div><footer>
+    <div class="rst-footer-buttons" role="navigation" aria-label="Footer Navigation">
+        <a href="../api-docs/" class="btn btn-neutral float-left" title="API documentation"><span class="icon icon-circle-arrow-left"></span> Previous</a>
+        <a href="../bdd/" class="btn btn-neutral float-right" title="BDD acceptance">Next <span class="icon icon-circle-arrow-right"></span></a>
+    </div>
+
+  <hr/>
+
+  <div role="contentinfo">
+    <!-- Copyright etc -->
+      <p>Apache-2.0</p>
+  </div>
+
+  Built with <a href="https://www.mkdocs.org/">MkDocs</a> using a <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a> provided by <a href="https://readthedocs.org">Read the Docs</a>.
+</footer>
+          
+        </div>
+      </div>
+
+    </section>
+
+  </div>
+
+  <div class="rst-versions" role="note" aria-label="Versions">
+  <span class="rst-current-version" data-toggle="rst-current-version">
+    
+        <span>
+          <a href="https://github.com/eclipse-xfsc/facis-zero-trust-demonstrator" class="fa fa-github" style="color: #fcfcfc"> GitHub</a>
+        </span>
+    
+    
+      <span><a href="../api-docs/" style="color: #fcfcfc">&laquo; Previous</a></span>
+    
+    
+      <span><a href="../bdd/" style="color: #fcfcfc">Next &raquo;</a></span>
+    
+  </span>
+</div>
+    <script src="../js/jquery-3.6.0.min.js"></script>
+    <script>var base_url = "..";</script>
+    <script src="../js/theme_extra.js"></script>
+    <script src="../js/theme.js"></script>
+      <script src="../search/main.js"></script>
+    <script>
+        jQuery(function () {
+            SphinxRtdTheme.Navigation.enable(true);
+        });
+    </script>
+
+</body>
+</html>
