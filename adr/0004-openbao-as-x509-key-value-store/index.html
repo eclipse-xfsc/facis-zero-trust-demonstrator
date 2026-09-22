@@ -1,0 +1,243 @@
+<!DOCTYPE html>
+<html class="writer-html5" lang="en" >
+<head>
+    <meta charset="utf-8" />
+    <meta http-equiv="X-UA-Compatible" content="IE=edge" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+      <link rel="shortcut icon" href="../../img/favicon.ico" />
+    <title>0004 OpenBao as X.509 key-value store - FACIS Zero Trust Demonstrator</title>
+    <link rel="stylesheet" href="../../css/theme.css" />
+    <link rel="stylesheet" href="../../css/theme_extra.css" />
+        <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.8.0/styles/github.min.css" />
+    
+      <script>
+        // Current page data
+        var mkdocs_page_name = "0004 OpenBao as X.509 key-value store";
+        var mkdocs_page_input_path = "adr/0004-openbao-as-x509-key-value-store.md";
+        var mkdocs_page_url = null;
+      </script>
+    
+    <!--[if lt IE 9]>
+      <script src="../../js/html5shiv.min.js"></script>
+    <![endif]-->
+      <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.8.0/highlight.min.js"></script>
+      <script>hljs.highlightAll();</script> 
+</head>
+
+<body class="wy-body-for-nav" role="document">
+
+  <div class="wy-grid-for-nav">
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side stickynav">
+    <div class="wy-side-scroll">
+      <div class="wy-side-nav-search">
+          <a href="../.." class="icon icon-home"> FACIS Zero Trust Demonstrator
+        </a><div role="search">
+  <form id ="rtd-search-form" class="wy-form" action="../../search.html" method="get">
+      <input type="text" name="q" placeholder="Search docs" aria-label="Search docs" title="Type search term here" />
+  </form>
+</div>
+      </div>
+
+      <div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../..">Home</a>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../../features/">Features and journeys</a>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../../architecture/">Architecture</a>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../../usage/">Using the demonstrator</a>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../../deployment/">Deployment</a>
+                </li>
+              </ul>
+              <p class="caption"><span class="caption-text">Environments</span></p>
+              <ul>
+                  <li class="toctree-l1"><a class="reference internal" href="../../environments/">Overview</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../environments/osc/">T-Systems OSC</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../environments/ionos/">IONOS Cloud</a>
+                  </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../../packaging/">Packaging and containers</a>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../../flows/">Orchestrated flows</a>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../../keycloak/">Keycloak integration</a>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../../api-docs/">API documentation</a>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../../bdd/">BDD acceptance</a>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../../ci-cd/">CI/CD</a>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../../troubleshooting/">Troubleshooting</a>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../../dependencies/">OSS dependencies</a>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../../specifications/">Specification changes</a>
+                </li>
+              </ul>
+              <p class="caption"><span class="caption-text">Architecture decisions</span></p>
+              <ul class="current">
+                  <li class="toctree-l1"><a class="reference internal" href="../">Overview</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../0001-service-mesh-mode-istio-ambient-with-cilium/">0001 Service mesh mode</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../0002-gatekeeper-external-data-provider-for-cosign-verification/">0002 Gatekeeper external data provider</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../0003-oauth2-authorisation-surface-in-the-go-connector/">0003 OAuth2 surface in the Go connector</a>
+                  </li>
+                  <li class="toctree-l1 current"><a class="reference internal current" href="#">0004 OpenBao as X.509 key-value store</a>
+    <ul class="current">
+    <li class="toctree-l2"><a class="reference internal" href="#context">Context</a>
+    </li>
+    <li class="toctree-l2"><a class="reference internal" href="#decision">Decision</a>
+    </li>
+    <li class="toctree-l2"><a class="reference internal" href="#consequences">Consequences</a>
+    </li>
+    <li class="toctree-l2"><a class="reference internal" href="#references">References</a>
+    </li>
+    </ul>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../0005-three-cluster-reading-of-the-target-environment/">0005 Three-cluster target environment</a>
+                  </li>
+              </ul>
+      </div>
+    </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap">
+      <nav class="wy-nav-top" role="navigation" aria-label="Mobile navigation menu">
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="../..">FACIS Zero Trust Demonstrator</a>
+        
+      </nav>
+      <div class="wy-nav-content">
+        <div class="rst-content"><div role="navigation" aria-label="breadcrumbs navigation">
+  <ul class="wy-breadcrumbs">
+    <li><a href="../.." class="icon icon-home" aria-label="Docs"></a></li>
+          <li class="breadcrumb-item">Architecture decisions</li>
+      <li class="breadcrumb-item active">0004 OpenBao as X.509 key-value store</li>
+    <li class="wy-breadcrumbs-aside">
+          <a href="https://github.com/eclipse-xfsc/facis-zero-trust-demonstrator/edit/main/docs/adr/0004-openbao-as-x509-key-value-store.md" class="icon icon-github"> Edit on GitHub</a>
+    </li>
+  </ul>
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+            <div class="section" itemprop="articleBody">
+              
+                <h1 id="adr-0004-openbao-as-the-x509-key-value-store-under-zt-11">ADR-0004: OpenBao as the X.509 key-value store under ZT-11<a class="headerlink" href="#adr-0004-openbao-as-the-x509-key-value-store-under-zt-11" title="Permanent link">&para;</a></h1>
+<ul>
+<li><strong>Status:</strong> Accepted, pending FACIS licence decision</li>
+<li><strong>Date:</strong> 2026-09-08</li>
+<li><strong>Deciders:</strong> Project Leader (Robert Koning), Technical Design Authority (Kevin Kupilas)</li>
+<li><strong>Requirement basis:</strong> SRS ZT-11 (spelled "ObenBao" in the SRS)</li>
+<li><strong>Follow-up requirements:</strong> F-05, F-07</li>
+</ul>
+<h2 id="context">Context<a class="headerlink" href="#context" title="Permanent link">&para;</a></h2>
+<p>ZT-11 prescribes a key-value store for the X.509 storage path. The component named in the SRS is OpenBao,
+which is licensed MPL-2.0. Every other runtime component in the baseline is Apache-2.0, and the Technical
+Development Requirements require a formal written exception for any non-Apache licence.</p>
+<h2 id="decision">Decision<a class="headerlink" href="#decision" title="Permanent link">&para;</a></h2>
+<p><strong>OpenBao is used as prescribed by ZT-11.</strong> It is deployed as a cluster-internal service, consumed unmodified
+through its API, and never linked into a project deliverable. A formal written licence exception has been
+submitted to FACIS (Licence Exception Notice v1.0, follow-up requirement F-07).</p>
+<p>The exact version and deployment approach remain subject to written FACIS confirmation and to verification
+against the current Eclipse approved-licences list.</p>
+<h2 id="consequences">Consequences<a class="headerlink" href="#consequences" title="Permanent link">&para;</a></h2>
+<ul>
+<li>Positive: the prescribed component is used, so no deviation from the SRS has to be argued at acceptance.</li>
+<li>Negative: the delivery baseline depends on a FACIS decision that is not yet given. If the exception is
+  declined, a replacement for the ZT-11 storage path must be agreed with FACIS, since the component itself is
+  prescribed — this is a scope question, not an implementation choice, and would be escalated under the change
+  rule in Project Plan v1.7, section 1.</li>
+<li>MPL-2.0 is file-level copyleft. Because OpenBao is deployed as a separate unmodified service, its obligations
+  do not extend to newly developed project components, which remain Apache-2.0 under SRS 2.3.2.</li>
+</ul>
+<h2 id="references">References<a class="headerlink" href="#references" title="Permanent link">&para;</a></h2>
+<ul>
+<li>SRS ZT-11</li>
+<li>Licence Exception Notice v1.0</li>
+<li>Project Plan v1.7, section 4 — OpenBao</li>
+</ul>
+              
+            </div>
+          </div><footer>
+    <div class="rst-footer-buttons" role="navigation" aria-label="Footer Navigation">
+        <a href="../0003-oauth2-authorisation-surface-in-the-go-connector/" class="btn btn-neutral float-left" title="0003 OAuth2 surface in the Go connector"><span class="icon icon-circle-arrow-left"></span> Previous</a>
+        <a href="../0005-three-cluster-reading-of-the-target-environment/" class="btn btn-neutral float-right" title="0005 Three-cluster target environment">Next <span class="icon icon-circle-arrow-right"></span></a>
+    </div>
+
+  <hr/>
+
+  <div role="contentinfo">
+    <!-- Copyright etc -->
+      <p>Apache-2.0</p>
+  </div>
+
+  Built with <a href="https://www.mkdocs.org/">MkDocs</a> using a <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a> provided by <a href="https://readthedocs.org">Read the Docs</a>.
+</footer>
+          
+        </div>
+      </div>
+
+    </section>
+
+  </div>
+
+  <div class="rst-versions" role="note" aria-label="Versions">
+  <span class="rst-current-version" data-toggle="rst-current-version">
+    
+        <span>
+          <a href="https://github.com/eclipse-xfsc/facis-zero-trust-demonstrator" class="fa fa-github" style="color: #fcfcfc"> GitHub</a>
+        </span>
+    
+    
+      <span><a href="../0003-oauth2-authorisation-surface-in-the-go-connector/" style="color: #fcfcfc">&laquo; Previous</a></span>
+    
+    
+      <span><a href="../0005-three-cluster-reading-of-the-target-environment/" style="color: #fcfcfc">Next &raquo;</a></span>
+    
+  </span>
+</div>
+    <script src="../../js/jquery-3.6.0.min.js"></script>
+    <script>var base_url = "../..";</script>
+    <script src="../../js/theme_extra.js"></script>
+    <script src="../../js/theme.js"></script>
+      <script src="../../search/main.js"></script>
+    <script>
+        jQuery(function () {
+            SphinxRtdTheme.Navigation.enable(true);
+        });
+    </script>
+
+</body>
+</html>

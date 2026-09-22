@@ -1,0 +1,374 @@
+<!DOCTYPE html>
+<html class="writer-html5" lang="en" >
+<head>
+    <meta charset="utf-8" />
+    <meta http-equiv="X-UA-Compatible" content="IE=edge" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+      <link rel="shortcut icon" href="../img/favicon.ico" />
+    <title>Troubleshooting - FACIS Zero Trust Demonstrator</title>
+    <link rel="stylesheet" href="../css/theme.css" />
+    <link rel="stylesheet" href="../css/theme_extra.css" />
+        <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.8.0/styles/github.min.css" />
+    
+      <script>
+        // Current page data
+        var mkdocs_page_name = "Troubleshooting";
+        var mkdocs_page_input_path = "troubleshooting.md";
+        var mkdocs_page_url = null;
+      </script>
+    
+    <!--[if lt IE 9]>
+      <script src="../js/html5shiv.min.js"></script>
+    <![endif]-->
+      <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.8.0/highlight.min.js"></script>
+      <script>hljs.highlightAll();</script> 
+</head>
+
+<body class="wy-body-for-nav" role="document">
+
+  <div class="wy-grid-for-nav">
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side stickynav">
+    <div class="wy-side-scroll">
+      <div class="wy-side-nav-search">
+          <a href=".." class="icon icon-home"> FACIS Zero Trust Demonstrator
+        </a><div role="search">
+  <form id ="rtd-search-form" class="wy-form" action="../search.html" method="get">
+      <input type="text" name="q" placeholder="Search docs" aria-label="Search docs" title="Type search term here" />
+  </form>
+</div>
+      </div>
+
+      <div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="..">Home</a>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../features/">Features and journeys</a>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../architecture/">Architecture</a>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../usage/">Using the demonstrator</a>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../deployment/">Deployment</a>
+                </li>
+              </ul>
+              <p class="caption"><span class="caption-text">Environments</span></p>
+              <ul>
+                  <li class="toctree-l1"><a class="reference internal" href="../environments/">Overview</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../environments/osc/">T-Systems OSC</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../environments/ionos/">IONOS Cloud</a>
+                  </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../packaging/">Packaging and containers</a>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../flows/">Orchestrated flows</a>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../keycloak/">Keycloak integration</a>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../api-docs/">API documentation</a>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../bdd/">BDD acceptance</a>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../ci-cd/">CI/CD</a>
+                </li>
+              </ul>
+              <ul class="current">
+                <li class="toctree-l1 current"><a class="reference internal current" href="#">Troubleshooting</a>
+    <ul class="current">
+    <li class="toctree-l2"><a class="reference internal" href="#reading-a-refusal">Reading a refusal</a>
+    </li>
+    <li class="toctree-l2"><a class="reference internal" href="#workload-identity-and-mesh-enrolment">Workload identity and mesh enrolment</a>
+    </li>
+    <li class="toctree-l2"><a class="reference internal" href="#admission-control-rejections">Admission control rejections</a>
+    </li>
+    <li class="toctree-l2"><a class="reference internal" href="#token-issuance-dpop-proofs-and-the-token-store">Token issuance, DPoP proofs and the token store</a>
+    </li>
+    <li class="toctree-l2"><a class="reference internal" href="#attested-channel-handshake-failures">Attested channel handshake failures</a>
+    </li>
+    <li class="toctree-l2"><a class="reference internal" href="#credential-verification-and-trust-list-staleness">Credential verification and trust-list staleness</a>
+    </li>
+    <li class="toctree-l2"><a class="reference internal" href="#logs">Logs</a>
+    </li>
+    </ul>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../dependencies/">OSS dependencies</a>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../specifications/">Specification changes</a>
+                </li>
+              </ul>
+              <p class="caption"><span class="caption-text">Architecture decisions</span></p>
+              <ul>
+                  <li class="toctree-l1"><a class="reference internal" href="../adr/">Overview</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../adr/0001-service-mesh-mode-istio-ambient-with-cilium/">0001 Service mesh mode</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../adr/0002-gatekeeper-external-data-provider-for-cosign-verification/">0002 Gatekeeper external data provider</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../adr/0003-oauth2-authorisation-surface-in-the-go-connector/">0003 OAuth2 surface in the Go connector</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../adr/0004-openbao-as-x509-key-value-store/">0004 OpenBao as X.509 key-value store</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../adr/0005-three-cluster-reading-of-the-target-environment/">0005 Three-cluster target environment</a>
+                  </li>
+              </ul>
+      </div>
+    </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap">
+      <nav class="wy-nav-top" role="navigation" aria-label="Mobile navigation menu">
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="..">FACIS Zero Trust Demonstrator</a>
+        
+      </nav>
+      <div class="wy-nav-content">
+        <div class="rst-content"><div role="navigation" aria-label="breadcrumbs navigation">
+  <ul class="wy-breadcrumbs">
+    <li><a href=".." class="icon icon-home" aria-label="Docs"></a></li>
+      <li class="breadcrumb-item active">Troubleshooting</li>
+    <li class="wy-breadcrumbs-aside">
+          <a href="https://github.com/eclipse-xfsc/facis-zero-trust-demonstrator/edit/main/docs/troubleshooting.md" class="icon icon-github"> Edit on GitHub</a>
+    </li>
+  </ul>
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+            <div class="section" itemprop="articleBody">
+              
+                <h1 id="troubleshooting">Troubleshooting<a class="headerlink" href="#troubleshooting" title="Permanent link">&para;</a></h1>
+<p>Symptoms, causes and checks for the demonstrator.</p>
+<h2 id="reading-a-refusal">Reading a refusal<a class="headerlink" href="#reading-a-refusal" title="Permanent link">&para;</a></h2>
+<p>The demonstrator is built so that a refusal explains itself. Before debugging, read the denial: the
+guard returns the layer and the rule that produced the decision, and the matching audit entry
+carries the same reason code. A refusal with a reason is working as designed — the question is
+whether the reason is the one you expected.</p>
+<h2 id="workload-identity-and-mesh-enrolment">Workload identity and mesh enrolment<a class="headerlink" href="#workload-identity-and-mesh-enrolment" title="Permanent link">&para;</a></h2>
+<table>
+<thead>
+<tr>
+<th>Symptom</th>
+<th>Likely cause</th>
+<th>Check</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>A pod starts but no traffic reaches it</td>
+<td>It never received an SVID, so the mesh has no identity to route to</td>
+<td>Look for a SPIRE registration entry matching the pod's service account; a missing entry is the answer, not a mesh problem</td>
+</tr>
+<tr>
+<td>The SVID exists but the SPIFFE ID is wrong</td>
+<td>The registration selector matches more, or less, than intended</td>
+<td>Compare the SPIFFE ID in the workload's certificate with the selector that produced it</td>
+</tr>
+<tr>
+<td>Traffic works between two pods that should not be able to talk</td>
+<td>L7 enforcement is owned by neither component on that path, or by both</td>
+<td>Check which component owns L7 for that path in the mesh configuration — <a href="../adr/0001-service-mesh-mode-istio-ambient-with-cilium/">ADR-0001</a> requires exactly one</td>
+</tr>
+<tr>
+<td>The Istio CNI plugin never chains</td>
+<td>Cilium claimed the CNI configuration exclusively</td>
+<td>Confirm Cilium is installed with <code>cni.exclusive=false</code></td>
+</tr>
+</tbody>
+</table>
+<h2 id="admission-control-rejections">Admission control rejections<a class="headerlink" href="#admission-control-rejections" title="Permanent link">&para;</a></h2>
+<table>
+<thead>
+<tr>
+<th>Symptom</th>
+<th>Likely cause</th>
+<th>Check</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>An image will not start and the event is generic</td>
+<td>Gatekeeper refused it but the reason did not reach the event</td>
+<td>Read the provider's decision, which carries the reason code; a refusal with no reason code is a defect in the provider</td>
+</tr>
+<tr>
+<td>A correctly signed image is refused</td>
+<td>The verification key does not match the key the image was signed with</td>
+<td>Compare the signing key used by the pipeline with the key material the provider was configured with</td>
+</tr>
+<tr>
+<td>An unsigned image starts</td>
+<td>The constraint is not bound to that namespace, or the provider is not reachable</td>
+<td>Confirm the constraint's scope, then confirm the provider answers — an unreachable provider must fail closed, not open</td>
+</tr>
+</tbody>
+</table>
+<h2 id="token-issuance-dpop-proofs-and-the-token-store">Token issuance, DPoP proofs and the token store<a class="headerlink" href="#token-issuance-dpop-proofs-and-the-token-store" title="Permanent link">&para;</a></h2>
+<table>
+<thead>
+<tr>
+<th>Symptom</th>
+<th>Likely cause</th>
+<th>Check</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Registration succeeds but no token is issued</td>
+<td>The presentation did not verify, so there is nothing to derive a token from</td>
+<td>Read the verification outcome first; the token failure is downstream of it</td>
+</tr>
+<tr>
+<td>A token is rejected on use</td>
+<td>The DPoP proof is not bound to the key that requested the token, or is being replayed</td>
+<td>Compare the proof's key thumbprint with the one recorded at issuance</td>
+</tr>
+<tr>
+<td>The upstream call carries the caller's own token</td>
+<td>Substitution did not happen</td>
+<td>Trace the outbound request — the caller's proof must never be forwarded onward</td>
+</tr>
+<tr>
+<td>Everything fails after a control-plane blip</td>
+<td>The token store failed closed, as designed</td>
+<td>Confirm the alert was raised; fail-secure is the correct behaviour, silence is not</td>
+</tr>
+</tbody>
+</table>
+<h2 id="attested-channel-handshake-failures">Attested channel handshake failures<a class="headerlink" href="#attested-channel-handshake-failures" title="Permanent link">&para;</a></h2>
+<table>
+<thead>
+<tr>
+<th>Symptom</th>
+<th>Likely cause</th>
+<th>Check</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>The handshake aborts</td>
+<td>The peer's measurement does not match the expected value</td>
+<td>Compare the report's measurement with the expected value resolved from TRAIN; a mismatch is a working refusal</td>
+</tr>
+<tr>
+<td>The handshake aborts and the expected value is absent</td>
+<td>The trust-list entry is missing or stale, not the peer</td>
+<td>Resolve the peer's digest through TRAIN directly before suspecting the peer</td>
+</tr>
+<tr>
+<td>The report verifies but the channel is refused</td>
+<td>The evidence is not bound to this connection</td>
+<td>Confirm the TLS exporter value is present in the report's user data — an unbound report is a replay risk, so refusal is correct</td>
+</tr>
+<tr>
+<td>Application traffic appears after a failed handshake</td>
+<td>A serious defect</td>
+<td>This must be impossible and is asserted by an acceptance scenario; treat any instance as a stop-the-line finding</td>
+</tr>
+</tbody>
+</table>
+<h2 id="credential-verification-and-trust-list-staleness">Credential verification and trust-list staleness<a class="headerlink" href="#credential-verification-and-trust-list-staleness" title="Permanent link">&para;</a></h2>
+<table>
+<thead>
+<tr>
+<th>Symptom</th>
+<th>Likely cause</th>
+<th>Check</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>A credential that worked yesterday is refused</td>
+<td>It was revoked</td>
+<td>Check the status list entry before anything else</td>
+</tr>
+<tr>
+<td>Verification fails for every credential at once</td>
+<td>The status list or the trust anchor is unreachable</td>
+<td>Check reachability; an unreachable list must deny, and the alert tells you which one it was</td>
+</tr>
+<tr>
+<td>A peer that should be trusted is not listed</td>
+<td>The trust list has not been republished since the peer was added</td>
+<td>Compare the published trust list with what the connector resolved, not with what you expect it to contain</td>
+</tr>
+</tbody>
+</table>
+<h2 id="logs">Logs<a class="headerlink" href="#logs" title="Permanent link">&para;</a></h2>
+<p>Services emit structured JSON logs. Correlate by the request identifier carried across hops rather
+than by timestamp.</p>
+              
+            </div>
+          </div><footer>
+    <div class="rst-footer-buttons" role="navigation" aria-label="Footer Navigation">
+        <a href="../ci-cd/" class="btn btn-neutral float-left" title="CI/CD"><span class="icon icon-circle-arrow-left"></span> Previous</a>
+        <a href="../dependencies/" class="btn btn-neutral float-right" title="OSS dependencies">Next <span class="icon icon-circle-arrow-right"></span></a>
+    </div>
+
+  <hr/>
+
+  <div role="contentinfo">
+    <!-- Copyright etc -->
+      <p>Apache-2.0</p>
+  </div>
+
+  Built with <a href="https://www.mkdocs.org/">MkDocs</a> using a <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a> provided by <a href="https://readthedocs.org">Read the Docs</a>.
+</footer>
+          
+        </div>
+      </div>
+
+    </section>
+
+  </div>
+
+  <div class="rst-versions" role="note" aria-label="Versions">
+  <span class="rst-current-version" data-toggle="rst-current-version">
+    
+        <span>
+          <a href="https://github.com/eclipse-xfsc/facis-zero-trust-demonstrator" class="fa fa-github" style="color: #fcfcfc"> GitHub</a>
+        </span>
+    
+    
+      <span><a href="../ci-cd/" style="color: #fcfcfc">&laquo; Previous</a></span>
+    
+    
+      <span><a href="../dependencies/" style="color: #fcfcfc">Next &raquo;</a></span>
+    
+  </span>
+</div>
+    <script src="../js/jquery-3.6.0.min.js"></script>
+    <script>var base_url = "..";</script>
+    <script src="../js/theme_extra.js"></script>
+    <script src="../js/theme.js"></script>
+      <script src="../search/main.js"></script>
+    <script>
+        jQuery(function () {
+            SphinxRtdTheme.Navigation.enable(true);
+        });
+    </script>
+
+</body>
+</html>

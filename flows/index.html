@@ -1,0 +1,315 @@
+<!DOCTYPE html>
+<html class="writer-html5" lang="en" >
+<head>
+    <meta charset="utf-8" />
+    <meta http-equiv="X-UA-Compatible" content="IE=edge" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+      <link rel="shortcut icon" href="../img/favicon.ico" />
+    <title>Orchestrated flows - FACIS Zero Trust Demonstrator</title>
+    <link rel="stylesheet" href="../css/theme.css" />
+    <link rel="stylesheet" href="../css/theme_extra.css" />
+        <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.8.0/styles/github.min.css" />
+    
+      <script>
+        // Current page data
+        var mkdocs_page_name = "Orchestrated flows";
+        var mkdocs_page_input_path = "flows.md";
+        var mkdocs_page_url = null;
+      </script>
+    
+    <!--[if lt IE 9]>
+      <script src="../js/html5shiv.min.js"></script>
+    <![endif]-->
+      <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.8.0/highlight.min.js"></script>
+      <script>hljs.highlightAll();</script> 
+</head>
+
+<body class="wy-body-for-nav" role="document">
+
+  <div class="wy-grid-for-nav">
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side stickynav">
+    <div class="wy-side-scroll">
+      <div class="wy-side-nav-search">
+          <a href=".." class="icon icon-home"> FACIS Zero Trust Demonstrator
+        </a><div role="search">
+  <form id ="rtd-search-form" class="wy-form" action="../search.html" method="get">
+      <input type="text" name="q" placeholder="Search docs" aria-label="Search docs" title="Type search term here" />
+  </form>
+</div>
+      </div>
+
+      <div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="..">Home</a>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../features/">Features and journeys</a>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../architecture/">Architecture</a>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../usage/">Using the demonstrator</a>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../deployment/">Deployment</a>
+                </li>
+              </ul>
+              <p class="caption"><span class="caption-text">Environments</span></p>
+              <ul>
+                  <li class="toctree-l1"><a class="reference internal" href="../environments/">Overview</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../environments/osc/">T-Systems OSC</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../environments/ionos/">IONOS Cloud</a>
+                  </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../packaging/">Packaging and containers</a>
+                </li>
+              </ul>
+              <ul class="current">
+                <li class="toctree-l1 current"><a class="reference internal current" href="#">Orchestrated flows</a>
+    <ul class="current">
+    <li class="toctree-l2"><a class="reference internal" href="#structure">Structure</a>
+    </li>
+    <li class="toctree-l2"><a class="reference internal" href="#flow-inventory">Flow inventory</a>
+    </li>
+    <li class="toctree-l2"><a class="reference internal" href="#builder-node-ui-and-parameters">Builder node UI and parameters</a>
+    </li>
+    <li class="toctree-l2"><a class="reference internal" href="#governed-configuration">Governed configuration</a>
+    </li>
+    </ul>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../keycloak/">Keycloak integration</a>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../api-docs/">API documentation</a>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../bdd/">BDD acceptance</a>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../ci-cd/">CI/CD</a>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../troubleshooting/">Troubleshooting</a>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../dependencies/">OSS dependencies</a>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../specifications/">Specification changes</a>
+                </li>
+              </ul>
+              <p class="caption"><span class="caption-text">Architecture decisions</span></p>
+              <ul>
+                  <li class="toctree-l1"><a class="reference internal" href="../adr/">Overview</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../adr/0001-service-mesh-mode-istio-ambient-with-cilium/">0001 Service mesh mode</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../adr/0002-gatekeeper-external-data-provider-for-cosign-verification/">0002 Gatekeeper external data provider</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../adr/0003-oauth2-authorisation-surface-in-the-go-connector/">0003 OAuth2 surface in the Go connector</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../adr/0004-openbao-as-x509-key-value-store/">0004 OpenBao as X.509 key-value store</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../adr/0005-three-cluster-reading-of-the-target-environment/">0005 Three-cluster target environment</a>
+                  </li>
+              </ul>
+      </div>
+    </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap">
+      <nav class="wy-nav-top" role="navigation" aria-label="Mobile navigation menu">
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="..">FACIS Zero Trust Demonstrator</a>
+        
+      </nav>
+      <div class="wy-nav-content">
+        <div class="rst-content"><div role="navigation" aria-label="breadcrumbs navigation">
+  <ul class="wy-breadcrumbs">
+    <li><a href=".." class="icon icon-home" aria-label="Docs"></a></li>
+      <li class="breadcrumb-item active">Orchestrated flows</li>
+    <li class="wy-breadcrumbs-aside">
+          <a href="https://github.com/eclipse-xfsc/facis-zero-trust-demonstrator/edit/main/docs/flows.md" class="icon icon-github"> Edit on GitHub</a>
+    </li>
+  </ul>
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+            <div class="section" itemprop="articleBody">
+              
+                <h1 id="orchestrated-flows">Orchestrated flows<a class="headerlink" href="#orchestrated-flows" title="Permanent link">&para;</a></h1>
+<p>Functional breakdown of the ORCE flows in <code>flows/</code> and the Builder nodes in <code>ui/</code>.</p>
+<h2 id="structure">Structure<a class="headerlink" href="#structure" title="Permanent link">&para;</a></h2>
+<p>Flows follow the work-sample pattern supplied with the tender: one message contract, a dispatcher
+that only routes, validation on the server side, and a clean separation between session, step,
+model, UI and error concerns.</p>
+<p>Every step records an explicit result. A step that fails mid-flow lands in a defined error state
+rather than leaving a journey without an outcome.</p>
+<h2 id="flow-inventory">Flow inventory<a class="headerlink" href="#flow-inventory" title="Permanent link">&para;</a></h2>
+<table>
+<thead>
+<tr>
+<th>Flow</th>
+<th>Trigger</th>
+<th>Steps</th>
+<th>Ends in</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Successful call</td>
+<td>Operator starts the journey from the UI</td>
+<td>Backend registers → credential presented → token issued and DPoP-bound → attested channel established → guard permits → resource responds</td>
+<td>Resource payload shown, every step green</td>
+</tr>
+<tr>
+<td>Revoked credential</td>
+<td>Operator revokes the credential, then starts the journey</td>
+<td>Presentation verified → status list consulted → verification negative → grant refused → token store fails closed</td>
+<td>Refusal with the revocation reason</td>
+</tr>
+<tr>
+<td>Wrong scope</td>
+<td>Operator starts the journey with a persona lacking the scope</td>
+<td>Token issued → guard evaluates policy → no matching rule</td>
+<td>Denial carrying the rule, the reason code and an OID4VP link</td>
+</tr>
+<tr>
+<td>Tampered measurement</td>
+<td>Operator alters the expected measurement</td>
+<td>Attestation requested → report returned → expected and actual compared → mismatch</td>
+<td>Handshake aborted, with the proof that no application traffic passed</td>
+</tr>
+<tr>
+<td>Credential issuance</td>
+<td>Operator starts the issuing journey</td>
+<td>Wallet receives the credential from the OCM W-Stack → credential unlocks the protected resource on the next call</td>
+<td>Previously refused call now permitted</td>
+</tr>
+<tr>
+<td>Configuration change</td>
+<td>Operator edits a trust zone or a policy in the UI</td>
+<td>Change previewed → validated → applied as a pull request → effect visible on the next journey</td>
+<td>Journey outcome changes, with the change traceable to its pull request</td>
+</tr>
+</tbody>
+</table>
+<p>Each step reports its own result to the UI, so a journey that fails halfway shows <em>where</em> it
+stopped, not merely that it stopped.</p>
+<h2 id="builder-node-ui-and-parameters">Builder node UI and parameters<a class="headerlink" href="#builder-node-ui-and-parameters" title="Permanent link">&para;</a></h2>
+<p>The custom Builder nodes live in <code>ui/</code>. Each node is documented with the same four things, so a node
+can be configured without reading its source:</p>
+<table>
+<thead>
+<tr>
+<th>Field</th>
+<th>Meaning</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Purpose</td>
+<td>What the node does in one sentence, and which journey step it serves</td>
+</tr>
+<tr>
+<td>Inputs</td>
+<td>The message properties it reads, and which are required</td>
+</tr>
+<tr>
+<td>Outputs</td>
+<td>The message properties it sets, including the result and reason code</td>
+</tr>
+<tr>
+<td>Configuration</td>
+<td>Editor parameters, their types, defaults and validation</td>
+</tr>
+</tbody>
+</table>
+<p>A node that alters the security outcome of a journey does not decide it: the decision stays on the
+connector and guard path, and the node reports it. This is the same boundary
+<a href="../adr/0003-oauth2-authorisation-surface-in-the-go-connector/">ADR-0003</a> draws for the
+authorisation surface.</p>
+<h2 id="governed-configuration">Governed configuration<a class="headerlink" href="#governed-configuration" title="Permanent link">&para;</a></h2>
+<p>Flows and demonstrator configuration are data, and they are governed like code rather than edited
+live:</p>
+<ol>
+<li><strong>Preview</strong> — the change is shown as a diff against the running configuration before anything is
+   applied.</li>
+<li><strong>Validate</strong> — structure is checked against JSON Schema, and interoperable content against its
+   SHACL shape. Invalid configuration is refused at this step, not at runtime.</li>
+<li><strong>Apply</strong> — the change lands as a pull request against this repository, so it carries a review
+   and an author.</li>
+<li><strong>Roll back</strong> — reverting the pull request restores the previous configuration; no state lives
+   only in a running editor.</li>
+</ol>
+<p>An export of a flow is therefore reproducible: the same repository and the same values produce the
+same journey.</p>
+              
+            </div>
+          </div><footer>
+    <div class="rst-footer-buttons" role="navigation" aria-label="Footer Navigation">
+        <a href="../packaging/" class="btn btn-neutral float-left" title="Packaging and containers"><span class="icon icon-circle-arrow-left"></span> Previous</a>
+        <a href="../keycloak/" class="btn btn-neutral float-right" title="Keycloak integration">Next <span class="icon icon-circle-arrow-right"></span></a>
+    </div>
+
+  <hr/>
+
+  <div role="contentinfo">
+    <!-- Copyright etc -->
+      <p>Apache-2.0</p>
+  </div>
+
+  Built with <a href="https://www.mkdocs.org/">MkDocs</a> using a <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a> provided by <a href="https://readthedocs.org">Read the Docs</a>.
+</footer>
+          
+        </div>
+      </div>
+
+    </section>
+
+  </div>
+
+  <div class="rst-versions" role="note" aria-label="Versions">
+  <span class="rst-current-version" data-toggle="rst-current-version">
+    
+        <span>
+          <a href="https://github.com/eclipse-xfsc/facis-zero-trust-demonstrator" class="fa fa-github" style="color: #fcfcfc"> GitHub</a>
+        </span>
+    
+    
+      <span><a href="../packaging/" style="color: #fcfcfc">&laquo; Previous</a></span>
+    
+    
+      <span><a href="../keycloak/" style="color: #fcfcfc">Next &raquo;</a></span>
+    
+  </span>
+</div>
+    <script src="../js/jquery-3.6.0.min.js"></script>
+    <script>var base_url = "..";</script>
+    <script src="../js/theme_extra.js"></script>
+    <script src="../js/theme.js"></script>
+      <script src="../search/main.js"></script>
+    <script>
+        jQuery(function () {
+            SphinxRtdTheme.Navigation.enable(true);
+        });
+    </script>
+
+</body>
+</html>

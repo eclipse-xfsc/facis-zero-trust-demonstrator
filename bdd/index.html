@@ -1,0 +1,395 @@
+<!DOCTYPE html>
+<html class="writer-html5" lang="en" >
+<head>
+    <meta charset="utf-8" />
+    <meta http-equiv="X-UA-Compatible" content="IE=edge" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+      <link rel="shortcut icon" href="../img/favicon.ico" />
+    <title>BDD acceptance - FACIS Zero Trust Demonstrator</title>
+    <link rel="stylesheet" href="../css/theme.css" />
+    <link rel="stylesheet" href="../css/theme_extra.css" />
+        <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.8.0/styles/github.min.css" />
+    
+      <script>
+        // Current page data
+        var mkdocs_page_name = "BDD acceptance";
+        var mkdocs_page_input_path = "bdd.md";
+        var mkdocs_page_url = null;
+      </script>
+    
+    <!--[if lt IE 9]>
+      <script src="../js/html5shiv.min.js"></script>
+    <![endif]-->
+      <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.8.0/highlight.min.js"></script>
+      <script>hljs.highlightAll();</script> 
+</head>
+
+<body class="wy-body-for-nav" role="document">
+
+  <div class="wy-grid-for-nav">
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side stickynav">
+    <div class="wy-side-scroll">
+      <div class="wy-side-nav-search">
+          <a href=".." class="icon icon-home"> FACIS Zero Trust Demonstrator
+        </a><div role="search">
+  <form id ="rtd-search-form" class="wy-form" action="../search.html" method="get">
+      <input type="text" name="q" placeholder="Search docs" aria-label="Search docs" title="Type search term here" />
+  </form>
+</div>
+      </div>
+
+      <div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="..">Home</a>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../features/">Features and journeys</a>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../architecture/">Architecture</a>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../usage/">Using the demonstrator</a>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../deployment/">Deployment</a>
+                </li>
+              </ul>
+              <p class="caption"><span class="caption-text">Environments</span></p>
+              <ul>
+                  <li class="toctree-l1"><a class="reference internal" href="../environments/">Overview</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../environments/osc/">T-Systems OSC</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../environments/ionos/">IONOS Cloud</a>
+                  </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../packaging/">Packaging and containers</a>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../flows/">Orchestrated flows</a>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../keycloak/">Keycloak integration</a>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../api-docs/">API documentation</a>
+                </li>
+              </ul>
+              <ul class="current">
+                <li class="toctree-l1 current"><a class="reference internal current" href="#">BDD acceptance</a>
+    <ul class="current">
+    <li class="toctree-l2"><a class="reference internal" href="#conventions">Conventions</a>
+    </li>
+    <li class="toctree-l2"><a class="reference internal" href="#the-harness">The harness</a>
+        <ul>
+    <li class="toctree-l3"><a class="reference internal" href="#tags">Tags</a>
+    </li>
+    <li class="toctree-l3"><a class="reference internal" href="#running-one-annex-row">Running one Annex row</a>
+    </li>
+    <li class="toctree-l3"><a class="reference internal" href="#the-traceability-sheet">The traceability sheet</a>
+    </li>
+        </ul>
+    </li>
+    <li class="toctree-l2"><a class="reference internal" href="#scenario-inventory">Scenario inventory</a>
+    </li>
+    <li class="toctree-l2"><a class="reference internal" href="#traceability">Traceability</a>
+    </li>
+    <li class="toctree-l2"><a class="reference internal" href="#evidence">Evidence</a>
+    </li>
+    </ul>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../ci-cd/">CI/CD</a>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../troubleshooting/">Troubleshooting</a>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../dependencies/">OSS dependencies</a>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../specifications/">Specification changes</a>
+                </li>
+              </ul>
+              <p class="caption"><span class="caption-text">Architecture decisions</span></p>
+              <ul>
+                  <li class="toctree-l1"><a class="reference internal" href="../adr/">Overview</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../adr/0001-service-mesh-mode-istio-ambient-with-cilium/">0001 Service mesh mode</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../adr/0002-gatekeeper-external-data-provider-for-cosign-verification/">0002 Gatekeeper external data provider</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../adr/0003-oauth2-authorisation-surface-in-the-go-connector/">0003 OAuth2 surface in the Go connector</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../adr/0004-openbao-as-x509-key-value-store/">0004 OpenBao as X.509 key-value store</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../adr/0005-three-cluster-reading-of-the-target-environment/">0005 Three-cluster target environment</a>
+                  </li>
+              </ul>
+      </div>
+    </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap">
+      <nav class="wy-nav-top" role="navigation" aria-label="Mobile navigation menu">
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="..">FACIS Zero Trust Demonstrator</a>
+        
+      </nav>
+      <div class="wy-nav-content">
+        <div class="rst-content"><div role="navigation" aria-label="breadcrumbs navigation">
+  <ul class="wy-breadcrumbs">
+    <li><a href=".." class="icon icon-home" aria-label="Docs"></a></li>
+      <li class="breadcrumb-item active">BDD acceptance</li>
+    <li class="wy-breadcrumbs-aside">
+          <a href="https://github.com/eclipse-xfsc/facis-zero-trust-demonstrator/edit/main/docs/bdd.md" class="icon icon-github"> Edit on GitHub</a>
+    </li>
+  </ul>
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+            <div class="section" itemprop="articleBody">
+              
+                <h1 id="bdd-acceptance-specifications">BDD acceptance specifications<a class="headerlink" href="#bdd-acceptance-specifications" title="Permanent link">&para;</a></h1>
+<p>Every acceptance requirement is expressed as an executable scenario, tagged with the requirement it
+covers, so that traceability from requirement to test is generated rather than maintained by hand.</p>
+<h2 id="conventions">Conventions<a class="headerlink" href="#conventions" title="Permanent link">&para;</a></h2>
+<ul>
+<li>Feature text quotes the acceptance wording verbatim, so a scenario can be matched to its
+  requirement at a glance.</li>
+<li>Each scenario carries a tag naming its requirement.</li>
+<li>Scenarios run both in CI and against live clusters.</li>
+<li>Negative cases assert against the audit entry that recorded the refusal, not merely against a
+  failed response.</li>
+</ul>
+<h2 id="the-harness">The harness<a class="headerlink" href="#the-harness" title="Permanent link">&para;</a></h2>
+<p>Two runners, one report. Go scenarios run under <a href="https://github.com/cucumber/godog">godog</a> and
+JavaScript scenarios under <a href="https://github.com/cucumber/cucumber-js">Cucumber.js</a>; both emit the
+same legacy cucumber-JSON, so their results merge by concatenation and produce a single
+traceability sheet.</p>
+<table>
+<thead>
+<tr>
+<th></th>
+<th>Runner</th>
+<th>Scenarios</th>
+<th>Steps</th>
+<th>Report</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Go</td>
+<td>godog</td>
+<td><code>features/go/</code></td>
+<td><code>internal/bdd/</code></td>
+<td><code>bundles/bdd/go-report.json</code></td>
+</tr>
+<tr>
+<td>JavaScript</td>
+<td>Cucumber.js</td>
+<td><code>features/js/</code></td>
+<td><code>features/js/steps/</code></td>
+<td><code>bundles/bdd/js-report.json</code></td>
+</tr>
+</tbody>
+</table>
+<p><strong>Each runner owns its own directory, and a scenario belongs to exactly one.</strong> A runner that
+loads the other's scenarios cannot execute their steps; it would report them as undefined and —
+unless the suite is strict — still pass, marking those Annex rows covered by scenarios that never
+ran. Both runners therefore run strict: an undefined or pending step fails the suite.</p>
+<pre><code class="language-bash">GODOG_CUCUMBER_OUT=bundles/bdd/go-report.json go test ./internal/bdd   # Go scenarios
+npm ci &amp;&amp; npm run bdd                                                  # JavaScript scenarios
+go run ./cmd/bddreport --rows features/annex-rows.txt --out bundles/bdd \
+  bundles/bdd/go-report.json bundles/bdd/js-report.json                # merge + sheet
+</code></pre>
+<p>Cucumber.js describes its <code>json</code> formatter as being in maintenance mode; it is the interchange
+format both runners share today, and the documented upgrade path when that changes is the
+<code>message</code> format. Nothing else in the harness depends on the choice.</p>
+<h3 id="tags">Tags<a class="headerlink" href="#tags" title="Permanent link">&para;</a></h3>
+<p>A scenario carries two tags: the <strong>requirement row</strong> it covers and the <strong>test identifier</strong> from
+Annex A.</p>
+<pre><code class="language-gherkin">@ZT-56 @BDD-ZT-056
+Scenario: Every workflow is pinned to a commit and scoped to what it needs
+</code></pre>
+<p>Only the row tag drives coverage. A tag shaped like a row id that matches no row in
+<code>features/annex-rows.txt</code> <strong>fails the run</strong> — a typo would otherwise leave the scenario passing
+while proving nothing about the row it was meant to cover.</p>
+<h3 id="running-one-annex-row">Running one Annex row<a class="headerlink" href="#running-one-annex-row" title="Permanent link">&para;</a></h3>
+<pre><code class="language-bash">go test ./internal/bdd -godog.tags=@ZT-56    # Go
+npm run bdd:row -- @ZT-17                    # JavaScript
+</code></pre>
+<h3 id="the-traceability-sheet">The traceability sheet<a class="headerlink" href="#the-traceability-sheet" title="Permanent link">&para;</a></h3>
+<p><code>features/annex-rows.txt</code> holds the 92 Annex A row ids in Annex order and is the denominator: the
+sheet reports every row, covered or not, so a gap is visible rather than absent. <code>cmd/bddreport</code>
+generates <code>traceability.md</code> and <code>traceability.csv</code> from the tags in the merged report — the sheet
+is never edited by hand.</p>
+<p>The pipeline runs all of this on every pull request, writes the sheet into the job summary, and
+publishes <code>bundles/bdd</code> as the <code>bdd-evidence</code> artefact, which is the per-gate evidence bundle.</p>
+<h2 id="scenario-inventory">Scenario inventory<a class="headerlink" href="#scenario-inventory" title="Permanent link">&para;</a></h2>
+<p>The scenarios are grouped by the part of the architecture they exercise. Each family carries the
+requirements it proves and the negative case it must include — a family with no negative case is
+incomplete, because the demonstrator's claim is about what it refuses.</p>
+<table>
+<thead>
+<tr>
+<th>Family</th>
+<th>Requirements</th>
+<th>Positive case</th>
+<th>Negative case it must include</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Workload identity</td>
+<td>ZT-24, ZT-57, ZT-59, ZT-60</td>
+<td>A workload attests and receives an SVID whose SPIFFE ID matches its service account</td>
+<td>Failed attestation yields no identity <strong>and</strong> no mesh connectivity</td>
+</tr>
+<tr>
+<td>Mesh enrolment and segmentation</td>
+<td>ZT-01, ZT-23, ZT-25, ZT-26, ZT-58, ZT-61, ZT-62</td>
+<td>All service traffic is routed through the mesh; only configured identities may talk</td>
+<td>An unaffiliated workload is refused, and the refusal is not IP-based</td>
+</tr>
+<tr>
+<td>Management/data plane separation</td>
+<td>ZT-49, ZT-53, ZT-55</td>
+<td>The management plane is unreachable from the data plane</td>
+<td>A data-plane workload attempting a management-plane call is denied at the network layer</td>
+</tr>
+<tr>
+<td>Admission control</td>
+<td>ZT-02, ZT-11, ZT-36, ZT-37, ZT-72</td>
+<td>A correctly signed image is admitted</td>
+<td>An unsigned or wrongly signed image is refused, with the reason code in the admission log</td>
+</tr>
+<tr>
+<td>Supply chain</td>
+<td>ZT-10, ZT-13, ZT-38, ZT-54, ZT-71</td>
+<td>Images build on the runner, are signed by digest, and ship an SBOM and a mock attestation</td>
+<td>A non-Linux image, or one missing its signature, fails the pipeline</td>
+</tr>
+<tr>
+<td>Attested channel</td>
+<td>ZT-04, ZT-28…ZT-33, ZT-63…ZT-69</td>
+<td>Both ends attest, the verdict is machine-readable, and application traffic follows</td>
+<td>A tampered measurement aborts the handshake — and it is <strong>proven</strong> no application traffic passed (ZT-70)</td>
+</tr>
+<tr>
+<td>Expected measurements and trust lists</td>
+<td>ZT-03, ZT-18, ZT-35, ZT-64</td>
+<td>Peer digests resolve through TRAIN and match</td>
+<td>A stale or absent trust-list entry refuses the peer</td>
+</tr>
+<tr>
+<td>Authorization surface</td>
+<td>ZT-20, ZT-21, ZT-22, ZT-39, ZT-73, ZT-76</td>
+<td>Dynamic registration, a token derived from a verified presentation, DPoP-bound and substituted upstream</td>
+<td>A replayed or unbound DPoP proof is rejected; a wrong scope is denied with an OID4VP link</td>
+</tr>
+<tr>
+<td>Credential lifecycle</td>
+<td>ZT-40, ZT-51</td>
+<td>A credential is issued to the wallet and unlocks the protected resource</td>
+<td>A revoked credential flips verification negative and the token store fails closed</td>
+</tr>
+<tr>
+<td>Policy decision</td>
+<td>ZT-06, ZT-20, ZT-41, ZT-75</td>
+<td>The guard permits on a matching policy and returns the resource</td>
+<td>No matching policy denies, with the rule and reason recorded</td>
+</tr>
+<tr>
+<td>Fail-secure behaviour</td>
+<td>ZT-47, ZT-52</td>
+<td>Each request is authorised on its own merits</td>
+<td>Control-plane unavailability denies rather than admits, and raises an alert</td>
+</tr>
+<tr>
+<td>Visualization and journey</td>
+<td>ZT-05, ZT-08, ZT-09, ZT-43, ZT-44, ZT-78, ZT-81</td>
+<td>The ORCE journey runs end to end and each step is visible</td>
+<td>Every refusal above is visible in the UI, not only in a log</td>
+</tr>
+<tr>
+<td>Documentation and reproduction</td>
+<td>ZT-16, ZT-17</td>
+<td>Each cluster is reproduced from the <a href="../environments/">environment guides</a> alone</td>
+<td>A step that cannot be reproduced from the documentation fails the check</td>
+</tr>
+</tbody>
+</table>
+<h2 id="traceability">Traceability<a class="headerlink" href="#traceability" title="Permanent link">&para;</a></h2>
+<p>Each scenario's tag is its requirement id, so the requirement-to-test matrix is generated from the
+feature files rather than maintained beside them. A requirement with no tagged scenario shows up as
+a gap in that matrix; that is the point of generating it.</p>
+<h2 id="evidence">Evidence<a class="headerlink" href="#evidence" title="Permanent link">&para;</a></h2>
+<p>Each gate produces one indexed evidence bundle, assembled by a single command, with a directory per
+requirement row. Bundles are versioned and immutable once a gate has consumed them.</p>
+              
+            </div>
+          </div><footer>
+    <div class="rst-footer-buttons" role="navigation" aria-label="Footer Navigation">
+        <a href="../api-docs/" class="btn btn-neutral float-left" title="API documentation"><span class="icon icon-circle-arrow-left"></span> Previous</a>
+        <a href="../ci-cd/" class="btn btn-neutral float-right" title="CI/CD">Next <span class="icon icon-circle-arrow-right"></span></a>
+    </div>
+
+  <hr/>
+
+  <div role="contentinfo">
+    <!-- Copyright etc -->
+      <p>Apache-2.0</p>
+  </div>
+
+  Built with <a href="https://www.mkdocs.org/">MkDocs</a> using a <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a> provided by <a href="https://readthedocs.org">Read the Docs</a>.
+</footer>
+          
+        </div>
+      </div>
+
+    </section>
+
+  </div>
+
+  <div class="rst-versions" role="note" aria-label="Versions">
+  <span class="rst-current-version" data-toggle="rst-current-version">
+    
+        <span>
+          <a href="https://github.com/eclipse-xfsc/facis-zero-trust-demonstrator" class="fa fa-github" style="color: #fcfcfc"> GitHub</a>
+        </span>
+    
+    
+      <span><a href="../api-docs/" style="color: #fcfcfc">&laquo; Previous</a></span>
+    
+    
+      <span><a href="../ci-cd/" style="color: #fcfcfc">Next &raquo;</a></span>
+    
+  </span>
+</div>
+    <script src="../js/jquery-3.6.0.min.js"></script>
+    <script>var base_url = "..";</script>
+    <script src="../js/theme_extra.js"></script>
+    <script src="../js/theme.js"></script>
+      <script src="../search/main.js"></script>
+    <script>
+        jQuery(function () {
+            SphinxRtdTheme.Navigation.enable(true);
+        });
+    </script>
+
+</body>
+</html>

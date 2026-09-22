@@ -1,0 +1,398 @@
+<!DOCTYPE html>
+<html class="writer-html5" lang="en" >
+<head>
+    <meta charset="utf-8" />
+    <meta http-equiv="X-UA-Compatible" content="IE=edge" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+      <link rel="shortcut icon" href="../img/favicon.ico" />
+    <title>CI/CD - FACIS Zero Trust Demonstrator</title>
+    <link rel="stylesheet" href="../css/theme.css" />
+    <link rel="stylesheet" href="../css/theme_extra.css" />
+        <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.8.0/styles/github.min.css" />
+    
+      <script>
+        // Current page data
+        var mkdocs_page_name = "CI/CD";
+        var mkdocs_page_input_path = "ci-cd.md";
+        var mkdocs_page_url = null;
+      </script>
+    
+    <!--[if lt IE 9]>
+      <script src="../js/html5shiv.min.js"></script>
+    <![endif]-->
+      <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.8.0/highlight.min.js"></script>
+      <script>hljs.highlightAll();</script> 
+</head>
+
+<body class="wy-body-for-nav" role="document">
+
+  <div class="wy-grid-for-nav">
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side stickynav">
+    <div class="wy-side-scroll">
+      <div class="wy-side-nav-search">
+          <a href=".." class="icon icon-home"> FACIS Zero Trust Demonstrator
+        </a><div role="search">
+  <form id ="rtd-search-form" class="wy-form" action="../search.html" method="get">
+      <input type="text" name="q" placeholder="Search docs" aria-label="Search docs" title="Type search term here" />
+  </form>
+</div>
+      </div>
+
+      <div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="..">Home</a>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../features/">Features and journeys</a>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../architecture/">Architecture</a>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../usage/">Using the demonstrator</a>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../deployment/">Deployment</a>
+                </li>
+              </ul>
+              <p class="caption"><span class="caption-text">Environments</span></p>
+              <ul>
+                  <li class="toctree-l1"><a class="reference internal" href="../environments/">Overview</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../environments/osc/">T-Systems OSC</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../environments/ionos/">IONOS Cloud</a>
+                  </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../packaging/">Packaging and containers</a>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../flows/">Orchestrated flows</a>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../keycloak/">Keycloak integration</a>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../api-docs/">API documentation</a>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../bdd/">BDD acceptance</a>
+                </li>
+              </ul>
+              <ul class="current">
+                <li class="toctree-l1 current"><a class="reference internal current" href="#">CI/CD</a>
+    <ul class="current">
+    <li class="toctree-l2"><a class="reference internal" href="#workflows-in-this-repository">Workflows in this repository</a>
+    </li>
+    <li class="toctree-l2"><a class="reference internal" href="#the-service-pipeline">The service pipeline</a>
+        <ul>
+    <li class="toctree-l3"><a class="reference internal" href="#go-module-layout">Go module layout</a>
+    </li>
+        </ul>
+    </li>
+    <li class="toctree-l2"><a class="reference internal" href="#repository-protection-and-least-privilege">Repository protection and least privilege</a>
+        <ul>
+    <li class="toctree-l3"><a class="reference internal" href="#branch-protection">Branch protection</a>
+    </li>
+    <li class="toctree-l3"><a class="reference internal" href="#token-scopes">Token scopes</a>
+    </li>
+    <li class="toctree-l3"><a class="reference internal" href="#action-pinning">Action pinning</a>
+    </li>
+        </ul>
+    </li>
+    <li class="toctree-l2"><a class="reference internal" href="#licence-scanning">Licence scanning</a>
+    </li>
+    <li class="toctree-l2"><a class="reference internal" href="#documentation-publication">Documentation publication</a>
+    </li>
+    <li class="toctree-l2"><a class="reference internal" href="#adding-a-workflow">Adding a workflow</a>
+    </li>
+    </ul>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../troubleshooting/">Troubleshooting</a>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../dependencies/">OSS dependencies</a>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../specifications/">Specification changes</a>
+                </li>
+              </ul>
+              <p class="caption"><span class="caption-text">Architecture decisions</span></p>
+              <ul>
+                  <li class="toctree-l1"><a class="reference internal" href="../adr/">Overview</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../adr/0001-service-mesh-mode-istio-ambient-with-cilium/">0001 Service mesh mode</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../adr/0002-gatekeeper-external-data-provider-for-cosign-verification/">0002 Gatekeeper external data provider</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../adr/0003-oauth2-authorisation-surface-in-the-go-connector/">0003 OAuth2 surface in the Go connector</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../adr/0004-openbao-as-x509-key-value-store/">0004 OpenBao as X.509 key-value store</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../adr/0005-three-cluster-reading-of-the-target-environment/">0005 Three-cluster target environment</a>
+                  </li>
+              </ul>
+      </div>
+    </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap">
+      <nav class="wy-nav-top" role="navigation" aria-label="Mobile navigation menu">
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="..">FACIS Zero Trust Demonstrator</a>
+        
+      </nav>
+      <div class="wy-nav-content">
+        <div class="rst-content"><div role="navigation" aria-label="breadcrumbs navigation">
+  <ul class="wy-breadcrumbs">
+    <li><a href=".." class="icon icon-home" aria-label="Docs"></a></li>
+      <li class="breadcrumb-item active">CI/CD</li>
+    <li class="wy-breadcrumbs-aside">
+          <a href="https://github.com/eclipse-xfsc/facis-zero-trust-demonstrator/edit/main/docs/ci-cd.md" class="icon icon-github"> Edit on GitHub</a>
+    </li>
+  </ul>
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+            <div class="section" itemprop="articleBody">
+              
+                <h1 id="cicd">CI/CD<a class="headerlink" href="#cicd" title="Permanent link">&para;</a></h1>
+<p>Continuous integration for this repository <strong>references the shared Eclipse XFSC workflows</strong> in
+<a href="https://github.com/eclipse-xfsc/dev-ops/tree/main/.github/workflows"><code>eclipse-xfsc/dev-ops</code></a>
+rather than copying them. Keeping the bodies upstream is what the Technical Development
+Requirements ask for, and it means a fix to a shared workflow reaches this repository without a
+pull request here.</p>
+<h2 id="workflows-in-this-repository">Workflows in this repository<a class="headerlink" href="#workflows-in-this-repository" title="Permanent link">&para;</a></h2>
+<table>
+<thead>
+<tr>
+<th>Workflow</th>
+<th>Triggers</th>
+<th>What it does</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>.github/workflows/eclipse-dash.yml</code></td>
+<td>every pull request, schedule, release, manual</td>
+<td>Calls the shared Eclipse Dash licence scanner and files IP review requests for dependencies</td>
+</tr>
+<tr>
+<td><code>.github/workflows/sbom.yml</code></td>
+<td>schedule, release, manual</td>
+<td>Calls the shared SBOM generator</td>
+</tr>
+<tr>
+<td><code>.github/workflows/docs.yml</code></td>
+<td>push to <code>main</code> affecting <code>docs/</code>, manual</td>
+<td>Builds the MkDocs site and publishes it to the <code>gh-pages</code> branch</td>
+</tr>
+<tr>
+<td><code>.github/workflows/workflow-hygiene.yml</code></td>
+<td>every pull request, manual</td>
+<td>Fails the pull request when an action is not pinned to a commit or a token scope is too wide</td>
+</tr>
+<tr>
+<td><code>.github/workflows/ci.yml</code></td>
+<td>every pull request, push to <code>main</code>, manual</td>
+<td>Go lint and tests, image build with the Linux assertion and a Trivy scan, chart lint and dry-run render</td>
+</tr>
+</tbody>
+</table>
+<h2 id="the-service-pipeline">The service pipeline<a class="headerlink" href="#the-service-pipeline" title="Permanent link">&para;</a></h2>
+<p><code>ci.yml</code> is one pipeline shape that every service in the monorepo reuses, so quality is consistent
+and nobody hand-rolls their own:</p>
+<table>
+<thead>
+<tr>
+<th>Job</th>
+<th>What it does</th>
+<th>Blocking</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>Go tests</code></td>
+<td>Calls the shared <code>go-test.yml</code>, which runs the tests of every Go module it finds</td>
+<td>yes</td>
+</tr>
+<tr>
+<td><code>Go lint</code></td>
+<td><code>golangci-lint run ./...</code></td>
+<td>yes</td>
+</tr>
+<tr>
+<td><code>Image build and scan</code></td>
+<td>Builds each context under <code>deployment/docker/</code> for <code>linux/amd64</code>, asserts the built image's OS, then scans it with Trivy for HIGH and CRITICAL vulnerabilities</td>
+<td>yes</td>
+</tr>
+<tr>
+<td><code>Chart lint and render</code></td>
+<td><code>helm lint</code> and a <code>helm template</code> dry-run render of every chart under <code>deployment/helm/</code></td>
+<td>yes</td>
+</tr>
+</tbody>
+</table>
+<p>ZT-13 requires Linux images. The pipeline reads the OS back off the built image with
+<code>docker image inspect</code> and fails if it is anything but <code>linux/amd64</code>, rather than trusting the
+Dockerfile to be right. The platform it read is printed in the job output either way.</p>
+<p>Each job passes quietly while the thing it checks does not exist yet — no Go module, no build
+context, no chart — so the pipeline is green on an empty skeleton and starts enforcing the moment
+the first service lands.</p>
+<h3 id="go-module-layout">Go module layout<a class="headerlink" href="#go-module-layout" title="Permanent link">&para;</a></h3>
+<p>The demonstrator is <strong>one Go module at the repository root</strong>, with each service a package under
+<code>services/</code> and shared code in <code>internal/</code>. This is not a style preference: the Eclipse Dash
+scanner and the shared SBOM generator both read the root <code>go.sum</code>, and a module per service would
+leave the licence gate and the release SBOM with nothing to read.</p>
+<p><code>go.mod</code> declares <strong>Go 1.24</strong>, matching the <code>golang:1.24.x</code> containers the shared org workflows run
+in. A newer toolchain directive would break them.</p>
+<h2 id="repository-protection-and-least-privilege">Repository protection and least privilege<a class="headerlink" href="#repository-protection-and-least-privilege" title="Permanent link">&para;</a></h2>
+<p>The demonstrator applies its own zero-trust posture to the delivery machine (ZT-56): nothing reaches
+<code>main</code> unreviewed, and no pipeline holds a credential wider than the job in front of it needs.</p>
+<h3 id="branch-protection">Branch protection<a class="headerlink" href="#branch-protection" title="Permanent link">&para;</a></h3>
+<p><code>main</code> is protected by a ruleset an organisation administrator applies — it is an Eclipse XFSC
+organisation setting and cannot be declared from this repository's tree. The required ruleset:</p>
+<table>
+<thead>
+<tr>
+<th>Rule</th>
+<th>Setting</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Direct pushes to <code>main</code></td>
+<td>Blocked; changes arrive by pull request</td>
+</tr>
+<tr>
+<td>Approving reviews</td>
+<td>At least one, from someone other than the author</td>
+</tr>
+<tr>
+<td>Stale approvals</td>
+<td>Dismissed when new commits are pushed</td>
+</tr>
+<tr>
+<td>Required status checks</td>
+<td><code>Workflow hygiene</code>, <code>Licence gate</code>, <code>Go lint</code>, <code>Image build and scan</code>, <code>Chart lint and render</code></td>
+</tr>
+<tr>
+<td>Force pushes and branch deletion</td>
+<td>Blocked</td>
+</tr>
+<tr>
+<td>Enforcement</td>
+<td>Applies to administrators</td>
+</tr>
+</tbody>
+</table>
+<h3 id="token-scopes">Token scopes<a class="headerlink" href="#token-scopes" title="Permanent link">&para;</a></h3>
+<p>The repository's default workflow token is read-only — an administrator setting applied alongside the
+ruleset above. Every workflow then declares its own top-level <code>permissions:</code> block rather than
+relying on that default, and a job that needs more than read access grants it at the job level with
+a comment naming the reason: <code>docs.yml</code> writes to <code>gh-pages</code>, <code>sbom.yml</code> uploads the SBOM onto a
+release. Wildcard scopes (<code>write-all</code>) are never used.</p>
+<h3 id="action-pinning">Action pinning<a class="headerlink" href="#action-pinning" title="Permanent link">&para;</a></h3>
+<p>Third-party actions are referenced by full commit SHA with the version in a trailing comment, so a
+moved tag cannot change what runs in the pipeline:</p>
+<pre><code class="language-yaml">uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+</code></pre>
+<p>The shared <code>eclipse-xfsc/dev-ops</code> workflows stay on <code>@main</code> on purpose: the Technical Development
+Requirements ask for the shared bodies to be referenced rather than copied, and pinning them would
+stop fixes reaching this repository. The residual risk is accepted for workflows inside the
+project's own organisation and does not extend to anything outside it. Dependabot proposes the SHA
+bumps weekly.</p>
+<p><code>scripts/check-workflow-hygiene.sh</code> enforces all three rules — pinning, a declared permissions block,
+and no wildcard write scope — on every pull request. Run it locally before pushing:</p>
+<pre><code class="language-bash">scripts/check-workflow-hygiene.sh
+</code></pre>
+<h2 id="licence-scanning">Licence scanning<a class="headerlink" href="#licence-scanning" title="Permanent link">&para;</a></h2>
+<p>Every third-party dependency must clear Eclipse Dash before it ships. The scan is a <strong>blocking
+pull-request gate</strong>: a dependency Dash marks <code>restricted</code> fails the <code>Licence gate</code> job and the
+merge is refused.</p>
+<p>The shared Go scanner reads <code>go.sum</code>, so the gate skips itself while no Go module exists — a
+preceding job looks for the file and the scan runs only when it is there. The workflow itself is
+not filtered by path, so the required check is always reported: a skipped job counts as passing,
+whereas a workflow that never starts leaves the pull request waiting forever.</p>
+<p>Dependencies that Dash cannot clear automatically go to the Eclipse IP team for review. A dependency
+under a licence that the project cannot accept is replaced, not waived — and where the requirements
+prescribe the component and leave no alternative, it goes to the client as a written licence
+exception before it is merged. The process and the OpenBao worked example are in
+<a href="../dependencies/#licence-exceptions">OSS dependencies</a>.</p>
+<h2 id="documentation-publication">Documentation publication<a class="headerlink" href="#documentation-publication" title="Permanent link">&para;</a></h2>
+<p><code>docs.yml</code> builds the MkDocs site and pushes it to the <code>gh-pages</code> branch. GitHub Pages must be
+enabled on the repository with its source set to that branch — a one-time repository setting a
+maintainer applies.</p>
+<h2 id="adding-a-workflow">Adding a workflow<a class="headerlink" href="#adding-a-workflow" title="Permanent link">&para;</a></h2>
+<p>Reference the shared workflow rather than reimplementing it:</p>
+<pre><code class="language-yaml">jobs:
+  call-remote-workflow:
+    secrets: inherit
+    uses: eclipse-xfsc/dev-ops/.github/workflows/&lt;workflow&gt;.yml@main
+</code></pre>
+              
+            </div>
+          </div><footer>
+    <div class="rst-footer-buttons" role="navigation" aria-label="Footer Navigation">
+        <a href="../bdd/" class="btn btn-neutral float-left" title="BDD acceptance"><span class="icon icon-circle-arrow-left"></span> Previous</a>
+        <a href="../troubleshooting/" class="btn btn-neutral float-right" title="Troubleshooting">Next <span class="icon icon-circle-arrow-right"></span></a>
+    </div>
+
+  <hr/>
+
+  <div role="contentinfo">
+    <!-- Copyright etc -->
+      <p>Apache-2.0</p>
+  </div>
+
+  Built with <a href="https://www.mkdocs.org/">MkDocs</a> using a <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a> provided by <a href="https://readthedocs.org">Read the Docs</a>.
+</footer>
+          
+        </div>
+      </div>
+
+    </section>
+
+  </div>
+
+  <div class="rst-versions" role="note" aria-label="Versions">
+  <span class="rst-current-version" data-toggle="rst-current-version">
+    
+        <span>
+          <a href="https://github.com/eclipse-xfsc/facis-zero-trust-demonstrator" class="fa fa-github" style="color: #fcfcfc"> GitHub</a>
+        </span>
+    
+    
+      <span><a href="../bdd/" style="color: #fcfcfc">&laquo; Previous</a></span>
+    
+    
+      <span><a href="../troubleshooting/" style="color: #fcfcfc">Next &raquo;</a></span>
+    
+  </span>
+</div>
+    <script src="../js/jquery-3.6.0.min.js"></script>
+    <script>var base_url = "..";</script>
+    <script src="../js/theme_extra.js"></script>
+    <script src="../js/theme.js"></script>
+      <script src="../search/main.js"></script>
+    <script>
+        jQuery(function () {
+            SphinxRtdTheme.Navigation.enable(true);
+        });
+    </script>
+
+</body>
+</html>

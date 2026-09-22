@@ -1,0 +1,10 @@
+flowchart LR
+  subgraph TD_A["SPIFFE trust domain zone-a"]
+    A1["workloads with SVIDs"]
+  end
+  subgraph TD_B["SPIFFE trust domain zone-b"]
+    B1["workloads with SVIDs"]
+  end
+  A1 ==>|"ONLY via attested channel + TRAIN verdict"| B1
+  A1 -.->|"deny by default (ZT-55 matrix)"| MGMT["management plane"]
+  EXT["anything without SVID / unsigned image"] -->|"cannot join / cannot start"| X((denied))
