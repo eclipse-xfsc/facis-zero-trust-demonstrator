@@ -1,0 +1,34 @@
+{
+  "mock": true,
+  "profile": "tpm",
+  "evidence": {
+    "type": "TPM Evidence",
+    "evidence": "o8dZqd9rAOqZI47u3vv9nmzMEWEt7x4GSVvFx6bLeL7ORCV9XeINiRd5oBwORwOlc8Qoxb/w0IyUUVKFphixb970LrFM2knrEDoHR85YPUyYmwnFpO09RFMlB4zcYUqVV/0UqprhWggWQoL+RhKuVlCHAjZyUMUUS70WFLceuFbABoeE6gUDbubaNg79HA3otb9uVyzC55HJEK9Mli6W6XSjcoDun1aq67Mdn3qHzrkcx+zB7iT+jHJRBFXHEKwzhuze7kzBtSw8k198a48Z6Z64MONXx3dsrESlTJCATu8BwYKJ8sUyctFOnUx+cJ88AafAgBjADNkXcKCnNILnOdrS1RbI/ueLeowk6P6tkjTwkqYqNsf/TS3wAQ3cQOiNrVqNzJNRDcofw4nI9JR8BzuVQYmFCU62MmabBKuRebZ9qEtJ60YDT3hkG58WAsXFfdTyC9tjVkS7R1ca2R157xlSOmNBuTYqRxeXyYEPLaOsbKKGbBhI36QiX9fWZAg+2IxCdaxJ0p6rJ06qxn90+uATAZdR4+6jXiKD/5v5KG1X+zGLwy24MNSnoyimxwS14E63Yx3yFwqTwS8zf1WRTLuVWHQuc5ldcQ56q0fYiupXmRkDOHRaNjSYDNHPKOj0V5/pfCJLW01Jqo7BYOWTUmBiNmjZS4ibkr7do8xlWhBRQ6hWkW27jjwGP2YRWb64BTcg3urbQ/Gg47UM88J01H1FH1OsnoG22JYpRHwiJ4PMH+2FhgN4hTkg5Gu25HGC+o+ih5Zw+DYfgsf6+Y4kJTFPjFdvawPeMvvCCaNjGYYgssz+m2X3LiPjwrjh1wmwKz7l4uUGA0y5i6yJ1VHY8FdGh30rniSqHCDO/h5Q3r/RSh/UMiNIhwN1b3+a/c21ObIgSxv5eazxuq4L9Hnyi9AYt4ziLqg5G4S/R1XmZwzCi/VcFQ9xMEOdLX7Jt8U7ogrR1ODT8vNqNfHmC2yMrer0bhEFrnUiv3/uwFgJntkheBiyAU2EqV/0waCwK3kTie+JW4E5mQ9tWnljIOzoh62yZgOZE6SQiZDdAdtAGJibXXK5AL85drqVG9B5j3Lkfbp/ShNvFBeb4LtY/MnoPpvC5g6GDu7hfGBkh8YOGfIPHegIXEIlKMc3JTadEAc/LoCso9RyQoMxTf0piUhJfe7eykgR+/qHOvF6TCW0Lek7l2ekJepeLRtPjMAtUa38xTOGJcgPPNdItAjPg00GxIwKJEeqgXSNtJnZgvHtmBNs2CIRspgGbk3Lr0OTRnTrfgp7qDEcKmg3fsxsFof8+5Ch/y40dNcorHBYRaVj02JtcN5EAd3eMPBj9/Bea1V+nc1ZdkaZTunKDcTklqwJ7cKE7Y2fRHA/Su7Vhi89s4mDgOX7RD+isQGphFSzsa5Vi+WqvOj0OJuRuhxermpdQSyAdladpgpgKhuhkBiI2kjaA2dtmHBRF8cTJWi/NTw1TOWFGr+LrYJdOjHrwdos5YdNIvPGYArrAMAqhPC0e/cyGCBXkN8m7JLtmF52qiAsEKiACmfe/TOYSFMN+cHr3GO5idlMbbkaV72Nj2fobbg="
+  },
+  "collateral": {
+    "type": "TPM Evidence",
+    "certs": [
+      "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"
+    ],
+    "artifacts": [
+      {
+        "type": "PCR Eventlog",
+        "index": 0,
+        "events": [
+          {
+            "type": "firmware",
+            "name": "mock firmware event",
+            "hashes": [
+              {
+                "alg": "SHA-256",
+                "content": "df2df2e3cb7b6eccc3641620b14a271151af44f265420aea4350a9b355349759"
+              }
+            ]
+          }
+        ]
+      }
+    ]
+  }
+}

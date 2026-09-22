@@ -1,0 +1,53 @@
+{
+  "mock": true,
+  "profile": "sw",
+  "evidence": {
+    "type": "SW Evidence",
+    "evidence": "eyJwYXlsb2FkIjoiZXlKdWIyNWpaU0k2SWsxU1J6Qm9lRXRKVjBGTWR6WndiblpwTW5wb2RuazNkRXRKUXpCcWMwcHpSRmRCTkd4WmEwbFlNV3M5SWl3aWMyaGhNalUySWpvaVQzVkpSMFJHTldzdlVIRkhRMDFtZUV0WU1UTlFSRUl4WWpCemEwWkNXVTVpTnpScGFGTnNZa0ZuY3owaWZRIiwicHJvdGVjdGVkIjoiZXlKaGJHY2lPaUpGVXpJMU5pSjkiLCJzaWduYXR1cmUiOiJEVVRPV09YQ3lza0g5dUk5aXlZSldRVHpZcERmMmhQUmRKOTFjdTlEelFUaVJEdUVMNElyS01PcTRkdEZ1LWR0cUl6VmNjblBaTEVMWnd5dWxCSXdoZyJ9"
+  },
+  "collateral": {
+    "type": "SW Evidence",
+    "key": "LS0tLS1CRUdJTiBQVUJMSUMgS0VZLS0tLS0KTUZrd0V3WUhLb1pJemowQ0FRWUlLb1pJemowREFRY0RRZ0FFcU5LNWxQbFdrbUZCYkkxVndpSEVuYkREUUFlYwpvbEYzMGsxYXJSdzA4NUlzUzRBbDluVDNCSlJ3RWhjZnhiOEE5SThkRE1XaGg1dERBQWY3VkZ6YXJ3PT0KLS0tLS1FTkQgUFVCTElDIEtFWS0tLS0tCg==",
+    "artifacts": [
+      {
+        "type": "SW Eventlog",
+        "index": 0,
+        "events": [
+          {
+            "type": "application",
+            "name": "mock container",
+            "hashes": [
+              {
+                "alg": "SHA-256",
+                "content": "b64021895f7da2200c5a0f2ba249ba16da2663a30e9b0a700a8d1931fb64047c"
+              }
+            ],
+            "properties": [
+              {
+                "name": "cmc.index",
+                "value": "0"
+              }
+            ],
+            "ctrData": {
+              "configSha256": "abc1988ffa1109a7ca8afa590b1f725273256a5e043ed4938f780d759c9a29fa",
+              "rootfsSha256": "97c0332ee8e4cf82087b1bd3034f8a8cf5e6263e7ca073663ad2e07e0ddeab7b",
+              "ociSpec": {
+                "ociVersion": "1.3.0",
+                "process": {
+                  "user": {
+                    "uid": 0,
+                    "gid": 0
+                  },
+                  "args": [
+                    "/bin/sh"
+                  ],
+                  "cwd": "/"
+                }
+              }
+            }
+          }
+        ]
+      }
+    ]
+  }
+}

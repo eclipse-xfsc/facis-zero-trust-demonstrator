@@ -1,0 +1,144 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "mock-attestation.schema.json",
+  "title": "FZTD-46 mock attestation sample (JSON)",
+  "description": "One mock sample per CMC evidence type: the JSON shape that type of evidence takes, with the collateral that accompanies it. The 'evidence' and 'collateral' objects follow CMC's attestationreport types exactly (attestationreport.go, json.go); 'mock' and 'profile' belong to the sample wrapper, since CMC's own objects have no field to mark a mock.",
+  "$ref": "#/$defs/MockSample",
+  "$defs": {
+    "base64": {
+      "type": "string",
+      "pattern": "^[A-Za-z0-9+/]*={0,2}$",
+      "description": "Standard base64, as Go's encoding/json writes []byte fields."
+    },
+    "hex": {
+      "type": "string",
+      "pattern": "^[0-9a-f]*$",
+      "description": "Lowercase hex, as CMC's HexByte type writes itself (json.go)."
+    },
+    "EvidenceType": {
+      "description": "CMC evidence types that have a driver in the repo. IAS Evidence is defined by CMC but has no driver, so it is not covered.",
+      "enum": [
+        "SW Evidence",
+        "TPM Evidence",
+        "SNP Evidence",
+        "SGX Evidence",
+        "TDX Evidence",
+        "azure vTPM Evidence",
+        "azure SNP Evidence",
+        "azure TDX Evidence"
+      ]
+    },
+    "MockSample": {
+      "type": "object",
+      "properties": {
+        "mock": {
+          "const": true,
+          "description": "Marks the sample as synthetic: no driver ran, no hardware was involved."
+        },
+        "profile": {
+          "enum": ["sw", "tpm", "snp", "sgx", "tdx", "azure-tpm", "azure-snp", "azure-tdx"]
+        },
+        "evidence": { "$ref": "#/$defs/Evidence" },
+        "collateral": { "$ref": "#/$defs/Collateral" }
+      },
+      "required": ["mock", "profile", "evidence", "collateral"],
+      "additionalProperties": false
+    },
+    "Evidence": {
+      "type": "object",
+      "description": "The signed claim from one driver. CMC defines its payload as opaque bytes (e.g. an SNP report, a TPM quote, the sw JWS), so it is base64 here.",
+      "properties": {
+        "type": { "$ref": "#/$defs/EvidenceType" },
+        "evidence": { "$ref": "#/$defs/base64" },
+        "addData": { "$ref": "#/$defs/base64" },
+        "signature": { "$ref": "#/$defs/base64" }
+      },
+      "required": ["type", "evidence"],
+      "additionalProperties": false
+    },
+    "Collateral": {
+      "type": "object",
+      "description": "What a verifier needs to check one evidence; matched to it by type. The sw driver supplies a public key; every hardware driver supplies a cert chain instead.",
+      "properties": {
+        "type": { "$ref": "#/$defs/EvidenceType" },
+        "certs": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/base64" }
+        },
+        "key": { "$ref": "#/$defs/base64" },
+        "artifacts": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/Artifact" }
+        }
+      },
+      "required": ["type"],
+      "anyOf": [
+        { "required": ["key"] },
+        { "required": ["certs"] }
+      ],
+      "additionalProperties": false
+    },
+    "Artifact": {
+      "type": "object",
+      "properties": {
+        "type": {
+          "enum": [
+            "PCR Summary",
+            "PCR Eventlog",
+            "SW Eventlog",
+            "CC Eventlog",
+            "TDX Collateral",
+            "SGX Collateral"
+          ]
+        },
+        "index": { "type": "integer" },
+        "events": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/Component" }
+        }
+      },
+      "required": ["type", "index"]
+    },
+    "Component": {
+      "type": "object",
+      "description": "One measurement. 'type' is a CycloneDX kind (firmware, operating-system, platform, application, data) or empty: the sgx/tdx drivers leave it empty on collateral entries.",
+      "properties": {
+        "type": { "enum": ["firmware", "operating-system", "platform", "application", "data", ""] },
+        "name": { "type": "string" },
+        "hashes": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "alg": { "type": "string" },
+              "content": { "$ref": "#/$defs/hex" }
+            },
+            "required": ["alg", "content"]
+          }
+        },
+        "optional": { "type": "boolean" },
+        "properties": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "name": { "type": "string" },
+              "value": { "type": "string" }
+            },
+            "required": ["name", "value"]
+          }
+        },
+        "ctrData": {
+          "type": "object",
+          "properties": {
+            "configSha256": { "$ref": "#/$defs/hex" },
+            "rootfsSha256": { "$ref": "#/$defs/hex" },
+            "ociSpec": { "type": "object" }
+          }
+        },
+        "intelCollateral": { "type": "object" }
+      },
+      "required": ["type", "name"]
+    }
+  }
+}
