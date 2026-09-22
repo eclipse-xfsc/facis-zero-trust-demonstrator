@@ -81,6 +81,10 @@
                 </li>
               </ul>
               <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../oauth2-provider/">Connector OAuth2 provider</a>
+                </li>
+              </ul>
+              <ul>
                 <li class="toctree-l1"><a class="reference internal" href="../api-docs/">API documentation</a>
                 </li>
               </ul>
@@ -210,6 +214,12 @@ the decision.</p>
 <td>pending confirmation</td>
 </tr>
 <tr>
+<td>TDR, OSS microservice repository — <code>.github/workflows</code>: the Eclipse Dash licence scanner and the build workflows are referenced from the standard organisation workflows</td>
+<td>The Go tests reference the shared <code>go-test.yml</code>. The licence scan and the release SBOM run as workflows in this repository that do what the shared ones do — the same Eclipse Dash tool with the same review arguments, the same <code>cyclonedx-gomod</code> version and the same rule of attaching an SBOM to every release — with the pinned actions and declared permissions this repository requires of its own workflows</td>
+<td>The shared scanner sets up Go 1.21 and the shared SBOM generator Go 1.23.8, with no input to change either, and an older Go refuses a module whose <code>go</code> directive is newer — this module declares Go 1.27. The scanner's Go step only builds a module list it never uses; the Eclipse Dash tool reads <code>go.sum</code> directly. The shared scanner also fetches its jar through a redirect that now answers 404 with an HTML page, which surfaces as <code>invalid or corrupt jarfile</code></td>
+<td><a href="../ci-cd/#go-version">CI/CD — Go version</a> · declared here, pending confirmation; the two workflows go back to references once the shared ones accept a Go version or read <code>go.mod</code></td>
+</tr>
+<tr>
 <td>ZT-31, ZT-71 — mock attestation in JSON for any TEE vendor</td>
 <td>Evidence is produced by the CMC software driver in a vendor-agnostic report envelope, with one sample artefact per vendor profile</td>
 <td>No TEE hardware is in scope; the mock has to be honest about being a mock and carry the same structure a real driver would emit</td>
@@ -222,6 +232,8 @@ the decision.</p>
 as the F-05 deviation package and the OpenBao licence exception as F-07; both are open at the time of
 writing. A reading that FACIS declines is handled as a plan change under the written-agreement rule,
 not absorbed into the implementation.</p>
+<p>The CI workflow reading was added after that package, when the first Go module arrived, and is not yet
+part of a submitted deviation package: it is declared here so that it is not mistaken for an omission.</p>
               
             </div>
           </div><footer>

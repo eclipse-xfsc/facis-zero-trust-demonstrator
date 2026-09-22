@@ -81,6 +81,10 @@
                 </li>
               </ul>
               <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../oauth2-provider/">Connector OAuth2 provider</a>
+                </li>
+              </ul>
+              <ul>
                 <li class="toctree-l1"><a class="reference internal" href="../api-docs/">API documentation</a>
                 </li>
               </ul>
@@ -108,6 +112,8 @@
         </ul>
     </li>
     <li class="toctree-l2"><a class="reference internal" href="#external-xfsc-components">External XFSC components</a>
+    </li>
+    <li class="toctree-l2"><a class="reference internal" href="#go-dependencies">Go dependencies</a>
     </li>
     </ul>
                 </li>
@@ -192,6 +198,32 @@ open and tracked as follow-up requirement F-07.</p>
 <p>The demonstrator integrates XFSC components rather than reimplementing them: the Trust Services API
 for policy evaluation, the Organisation Credential Manager for wallets, TRAIN for trust anchoring,
 and ORCE for orchestration. Versions are pinned at deployment and recorded with the release.</p>
+<h2 id="go-dependencies">Go dependencies<a class="headerlink" href="#go-dependencies" title="Permanent link">&para;</a></h2>
+<p>Direct dependencies of the Go module. Transitive dependencies are listed in the SBOM.</p>
+<table>
+<thead>
+<tr>
+<th>Dependency</th>
+<th>Version</th>
+<th>Licence</th>
+<th>Purpose</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>authelia.com/provider/oauth2</code></td>
+<td>v0.3.2</td>
+<td>Apache-2.0</td>
+<td>OAuth 2.0 framework behind the connector's provider adapter: RFC 7591 client registration and RFC 9449 DPoP. Requires Go 1.27.x.</td>
+</tr>
+<tr>
+<td><code>golang.org/x/crypto</code></td>
+<td>v0.57.0</td>
+<td>BSD-3-Clause</td>
+<td>bcrypt hashing of client secrets</td>
+</tr>
+</tbody>
+</table>
               
             </div>
           </div><footer>

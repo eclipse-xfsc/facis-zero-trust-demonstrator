@@ -81,6 +81,10 @@
                 </li>
               </ul>
               <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../oauth2-provider/">Connector OAuth2 provider</a>
+                </li>
+              </ul>
+              <ul>
                 <li class="toctree-l1"><a class="reference internal" href="../api-docs/">API documentation</a>
                 </li>
               </ul>
@@ -96,6 +100,8 @@
     <li class="toctree-l2"><a class="reference internal" href="#the-service-pipeline">The service pipeline</a>
         <ul>
     <li class="toctree-l3"><a class="reference internal" href="#go-module-layout">Go module layout</a>
+    </li>
+    <li class="toctree-l3"><a class="reference internal" href="#go-version">Go version</a>
     </li>
         </ul>
     </li>
@@ -175,6 +181,10 @@
 rather than copying them. Keeping the bodies upstream is what the Technical Development
 Requirements ask for, and it means a fix to a shared workflow reaches this repository without a
 pull request here.</p>
+<p>Two workflows are the exception, and run in this repository instead: the licence scan and the SBOM.
+The shared versions cannot process this module — see <a href="#go-version">Go version</a> for why and for what
+would let them be referenced again. This is a departure from the Technical Development Requirements
+and is declared as such in <a href="../specifications/#readings-and-additions">Specification changes</a>.</p>
 <h2 id="workflows-in-this-repository">Workflows in this repository<a class="headerlink" href="#workflows-in-this-repository" title="Permanent link">&para;</a></h2>
 <table>
 <thead>
@@ -188,12 +198,12 @@ pull request here.</p>
 <tr>
 <td><code>.github/workflows/eclipse-dash.yml</code></td>
 <td>every pull request, schedule, release, manual</td>
-<td>Calls the shared Eclipse Dash licence scanner and files IP review requests for dependencies</td>
+<td>Runs the Eclipse Dash licence scanner on <code>go.sum</code> and files IP review requests for dependencies</td>
 </tr>
 <tr>
 <td><code>.github/workflows/sbom.yml</code></td>
 <td>schedule, release, manual</td>
-<td>Calls the shared SBOM generator</td>
+<td>Generates a CycloneDX SBOM for every release that has none and attaches it</td>
 </tr>
 <tr>
 <td><code>.github/workflows/docs.yml</code></td>
@@ -231,7 +241,7 @@ and nobody hand-rolls their own:</p>
 </tr>
 <tr>
 <td><code>Go lint</code></td>
-<td><code>golangci-lint run ./...</code></td>
+<td><code>golangci-lint run ./...</code>, with a pinned golangci-lint built by the Go version <code>go.mod</code> names</td>
 <td>yes</td>
 </tr>
 <tr>
@@ -257,8 +267,55 @@ the first service lands.</p>
 <code>services/</code> and shared code in <code>internal/</code>. This is not a style preference: the Eclipse Dash
 scanner and the shared SBOM generator both read the root <code>go.sum</code>, and a module per service would
 leave the licence gate and the release SBOM with nothing to read.</p>
-<p><code>go.mod</code> declares <strong>Go 1.24</strong>, matching the <code>golang:1.24.x</code> containers the shared org workflows run
-in. A newer toolchain directive would break them.</p>
+<h3 id="go-version">Go version<a class="headerlink" href="#go-version" title="Permanent link">&para;</a></h3>
+<p><code>go.mod</code> declares <strong>Go 1.27</strong>. The version is not chosen freely: a module cannot declare a lower Go
+version than its dependencies, and <code>authelia.com/provider/oauth2</code> v0.3.2, which the connector's
+OAuth2 provider is built on, requires Go 1.27.</p>
+<p>Nothing in the shared org workflows reads <code>go.mod</code>. Each sets up its own fixed Go version, and
+<code>actions/setup-go</code> disables automatic toolchain download, so an older Go stops with
+<code>go.mod requires go &gt;= 1.27</code> before it does any work. How each job gets its Go version:</p>
+<table>
+<thead>
+<tr>
+<th>Job</th>
+<th>How it gets Go</th>
+<th>Consequence</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>Go tests</code> (shared <code>go-test.yml</code>)</td>
+<td><code>go-version</code> input, default 1.24</td>
+<td><code>ci.yml</code> passes <code>1.27</code>; keep it in step with <code>go.mod</code> by hand</td>
+</tr>
+<tr>
+<td><code>Go lint</code>, BDD suite, <code>sbom.yml</code></td>
+<td><code>go-version-file: go.mod</code></td>
+<td>follow <code>go.mod</code> by themselves</td>
+</tr>
+<tr>
+<td>Licence scan in <code>eclipse-dash.yml</code></td>
+<td>none</td>
+<td>the Eclipse Dash tool reads <code>go.sum</code> and needs no Go toolchain</td>
+</tr>
+<tr>
+<td>shared <code>eclipse-dash-licence-go.yml</code></td>
+<td>hard-coded 1.21, no input</td>
+<td>cannot run on this module — not used</td>
+</tr>
+<tr>
+<td>shared <code>sbom-golang.yml</code></td>
+<td>hard-coded 1.23.8, no input</td>
+<td>cannot run on this module — not used</td>
+</tr>
+</tbody>
+</table>
+<p>The last two are why the licence scan and the SBOM run locally. The local jobs do what the shared
+ones do — the same Eclipse Dash tool with the same review arguments, the same <code>cyclonedx-gomod</code>
+version and the same rule of attaching an SBOM to every release that lacks one — with the pinned
+actions and declared permissions this repository requires of its own workflows. They can go back to
+being references once the shared workflows accept a Go version or read <code>go.mod</code>; that is a change to
+propose in <code>eclipse-xfsc/dev-ops</code>.</p>
 <h2 id="repository-protection-and-least-privilege">Repository protection and least privilege<a class="headerlink" href="#repository-protection-and-least-privilege" title="Permanent link">&para;</a></h2>
 <p>The demonstrator applies its own zero-trust posture to the delivery machine (ZT-56): nothing reaches
 <code>main</code> unreviewed, and no pipeline holds a credential wider than the job in front of it needs.</p>
@@ -323,10 +380,14 @@ and no wildcard write scope — on every pull request. Run it locally before pus
 <p>Every third-party dependency must clear Eclipse Dash before it ships. The scan is a <strong>blocking
 pull-request gate</strong>: a dependency Dash marks <code>restricted</code> fails the <code>Licence gate</code> job and the
 merge is refused.</p>
-<p>The shared Go scanner reads <code>go.sum</code>, so the gate skips itself while no Go module exists — a
+<p>The scanner reads <code>go.sum</code>, so the gate skips itself while no Go module exists — a
 preceding job looks for the file and the scan runs only when it is there. The workflow itself is
 not filtered by path, so the required check is always reported: a skipped job counts as passing,
 whereas a workflow that never starts leaves the pull request waiting forever.</p>
+<p>On a run that can see the organisation's review token the scanner files IP review requests for
+whatever it cannot clear. A pull request from a fork cannot see that secret, so there the same tool
+runs check-only: it files nothing, but it still fails on a licence that is not approved. If the
+licence services cannot be reached the job fails and asks to be rerun, rather than pass unverified.</p>
 <p>Dependencies that Dash cannot clear automatically go to the Eclipse IP team for review. A dependency
 under a licence that the project cannot accept is replaced, not waived — and where the requirements
 prescribe the component and leave no alternative, it goes to the client as a written licence
@@ -337,7 +398,8 @@ exception before it is merged. The process and the OpenBao worked example are in
 enabled on the repository with its source set to that branch — a one-time repository setting a
 maintainer applies.</p>
 <h2 id="adding-a-workflow">Adding a workflow<a class="headerlink" href="#adding-a-workflow" title="Permanent link">&para;</a></h2>
-<p>Reference the shared workflow rather than reimplementing it:</p>
+<p>Reference the shared workflow rather than reimplementing it, unless it cannot run on this module
+(see <a href="#go-version">Go version</a>):</p>
 <pre><code class="language-yaml">jobs:
   call-remote-workflow:
     secrets: inherit

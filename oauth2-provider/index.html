@@ -1,0 +1,460 @@
+<!DOCTYPE html>
+<html class="writer-html5" lang="en" >
+<head>
+    <meta charset="utf-8" />
+    <meta http-equiv="X-UA-Compatible" content="IE=edge" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+      <link rel="shortcut icon" href="../img/favicon.ico" />
+    <title>Connector OAuth2 provider - FACIS Zero Trust Demonstrator</title>
+    <link rel="stylesheet" href="../css/theme.css" />
+    <link rel="stylesheet" href="../css/theme_extra.css" />
+        <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.8.0/styles/github.min.css" />
+    
+      <script>
+        // Current page data
+        var mkdocs_page_name = "Connector OAuth2 provider";
+        var mkdocs_page_input_path = "oauth2-provider.md";
+        var mkdocs_page_url = null;
+      </script>
+    
+    <!--[if lt IE 9]>
+      <script src="../js/html5shiv.min.js"></script>
+    <![endif]-->
+      <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.8.0/highlight.min.js"></script>
+      <script>hljs.highlightAll();</script> 
+</head>
+
+<body class="wy-body-for-nav" role="document">
+
+  <div class="wy-grid-for-nav">
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side stickynav">
+    <div class="wy-side-scroll">
+      <div class="wy-side-nav-search">
+          <a href=".." class="icon icon-home"> FACIS Zero Trust Demonstrator
+        </a><div role="search">
+  <form id ="rtd-search-form" class="wy-form" action="../search.html" method="get">
+      <input type="text" name="q" placeholder="Search docs" aria-label="Search docs" title="Type search term here" />
+  </form>
+</div>
+      </div>
+
+      <div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="..">Home</a>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../features/">Features and journeys</a>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../architecture/">Architecture</a>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../usage/">Using the demonstrator</a>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../deployment/">Deployment</a>
+                </li>
+              </ul>
+              <p class="caption"><span class="caption-text">Environments</span></p>
+              <ul>
+                  <li class="toctree-l1"><a class="reference internal" href="../environments/">Overview</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../environments/osc/">T-Systems OSC</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../environments/ionos/">IONOS Cloud</a>
+                  </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../packaging/">Packaging and containers</a>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../flows/">Orchestrated flows</a>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../keycloak/">Keycloak integration</a>
+                </li>
+              </ul>
+              <ul class="current">
+                <li class="toctree-l1 current"><a class="reference internal current" href="#">Connector OAuth2 provider</a>
+    <ul class="current">
+    <li class="toctree-l2"><a class="reference internal" href="#architecture">Architecture</a>
+    </li>
+    <li class="toctree-l2"><a class="reference internal" href="#client-registration">Client registration</a>
+    </li>
+    <li class="toctree-l2"><a class="reference internal" href="#dpop-behaviour">DPoP behaviour</a>
+    </li>
+    <li class="toctree-l2"><a class="reference internal" href="#reason-codes">Reason codes</a>
+    </li>
+    <li class="toctree-l2"><a class="reference internal" href="#configuration">Configuration</a>
+    </li>
+    <li class="toctree-l2"><a class="reference internal" href="#running-the-conformance-tests">Running the conformance tests</a>
+    </li>
+    <li class="toctree-l2"><a class="reference internal" href="#limitations">Limitations</a>
+    </li>
+    </ul>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../api-docs/">API documentation</a>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../bdd/">BDD acceptance</a>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../ci-cd/">CI/CD</a>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../troubleshooting/">Troubleshooting</a>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../dependencies/">OSS dependencies</a>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../specifications/">Specification changes</a>
+                </li>
+              </ul>
+              <p class="caption"><span class="caption-text">Architecture decisions</span></p>
+              <ul>
+                  <li class="toctree-l1"><a class="reference internal" href="../adr/">Overview</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../adr/0001-service-mesh-mode-istio-ambient-with-cilium/">0001 Service mesh mode</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../adr/0002-gatekeeper-external-data-provider-for-cosign-verification/">0002 Gatekeeper external data provider</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../adr/0003-oauth2-authorisation-surface-in-the-go-connector/">0003 OAuth2 surface in the Go connector</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../adr/0004-openbao-as-x509-key-value-store/">0004 OpenBao as X.509 key-value store</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../adr/0005-three-cluster-reading-of-the-target-environment/">0005 Three-cluster target environment</a>
+                  </li>
+              </ul>
+      </div>
+    </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap">
+      <nav class="wy-nav-top" role="navigation" aria-label="Mobile navigation menu">
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="..">FACIS Zero Trust Demonstrator</a>
+        
+      </nav>
+      <div class="wy-nav-content">
+        <div class="rst-content"><div role="navigation" aria-label="breadcrumbs navigation">
+  <ul class="wy-breadcrumbs">
+    <li><a href=".." class="icon icon-home" aria-label="Docs"></a></li>
+      <li class="breadcrumb-item active">Connector OAuth2 provider</li>
+    <li class="wy-breadcrumbs-aside">
+          <a href="https://github.com/eclipse-xfsc/facis-zero-trust-demonstrator/edit/main/docs/oauth2-provider.md" class="icon icon-github"> Edit on GitHub</a>
+    </li>
+  </ul>
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+            <div class="section" itemprop="articleBody">
+              
+                <h1 id="connector-oauth2-provider">Connector OAuth2 provider<a class="headerlink" href="#connector-oauth2-provider" title="Permanent link">&para;</a></h1>
+<p>The connector issues its own OAuth 2.0 tokens instead of delegating to the identity provider
+(see the <a href="../adr/0003-oauth2-authorisation-surface-in-the-go-connector/">architecture decision on the OAuth2 surface</a>).
+This page describes the part of that authorization surface that exists today: dynamic client
+registration and DPoP-bound access tokens.</p>
+<table>
+<thead>
+<tr>
+<th>Capability</th>
+<th>Specification</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Dynamic client registration</td>
+<td>RFC 7591</td>
+</tr>
+<tr>
+<td>Client credentials grant</td>
+<td>RFC 6749 section 4.4</td>
+</tr>
+<tr>
+<td>Sender-constrained access tokens (DPoP)</td>
+<td>RFC 9449</td>
+</tr>
+<tr>
+<td>Resource-side validation of bound tokens</td>
+<td>RFC 9449 section 7</td>
+</tr>
+</tbody>
+</table>
+<p>Issuing tokens from a verified credential presentation is not part of this layer yet.</p>
+<h2 id="architecture">Architecture<a class="headerlink" href="#architecture" title="Permanent link">&para;</a></h2>
+<p>Connector code depends on a contract the project owns. The OAuth 2.0 library sits behind an adapter
+and is invisible to everything else.</p>
+<pre><code>connector code ──depends on──▶ oauth2provider            contract: types, store interfaces, reason codes
+                                     ▲ implements
+                         oauth2provider/authelia ──▶ authelia.com/provider/oauth2
+</code></pre>
+<table>
+<thead>
+<tr>
+<th>Package (under <code>services/connector/internal/</code>)</th>
+<th>Role</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>oauth2provider</code></td>
+<td>The contract: <code>Provider</code>, <code>Config</code>, <code>Client</code>, the store interfaces and the reason codes. Imports no OAuth 2.0 library.</td>
+</tr>
+<tr>
+<td><code>oauth2provider/authelia</code></td>
+<td>The implementation. The only package allowed to import the library.</td>
+</tr>
+<tr>
+<td><code>oauth2provider/memstore</code></td>
+<td>In-memory stores for tests and local development. Nothing is persisted.</td>
+</tr>
+<tr>
+<td><code>dpoptest</code></td>
+<td>Test helper that mints DPoP proofs, including deliberately defective ones, using the standard library only.</td>
+</tr>
+</tbody>
+</table>
+<p>The boundary is enforced, not just intended: a test inspects the imports every package declares and
+fails if anything other than the adapter imports the library. It checks direct imports, since every
+consumer of the adapter depends on the library transitively and legitimately.</p>
+<p>The contract's API is unstable and subject to change.</p>
+<h2 id="client-registration">Client registration<a class="headerlink" href="#client-registration" title="Permanent link">&para;</a></h2>
+<p>Registration is <strong>not open</strong>. The registration endpoint is itself a protected resource: it takes an
+access token, issued by the token endpoint like any other, that</p>
+<ul>
+<li>names the registration endpoint as its audience, and</li>
+<li>carries the scope <code>connector:client_registration</code>.</li>
+</ul>
+<p>A deployment provisions one client that is allowed to obtain such a token; participant backends
+holding it can then register themselves without an operator creating each client by hand.</p>
+<p>A registration cannot exceed the token that authorised it. Requested scopes must be within the scopes
+of that token, the registration scope itself can never be registered, and grant types are limited to
+those the deployment offers. Violations are refused with <code>invalid_client_metadata</code>.</p>
+<p>A client that registers with <code>dpop_bound_access_tokens: true</code> can afterwards only obtain tokens by
+presenting a DPoP proof.</p>
+<p>The generated client secret is returned once, in the registration response. Only its bcrypt hash is
+stored.</p>
+<h2 id="dpop-behaviour">DPoP behaviour<a class="headerlink" href="#dpop-behaviour" title="Permanent link">&para;</a></h2>
+<p>What follows is behaviour the conformance tests assert, not a restatement of the specification.</p>
+<p><strong>Token endpoint.</strong> A valid proof yields a token with <code>token_type</code> <code>DPoP</code>, bound to the thumbprint of
+the proof's key. A proof is refused when</p>
+<ul>
+<li>its <code>htm</code> is not the request method;</li>
+<li>its <code>htu</code> is not the request URI. Query and fragment are ignored in the comparison, per RFC 9449
+  section 4.2; a different path or host is refused;</li>
+<li>its <code>iat</code> lies outside the freshness window: accepted from <code>iat - ClockSkew</code> until
+  <code>iat + ProofLifespan + ClockSkew</code>;</li>
+<li>it has been used before.</li>
+</ul>
+<p><strong>Replay protection.</strong> A proof is accepted once. The guarantee holds under concurrency: of one hundred
+simultaneous presentations of the same proof, exactly one is accepted and the rest are refused as
+replays. A <code>jti</code> is scoped to the URI and method the proof was made for, following RFC 9449 sections
+4.2 and 11.1, and additionally to the proof key and nonce. Reusing a <code>jti</code> in a new proof for another
+endpoint is therefore not a replay; presenting any proof a second time is.</p>
+<p><strong>Server nonce.</strong> With <code>NonceRequired</code>, a request without a nonce is answered with <code>400</code>
+<code>use_dpop_nonce</code> and a <code>DPoP-Nonce</code> header. Retrying with that nonce succeeds. A nonce the server did
+not issue, or one past <code>NonceLifespan</code>, is challenged again.</p>
+<p><strong>Protected resources.</strong> A resource accepts only key-bound tokens, presented under the <code>DPoP</code> scheme
+with a proof that</p>
+<ul>
+<li>is signed by the key the token is bound to — a token presented with any other key is refused, which
+  is what makes a stolen token useless;</li>
+<li>carries an <code>ath</code> claim matching the presented token;</li>
+<li>satisfies the same <code>htm</code>, <code>htu</code>, freshness and replay checks as at the token endpoint.</li>
+</ul>
+<p>A bound token presented under the <code>Bearer</code> scheme is refused, with or without a proof next to it.</p>
+<h2 id="reason-codes">Reason codes<a class="headerlink" href="#reason-codes" title="Permanent link">&para;</a></h2>
+<p>Error responses keep the members the OAuth 2.0 specifications define and add a <code>reason</code> member with a
+machine-readable code, in line with the project's <a href="../api-docs/#conventions">error conventions</a>. The
+codes are derived from the library's OAuth 2.0 error names and from facts the adapter establishes
+itself, never from message text.</p>
+<table>
+<thead>
+<tr>
+<th><code>reason</code></th>
+<th>Meaning</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>dpop_invalid_proof</code></td>
+<td>The proof fails the RFC 9449 section 4.3 checks, or is missing where required</td>
+</tr>
+<tr>
+<td><code>dpop_replayed</code></td>
+<td>The proof was already used</td>
+</tr>
+<tr>
+<td><code>dpop_use_nonce</code></td>
+<td>A server-issued nonce is required</td>
+</tr>
+<tr>
+<td><code>dpop_jkt_mismatch</code></td>
+<td>The proof is signed by a key other than the one the token is bound to</td>
+</tr>
+<tr>
+<td><code>dpop_invalid_ath</code></td>
+<td>The <code>ath</code> claim is missing or does not match the presented token</td>
+</tr>
+<tr>
+<td><code>invalid_client</code></td>
+<td>Client authentication failed</td>
+</tr>
+<tr>
+<td><code>invalid_token</code></td>
+<td>The token is unknown, expired, not key-bound, or presented under the wrong scheme</td>
+</tr>
+<tr>
+<td><code>insufficient_scope</code></td>
+<td>The token lacks a required scope</td>
+</tr>
+<tr>
+<td><code>registration_rejected</code></td>
+<td>The submitted client metadata was refused</td>
+</tr>
+<tr>
+<td><code>invalid_request</code>, <code>server_error</code></td>
+<td>As named</td>
+</tr>
+</tbody>
+</table>
+<h2 id="configuration">Configuration<a class="headerlink" href="#configuration" title="Permanent link">&para;</a></h2>
+<p><code>oauth2provider.Config</code>:</p>
+<table>
+<thead>
+<tr>
+<th>Field</th>
+<th>Purpose</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>Secret</code></td>
+<td>Signs access tokens. At least 32 bytes.</td>
+</tr>
+<tr>
+<td><code>AccessTokenLifespan</code></td>
+<td>Defaults to one hour.</td>
+</tr>
+<tr>
+<td><code>DPoP.Enforce</code></td>
+<td>Require a proof from every client, not only from clients registered for bound tokens.</td>
+</tr>
+<tr>
+<td><code>DPoP.NonceRequired</code></td>
+<td>Challenge with a server nonce.</td>
+</tr>
+<tr>
+<td><code>DPoP.ProofLifespan</code>, <code>DPoP.ClockSkew</code></td>
+<td>The freshness window.</td>
+</tr>
+<tr>
+<td><code>DPoP.NonceLifespan</code></td>
+<td>How long an issued nonce stays valid.</td>
+</tr>
+<tr>
+<td><code>DPoP.Algorithms</code></td>
+<td>Accepted proof signature algorithms.</td>
+</tr>
+<tr>
+<td><code>Registration.Secret</code></td>
+<td>Signs registration access tokens. At least 32 bytes and different from <code>Secret</code>.</td>
+</tr>
+<tr>
+<td><code>Registration.EndpointURL</code></td>
+<td>Absolute URL of the registration endpoint; also the audience a token must carry there.</td>
+</tr>
+<tr>
+<td><code>Registration.GrantTypes</code></td>
+<td>Grant types a client may register for.</td>
+</tr>
+</tbody>
+</table>
+<p>Persistence is supplied through small interfaces — clients, access tokens, registration tokens, DPoP
+nonces and DPoP replay state. Stores are handed token signatures, never usable tokens, and the
+request form is not persisted because it can carry client credentials.</p>
+<h2 id="running-the-conformance-tests">Running the conformance tests<a class="headerlink" href="#running-the-conformance-tests" title="Permanent link">&para;</a></h2>
+<pre><code class="language-sh">go test ./services/connector/...
+go test -race ./services/connector/...
+</code></pre>
+<p>The tests run the provider behind a real HTTP server and drive it from the outside. Stale, future and
+otherwise defective proofs are minted with the claims they need, and expiry is exercised by moving the
+stores' clock, so no test waits for time to pass. Test names state the rule they check:
+<code>TestDPoP_…</code>, <code>TestResource_…</code>, <code>TestRegistration_…</code>.</p>
+<h2 id="limitations">Limitations<a class="headerlink" href="#limitations" title="Permanent link">&para;</a></h2>
+<ul>
+<li>The only stores are in-memory; nothing survives a restart.</li>
+<li>Only the <code>client_credentials</code> grant and <code>client_secret_basic</code> client authentication are wired.
+  Client authentication by signed assertion is refused.</li>
+<li>Registration management (RFC 7592) and token introspection are not exposed.</li>
+<li>The proof URI is reconstructed from the request. Behind a proxy the scheme is taken from
+  <code>X-Forwarded-Proto</code>, so that header must be set by a trusted hop only.</li>
+<li>The currently evaluated <code>authelia.com/provider/oauth2</code> v0.3.2 requires Go 1.27.x.</li>
+</ul>
+              
+            </div>
+          </div><footer>
+    <div class="rst-footer-buttons" role="navigation" aria-label="Footer Navigation">
+        <a href="../keycloak/" class="btn btn-neutral float-left" title="Keycloak integration"><span class="icon icon-circle-arrow-left"></span> Previous</a>
+        <a href="../api-docs/" class="btn btn-neutral float-right" title="API documentation">Next <span class="icon icon-circle-arrow-right"></span></a>
+    </div>
+
+  <hr/>
+
+  <div role="contentinfo">
+    <!-- Copyright etc -->
+      <p>Apache-2.0</p>
+  </div>
+
+  Built with <a href="https://www.mkdocs.org/">MkDocs</a> using a <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a> provided by <a href="https://readthedocs.org">Read the Docs</a>.
+</footer>
+          
+        </div>
+      </div>
+
+    </section>
+
+  </div>
+
+  <div class="rst-versions" role="note" aria-label="Versions">
+  <span class="rst-current-version" data-toggle="rst-current-version">
+    
+        <span>
+          <a href="https://github.com/eclipse-xfsc/facis-zero-trust-demonstrator" class="fa fa-github" style="color: #fcfcfc"> GitHub</a>
+        </span>
+    
+    
+      <span><a href="../keycloak/" style="color: #fcfcfc">&laquo; Previous</a></span>
+    
+    
+      <span><a href="../api-docs/" style="color: #fcfcfc">Next &raquo;</a></span>
+    
+  </span>
+</div>
+    <script src="../js/jquery-3.6.0.min.js"></script>
+    <script>var base_url = "..";</script>
+    <script src="../js/theme_extra.js"></script>
+    <script src="../js/theme.js"></script>
+      <script src="../search/main.js"></script>
+    <script>
+        jQuery(function () {
+            SphinxRtdTheme.Navigation.enable(true);
+        });
+    </script>
+
+</body>
+</html>
