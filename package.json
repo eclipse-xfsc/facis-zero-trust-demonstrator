@@ -6,8 +6,9 @@
   "description": "JavaScript side of the FACIS.ZTD acceptance suite",
   "type": "module",
   "scripts": {
-    "bdd": "cucumber-js features/js --import features/js/steps --format summary --format json:bundles/bdd/js-report.json",
-    "bdd:row": "cucumber-js features/js --import features/js/steps --format summary --format json:bundles/bdd/js-report.json --tags"
+    "bdd": "cucumber-js features/js --import features/js/steps --tags \"not @cluster\" --format summary --format json:bundles/bdd/js-report.json",
+    "bdd:row": "cucumber-js features/js --import features/js/steps --format summary --format json:bundles/bdd/js-report.json --tags",
+    "bdd:cluster": "cucumber-js features/js --import features/js/steps --tags @cluster --format summary --format json:bundles/bdd/js-cluster-report-${BDD_TARGET:-local}.json"
   },
   "devDependencies": {
     "@cucumber/cucumber": "13.2.1"

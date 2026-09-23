@@ -1,0 +1,40 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ .Release.Name }}
+  labels:
+    {{- include "fixture.labels" . | nindent 4 }}
+spec:
+  replicas: {{ .Values.replicas }}
+  selector:
+    matchLabels:
+      {{- include "fixture.selector" . | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "fixture.labels" . | nindent 8 }}
+      annotations:
+        # A change to the ConfigMap rolls the pods; an unchanged redeploy leaves them alone.
+        checksum/config: {{ include (print $.Template.BasePath "/configmap.yaml") . | sha256sum }}
+    spec:
+      automountServiceAccountToken: false
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 65535
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: fixture
+          image: "{{ .Values.image.repository }}@{{ .Values.image.digest }}"
+          ports:
+            - name: http
+              containerPort: 8080
+              protocol: TCP
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: ["ALL"]
+          resources:
+            requests: { cpu: 5m, memory: 8Mi }
+            limits: { cpu: 50m, memory: 16Mi }

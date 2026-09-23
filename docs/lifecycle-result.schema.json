@@ -1,0 +1,72 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/eclipse-xfsc/facis-zero-trust-demonstrator/docs/lifecycle-result.schema.json",
+  "title": "Lifecycle job in the ORCE flow context (IF-08)",
+  "description": "The value the ztd-lifecycle node keeps under lifecycle.jobs[requestId] in the flow context of the 'ztd-lifecycle-tab' flow. Read it through the ORCE admin API: GET /context/flow/ztd-lifecycle-tab/lifecycle with a read-only bearer token; the response carries the stored object as a JSON string in its 'msg' field.",
+  "type": "object",
+  "required": ["events", "result"],
+  "properties": {
+    "events": {
+      "description": "Progress, in order.",
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["action", "step", "status"],
+        "properties": {
+          "action": { "enum": ["deploy", "uninstall"] },
+          "step": { "enum": ["validate", "dry-run", "deploy", "uninstall"] },
+          "status": { "enum": ["running", "succeeded", "failed"] }
+        }
+      }
+    },
+    "result": {
+      "description": "null while running; then the final result. Missing properties never mean success: ok is always explicit.",
+      "oneOf": [
+        { "type": "null" },
+        {
+          "type": "object",
+          "required": ["type", "ok", "action", "requestId", "errors"],
+          "properties": {
+            "type": { "const": "result" },
+            "ok": { "type": "boolean" },
+            "action": { "enum": ["deploy", "uninstall"] },
+            "requestId": { "type": "string" },
+            "data": {
+              "type": ["object", "null"],
+              "properties": {
+                "release": { "type": "string" },
+                "namespace": { "type": "string" },
+                "clusterId": { "description": "UID of the kube-system namespace: identifies the cluster acted on.", "type": "string" },
+                "revision": { "type": "integer" },
+                "chartDigest": { "type": "string", "pattern": "^sha256:[a-f0-9]{64}$" },
+                "valuesHash": { "type": "string", "pattern": "^sha256:[a-f0-9]{64}$" },
+                "helmVersion": { "type": "string" },
+                "expected": {
+                  "description": "Every top-level object the release rendered, with its live identity.",
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "required": ["kind", "name", "uid"],
+                    "properties": { "apiVersion": { "type": "string" }, "kind": { "type": "string" }, "namespace": { "type": ["string", "null"] }, "name": { "type": "string" }, "uid": { "type": "string" } }
+                  }
+                },
+                "output": { "description": "Helm output, credentials masked.", "type": "string" }
+              }
+            },
+            "ui": { "type": "object" },
+            "errors": {
+              "type": ["object", "null"],
+              "properties": {
+                "fields": { "description": "Parameter name to message.", "type": "object", "additionalProperties": { "type": "string" } },
+                "action": {
+                  "description": "Reason code of a refused or failed action.",
+                  "enum": ["valuesSchemaRejected", "dryRunRejected", "deployFailed", "uninstallFailed", "releaseNotFound", "clusterUnreachable", "duplicateRequest", "invalidAction", "systemError"]
+                }
+              }
+            }
+          }
+        }
+      ]
+    }
+  }
+}

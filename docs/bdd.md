@@ -63,10 +63,14 @@ npm run bdd:row -- @ZT-17                    # JavaScript
 
 ### The traceability sheet
 
-`features/annex-rows.txt` holds the 92 Annex A row ids in Annex order and is the denominator: the
+`features/annex-rows.txt` holds the 94 Annex A row ids in Annex order and is the denominator: the
 sheet reports every row, covered or not, so a gap is visible rather than absent. `cmd/bddreport`
 generates `traceability.md` and `traceability.csv` from the tags in the merged report — the sheet
 is never edited by hand.
+
+Covered is not proven. Each row also carries a **result** taken from the step and hook results of
+every execution that covers it: `passed` only when every execution passed, on every target and for
+every Outline example; `failed` when any one failed; `not run` when any was skipped or had no steps.
 
 The pipeline runs all of this on every pull request, writes the sheet into the job summary, and
 publishes `bundles/bdd` as the `bdd-evidence` artefact, which is the per-gate evidence bundle.
@@ -92,6 +96,81 @@ incomplete, because the demonstrator's claim is about what it refuses.
 | Fail-secure behaviour | ZT-47, ZT-52 | Each request is authorised on its own merits | Control-plane unavailability denies rather than admits, and raises an alert |
 | Visualization and journey | ZT-05, ZT-08, ZT-09, ZT-43, ZT-44, ZT-78, ZT-81 | The ORCE journey runs end to end and each step is visible | Every refusal above is visible in the UI, not only in a log |
 | Documentation and reproduction | ZT-16, ZT-17 | Each cluster is reproduced from the [environment guides](environments/index.md) alone | A step that cannot be reproduced from the documentation fails the check |
+
+## The deployment-lifecycle pack
+
+`features/js/lifecycle.feature` covers TDR-BDD-01..04: deploy, invalid parameters (three
+examples), idempotent redeploy and uninstall. Each scenario sends a command to the ORCE lifecycle
+workflow ([IF-08](api-docs.md)), reads the final result back from the ORCE context, and decides the
+outcome from the cluster with `scripts/bdd/cluster-state.sh` under a read-only identity.
+
+The scenarios are tagged `@cluster`: they need a cluster with ORCE and are never part of a
+pull-request run, where the traceability sheet shows their rows as gaps.
+
+### How the cluster decides
+
+Each row has its own namespace from the BDD pool (`ztd-bdd-tdr-001`..`004`), provisioned with ORCE
+by the `deployment/helm/bdd-pool` chart. Before a scenario the namespace must hold only its
+documented baseline; afterwards it is restored through the same workflow. Every object in it is
+classified:
+
+| Class | What | Rule |
+|---|---|---|
+| Baseline | the pool's own ServiceAccount, root-CA ConfigMap, Roles and RoleBindings | same set, same UIDs, throughout |
+| Helm metadata | the release's `helm.sh/release.v1` Secrets | one per history revision, exactly one deployed |
+| Expected | every top-level object the release rendered | all present, ready, same UIDs across a redeploy |
+| Descendants | ReplicaSets and Pods of an expected Deployment; EndpointSlices and the legacy Endpoints of an expected Service | allow-list only; one active ReplicaSet, the desired Pods, endpoints that match the ready Pods and the resolved ports |
+| Events | Event objects | ignored |
+| Unexplained | anything else | must be empty — an orphan or duplicate fails the row |
+
+Readiness means the rollout is complete, not that some pods are up. Every check is polled until it
+holds or a deadline passes (120 s by default), so asynchronous controllers are waited for; an API
+or authorization error fails at once and is never retried into a pass. ORCE and the observer must
+report the same `kube-system` UID, so a result can never come from another cluster.
+
+### Running it
+
+Client targets run it **only through CI** (`bdd-cluster` job, one run at a time per target; see
+[CI/CD](ci-cd.md)). Against a developer's local cluster — never evidence:
+
+```bash
+scripts/dev/kind-up.sh      # kind (Kubernetes 1.35) + BDD pool + identity kubeconfigs in .dev/kind/
+scripts/dev/orce-up.sh      # the ORCE image on kind's network, deploying as the pool's deployer;
+                            # writes the runner inputs below to .dev/kind/orce.env
+set -a && . .dev/kind/orce.env && set +a
+npm run bdd:cluster         # about 40 s; evidence in bundles/bdd/evidence/
+scripts/dev/orce-down.sh && scripts/dev/kind-down.sh
+```
+
+The ORCE image is amd64 only; on an arm64 machine Docker runs it emulated.
+
+| Input | Meaning |
+|---|---|
+| `KUBECONFIG` | the read-only observer identity |
+| `BDD_ORCE_URL` | ORCE base URL |
+| `BDD_ORCE_ADMIN_TOKEN` | read-only ORCE admin API bearer token |
+| `BDD_ORCE_HTTP_USER`, `BDD_ORCE_HTTP_PASS` | credentials of the ORCE HTTP endpoints |
+| `BDD_ORCE_LOGS_CMD` | a command printing the ORCE log (row 02 asserts the structured refusal entry) |
+| `BDD_RELEASE_CHART` | the release under test, a chart path in the ORCE image; default the lifecycle fixture |
+| `BDD_RELEASE_VALUES` | its valid baseline values; default the fixture's `ci/values.yaml` |
+| `BDD_TARGET`, `BDD_RUN_ID` | names the target and the run in the evidence |
+
+A missing input stops the run and is named.
+
+### The release under test
+
+Until the umbrella chart is ready, the pack deploys `features/fixtures/charts/lifecycle-fixture`, a
+namespaced chart with no CRDs, and every evidence directory records that it is fixture evidence. A
+fixture pass is **not** acceptance of the umbrella release. Before the umbrella chart may replace
+the fixture, its cluster-scoped deploy rights and the ownership and removal of the CRDs it ships
+(which `helm uninstall` leaves behind) must be designed; it then needs its own run.
+
+### Evidence
+
+Per row, target and example: `bundles/bdd/evidence/bdd-tdr-00n/<target>/<example>/` holds the
+commands and acknowledgements, the ORCE context entry of each command (with the masked Helm output,
+release revision, chart digest and values hash), every classified inventory, the recorded baseline,
+and for row 02 the refusal log entry.
 
 ## Traceability
 

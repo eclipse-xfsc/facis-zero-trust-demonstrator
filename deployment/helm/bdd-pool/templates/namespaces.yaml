@@ -1,0 +1,82 @@
+{{- range .Values.namespaces }}
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: {{ . }}
+  labels:
+    {{- include "pool.labels" $ | nindent 4 }}
+    facis.ztd/bdd-pool: "true"
+---
+# Deployer: exactly what the fixture renders, plus what Helm needs to run - Secrets for release
+# storage, and read access to what --wait inspects. No namespace, RBAC or cluster-scoped writes.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: ztd-lifecycle-deployer
+  namespace: {{ . }}
+  labels:
+    {{- include "pool.labels" $ | nindent 4 }}
+rules:
+  - apiGroups: ["apps"]
+    resources: ["deployments"]
+    verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
+  - apiGroups: [""]
+    resources: ["services", "configmaps", "secrets"]
+    verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
+  - apiGroups: ["apps"]
+    resources: ["replicasets"]
+    verbs: ["get", "list", "watch"]
+  - apiGroups: [""]
+    resources: ["pods", "events", "endpoints"]
+    verbs: ["get", "list", "watch"]
+  - apiGroups: ["discovery.k8s.io"]
+    resources: ["endpointslices"]
+    verbs: ["get", "list", "watch"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: ztd-lifecycle-deployer
+  namespace: {{ . }}
+  labels:
+    {{- include "pool.labels" $ | nindent 4 }}
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: ztd-lifecycle-deployer
+subjects:
+  - kind: ServiceAccount
+    name: {{ $.Values.deployer.serviceAccount.name }}
+    namespace: {{ include "pool.saNamespace" (dict "root" $ "sa" $.Values.deployer.serviceAccount) }}
+---
+# Observer: read-only over every namespaced resource in the pool namespace, so an unexplained
+# object cannot hide from the inventory.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: ztd-bdd-observer
+  namespace: {{ . }}
+  labels:
+    {{- include "pool.labels" $ | nindent 4 }}
+rules:
+  - apiGroups: ["*"]
+    resources: ["*"]
+    verbs: ["get", "list", "watch"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: ztd-bdd-observer
+  namespace: {{ . }}
+  labels:
+    {{- include "pool.labels" $ | nindent 4 }}
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: ztd-bdd-observer
+subjects:
+  - kind: ServiceAccount
+    name: {{ $.Values.observer.serviceAccount.name }}
+    namespace: {{ include "pool.saNamespace" (dict "root" $ "sa" $.Values.observer.serviceAccount) }}
+{{- end }}

@@ -1,0 +1,29 @@
+{
+  "$schema": "https://json-schema.org/draft-07/schema#",
+  "title": "lifecycle-fixture values",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["message", "replicas", "image"],
+  "properties": {
+    "message": {
+      "description": "Written into the fixture ConfigMap.",
+      "type": "string",
+      "minLength": 1
+    },
+    "replicas": {
+      "description": "Replicas of the fixture Deployment.",
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 3
+    },
+    "image": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["repository", "digest"],
+      "properties": {
+        "repository": { "type": "string", "minLength": 1 },
+        "digest": { "type": "string", "pattern": "^sha256:[a-f0-9]{64}$" }
+      }
+    }
+  }
+}

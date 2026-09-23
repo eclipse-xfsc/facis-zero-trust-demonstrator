@@ -73,6 +73,29 @@ actions and declared permissions this repository requires of its own workflows. 
 being references once the shared workflows accept a Go version or read `go.mod`; that is a change to
 propose in `eclipse-xfsc/dev-ops`.
 
+## Lifecycle scenarios on the client targets
+
+The `bdd-cluster` job runs the deployment-lifecycle scenarios (TDR-BDD-01..04) against each client
+target, and `bdd-cluster-report` merges every target into one traceability sheet in which a row is
+proven only if it passed everywhere. They run on pushes to `main`, on every published release and
+on demand — never on pull requests — and one run at a time per target. Evidence is published even
+when the run fails, and the job keeps its failure. See [BDD acceptance](bdd.md) for what they prove.
+
+Both jobs stay off until the repository variable `BDD_CLUSTER_ENABLED` is `true`. A target
+`<KEY>` (for example `IONOS`) then needs, as repository secrets, `BDD_<KEY>_OBSERVER_KUBECONFIG`
+(the read-only observer identity — never an administrator credential), `BDD_<KEY>_ORCE_URL`,
+`BDD_<KEY>_ORCE_READ_TOKEN`, `BDD_<KEY>_ORCE_HTTP_USER` and `BDD_<KEY>_ORCE_HTTP_PASS`, and as a
+repository variable `BDD_<KEY>_ORCE_LOGS_CMD`, plus its entry in the job's matrix.
+
+## Image scan exceptions
+
+Every image is scanned and a HIGH or CRITICAL finding fails the build. When a finding sits in an
+upstream component that this project cannot fix in its own layer, a `scan-exception.json` next to
+the image's Dockerfile may exclude named paths from the gate. It must carry an expiry date, the
+reason and the tracking of the upstream fix; the job prints it into the run summary and fails the
+build once it has expired. The ORCE image carries one for the upstream ORCE runtime and kubectl,
+expiring 13 November 2026.
+
 ## Repository protection and least privilege
 
 The demonstrator applies its own zero-trust posture to the delivery machine (ZT-56): nothing reaches

@@ -1,5 +1,6 @@
 // Command bddreport merges the cucumber-JSON emitted by each BDD runner and
-// generates the requirement-to-test traceability sheet from the scenario tags.
+// generates the requirement-to-test traceability sheet from the scenario tags
+// and results.
 //
 //	bddreport --rows features/annex-rows.txt --out bundles/bdd report1.json report2.json
 package main
@@ -63,8 +64,8 @@ func run(rowsPath, outDir string, reports []string) error {
 		}
 	}
 
-	fmt.Printf("%d rows, %d covered, %d uncovered\n",
-		len(report.Rows), len(report.Rows)-report.Uncovered(), report.Uncovered())
+	fmt.Printf("%d rows, %d covered, %d proven, %d uncovered\n",
+		len(report.Rows), len(report.Rows)-report.Uncovered(), report.Proven(), report.Uncovered())
 
 	// A tag shaped like a row id that matches no row is a typo: the scenario runs,
 	// passes, and proves nothing. Fail rather than report false coverage.

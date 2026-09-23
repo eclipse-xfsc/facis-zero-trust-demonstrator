@@ -1,6 +1,7 @@
 # Annex A requirement rows - the denominator of the traceability sheet.
 # One row id per line, in Annex A order. A row with no tagged scenario is a gap.
-# Source: Annex A Final Acceptance Criteria and BDD Test Cases v1.5 (92 rows).
+# Source: Annex A Final Acceptance Criteria and BDD Test Cases v1.7 (94 rows; v1.7 adds the G7 rows
+# M7-01 and M7-02 to v1.5, with every other row unchanged).
 ZT-01
 ZT-02
 ZT-03
@@ -93,3 +94,5 @@ TDR-BDD-08
 TDR-BDD-09
 TDR-BDD-10
 TDR-BDD-11
+M7-01
+M7-02

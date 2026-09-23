@@ -1,0 +1,7 @@
+{
+  "expires": "2026-11-13",
+  "reason": "The HIGH/CRITICAL findings in these paths belong to the upstream ORCE 2.0.13 runtime (its bundled Node-RED, palette and npm dependencies) and to kubectl v1.35.8, the newest 1.35 patch release. They cannot be fixed in this project's layer without modifying the mandated upstream component. Everything this project adds stays under the scan gate.",
+  "tracking": "Client confirmation of the exception and a rebuilt ORCE image from Eclipse XFSC requested through FACIS on 2026-09-23. Remove this file when the pin moves to a rebuilt ORCE and a patched kubectl.",
+  "skipDirs": ["/opt/maestro", "/usr/src/node-red", "/data/node_modules", "/usr/local/lib/node_modules"],
+  "skipFiles": ["/usr/local/bin/kubectl"]
+}

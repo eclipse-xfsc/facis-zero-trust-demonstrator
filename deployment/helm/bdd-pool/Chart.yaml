@@ -1,0 +1,7 @@
+apiVersion: v2
+name: bdd-pool
+description: >-
+  Namespaces and least-privilege identities for the deployment-lifecycle acceptance scenarios.
+  Installed with ORCE; whoever installs it is the only actor that creates namespaces and bindings.
+type: application
+version: 0.1.0

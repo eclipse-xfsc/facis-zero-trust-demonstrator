@@ -30,3 +30,6 @@ kubeconfig*
 .idea/
 .vscode/
 .DS_Store
+
+# Local developer cluster state (identity kubeconfigs) - never commit
+/.dev/

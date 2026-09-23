@@ -1,0 +1,17 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ .Release.Name }}
+  labels:
+    {{- include "fixture.labels" . | nindent 4 }}
+spec:
+  # Single-stack, and a numeric targetPort that differs from port, so the endpoint checks resolve
+  # the backend port rather than comparing the Service port.
+  ipFamilyPolicy: SingleStack
+  selector:
+    {{- include "fixture.selector" . | nindent 4 }}
+  ports:
+    - name: http
+      port: 80
+      targetPort: 8080
+      protocol: TCP

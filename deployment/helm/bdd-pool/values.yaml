@@ -1,0 +1,23 @@
+# One dedicated namespace per lifecycle row. Runs are serialised per cluster, so a namespace is
+# never shared by two runs.
+namespaces:
+  - ztd-bdd-tdr-001
+  - ztd-bdd-tdr-002
+  - ztd-bdd-tdr-003
+  - ztd-bdd-tdr-004
+
+# The identity ORCE deploys with. With ORCE installed, point this at ORCE's ServiceAccount and
+# set create to false.
+deployer:
+  serviceAccount:
+    create: true
+    name: ztd-lifecycle-deployer
+    namespace: ""   # empty: the release namespace
+
+# The read-only identity the acceptance runner observes the cluster with. Its token is a CI
+# secret; no person runs scenarios against a client cluster with it.
+observer:
+  serviceAccount:
+    create: true
+    name: ztd-bdd-observer
+    namespace: ""

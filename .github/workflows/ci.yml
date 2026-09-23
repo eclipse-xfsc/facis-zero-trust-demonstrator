@@ -4,6 +4,8 @@ on:
   pull_request:
   push:
     branches: [main]
+  release:
+    types: [published]
   workflow_dispatch:
 
 permissions:
@@ -56,10 +58,11 @@ jobs:
             exit 0
           fi
           for dockerfile in "${dockerfiles[@]}"; do
-            context=$(dirname "$dockerfile")
-            image="ci/$(basename "$context"):${{ github.sha }}"
+            # The context is the repository root, so an image can take scripts/, ui/ and
+            # flows/; .dockerignore keeps local state such as .dev/ out of it.
+            image="ci/$(basename "$(dirname "$dockerfile")"):${{ github.sha }}"
 
-            docker build --platform linux/amd64 -t "$image" "$context"
+            docker build --platform linux/amd64 -f "$dockerfile" -t "$image" .
 
             # ZT-13 requires Linux images; assert it rather than trust the Dockerfile.
             platform=$(docker image inspect --format '{{.Os}}/{{.Architecture}}' "$image")
@@ -69,8 +72,25 @@ jobs:
               exit 1
             fi
 
+            # A time-boxed, documented exception may exclude named upstream paths from the gate;
+            # an expired exception fails the build. Everything else stays under the gate.
+            skips=()
+            exception="$(dirname "$dockerfile")/scan-exception.json"
+            if [ -f "$exception" ]; then
+              expires=$(jq -r '.expires' "$exception")
+              if [[ "$(date -u +%F)" > "$expires" ]]; then
+                echo "::error::$exception expired on $expires - renew it or remove the upstream findings"
+                exit 1
+              fi
+              mapfile -t skips < <(jq -r '(.skipDirs[] | "--skip-dirs", .), (.skipFiles[] | "--skip-files", .)' "$exception")
+              {
+                echo "### Scan exception for $image (expires $expires)"
+                jq -r '.reason, "", .tracking, "", "Excluded: " + ((.skipDirs + .skipFiles) | join(", "))' "$exception"
+              } >> "$GITHUB_STEP_SUMMARY"
+            fi
+
             docker run --rm -v /var/run/docker.sock:/var/run/docker.sock \
-              aquasec/trivy:0.74.0 image --exit-code 1 --severity HIGH,CRITICAL "$image"
+              aquasec/trivy:0.74.0 image --exit-code 1 --severity HIGH,CRITICAL "${skips[@]}" "$image"
           done
 
   bdd:
@@ -93,6 +113,9 @@ jobs:
 
       - name: Install the JavaScript runner
         run: npm ci
+
+      - name: Test the ORCE Builder nodes
+        run: node --test ui/nodes/*/test/*.test.mjs
 
       - name: Run the Go scenarios
         run: GODOG_CUCUMBER_OUT=bundles/bdd/go-report.json go test ./internal/bdd
@@ -121,17 +144,143 @@ jobs:
 
       - name: Set up Helm
         uses: azure/setup-helm@1a275c3b69536ee54be43f2070a358922e12c8d4 # v4
+        with:
+          # One pinned Helm for QA and for the lifecycle workflow; its flags differ by major version.
+          version: v4.3.0
 
+      # The fixture chart under features/ is linted like a release chart: the TDR's lint and
+      # dry-run rule applies to every chart the pipeline installs. A chart whose values have no
+      # defaults ships its valid baseline in ci/values.yaml.
       - name: Lint and render every chart
         run: |
           shopt -s nullglob
-          charts=(deployment/helm/*/Chart.yaml)
+          charts=(deployment/helm/*/Chart.yaml features/fixtures/charts/*/Chart.yaml)
           if [ ${#charts[@]} -eq 0 ]; then
             echo 'No chart yet - nothing to lint.'
             exit 0
           fi
           for chart in "${charts[@]}"; do
             directory=$(dirname "$chart")
-            helm lint "$directory"
-            helm template "$directory" >/dev/null
+            values=()
+            if [ -f "$directory/ci/values.yaml" ]; then
+              values=(-f "$directory/ci/values.yaml")
+            fi
+            helm lint "$directory" "${values[@]}"
+            helm template "$directory" "${values[@]}" >/dev/null
           done
+
+  # The deployment-lifecycle scenarios (TDR-BDD-01..04) against each client target. They run
+  # automatically on main, on every release and on demand - never on pull requests - one run at a
+  # time per target, with the read-only observer identity; ORCE does the deploying.
+  #
+  # Off until a target has ORCE and the BDD pool installed (FZTD-187): it runs only once the
+  # repository variable BDD_CLUSTER_ENABLED is "true" and the target's secrets and variable are set
+  # (see docs/bdd.md).
+  bdd-cluster:
+    name: Lifecycle scenarios on ${{ matrix.target }}
+    if: vars.BDD_CLUSTER_ENABLED == 'true' && github.event_name != 'pull_request'
+    needs: [bdd]
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - target: ionos
+            key: IONOS
+    concurrency:
+      group: bdd-cluster-${{ matrix.target }}
+      cancel-in-progress: false
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+
+      - name: Set up Go
+        uses: actions/setup-go@40f1582b2485089dde7abd97c1529aa768e1baff # v5.6.0
+        with:
+          go-version-file: go.mod
+
+      - name: Set up Node
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: '22'
+          cache: npm
+
+      - name: Set up Helm
+        uses: azure/setup-helm@1a275c3b69536ee54be43f2070a358922e12c8d4 # v4
+        with:
+          version: v4.3.0
+
+      - name: Install the JavaScript runner
+        run: npm ci
+
+      - name: Write the observer kubeconfig
+        env:
+          OBSERVER_KUBECONFIG: ${{ secrets[format('BDD_{0}_OBSERVER_KUBECONFIG', matrix.key)] }}
+        run: |
+          umask 077
+          printf '%s' "$OBSERVER_KUBECONFIG" > "$RUNNER_TEMP/observer.kubeconfig"
+
+      - name: Run the lifecycle scenarios
+        env:
+          KUBECONFIG: ${{ runner.temp }}/observer.kubeconfig
+          BDD_TARGET: ${{ matrix.target }}
+          BDD_RUN_ID: ci-${{ github.run_id }}-${{ github.run_attempt }}
+          BDD_ORCE_URL: ${{ secrets[format('BDD_{0}_ORCE_URL', matrix.key)] }}
+          BDD_ORCE_ADMIN_TOKEN: ${{ secrets[format('BDD_{0}_ORCE_READ_TOKEN', matrix.key)] }}
+          BDD_ORCE_HTTP_USER: ${{ secrets[format('BDD_{0}_ORCE_HTTP_USER', matrix.key)] }}
+          BDD_ORCE_HTTP_PASS: ${{ secrets[format('BDD_{0}_ORCE_HTTP_PASS', matrix.key)] }}
+          BDD_ORCE_LOGS_CMD: ${{ vars[format('BDD_{0}_ORCE_LOGS_CMD', matrix.key)] }}
+        run: npm run bdd:cluster
+
+      - name: Run the repository scenarios
+        if: always()
+        run: |
+          GODOG_CUCUMBER_OUT=bundles/bdd/go-report.json go test ./internal/bdd
+          npm run bdd
+
+      - name: Generate the traceability sheet for this target
+        if: always()
+        run: |
+          go run ./cmd/bddreport --rows features/annex-rows.txt --out bundles/bdd \
+            bundles/bdd/go-report.json bundles/bdd/js-report.json bundles/bdd/js-cluster-report-*.json
+          cat bundles/bdd/traceability.md >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Publish the evidence bundle
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: bdd-evidence-${{ matrix.target }}
+          path: bundles/bdd
+
+  # One sheet across every target: a row is proven only when it passed on all of them.
+  bdd-cluster-report:
+    name: Lifecycle traceability across targets
+    if: always() && vars.BDD_CLUSTER_ENABLED == 'true' && github.event_name != 'pull_request'
+    needs: [bdd-cluster]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+
+      - name: Set up Go
+        uses: actions/setup-go@40f1582b2485089dde7abd97c1529aa768e1baff # v5.6.0
+        with:
+          go-version-file: go.mod
+
+      - name: Collect every target's evidence
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        with:
+          pattern: bdd-evidence-*
+          path: evidence
+
+      - name: Generate the cross-target sheet
+        run: |
+          go run ./cmd/bddreport --rows features/annex-rows.txt --out bundles/bdd \
+            evidence/*/go-report.json evidence/*/js-report.json evidence/*/js-cluster-report-*.json
+          cat bundles/bdd/traceability.md >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Publish the cross-target sheet
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: bdd-traceability
+          path: bundles/bdd
