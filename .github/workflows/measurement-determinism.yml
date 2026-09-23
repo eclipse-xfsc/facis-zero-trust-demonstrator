@@ -1,0 +1,171 @@
+name: Measurement determinism
+
+# ZT-35 requires the pipeline to publish a reference measurement that a peer can
+# compare against. A value that depends on which machine produced it is not a
+# property of the release, and the container measurement does depend on the
+# machine unless something is done about it: the rootfs half is hashed from the
+# filesystem, whose ownership and permission bits Git does not record.
+#
+# This workflow is the evidence that the normalisation works. It measures one
+# fixture three times and requires the three normalised measurements to be equal,
+# while requiring the perturbed one to differ before normalisation -- so the check
+# cannot pass by everything happening to agree.
+#
+# The three differ along the axes that can actually move the hash, which are fewer
+# than they look. The measurement reads a tar stream, so only what a tar header
+# carries reaches it: owner, permission bits, paths, content, and the
+# security.capability xattr. The operating system around it is invisible.
+#
+#   host        a plain hosted runner: the baseline
+#   container   a Debian container, where the checkout is owned by root instead of
+#               the runner user, on another distribution and another libc -- the
+#               measuring environment, rather than the checkout, is what varies
+#   perturbed   a hosted runner whose checkout is given another owner, other
+#               permission bits and a file capability: the three inputs Git does
+#               not record, and the only ones that can break reproducibility
+
+on:
+  pull_request:
+    paths:
+      - 'tools/measurement-determinism/**'
+      - '.github/workflows/measurement-determinism.yml'
+  push:
+    branches: [main]
+    paths:
+      - 'tools/measurement-determinism/**'
+      - '.github/workflows/measurement-determinism.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  # The baseline. Pinned rather than 'latest', so that a run months from now
+  # measures the same thing this one did.
+  host:
+    name: Measure on a hosted runner
+    runs-on: ubuntu-24.04
+    outputs:
+      result: ${{ steps.measure.outputs.result }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+
+      - name: Set up Go
+        uses: actions/setup-go@40f1582b2485089dde7abd97c1529aa768e1baff # v5.6.0
+        with:
+          go-version: '1.26.3' # the toolchain the pinned attestation component requires
+
+      - name: Install the xattr tools the normalisation needs
+        run: sudo apt-get update && sudo apt-get install -y --no-install-recommends attr
+
+      - name: Measure the fixture, raw and normalised
+        id: measure
+        run: |
+          {
+            echo 'result<<PROOF'
+            tools/measurement-determinism/proof.sh
+            echo PROOF
+          } >> "$GITHUB_OUTPUT"
+
+  # Another distribution, another libc, and a checkout owned by root rather than by
+  # the runner user. A second hosted Ubuntu image would not have been worth a job:
+  # it checks out under the same user with the same umask, so it agrees with the
+  # baseline for reasons that have nothing to do with the normalisation.
+  container:
+    name: Measure in a Debian container
+    runs-on: ubuntu-24.04
+    container:
+      image: debian:12-slim
+    outputs:
+      result: ${{ steps.measure.outputs.result }}
+    steps:
+      # Before the checkout, deliberately: without git, actions/checkout falls
+      # back to downloading a tarball, whose entries carry the archive's modes
+      # rather than the ones a checkout would produce. The job would still pass,
+      # having measured something else.
+      - name: Install git and the xattr tools
+        run: |
+          apt-get update
+          apt-get install -y --no-install-recommends git ca-certificates attr
+
+      - name: Checkout repository
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+
+      - name: Set up Go
+        uses: actions/setup-go@40f1582b2485089dde7abd97c1529aa768e1baff # v5.6.0
+        with:
+          go-version: '1.26.3'
+
+      - name: Trust the checkout
+        run: git config --global --add safe.directory "$GITHUB_WORKSPACE"
+
+      - name: Measure the fixture, raw and normalised
+        id: measure
+        run: |
+          {
+            echo 'result<<PROOF'
+            tools/measurement-determinism/proof.sh
+            echo PROOF
+          } >> "$GITHUB_OUTPUT"
+
+  # The control. Both hosted images run the checkout under the same user and the
+  # same umask, so on their own they cannot show that the normalisation is doing
+  # any work. This job gives the fixture the owner and the permissions another
+  # machine would have given it.
+  perturbed:
+    name: Measure on a divergent checkout
+    runs-on: ubuntu-24.04
+    outputs:
+      result: ${{ steps.measure.outputs.result }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+
+      - name: Set up Go
+        uses: actions/setup-go@40f1582b2485089dde7abd97c1529aa768e1baff # v5.6.0
+        with:
+          go-version: '1.26.3'
+
+      - name: Install the xattr tools the normalisation needs
+        run: sudo apt-get update && sudo apt-get install -y --no-install-recommends attr libcap2-bin
+
+      - name: Give the fixture another machine's owner, permissions and capabilities
+        run: |
+          # Every input Git does not record, at once. Permissions stay readable:
+          # the raw measurement runs before normalisation, as the unprivileged
+          # runner user, and a tree it cannot open would fail for the wrong reason.
+          bundle=tools/measurement-determinism/bundle
+          sudo find "$bundle" -type d -exec chmod 0775 {} +
+          sudo find "$bundle" -type f -exec chmod 0664 {} +
+          # A file capability is a security.capability xattr, which the rootfs
+          # measurement folds into the tar header. setcap writes one the kernel
+          # accepts; setfattr with invented bytes would be rejected.
+          sudo setcap cap_net_bind_service=+ep "$bundle/rootfs/app/run.sh"
+          sudo getcap "$bundle/rootfs/app/run.sh"
+          sudo chown -R 4242:4242 "$bundle"
+          ls -lnR "$bundle"
+
+      - name: Measure the fixture, raw and normalised
+        id: measure
+        run: |
+          {
+            echo 'result<<PROOF'
+            tools/measurement-determinism/proof.sh
+            echo PROOF
+          } >> "$GITHUB_OUTPUT"
+
+  compare:
+    name: Compare the measurements
+    runs-on: ubuntu-24.04
+    needs: [host, container, perturbed]
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+
+      - name: Require one measurement from three checkouts
+        env:
+          HOST: ${{ needs.host.outputs.result }}
+          CONTAINER: ${{ needs.container.outputs.result }}
+          PERTURBED: ${{ needs.perturbed.outputs.result }}
+        run: tools/measurement-determinism/compare.sh

@@ -16,8 +16,21 @@ v1 before the components consuming them are built:
 | IF-07 | Attested channel control |
 | IF-08 | Scenario driver hooks |
 
-OpenAPI and JSON Schema definitions are published under `docs/` alongside this page as each
-interface is frozen.
+OpenAPI and JSON Schema definitions live in [`docs/contracts/`](contracts/index.md), one file per
+contract, and are frozen at v1 as each interface is agreed. This page is the registry; that folder
+is the machine-readable form.
+
+## Attestation evidence
+
+The mock attestation document — what a Trusted Execution Environment would emit, produced in
+software because the demonstrator has no TEE hardware — is described by
+[`contracts/mock-attestation.schema.json`](contracts/mock-attestation.schema.json), with one sample
+per vendor profile in [`contracts/samples/`](contracts/samples/).
+
+It is a single format serving both sides of the evidence path: the artefact attached to a release
+and verified at admission, and the report exchanged inside the attested channel. It therefore
+underlies both IF-04 and IF-07, and which of the two carries it as its own contract is settled when
+the interfaces are frozen at v1.
 
 ## Conventions
 

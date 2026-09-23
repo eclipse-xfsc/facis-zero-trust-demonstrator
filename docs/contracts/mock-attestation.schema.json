@@ -1,7 +1,8 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "mock-attestation.schema.json",
-  "title": "FZTD-46 mock attestation sample (JSON)",
+  "$comment": "Derives from CMC v0.9.15 at commit 6754d3c (github.com/Fraunhofer-AISEC/cmc). The pin governs more than the shapes below: 6754d3c is 'attestedtls: introduce new channel binding', which replaced the exporter-only report nonce with bindReportNonce = sha256(RFC 5705 exporter || prover TLS leaf cert), each side verifying the peer did the same (attestedtls/attestation.go). A task consuming this schema for the attested channel must implement that binding; the pre-6754d3c nonce is symmetric and reflectable.",
+  "title": "Mock attestation sample (JSON)",
   "description": "One mock sample per CMC evidence type: the JSON shape that type of evidence takes, with the collateral that accompanies it. The 'evidence' and 'collateral' objects follow CMC's attestationreport types exactly (attestationreport.go, json.go); 'mock' and 'profile' belong to the sample wrapper, since CMC's own objects have no field to mark a mock.",
   "$ref": "#/$defs/MockSample",
   "$defs": {
@@ -16,7 +17,7 @@
       "description": "Lowercase hex, as CMC's HexByte type writes itself (json.go)."
     },
     "EvidenceType": {
-      "description": "CMC evidence types that have a driver in the repo. IAS Evidence is defined by CMC but has no driver, so it is not covered.",
+      "description": "One sample per evidence type that a driver in cmcd's 'drivers' config emits as Evidence.type. Excluded, for different reasons: 'IAS Evidence', a real type no pinned driver emits; and IMA measurement lists, a software inventory carried in a 'PCR Eventlog' — not an evidence type, and 'ima' is a per-driver boolean, not a driver.",
       "enum": [
         "SW Evidence",
         "TPM Evidence",

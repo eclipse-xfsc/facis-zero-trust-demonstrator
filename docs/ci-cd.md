@@ -20,6 +20,7 @@ and is declared as such in [Specification changes](specifications.md#readings-an
 | `.github/workflows/docs.yml` | push to `main` affecting `docs/`, manual | Builds the MkDocs site and publishes it to the `gh-pages` branch |
 | `.github/workflows/workflow-hygiene.yml` | every pull request, manual | Fails the pull request when an action is not pinned to a commit or a token scope is too wide |
 | `.github/workflows/ci.yml` | every pull request, push to `main`, manual | Go lint and tests, image build with the Linux assertion and a Trivy scan, chart lint and dry-run render |
+| `.github/workflows/measurement-determinism.yml` | pull request and push to `main` touching the check, manual | Measures one fixture on a hosted runner, in a container, and on a deliberately divergent checkout, and requires the normalised measurement to be the same on all three |
 
 ## The service pipeline
 

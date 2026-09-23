@@ -1,0 +1,11 @@
+{
+  "ociVersion": "1.2.1",
+  "process": {
+    "user": { "uid": 0, "gid": 0 },
+    "args": ["/app/run.sh"],
+    "env": ["PATH=/usr/bin:/bin", "APP_MODE=maintenance"],
+    "cwd": "/"
+  },
+  "root": { "path": "rootfs", "readonly": true },
+  "hostname": "measured-fixture"
+}

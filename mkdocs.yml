@@ -22,6 +22,7 @@ nav:
   - Keycloak integration: keycloak.md
   - Connector OAuth2 provider: oauth2-provider.md
   - API documentation: api-docs.md
+  - Interface contracts: contracts/index.md
   - TRAIN trust-list publishing: tspa-publish-api.md
   - BDD acceptance: bdd.md
   - CI/CD: ci-cd.md
@@ -35,6 +36,7 @@ nav:
       - 0003 OAuth2 surface in the Go connector: adr/0003-oauth2-authorisation-surface-in-the-go-connector.md
       - 0004 OpenBao as X.509 key-value store: adr/0004-openbao-as-x509-key-value-store.md
       - 0005 Three-cluster target environment: adr/0005-three-cluster-reading-of-the-target-environment.md
+      - 0011 Mock TEE evidence: adr/0011-mock-tee-evidence-format-and-provisioning.md
 
 markdown_extensions:
   - admonition
