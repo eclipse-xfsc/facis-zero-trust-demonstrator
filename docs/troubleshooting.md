@@ -52,7 +52,25 @@ whether the reason is the one you expected.
 | Verification fails for every credential at once | The status list or the trust anchor is unreachable | Check reachability; an unreachable list must deny, and the alert tells you which one it was |
 | A peer that should be trusted is not listed | The trust list has not been republished since the peer was added | Compare the published trust list with what the connector resolved, not with what you expect it to contain |
 
+## Deployment lifecycle and the acceptance scenarios
+
+Met while building and running the lifecycle pack (TDR-BDD-01..06) on kind and IONOS.
+
+| Symptom | Likely cause | Check |
+|---|---|---|
+| A scenario fails before it starts with "the pool namespace is not in its baseline state" | A previous run was interrupted and left a release or objects behind | `kubectl -n <pool namespace> get all,secrets`; uninstall the leftover release through ORCE (an `uninstall` command), not by hand, then rerun |
+| `cluster-state.sh` exits 2, "the cluster could not be observed" | The observer kubeconfig is wrong, expired or points at another cluster; API errors are never retried into a pass | `kubectl --kubeconfig <observer> auth whoami`, then `get namespace kube-system` — the UID must be the target's |
+| The lifecycle result says `valuesSchemaRejected` for a release you expect to be valid | Its values fail the chart's `values.schema.json`; that is the refusal TDR-BDD-02 relies on | `helm template <chart> -f <values>` locally shows the schema error |
+| ORCE starts with the upstream demo flows instead of the lifecycle flow | An old or upstream image: the upstream image sets `FLOWS=flows.json` | The first-party image fixes `flowFile` to `lifecycle.json`; the ORCE log's `Flows file` record must name `/data/lifecycle.json` |
+| ORCE refuses to start: "must be set: ORCE does not start without its credentials" | A key of the `orce-credentials` Secret is missing | Compare the Secret's keys with [the ORCE install](environments/ionos.md#3-orce) |
+| The ORCE context read returns 401 | The read token is wrong, or it was sent without `Bearer ` | The read token is the `ORCE_READ_TOKEN` of the Secret; it can read, never write |
+| No JSON refusal record for a request in the ORCE log (rows 02 and 06) | An image without the JSON log handler, or the log command reads another pod | Every line of `kubectl -n ztd-orce logs deployment/orce` must be one JSON object ([ORCE logging](flows.md#orce-logging)) |
+| ORCE is slow to start on an Apple Silicon machine | The image is `linux/amd64` only and runs emulated | Expected locally; allow a few minutes |
+| `helm` commands behave differently from the docs | Another Helm major version | The project pins Helm v4.3.0 for chart QA and inside the ORCE image |
+
 ## Logs
 
-Services emit structured JSON logs. Correlate by the request identifier carried across hops rather
-than by timestamp.
+Records sent through the ORCE logging API are one JSON object per line
+([ORCE logging](flows.md#orce-logging)); output outside that API is not. The Go services'
+logging convention is set with the observability stack (ZT-27). Correlate by the request identifier
+carried across hops rather than by timestamp.

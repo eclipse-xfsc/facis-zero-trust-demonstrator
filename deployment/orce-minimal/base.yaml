@@ -1,0 +1,33 @@
+# The management namespace ORCE runs in, its identities, and the observer's read access to
+# ORCE's log. Interim until the ORCE chart; see README.md.
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: ztd-orce
+  labels: {facis.ztd/plane: management, app.kubernetes.io/part-of: facis-ztd}
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata: {name: orce, namespace: ztd-orce}
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata: {name: ztd-bdd-observer, namespace: ztd-orce}
+---
+# The observer reads ORCE's log (rows 02 and 06 assert the JSON refusal record), nothing else here.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata: {name: ztd-bdd-observer-logs, namespace: ztd-orce}
+rules:
+  - apiGroups: [""]
+    resources: ["pods", "pods/log"]
+    verbs: ["get", "list"]
+  - apiGroups: ["apps"]
+    resources: ["deployments", "replicasets"]
+    verbs: ["get", "list"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata: {name: ztd-bdd-observer-logs, namespace: ztd-orce}
+roleRef: {apiGroup: rbac.authorization.k8s.io, kind: Role, name: ztd-bdd-observer-logs}
+subjects: [{kind: ServiceAccount, name: ztd-bdd-observer, namespace: ztd-orce}]

@@ -1,0 +1,1 @@
+{"events":[{"action":"deploy","step":"validate","status":"failed"}],"result":{"type":"result","ok":false,"action":"deploy","requestId":"fx-req-1","data":null,"errors":{"fields":{"namespace":"outside the BDD pool"},"action":"valuesSchemaRejected"}}}

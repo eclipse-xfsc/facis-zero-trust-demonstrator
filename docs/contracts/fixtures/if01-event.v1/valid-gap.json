@@ -1,0 +1,1 @@
+{"run_id":"run-001","seq":43,"ts":"2026-09-09T12:00:01Z","source":"feed-bridge","kind":"gap","payload":{"state":"gap","reason_code":"VIS-STALE","detail":"12 events dropped"}}

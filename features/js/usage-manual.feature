@@ -1,10 +1,9 @@
-@docs
+@docs @regression
 Feature: Demonstrator usage documentation
-  Annex A row ZT-17 asks that the demonstrator manual is generated from the
-  repository rather than written by hand somewhere else, and that it is
-  buildable from GitHub.
+  A regression check behind Annex A row ZT-17, which it does not prove: the usage manual is part
+  of the generated documentation site. ZT-17 itself (reproducing the setup step by step, and
+  building the documentation from GitHub) is its own pending scenario in documentation.feature.
 
-  @ZT-17 @BDD-ZT-017
   Scenario: The usage manual is part of the generated documentation site
     Given the repository documentation
     When the documentation site is assembled

@@ -1,0 +1,27 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/eclipse-xfsc/facis-zero-trust-demonstrator/docs/contracts/if01-snapshot.v1.schema.json",
+  "title": "IF-01 snapshot (contracts v1)",
+  "description": "The consistent state of one run as of a sequence number. A client (re)connecting reads the snapshot, then resumes the event stream from as_of_seq + 1.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["run_id", "as_of_seq", "panels"],
+  "properties": {
+    "run_id": { "$ref": "if01-event.v1.schema.json#/$defs/runId" },
+    "as_of_seq": { "type": "integer", "minimum": 0 },
+    "panels": {
+      "type": "object",
+      "propertyNames": { "$ref": "if01-event.v1.schema.json#/$defs/source" },
+      "additionalProperties": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["state", "ts"],
+        "properties": {
+          "state": { "type": "string", "pattern": "^[a-z][a-z_]{0,31}$" },
+          "reason_code": { "$ref": "if01-event.v1.schema.json#/$defs/reasonCode" },
+          "ts": { "type": "string", "format": "date-time" }
+        }
+      }
+    }
+  }
+}

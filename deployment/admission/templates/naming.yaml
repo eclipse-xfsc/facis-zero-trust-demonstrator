@@ -1,0 +1,39 @@
+apiVersion: templates.gatekeeper.sh/v1
+kind: ConstraintTemplate
+metadata:
+  name: k8sztdnaming
+  annotations:
+    description: Workload and pod names follow the project naming convention (ADM-NAME-INVALID).
+spec:
+  crd:
+    spec:
+      names:
+        kind: K8sZtdNaming
+      validation:
+        openAPIV3Schema:
+          type: object
+          properties:
+            pattern:
+              description: Regular expression every name must match. A generated pod name is checked through its generateName prefix.
+              type: string
+  targets:
+    - target: admission.k8s.gatekeeper.sh
+      rego: |
+        package k8sztdnaming
+
+        import future.keywords.contains
+        import future.keywords.if
+
+        # A pod created by a controller has only generateName when it is admitted.
+        name := input.review.object.metadata.name if {
+          input.review.object.metadata.name != ""
+        }
+
+        name := input.review.object.metadata.generateName if {
+          object.get(input.review.object.metadata, "name", "") == ""
+        }
+
+        violation contains {"msg": msg} if {
+          not regex.match(input.parameters.pattern, name)
+          msg := sprintf("ADM-NAME-INVALID: %s name %q does not match %q", [input.review.kind.kind, object.get(input.review.object.metadata, "name", object.get(input.review.object.metadata, "generateName", "")), input.parameters.pattern])
+        }

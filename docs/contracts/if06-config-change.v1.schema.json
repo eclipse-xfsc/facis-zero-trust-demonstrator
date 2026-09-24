@@ -1,0 +1,33 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/eclipse-xfsc/facis-zero-trust-demonstrator/docs/contracts/if06-config-change.v1.schema.json",
+  "title": "IF-06 governed configuration change (contracts v1)",
+  "description": "One configuration change as it moves through preview, validation (JSON Schema, and SHACL for domain data) and application as a pull request through the governed pipeline. The UI applies nothing to a cluster directly; a rollback is a revert of the pull request.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["change_id", "kind", "target", "payload", "phase", "requested_by"],
+  "properties": {
+    "change_id": { "type": "string", "format": "uuid" },
+    "kind": { "enum": ["trust-zone", "policy-ref", "protected-resource", "participant-backend", "mock-replacement", "measurement", "dns-record"] },
+    "target": { "type": "string", "minLength": 1 },
+    "payload": { "type": "object" },
+    "phase": { "enum": ["preview", "validated", "applied", "rolled_back", "rejected"] },
+    "validation": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "json_schema": { "type": "boolean" },
+        "shacl": { "type": "boolean" },
+        "errors": { "type": "array", "items": { "type": "string" } }
+      }
+    },
+    "reason_code": { "type": "string", "pattern": "^CFG(-[A-Z0-9]+)+$" },
+    "pr_url": { "type": "string", "format": "uri" },
+    "requested_by": { "type": "string", "minLength": 1 },
+    "audit_ts": { "type": "string", "format": "date-time" }
+  },
+  "allOf": [
+    { "if": { "properties": { "phase": { "const": "rejected" } } }, "then": { "required": ["reason_code"] }, "else": { "not": { "required": ["reason_code"] } } },
+    { "if": { "properties": { "phase": { "enum": ["applied", "rolled_back"] } } }, "then": { "required": ["pr_url", "audit_ts"] } }
+  ]
+}

@@ -1,0 +1,63 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/eclipse-xfsc/facis-zero-trust-demonstrator/ui/nodes/ztd-lifecycle/ztd-lifecycle.schema.json",
+  "title": "ZTD lifecycle Builder Node",
+  "description": "Input and output contract of the ztd-lifecycle node, which deploys and uninstalls one Helm release in a provisioned namespace. The message shapes follow the tender's work-sample contract: a command in, an explicit result out.",
+  "type": "object",
+  "required": ["type", "action", "requestId", "payload"],
+  "properties": {
+    "type": { "const": "command" },
+    "action": { "enum": ["deploy", "uninstall"] },
+    "requestId": { "type": "string", "minLength": 1, "maxLength": 128 },
+    "payload": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["release", "namespace"],
+      "properties": {
+        "release": {
+          "description": "Helm release name: a DNS-1123 label of at most 53 characters.",
+          "type": "string",
+          "pattern": "^[a-z0-9]([-a-z0-9]{0,51}[a-z0-9])?$"
+        },
+        "namespace": {
+          "description": "An existing, provisioned namespace. The node never creates namespaces.",
+          "type": "string",
+          "pattern": "^[a-z0-9]([-a-z0-9]{0,61}[a-z0-9])?$"
+        },
+        "chart": {
+          "description": "Required for deploy: a chart path inside the ORCE image, or an oci:// reference pinned by digest.",
+          "type": "string",
+          "minLength": 1
+        },
+        "values": {
+          "description": "Required for deploy: the release values. The chart's own schema validates them; they are never logged.",
+          "type": "object"
+        }
+      }
+    },
+    "meta": { "type": "object" }
+  },
+  "outputContract": {
+    "type": "object",
+    "required": ["type", "ok", "action", "requestId", "errors"],
+    "properties": {
+      "type": { "const": "result" },
+      "ok": { "type": "boolean" },
+      "action": { "enum": ["deploy", "uninstall"] },
+      "requestId": { "type": "string" },
+      "data": {
+        "description": "On acknowledgement {accepted: true}; on a final deploy result the release, namespace, clusterId, revision, chartDigest, valuesHash, helmVersion and the expected object list.",
+        "type": ["object", "null"]
+      },
+      "ui": { "type": "object" },
+      "errors": {
+        "description": "null on success. errors.fields names each invalid parameter; errors.action carries a reason code for a refused or failed action.",
+        "type": ["object", "null"],
+        "properties": {
+          "fields": { "type": "object", "additionalProperties": { "type": "string" } },
+          "action": { "type": "string" }
+        }
+      }
+    }
+  }
+}

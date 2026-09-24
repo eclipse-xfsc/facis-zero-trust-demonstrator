@@ -1,0 +1,42 @@
+apiVersion: templates.gatekeeper.sh/v1
+kind: ConstraintTemplate
+metadata:
+  name: k8sztdimagedigest
+  annotations:
+    description: Every container image is referenced by digest, with an explicit registry host (ADM-NOT-DIGEST).
+spec:
+  crd:
+    spec:
+      names:
+        kind: K8sZtdImageDigest
+  targets:
+    - target: admission.k8s.gatekeeper.sh
+      rego: |
+        package k8sztdimagedigest
+
+        import future.keywords.contains
+        import future.keywords.if
+        import future.keywords.in
+
+        # The pod spec of a Pod or of a pod-template workload, and every container in it.
+        pod_spec := input.review.object.spec if {
+          input.review.kind.kind == "Pod"
+        }
+
+        pod_spec := input.review.object.spec.template.spec if {
+          input.review.kind.kind in {"Deployment", "ReplicaSet", "StatefulSet", "DaemonSet", "Job"}
+        }
+
+        containers contains c if {
+          some field in ["containers", "initContainers", "ephemeralContainers"]
+          some c in object.get(pod_spec, field, [])
+        }
+
+        # host (with a dot or a port, or localhost) / repository @ sha256 digest; no tag.
+        digest_ref := `^(localhost(:[0-9]+)?|[a-z0-9-]+(\.[a-z0-9-]+)+(:[0-9]+)?|[a-z0-9-]+:[0-9]+)/[a-z0-9]+([._-]+[a-z0-9]+)*(/[a-z0-9]+([._-]+[a-z0-9]+)*)*@sha256:[a-f0-9]{64}$`
+
+        violation contains {"msg": msg} if {
+          some c in containers
+          not regex.match(digest_ref, c.image)
+          msg := sprintf("ADM-NOT-DIGEST: container %q image %q is not referenced as host/repository@sha256:<digest>", [c.name, c.image])
+        }

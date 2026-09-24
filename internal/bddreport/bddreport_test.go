@@ -112,9 +112,9 @@ func TestMarkdownEscapesPipesInScenarioNames(t *testing.T) {
 	if !strings.Contains(row, `allow \| deny`) {
 		t.Errorf("the pipe in the scenario name was not escaped:\n%s", row)
 	}
-	// Only the four column separators may be live pipes; the escaped one is text.
-	if separators := strings.Count(strings.ReplaceAll(row, `\|`, ""), "|"); separators != 4 {
-		t.Errorf("row has %d column separators, want 4:\n%s", separators, row)
+	// Only the five column separators may be live pipes; the escaped one is text.
+	if separators := strings.Count(strings.ReplaceAll(row, `\|`, ""), "|"); separators != 5 {
+		t.Errorf("row has %d column separators, want 5:\n%s", separators, row)
 	}
 }
 
@@ -142,10 +142,10 @@ func TestSheetListsEveryRowInOrder(t *testing.T) {
 	}
 	sheet := Coverage(features, []string{"ZT-13", "ZT-16"}).Markdown()
 
-	if !strings.Contains(sheet, "| ZT-13 | yes | Every release image is Linux |") {
+	if !strings.Contains(sheet, "| ZT-13 | yes | not run | Every release image is Linux |") {
 		t.Errorf("sheet is missing the covered row:\n%s", sheet)
 	}
-	if !strings.Contains(sheet, "| ZT-16 | no | — |") {
+	if !strings.Contains(sheet, "| ZT-16 | no | — | — |") {
 		t.Errorf("sheet is missing the uncovered row:\n%s", sheet)
 	}
 	if strings.Index(sheet, "ZT-13") > strings.Index(sheet, "ZT-16") {
@@ -179,8 +179,163 @@ func TestCSVIsGeneratedFromTheSameReport(t *testing.T) {
 	features, _ := Merge([][]byte{[]byte(goReport)})
 	csv := Coverage(features, []string{"ZT-13", "ZT-16"}).CSV()
 
-	want := "row,covered,scenarios\nZT-13,yes,Every release image is Linux\nZT-16,no,\n"
+	want := "row,covered,result,scenarios\nZT-13,yes,not run,Every release image is Linux\nZT-16,no,,\n"
 	if csv != want {
 		t.Errorf("CSV =\n%q\nwant\n%q", csv, want)
+	}
+}
+
+// The G7 rows added in Annex A v1.7 are row references like any other; a
+// pattern that only knew ZT and TDR-BDD would drop their tags and leave the
+// final-validation rows permanently uncovered.
+func TestCoverageRecognisesTheG7Rows(t *testing.T) {
+	const report = `[
+      {"uri":"f.feature","name":"F","tags":[],
+       "elements":[{"type":"scenario","name":"final validation","tags":[{"name":"@M7-01"}]}]}
+    ]`
+	features, err := Merge([][]byte{[]byte(report)})
+	if err != nil {
+		t.Fatalf("Merge: %v", err)
+	}
+	got := Coverage(features, []string{"M7-01", "M7-02"})
+	if len(got.Rows[0].Scenarios) != 1 || got.Uncovered() != 1 || len(got.UnknownTags) != 0 {
+		t.Fatalf("M7-01 not recognised as a row tag: %+v", got)
+	}
+}
+
+func scenario(name, row string, statuses ...string) string {
+	steps := make([]string, 0, len(statuses))
+	for _, status := range statuses {
+		steps = append(steps, `{"result":{"status":"`+status+`"}}`)
+	}
+	return `{"type":"scenario","name":"` + name + `","tags":[{"name":"@` + row + `"}],"steps":[` + strings.Join(steps, ",") + `]}`
+}
+
+func resultOf(t *testing.T, reports ...string) string {
+	t.Helper()
+	inputs := make([][]byte, 0, len(reports))
+	for _, elements := range reports {
+		inputs = append(inputs, []byte(`[{"uri":"f.feature","name":"F","tags":[],"elements":[`+elements+`]}]`))
+	}
+	features, err := Merge(inputs)
+	if err != nil {
+		t.Fatalf("Merge: %v", err)
+	}
+	return Coverage(features, []string{"TDR-BDD-01"}).Rows[0].Result
+}
+
+// Tag coverage is not proof: a scenario that ran and failed covers the row but
+// must not prove it.
+func TestAFailedStepFailsTheRow(t *testing.T) {
+	if got := resultOf(t, scenario("deploy", "TDR-BDD-01", "passed", "failed", "skipped")); got != Failed {
+		t.Fatalf("result = %q, want %q", got, Failed)
+	}
+}
+
+func TestEveryStepPassedProvesTheRow(t *testing.T) {
+	if got := resultOf(t, scenario("deploy", "TDR-BDD-01", "passed", "passed")); got != Passed {
+		t.Fatalf("result = %q, want %q", got, Passed)
+	}
+}
+
+// A row runs once per target and once per Outline example; one failure among
+// them fails it, whichever report it came from.
+func TestOneFailedExecutionAmongManyFailsTheRow(t *testing.T) {
+	ionos := scenario("deploy", "TDR-BDD-01", "passed")
+	osc := scenario("deploy", "TDR-BDD-01", "passed", "failed")
+	if got := resultOf(t, ionos, osc); got != Failed {
+		t.Fatalf("result = %q, want %q", got, Failed)
+	}
+}
+
+func TestASkippedScenarioIsNotRun(t *testing.T) {
+	if got := resultOf(t, scenario("deploy", "TDR-BDD-01", "skipped", "skipped")); got != NotRun {
+		t.Fatalf("result = %q, want %q", got, NotRun)
+	}
+}
+
+func TestAnUndefinedStepFailsTheRow(t *testing.T) {
+	if got := resultOf(t, scenario("deploy", "TDR-BDD-01", "passed", "undefined")); got != Failed {
+		t.Fatalf("result = %q, want %q", got, Failed)
+	}
+}
+
+// Evidence capture and cleanup run in an After hook. If they fail, the
+// scenario's evidence is incomplete and the row must not be proven.
+func TestAFailedAfterHookFailsTheRow(t *testing.T) {
+	element := `{"type":"scenario","name":"deploy","tags":[{"name":"@TDR-BDD-01"}],` +
+		`"steps":[{"result":{"status":"passed"}}],"after":[{"result":{"status":"failed"}}]}`
+	if got := resultOf(t, element); got != Failed {
+		t.Fatalf("result = %q, want %q", got, Failed)
+	}
+}
+
+// The same scenario run on several targets is one scenario in the sheet.
+func TestTheSameScenarioOnSeveralTargetsIsListedOnce(t *testing.T) {
+	a := scenario("deploy", "TDR-BDD-01", "passed")
+	features, _ := Merge([][]byte{
+		[]byte(`[{"uri":"f","name":"F","tags":[],"elements":[` + a + `]}]`),
+		[]byte(`[{"uri":"f","name":"F","tags":[],"elements":[` + a + `]}]`),
+	})
+	if got := Coverage(features, []string{"TDR-BDD-01"}).Rows[0].Scenarios; len(got) != 1 {
+		t.Fatalf("Scenarios = %v, want one entry", got)
+	}
+}
+
+func taggedScenario(row string, tags []string, statuses ...string) string {
+	element := scenario("row "+row, row, statuses...)
+	for _, tag := range tags {
+		element = strings.Replace(element, `"tags":[`, `"tags":[{"name":"`+tag+`"},`, 1)
+	}
+	return element
+}
+
+// A row not implemented yet runs as pending: it proves nothing, but it is not a failure either.
+func TestAPendingStepUnderThePendingTagIsNotRun(t *testing.T) {
+	if got := resultOf(t, taggedScenario("TDR-BDD-01", []string{"@pending"}, "pending", "skipped", "skipped")); got != NotRun {
+		t.Fatalf("result = %q, want %q", got, NotRun)
+	}
+}
+
+// Anywhere else a pending step is a stray: an implemented scenario that meets one fails.
+func TestAPendingStepWithoutThePendingTagFails(t *testing.T) {
+	if got := resultOf(t, taggedScenario("TDR-BDD-01", nil, "passed", "pending", "skipped")); got != Failed {
+		t.Fatalf("result = %q, want %q", got, Failed)
+	}
+}
+
+// The pending tag excuses pending steps only; an undefined or failed step still fails the row.
+func TestThePendingTagDoesNotExcuseAnUndefinedStep(t *testing.T) {
+	if got := resultOf(t, taggedScenario("TDR-BDD-01", []string{"@pending"}, "pending", "undefined")); got != Failed {
+		t.Fatalf("result = %q, want %q", got, Failed)
+	}
+}
+
+func TestCompleteNamesGapsAndFailures(t *testing.T) {
+	features, err := Merge([][]byte{[]byte(`[{"uri":"f","name":"F","tags":[],"elements":[` +
+		scenario("a", "ZT-01", "passed") + `,` + scenario("b", "ZT-02", "failed") + `,` +
+		taggedScenario("ZT-03", []string{"@pending"}, "pending") + `]}]`)})
+	if err != nil {
+		t.Fatal(err)
+	}
+	report := Coverage(features, []string{"ZT-01", "ZT-02", "ZT-03", "ZT-04"})
+	err = report.Complete()
+	if err == nil || err.Error() != "1 row(s) failed: ZT-02; 1 row(s) uncovered: ZT-04" {
+		t.Fatalf("Complete() = %v", err)
+	}
+
+	features, _ = Merge([][]byte{[]byte(`[{"uri":"f","name":"F","tags":[],"elements":[` +
+		scenario("a", "ZT-01", "passed") + `,` + taggedScenario("ZT-03", []string{"@pending"}, "pending") + `]}]`)})
+	if err := Coverage(features, []string{"ZT-01", "ZT-03"}).Complete(); err != nil {
+		t.Fatalf("a covered sheet with no failure is complete: %v", err)
+	}
+}
+
+// A scenario whose Before hook failed may be reported without steps; it must still fail the row.
+func TestAFailedHookFailsTheRowEvenWithoutSteps(t *testing.T) {
+	element := `{"type":"scenario","name":"deploy","tags":[{"name":"@TDR-BDD-01"}],` +
+		`"before":[{"result":{"status":"failed"}}],"steps":[]}`
+	if got := resultOf(t, element); got != Failed {
+		t.Fatalf("result = %q, want %q", got, Failed)
 	}
 }

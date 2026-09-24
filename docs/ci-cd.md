@@ -20,6 +20,7 @@ and is declared as such in [Specification changes](specifications.md#readings-an
 | `.github/workflows/docs.yml` | push to `main` affecting `docs/`, manual | Builds the MkDocs site and publishes it to the `gh-pages` branch |
 | `.github/workflows/workflow-hygiene.yml` | every pull request, manual | Fails the pull request when an action is not pinned to a commit or a token scope is too wide |
 | `.github/workflows/ci.yml` | every pull request, push to `main`, manual | Go lint and tests, image build with the Linux assertion and a Trivy scan, chart lint and dry-run render |
+| `.github/workflows/release.yml` | manual, push to a `candidate/**` branch | Release candidate: builds, pushes, signs and attests every image by digest, then verifies each one (see [Image signing](#image-signing)) |
 
 ## The service pipeline
 
@@ -73,6 +74,63 @@ actions and declared permissions this repository requires of its own workflows. 
 being references once the shared workflows accept a Go version or read `go.mod`; that is a change to
 propose in `eclipse-xfsc/dev-ops`.
 
+## Image signing
+
+The candidate job of `release.yml` builds every image under `deployment/docker/` for `linux/amd64`,
+labels it `eu.facis.ztd.signing-key=interim` and pushes it to `ghcr.io/<owner>/<repository>/<name>`.
+Then, for each image digest:
+
+1. `scripts/supplychain/sbom.sh` — the Syft SBOM of the image, scanned by digest, enriched by Grype with
+   the known vulnerabilities (CycloneDX JSON);
+2. `go run ./cmd/mockattest` — the mock attestation (ZT-71), checked against the schema admission
+   enforces;
+3. `scripts/supplychain/sign-attest.sh` — the cosign signature and both attestations, the same commands
+   the CI interop and kind tests use;
+4. verification of every digest against the committed public key
+   (`docs/contracts/keys/interim-cosign.pub`), with the admission provider's own code
+   (`cmd/imageverify`) and with `cosign verify` / `verify-attestation`.
+
+The private key is the `COSIGN_INTERIM_KEY` secret (with `COSIGN_INTERIM_PASSWORD`) of the protected
+`release` environment; without it, or without the public key, the job fails before anything is
+signed. The interim key is not the client trust chain; it is replaced by the client key and Harbor.
+The job creates no tag and no release.
+
+It checks the key before it builds anything: the secret must be set and must be the private half of
+the committed public key, so a missing environment, secret or key file stops the job before an image
+is pushed. GHCR creates new packages as private; the job verifies them with its own token, but a
+cluster pulls and verifies anonymously, so the candidate packages must be made public in the package
+settings (once per package) before a cluster can admit them.
+
+## Lifecycle scenarios on the client targets
+
+The `bdd` job runs on every pull request: `bddpack -check`, the strict and catalogue runs of both
+runners and the cluster dry run, then `bddreport --require-complete` over the five reports, so a
+row that is uncovered or failed fails the job (see [BDD acceptance](bdd.md#the-harness)). The dry
+run exists only in this job: where a cluster run happens, its real report is used instead.
+
+The `bdd-cluster` job runs the cluster scenarios (TDR-BDD-01..04 and TDR-BDD-06) against each client
+target, and `bdd-cluster-report` merges every target into one traceability sheet in which a row is
+proven only if it passed everywhere. They run on pushes to `main`, on every published release and
+on demand — never on pull requests — and one run at a time per target. Evidence is published even
+when the run fails, and the job keeps its failure. See [BDD acceptance](bdd.md) for what they prove. Each target's evidence and the cross-target
+sheet also carry a `bdd-catalogue.md` rendered from that run (`bddpack -evidence`), whose evidence
+basis column says what each row was proven with — for example the fixture release.
+
+Both jobs stay off until the repository variable `BDD_CLUSTER_ENABLED` is `true`. A target
+`<KEY>` (for example `IONOS`) then needs, as repository secrets, `BDD_<KEY>_OBSERVER_KUBECONFIG`
+(the read-only observer identity — never an administrator credential), `BDD_<KEY>_ORCE_URL`,
+`BDD_<KEY>_ORCE_READ_TOKEN`, `BDD_<KEY>_ORCE_HTTP_USER` and `BDD_<KEY>_ORCE_HTTP_PASS`, and as a
+repository variable `BDD_<KEY>_ORCE_LOGS_CMD`, plus its entry in the job's matrix.
+
+## Image scan exceptions
+
+Every image is scanned and a HIGH or CRITICAL finding fails the build. When a finding sits in an
+upstream component that this project cannot fix in its own layer, a `scan-exception.json` next to
+the image's Dockerfile may exclude named paths from the gate. It must carry an expiry date, the
+reason and the tracking of the upstream fix; the job prints it into the run summary and fails the
+build once it has expired. The ORCE image carries one for the upstream ORCE runtime and kubectl,
+expiring 13 November 2026.
+
 ## Repository protection and least privilege
 
 The demonstrator applies its own zero-trust posture to the delivery machine (ZT-56): nothing reaches
@@ -98,7 +156,7 @@ The repository's default workflow token is read-only — an administrator settin
 ruleset above. Every workflow then declares its own top-level `permissions:` block rather than
 relying on that default, and a job that needs more than read access grants it at the job level with
 a comment naming the reason: `docs.yml` writes to `gh-pages`, `sbom.yml` uploads the SBOM onto a
-release. Wildcard scopes (`write-all`) are never used.
+release, the release candidate job pushes images and signatures to GHCR (`packages: write`). Wildcard scopes (`write-all`) are never used.
 
 ### Action pinning
 

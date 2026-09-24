@@ -1,0 +1,9 @@
+apiVersion: v2
+name: admission
+description: >-
+  The image-verification provider for Gatekeeper external data: the provider Deployment, its TLS
+  material and trust policy, and the Provider object Gatekeeper calls. Installed into Gatekeeper's
+  namespace after Gatekeeper itself; the constraints that use it are installed separately.
+type: application
+version: 0.1.0
+appVersion: 0.1.0

@@ -1,0 +1,17 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "admission.name" . }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "admission.labels" . | nindent 4 }}
+spec:
+  selector:
+    {{- include "admission.selector" . | nindent 4 }}
+  ports:
+    - name: https
+      port: 8443
+      targetPort: https
+    - name: metrics
+      port: 9090
+      targetPort: metrics

@@ -1,0 +1,14 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/eclipse-xfsc/facis-zero-trust-demonstrator/docs/contracts/if03-jws-header.v1.schema.json",
+  "title": "IF-03 verification outcome, JWS protected header (contracts v1)",
+  "description": "Exactly these members. Anything else - crit, b64, jwk, jku, x5u, x5c - is refused, so the verifier never takes a key or processing rule from the token itself.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["alg", "kid", "typ"],
+  "properties": {
+    "alg": { "const": "ES256" },
+    "kid": { "type": "string", "minLength": 1, "maxLength": 128 },
+    "typ": { "const": "facis-verification-outcome+jws" }
+  }
+}

@@ -1,0 +1,7 @@
+apiVersion: v2
+name: lifecycle-fixture
+description: >-
+  Test fixture for the deployment-lifecycle acceptance scenarios (TDR-BDD-01..04). It is never
+  released; evidence produced with it is labelled as fixture evidence.
+type: application
+version: 0.1.0

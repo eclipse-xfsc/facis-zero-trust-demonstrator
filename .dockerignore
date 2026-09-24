@@ -1,0 +1,10 @@
+# The image build context is the repository root, so images can take scripts/, ui/ and flows/.
+# Keep everything else out - above all .dev/, which holds local identity kubeconfigs.
+.git
+.dev
+.github
+bundles
+node_modules
+specs
+docs
+**/test

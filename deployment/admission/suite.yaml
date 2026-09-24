@@ -1,0 +1,128 @@
+# gator suite for the constraints that need nothing but the object: digest-only, allowed
+# repositories, naming and the namespace scope. The provider-backed constraint (signature,
+# attestations, platform) is tested in a real Gatekeeper by the kind job.
+#
+#   gator verify deployment/admission
+apiVersion: test.gatekeeper.sh/v1alpha1
+kind: Suite
+metadata:
+  name: ztd-admission
+tests:
+  - name: image-digest
+    template: templates/image-digest.yaml
+    constraint: constraints/image-digest.yaml
+    cases:
+      - name: compliant pod
+        object: tests/pod-compliant.yaml
+        inventory: [tests/namespaces.yaml]
+        assertions:
+          - violations: no
+      - name: tag
+        object: tests/pod-tag.yaml
+        inventory: [tests/namespaces.yaml]
+        assertions:
+          - violations: 1
+            message: ADM-NOT-DIGEST
+      - name: tag and digest
+        object: tests/pod-tag-and-digest.yaml
+        inventory: [tests/namespaces.yaml]
+        assertions:
+          - violations: 1
+            message: ADM-NOT-DIGEST
+      - name: no registry host
+        object: tests/pod-no-registry-host.yaml
+        inventory: [tests/namespaces.yaml]
+        assertions:
+          - violations: 1
+            message: ADM-NOT-DIGEST
+      - name: init container tag
+        object: tests/pod-init-tag.yaml
+        inventory: [tests/namespaces.yaml]
+        assertions:
+          - violations: 1
+            message: ADM-NOT-DIGEST
+      - name: ephemeral container tag
+        object: tests/pod-ephemeral-tag.yaml
+        inventory: [tests/namespaces.yaml]
+        assertions:
+          - violations: 1
+            message: ADM-NOT-DIGEST
+      - name: deployment template tag
+        object: tests/deployment-tag.yaml
+        inventory: [tests/namespaces.yaml]
+        assertions:
+          - violations: 1
+            message: ADM-NOT-DIGEST
+      - name: unlabelled namespace not in scope
+        object: tests/pod-unlabelled-namespace.yaml
+        inventory: [tests/namespaces.yaml]
+        assertions:
+          - violations: no
+  - name: allowed-repositories
+    template: templates/allowed-repositories.yaml
+    constraint: constraints/allowed-repositories.yaml
+    cases:
+      - name: compliant pod
+        object: tests/pod-compliant.yaml
+        inventory: [tests/namespaces.yaml]
+        assertions:
+          - violations: no
+      - name: other registry
+        object: tests/pod-other-registry.yaml
+        inventory: [tests/namespaces.yaml]
+        assertions:
+          - violations: 1
+            message: ADM-REGISTRY-DENIED
+      - name: lookalike repository prefix
+        object: tests/pod-lookalike-repository.yaml
+        inventory: [tests/namespaces.yaml]
+        assertions:
+          - violations: 1
+            message: ADM-REGISTRY-DENIED
+      - name: init container other registry
+        object: tests/pod-init-other-registry.yaml
+        inventory: [tests/namespaces.yaml]
+        assertions:
+          - violations: 1
+            message: ADM-REGISTRY-DENIED
+      - name: tag from the allowed repository
+        object: tests/pod-tag.yaml
+        inventory: [tests/namespaces.yaml]
+        assertions:
+          - violations: no
+      - name: unlabelled namespace not in scope
+        object: tests/pod-unlabelled-namespace.yaml
+        inventory: [tests/namespaces.yaml]
+        assertions:
+          - violations: no
+  - name: naming
+    template: templates/naming.yaml
+    constraint: constraints/naming.yaml
+    cases:
+      - name: compliant pod
+        object: tests/pod-compliant.yaml
+        inventory: [tests/namespaces.yaml]
+        assertions:
+          - violations: no
+      - name: pod name
+        object: tests/pod-bad-name.yaml
+        inventory: [tests/namespaces.yaml]
+        assertions:
+          - violations: 1
+            message: ADM-NAME-INVALID
+      - name: generated pod name
+        object: tests/pod-generated-name.yaml
+        inventory: [tests/namespaces.yaml]
+        assertions:
+          - violations: no
+      - name: deployment name
+        object: tests/deployment-bad-name.yaml
+        inventory: [tests/namespaces.yaml]
+        assertions:
+          - violations: 1
+            message: ADM-NAME-INVALID
+      - name: unlabelled namespace not in scope
+        object: tests/pod-unlabelled-namespace.yaml
+        inventory: [tests/namespaces.yaml]
+        assertions:
+          - violations: no

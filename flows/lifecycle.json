@@ -1,0 +1,188 @@
+[
+  {
+    "id": "ztd-lifecycle-tab",
+    "type": "tab",
+    "label": "ZTD lifecycle",
+    "disabled": false,
+    "info": "Deployment lifecycle commands (TDR-BDD-01..04). The flow only routes: the ztd-lifecycle Builder Node validates the command against its schema, acknowledges it, runs the lifecycle script and keeps progress and the final result in this flow's context under lifecycle.jobs[requestId]. The endpoint sits behind httpNodeAuth."
+  },
+  {
+    "id": "ztd-lifecycle-http-in",
+    "type": "http in",
+    "z": "ztd-lifecycle-tab",
+    "name": "POST /lifecycle",
+    "url": "/lifecycle",
+    "method": "post",
+    "upload": false,
+    "swaggerDoc": "",
+    "x": 130,
+    "y": 80,
+    "wires": [
+      [
+        "ztd-lifecycle-normalize"
+      ]
+    ]
+  },
+  {
+    "id": "ztd-lifecycle-normalize",
+    "type": "json",
+    "z": "ztd-lifecycle-tab",
+    "name": "normalize to an object",
+    "property": "payload",
+    "action": "obj",
+    "pretty": false,
+    "x": 340,
+    "y": 80,
+    "wires": [
+      [
+        "ztd-lifecycle-node"
+      ]
+    ]
+  },
+  {
+    "id": "ztd-lifecycle-node",
+    "type": "ztd-lifecycle",
+    "z": "ztd-lifecycle-tab",
+    "name": "validate, route and run",
+    "script": "",
+    "x": 560,
+    "y": 80,
+    "wires": [
+      [
+        "ztd-lifecycle-status"
+      ]
+    ]
+  },
+  {
+    "id": "ztd-lifecycle-status",
+    "type": "switch",
+    "z": "ztd-lifecycle-tab",
+    "name": "accepted or refused",
+    "property": "payload.ok",
+    "propertyType": "msg",
+    "rules": [
+      {
+        "t": "true"
+      },
+      {
+        "t": "false"
+      }
+    ],
+    "checkall": "true",
+    "repair": false,
+    "outputs": 2,
+    "x": 790,
+    "y": 80,
+    "wires": [
+      [
+        "ztd-lifecycle-202"
+      ],
+      [
+        "ztd-lifecycle-400"
+      ]
+    ]
+  },
+  {
+    "id": "ztd-lifecycle-202",
+    "type": "change",
+    "z": "ztd-lifecycle-tab",
+    "name": "202",
+    "rules": [
+      {
+        "t": "set",
+        "p": "statusCode",
+        "pt": "msg",
+        "to": "202",
+        "tot": "num"
+      }
+    ],
+    "x": 970,
+    "y": 60,
+    "wires": [
+      [
+        "ztd-lifecycle-http-out"
+      ]
+    ]
+  },
+  {
+    "id": "ztd-lifecycle-400",
+    "type": "change",
+    "z": "ztd-lifecycle-tab",
+    "name": "400",
+    "rules": [
+      {
+        "t": "set",
+        "p": "statusCode",
+        "pt": "msg",
+        "to": "400",
+        "tot": "num"
+      }
+    ],
+    "x": 970,
+    "y": 100,
+    "wires": [
+      [
+        "ztd-lifecycle-http-out"
+      ]
+    ]
+  },
+  {
+    "id": "ztd-lifecycle-http-out",
+    "type": "http response",
+    "z": "ztd-lifecycle-tab",
+    "name": "",
+    "statusCode": "",
+    "headers": {
+      "content-type": "application/json"
+    },
+    "x": 1150,
+    "y": 80,
+    "wires": []
+  },
+  {
+    "id": "ztd-lifecycle-catch",
+    "type": "catch",
+    "z": "ztd-lifecycle-tab",
+    "name": "body is not JSON",
+    "scope": [
+      "ztd-lifecycle-normalize"
+    ],
+    "uncaught": false,
+    "x": 140,
+    "y": 160,
+    "wires": [
+      [
+        "ztd-lifecycle-malformed"
+      ]
+    ]
+  },
+  {
+    "id": "ztd-lifecycle-malformed",
+    "type": "change",
+    "z": "ztd-lifecycle-tab",
+    "name": "refuse a malformed body",
+    "rules": [
+      {
+        "t": "set",
+        "p": "statusCode",
+        "pt": "msg",
+        "to": "400",
+        "tot": "num"
+      },
+      {
+        "t": "set",
+        "p": "payload",
+        "pt": "msg",
+        "to": "{\"type\":\"result\",\"ok\":false,\"action\":null,\"requestId\":null,\"data\":null,\"ui\":{\"toast\":{\"kind\":\"error\",\"message\":\"Please correct the highlighted fields.\"}},\"errors\":{\"fields\":{\"command\":\"must be a JSON object\"}}}",
+        "tot": "json"
+      }
+    ],
+    "x": 370,
+    "y": 160,
+    "wires": [
+      [
+        "ztd-lifecycle-http-out"
+      ]
+    ]
+  }
+]

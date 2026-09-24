@@ -1,0 +1,1 @@
+{"run_id":"run-001","seq":42,"ts":"2026-09-09T12:00:00Z","source":"guard-a","kind":"decision","correlation_id":"fx-corr-1","payload":{"state":"denied","reason_code":"POL-RULE-DENY","rule_id":"data.facis.guard.deny_no_entitlement"}}

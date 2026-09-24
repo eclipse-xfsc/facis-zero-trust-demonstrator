@@ -1,0 +1,208 @@
+openapi: 3.1.0
+info:
+  title: FACIS ZTD connector authorization surface (IF-02)
+  version: 1.0.0
+  description: >-
+    Dynamic client registration and DPoP-bound token issuance, served by the zone's connector
+    (architecture decision 0003). Registration is not open: it takes an access token from this token
+    endpoint whose audience is the registration endpoint and whose scope includes
+    connector:client_registration. Error responses keep the OAuth 2.0 members and add a reason
+    member; the mapping of reason values to the reason-code registry is in the API documentation.
+    The paths are the connector's published routes; the registration endpoint's absolute URL is
+    also the audience a registration token must carry.
+  license:
+    name: Apache-2.0
+    identifier: Apache-2.0
+servers:
+  - url: 'https://{connector}'
+    variables:
+      connector:
+        default: connector.zone-a.example
+        description: The connector's published host name.
+paths:
+  /oauth2/token:
+    post:
+      summary: Client credentials grant, DPoP-bound (RFC 6749 section 4.4, RFC 9449)
+      operationId: token
+      security:
+        - clientSecretBasic: []
+      parameters:
+        - name: DPoP
+          in: header
+          required: false
+          description: >-
+            A DPoP proof for this request. Required from a client registered with
+            dpop_bound_access_tokens, and from every client when the deployment enforces DPoP.
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/x-www-form-urlencoded:
+            schema:
+              type: object
+              additionalProperties: false
+              required: [grant_type]
+              properties:
+                grant_type:
+                  const: client_credentials
+                scope:
+                  type: string
+                  description: Space-separated scopes, within the client's registered scopes.
+                audience:
+                  type: string
+                  description: Space-separated audiences, within the client's registered audiences.
+      responses:
+        '200':
+          description: Token issued. token_type is DPoP when a proof was presented.
+          headers:
+            Cache-Control:
+              schema:
+                const: no-store
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [access_token, token_type, expires_in]
+                properties:
+                  access_token:
+                    type: string
+                  token_type:
+                    enum: [DPoP, bearer]
+                  expires_in:
+                    type: integer
+                    minimum: 1
+                  scope:
+                    type: string
+        '400':
+          $ref: '#/components/responses/error'
+        '401':
+          $ref: '#/components/responses/error'
+        '500':
+          $ref: '#/components/responses/error'
+  /oauth2/register:
+    post:
+      summary: Dynamic client registration (RFC 7591)
+      operationId: register
+      security:
+        - registrationToken: []
+        - registrationTokenDPoP: []
+      parameters:
+        - name: DPoP
+          in: header
+          required: false
+          description: >-
+            Required with a DPoP-bound registration token (Authorization scheme DPoP): a proof for
+            this request whose ath matches the token. Refused with the Bearer scheme.
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/clientMetadata'
+      responses:
+        '201':
+          description: >-
+            Registered. The client secret is returned here once; only its hash is stored.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/clientMetadata'
+                  - type: object
+                    required: [client_id, client_secret]
+                    properties:
+                      client_id:
+                        type: string
+                      client_secret:
+                        type: string
+                      client_id_issued_at:
+                        type: integer
+                      client_secret_expires_at:
+                        type: integer
+        '400':
+          $ref: '#/components/responses/error'
+        '401':
+          $ref: '#/components/responses/error'
+        '403':
+          $ref: '#/components/responses/error'
+        '500':
+          $ref: '#/components/responses/error'
+components:
+  securitySchemes:
+    clientSecretBasic:
+      type: http
+      scheme: basic
+      description: client_secret_basic, the only client authentication wired today.
+    registrationToken:
+      type: http
+      scheme: bearer
+      description: >-
+        An access token from /oauth2/token with the registration endpoint as audience and the
+        scope connector:client_registration, not bound to a key.
+    registrationTokenDPoP:
+      type: http
+      scheme: DPoP
+      description: >-
+        The same kind of token, bound to a key (RFC 9449), presented with a DPoP proof. A bound
+        token presented under the Bearer scheme is refused.
+  schemas:
+    clientMetadata:
+      type: object
+      properties:
+        client_name:
+          type: string
+        grant_types:
+          type: array
+          items:
+            const: client_credentials
+        token_endpoint_auth_method:
+          const: client_secret_basic
+        scope:
+          type: string
+          description: >-
+            Space-separated; within the registration token's scopes, and never
+            connector:client_registration itself.
+        dpop_bound_access_tokens:
+          type: boolean
+    error:
+      type: object
+      required: [error, reason]
+      properties:
+        error:
+          type: string
+          description: The OAuth 2.0 error name.
+        error_description:
+          type: string
+        reason:
+          enum:
+            - invalid_request
+            - invalid_client
+            - invalid_token
+            - insufficient_scope
+            - registration_rejected
+            - server_error
+            - dpop_invalid_proof
+            - dpop_replayed
+            - dpop_use_nonce
+            - dpop_jkt_mismatch
+            - dpop_invalid_ath
+  responses:
+    error:
+      description: >-
+        Refused, with the OAuth 2.0 status. Token endpoint - 400 for invalid_request and every
+        dpop_* reason, 401 for invalid_client, 500 for server_error. Registration endpoint (a
+        protected resource) - 400 for invalid_request and registration_rejected, 401 with a
+        WWW-Authenticate challenge for invalid_token and every dpop_* reason, 403 for
+        insufficient_scope, 500 for server_error. With reason dpop_use_nonce
+        the response carries a fresh nonce in DPoP-Nonce; retry with it.
+      headers:
+        DPoP-Nonce:
+          schema:
+            type: string
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/error'

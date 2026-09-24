@@ -1,4 +1,4 @@
-# verify-tspa-api (FZTD-162)
+# verify-tspa-api
 
 Reproducible check of the TSPA (TRAIN Trust Framework Manager) trust-list publish API. Documentation and
 findings: [docs/tspa-publish-api.md](../../docs/tspa-publish-api.md).

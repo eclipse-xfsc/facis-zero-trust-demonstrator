@@ -1,0 +1,42 @@
+{{- include "admission.validate" . }}
+{{- /*
+The provider's own CA and server certificate. Generated on first install and reused afterwards
+(looked up from the cluster), so an upgrade does not rotate them; the Provider's caBundle is always
+the CA in this Secret.
+*/ -}}
+{{- $name := printf "%s-tls" (include "admission.name" .) }}
+{{- $existing := lookup "v1" "Secret" .Release.Namespace $name }}
+{{- $ca := "" }}{{- $crt := "" }}{{- $key := "" }}
+{{- if and $existing (index ($existing.data | default dict) "ca.crt") }}
+{{- $ca = index $existing.data "ca.crt" | b64dec }}
+{{- $crt = index $existing.data "tls.crt" | b64dec }}
+{{- $key = index $existing.data "tls.key" | b64dec }}
+{{- else }}
+{{- $genCA := genCA "ztd-admission-provider-ca" (int .Values.tls.validityDays) }}
+{{- $dns := include "admission.dnsNames" . | fromYamlArray }}
+{{- $cert := genSignedCert (index $dns 2) nil $dns (int .Values.tls.validityDays) $genCA }}
+{{- $ca = $genCA.Cert }}{{- $crt = $cert.Cert }}{{- $key = $cert.Key }}
+{{- end }}
+apiVersion: v1
+kind: Secret
+metadata:
+  name: {{ $name }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "admission.labels" . | nindent 4 }}
+type: kubernetes.io/tls
+data:
+  ca.crt: {{ $ca | b64enc }}
+  tls.crt: {{ $crt | b64enc }}
+  tls.key: {{ $key | b64enc }}
+---
+apiVersion: externaldata.gatekeeper.sh/v1beta1
+kind: Provider
+metadata:
+  name: {{ .Values.provider.name }}
+  labels:
+    {{- include "admission.labels" . | nindent 4 }}
+spec:
+  url: https://{{ include "admission.name" . }}.{{ .Release.Namespace }}:8443/
+  timeout: {{ .Values.provider.timeoutSeconds }}
+  caBundle: {{ $ca | b64enc }}

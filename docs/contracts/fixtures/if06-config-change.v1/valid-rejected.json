@@ -1,0 +1,1 @@
+{"change_id":"00000000-0000-4000-8000-000000000011","kind":"measurement","target":"zone-b-gateway","payload":{},"phase":"rejected","validation":{"json_schema":false,"errors":["/digest: required"]},"reason_code":"CFG-SCHEMA-INVALID","requested_by":"operator@zone-a.example"}

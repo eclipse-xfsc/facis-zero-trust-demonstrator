@@ -1,0 +1,86 @@
+apiVersion: templates.gatekeeper.sh/v1
+kind: ConstraintTemplate
+metadata:
+  name: k8sztdverifiedimages
+  annotations:
+    description: >-
+      Every container image is verified by the image-verification provider: cosign signature by a
+      trusted key, SBOM and mock attestations, single-platform linux/amd64. The provider's reason code
+      is the denial message. A system error, an error for any image, or an image the provider did not
+      answer for is a denial (fail closed).
+spec:
+  crd:
+    spec:
+      names:
+        kind: K8sZtdVerifiedImages
+      validation:
+        openAPIV3Schema:
+          type: object
+          properties:
+            provider:
+              description: Name of the external-data Provider.
+              type: string
+  targets:
+    - target: admission.k8s.gatekeeper.sh
+      rego: |
+        package k8sztdverifiedimages
+
+        import future.keywords.contains
+        import future.keywords.if
+        import future.keywords.in
+
+        pod_spec := input.review.object.spec if {
+          input.review.kind.kind == "Pod"
+        }
+
+        pod_spec := input.review.object.spec.template.spec if {
+          input.review.kind.kind in {"Deployment", "ReplicaSet", "StatefulSet", "DaemonSet", "Job"}
+        }
+
+        images contains c.image if {
+          some field in ["containers", "initContainers", "ephemeralContainers"]
+          some c in object.get(pod_spec, field, [])
+        }
+
+        response := external_data({"provider": input.parameters.provider, "keys": [i | some i in images]}) if {
+          count(images) > 0
+        }
+
+        system_error := object.get(response, "system_error", "")
+
+        violation contains {"msg": msg} if {
+          system_error != ""
+          msg := sprintf("ADM-PROVIDER-DOWN: %s", [system_error])
+        }
+
+        violation contains {"msg": msg} if {
+          some e in object.get(response, "errors", [])
+          msg := e[1]
+        }
+
+        # Every requested image must be answered, and answered "verified".
+        answered[key] := value if {
+          some r in object.get(response, "responses", [])
+          key := r[0]
+          value := r[1]
+        }
+
+        violation contains {"msg": msg} if {
+          system_error == ""
+          some image in images
+          not answered[image]
+          not errored(image)
+          msg := sprintf("ADM-PROVIDER-DOWN: no answer for image %q", [image])
+        }
+
+        violation contains {"msg": msg} if {
+          some image in images
+          value := answered[image]
+          value != "verified"
+          msg := sprintf("ADM-PROVIDER-DOWN: unexpected answer %v for image %q", [value, image])
+        }
+
+        errored(image) if {
+          some e in object.get(response, "errors", [])
+          e[0] == image
+        }

@@ -1,0 +1,4 @@
+# Every value is required and deliberately has no default here, so that a missing value is a
+# rejected deployment rather than one silently completed by the chart. ci/values.yaml holds a
+# valid baseline.
+{}

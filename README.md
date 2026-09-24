@@ -29,6 +29,32 @@ that are usually asserted rather than shown:
 Scope is deliberately a demonstrator: mock attestation stands in for real TEE hardware, and the
 demonstration services are purpose-built. What is *not* mocked is the security machinery itself.
 
+### Use cases
+
+```mermaid
+flowchart LR
+  viewer([Demonstration viewer])
+  operator([Operator])
+  subgraph ZTD[FACIS Zero Trust Demonstrator]
+    run[Run a journey from the demonstrator UI]
+    ok[Successful call: zone A backend reaches zone B resource]
+    revoked[Revoked credential is refused]
+    scope[Wrong scope is denied with a reason]
+    tampered[Tampered measurement aborts the channel]
+    deploy[Deploy, redeploy or uninstall a release through ORCE]
+    accept[Run the acceptance scenarios and read the evidence]
+  end
+  viewer --> run
+  run --> ok
+  run --> revoked
+  run --> scope
+  run --> tampered
+  operator --> deploy
+  operator --> accept
+```
+
+The journeys and what each one proves are described in [Using the demonstrator](docs/usage.md).
+
 ## Repository layout
 
 | Path | Contents |
@@ -50,17 +76,33 @@ of truth for the demonstrator.
 
 The demonstrator targets Kubernetes 1.29 or later. Full instructions live in the documentation:
 
+- [Architecture](docs/architecture.md)
 - [Deployment and teardown](docs/deployment.md)
+- [Environments](docs/environments/index.md) — the IONOS cluster step by step
 - [Features and journeys](docs/features.md)
 - [Packaging and containers](docs/packaging.md)
 - [Keycloak integration](docs/keycloak.md)
 - [CI/CD pipeline](docs/ci-cd.md)
 - [API documentation](docs/api-docs.md)
+- [BDD acceptance](docs/bdd.md) — the executable pack for every Annex A row, and the
+  [BDD catalogue](docs/bdd-catalogue.md)
 - [Troubleshooting](docs/troubleshooting.md)
-- [Architecture decisions](docs/adr/)
+- [Architecture decisions](docs/adr/), including the [TDR decisions ADR 001–006](docs/adr/tdr-decisions.md)
+- [OSS dependencies](docs/dependencies.md) and [Licenses](docs/licenses.md)
 
 Environment variables and chart values are documented alongside each chart under
-`deployment/helm/`.
+`deployment/helm/` (see its [README](deployment/helm/README.md)).
+
+The acceptance suite runs locally without a cluster:
+
+```bash
+npm ci
+go run ./cmd/bddpack -check
+go test ./internal/bdd && npm run bdd
+```
+
+The cluster scenarios need a cluster with ORCE; [BDD acceptance](docs/bdd.md#running-it) shows how
+to run them on a local kind cluster.
 
 ## Documentation
 

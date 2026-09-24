@@ -1,0 +1,91 @@
+name: Release
+
+# The candidate stage of the release: every image built, pushed to this repository's GHCR namespace,
+# signed and attested by digest with the interim key (Grype-enriched SBOM and the mock attestation),
+# and verified by digest with the admission provider's own code and with cosign against the committed
+# public key. It creates no tag and no release; the promote stage comes later.
+#
+# Started by hand, or by pushing a branch named candidate/<anything> - which also works in a fork whose
+# default branch does not carry this workflow. The release environment only accepts those branches and
+# the main and PR branches.
+on:
+  workflow_dispatch:
+  push:
+    branches: ['candidate/**']
+
+permissions:
+  contents: read
+
+concurrency:
+  group: release
+  cancel-in-progress: false
+
+jobs:
+  candidate:
+    name: Candidate images
+    runs-on: ubuntu-latest
+    # The interim signing key lives only in this protected environment's secrets.
+    environment: release
+    permissions:
+      contents: read
+      packages: write # pushes the images and their signatures to GHCR
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+
+      - name: Set up Go
+        uses: actions/setup-go@40f1582b2485089dde7abd97c1529aa768e1baff # v5.6.0
+        with:
+          go-version-file: go.mod
+
+      - name: Install the pinned signing and SBOM tools
+        run: |
+          scripts/tools/install.sh "$RUNNER_TEMP/bin" cosign syft grype
+          echo "$RUNNER_TEMP/bin" >> "$GITHUB_PATH"
+
+      # Before anything is built or pushed: the key must be present and match the committed public key.
+      - name: Check the signing key
+        env:
+          COSIGN_INTERIM_KEY: ${{ secrets.COSIGN_INTERIM_KEY }}
+          COSIGN_PASSWORD: ${{ secrets.COSIGN_INTERIM_PASSWORD }}
+        run: scripts/supplychain/check-key.sh
+
+      - name: Log in to GHCR
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: echo "$GITHUB_TOKEN" | docker login ghcr.io -u "$GITHUB_ACTOR" --password-stdin
+
+      # GHCR names are lower case; the repository owner may not be.
+      - name: Image repository
+        id: repo
+        run: echo "path=ghcr.io/${GITHUB_REPOSITORY,,}" >> "$GITHUB_OUTPUT"
+
+      - name: Build and push every image
+        run: scripts/supplychain/build-push.sh "${{ steps.repo.outputs.path }}" "candidate-${GITHUB_SHA::12}" images.txt
+
+      - name: Sign, attest and verify every image by digest
+        env:
+          COSIGN_KEY: env://COSIGN_INTERIM_KEY
+          COSIGN_INTERIM_KEY: ${{ secrets.COSIGN_INTERIM_KEY }}
+          COSIGN_PASSWORD: ${{ secrets.COSIGN_INTERIM_PASSWORD }}
+          # New GHCR packages are private: the provider-code check reads them with the job token.
+          IMAGEVERIFY_FLAGS: -registry-username ${{ github.actor }}
+          IMAGEVERIFY_PASSWORD: ${{ github.token }}
+        run: scripts/supplychain/sign-verify.sh "${{ steps.repo.outputs.path }}" images.txt candidate
+
+      - name: Summary
+        if: always()
+        run: |
+          {
+            echo "### Candidate images (interim key - not the client trust chain)"
+            [ -f images.txt ] && sed 's/^/- `/; s/$/`/' images.txt
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Keep the SBOMs and the mock attestation
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: candidate
+          path: |
+            images.txt
+            candidate/

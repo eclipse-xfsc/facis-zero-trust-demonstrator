@@ -1,0 +1,14 @@
+# Renders the chart in CI: a placeholder digest and a throwaway test key, never deployed. The CI
+# render runs in the default namespace, so Gatekeeper's namespace is set to match it here.
+gatekeeper:
+  namespace: default
+image:
+  digest: sha256:0000000000000000000000000000000000000000000000000000000000000000
+trust:
+  repositories:
+    - ghcr.io/eclipse-xfsc/facis-zero-trust-demonstrator
+  publicKeys: |
+    -----BEGIN PUBLIC KEY-----
+    MFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAEmnFIdoy5ntDBScgR9l9q9YA4ePIq
+    oOb2eIKfvDzDVluCBDS7s4kkLQTL4hxKGjBmYsZYHbduz8H5uHFxkQalFA==
+    -----END PUBLIC KEY-----

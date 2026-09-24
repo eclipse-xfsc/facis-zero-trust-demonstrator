@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# FZTD-162 round-trip against a local TSPA. Every step appends to evidence.md.
+# Round-trip against a local TSPA. Every step appends to evidence.md.
 set -u
 cd "$(dirname "$0")"
 BASE=http://localhost:16003/tspa-service
@@ -12,7 +12,7 @@ PAYLOADS=${PAYLOADS:-payloads}
 TSPA_REPO=${TSPA_REPO:-../tspa}
 mkdir -p bodies
 : > "$OUT"
-echo "# FZTD-162 local round-trip evidence ($(date -Is))" >> "$OUT"
+echo "# TSPA local round-trip evidence ($(date -Is))" >> "$OUT"
 TOKEN=""
 
 # call <label> <method> <url-path> [json-file|-] [auth|noauth] [expect]

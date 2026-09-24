@@ -1,0 +1,21 @@
+apiVersion: constraints.gatekeeper.sh/v1beta1
+kind: K8sZtdAllowedRepositories
+metadata:
+  name: ztd-allowed-repositories
+spec:
+  enforcementAction: deny
+  match:
+    kinds:
+      - apiGroups: [""]
+        kinds: [Pod]
+      - apiGroups: [apps]
+        kinds: [Deployment, ReplicaSet, StatefulSet, DaemonSet]
+      - apiGroups: [batch]
+        kinds: [Job]
+    # Only namespaces that opt in to admission control.
+    namespaceSelector:
+      matchLabels:
+        facis.ztd/admission-proof: "true"
+  parameters:
+    repositories:
+      - ghcr.io/eclipse-xfsc/facis-zero-trust-demonstrator

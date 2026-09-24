@@ -1,0 +1,8 @@
+apiVersion: v2
+name: admission-pool
+description: >-
+  Namespaces under admission control for the admission-proof scenarios, and the namespaced identity
+  the acceptance runner uses in them. Installed with Gatekeeper and the provider; whoever installs it
+  is the only actor that creates namespaces and bindings.
+type: application
+version: 0.1.0

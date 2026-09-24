@@ -1,0 +1,35 @@
+# Cluster-scoped access is read-only for both identities: the CRD set (row 04 asserts it is
+# unchanged) and the named namespaces (the pool, and kube-system whose UID identifies the cluster).
+{{- range $role := list (dict "name" "ztd-lifecycle-deployer" "sa" .Values.deployer.serviceAccount) (dict "name" "ztd-bdd-observer" "sa" .Values.observer.serviceAccount) }}
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: {{ $role.name }}-{{ $.Release.Name }}
+  labels:
+    {{- include "pool.labels" $ | nindent 4 }}
+rules:
+  - apiGroups: ["apiextensions.k8s.io"]
+    resources: ["customresourcedefinitions"]
+    verbs: ["get", "list"]
+  - apiGroups: [""]
+    resources: ["namespaces"]
+    resourceNames:
+      {{- include "pool.lookupNamespaces" $ | nindent 6 }}
+    verbs: ["get"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: {{ $role.name }}-{{ $.Release.Name }}
+  labels:
+    {{- include "pool.labels" $ | nindent 4 }}
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: {{ $role.name }}-{{ $.Release.Name }}
+subjects:
+  - kind: ServiceAccount
+    name: {{ $role.sa.name }}
+    namespace: {{ include "pool.saNamespace" (dict "root" $ "sa" $role.sa) }}
+{{- end }}

@@ -1,0 +1,47 @@
+<script type="text/javascript">
+  RED.nodes.registerType('ztd-lifecycle', {
+    category: 'FACIS ZTD',
+    color: '#c0deed',
+    defaults: {
+      name: { value: '' },
+      script: { value: '' }
+    },
+    inputs: 1,
+    outputs: 1,
+    icon: 'bridge.svg',
+    label: function () { return this.name || 'ztd lifecycle' }
+  })
+</script>
+
+<script type="text/html" data-template-name="ztd-lifecycle">
+  <div class="form-row">
+    <label for="node-input-name"><i class="fa fa-tag"></i> Name</label>
+    <input type="text" id="node-input-name" placeholder="ztd lifecycle">
+  </div>
+  <div class="form-row">
+    <label for="node-input-script"><i class="fa fa-file-code-o"></i> Script</label>
+    <input type="text" id="node-input-script" placeholder="/opt/ztd/scripts/lifecycle.sh">
+  </div>
+</script>
+
+<script type="text/html" data-help-name="ztd-lifecycle">
+  <p>Deploys or uninstalls one Helm release in a provisioned namespace.</p>
+  <h3>Inputs</h3>
+  <dl class="message-properties">
+    <dt>payload <span class="property-type">object</span></dt>
+    <dd>A command: <code>{type: "command", action: "deploy" | "uninstall", requestId, payload: {release, namespace, chart, values}}</code>.
+      <code>chart</code> and <code>values</code> are required for deploy.</dd>
+  </dl>
+  <h3>Outputs</h3>
+  <dl class="message-properties">
+    <dt>payload <span class="property-type">object</span></dt>
+    <dd>An immediate result: <code>ok: true</code> with <code>data.accepted</code>, or <code>ok: false</code> with
+      <code>errors.fields</code> naming each invalid parameter.</dd>
+  </dl>
+  <h3>Details</h3>
+  <p>An accepted command runs in the background. Its progress and final result are kept in the flow
+    context under <code>lifecycle.jobs[requestId]</code>; a failed action carries a reason code in
+    <code>errors.action</code>. Values are never logged, and credentials in the output are masked.</p>
+  <p><b>Script</b> overrides the lifecycle script path; leave it empty to use the image's
+    <code>/opt/ztd/scripts/lifecycle.sh</code>.</p>
+</script>

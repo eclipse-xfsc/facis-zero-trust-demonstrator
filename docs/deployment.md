@@ -23,6 +23,13 @@ helm install ztd deployment/helm/ztd -n ztd-mgmt --create-namespace -f <values f
 
 Chart values are documented with each chart under `deployment/helm/`.
 
+### Through the ORCE workflow
+
+The same install, redeploy and uninstall run through ORCE with zero manual steps: a
+`POST /lifecycle` command ([IF-08](api-docs.md)) that the `ztd-lifecycle` node validates, checks
+with a server-side dry-run and applies with Helm, reporting a machine-readable result in the ORCE
+context. The `helm` commands on this page are the engine-level equivalent.
+
 ## Teardown
 
 ```bash

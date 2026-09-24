@@ -17,6 +17,12 @@ These five were taken by the project's Technical Design Authority and Project Le
 | [0004](0004-openbao-as-x509-key-value-store.md) | OpenBao as X.509 key-value store |
 | [0005](0005-three-cluster-reading-of-the-target-environment.md) | Three-cluster reading of the target environment |
 
+## TDR decisions
+
+The six decisions the Technical Development Requirements prescribe (ADR 001–006: Helm, ORCE, the
+automation stack, Keycloak, the security baseline, logging) are binding. How each is applied is
+recorded in [TDR decisions ADR 001–006](tdr-decisions.md).
+
 ## Format
 
 Each record states its status, date, deciders, the requirements it answers, the context, the

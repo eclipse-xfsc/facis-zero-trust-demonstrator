@@ -1,0 +1,232 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/eclipse-xfsc/facis-zero-trust-demonstrator/docs/contracts/if01-event.v1.schema.json",
+  "title": "IF-01 security-state event (contracts v1)",
+  "description": "One event on the security-state feed. Components write it as a JSON log line; the feed bridge serves it to the demonstrator UI. Ordering holds per source only. The UI deduplicates by (run_id, seq) and shows a panel as UNKNOWN on a sequence gap or a stale ts, never the last known value. Events carry no secrets.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "run_id",
+    "seq",
+    "ts",
+    "source",
+    "kind",
+    "payload"
+  ],
+  "properties": {
+    "run_id": {
+      "$ref": "#/$defs/runId"
+    },
+    "seq": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "ts": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "source": {
+      "$ref": "#/$defs/source"
+    },
+    "kind": {
+      "enum": [
+        "decision",
+        "admission",
+        "channel_state",
+        "token_event",
+        "credential_event",
+        "step",
+        "gap"
+      ]
+    },
+    "correlation_id": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 128
+    },
+    "payload": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "state"
+      ],
+      "properties": {
+        "state": {
+          "type": "string",
+          "pattern": "^[a-z][a-z_]{0,31}$"
+        },
+        "reason_code": {
+          "$ref": "#/$defs/reasonCode"
+        },
+        "rule_id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 256
+        },
+        "detail": {
+          "type": "string",
+          "maxLength": 512
+        }
+      }
+    }
+  },
+  "allOf": [
+    {
+      "if": {
+        "properties": {
+          "kind": {
+            "enum": [
+              "decision",
+              "admission"
+            ]
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "payload": {
+            "properties": {
+              "state": {
+                "enum": [
+                  "allowed",
+                  "denied"
+                ]
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "payload": {
+            "properties": {
+              "state": {
+                "const": "denied"
+              }
+            }
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "payload": {
+            "required": [
+              "reason_code"
+            ]
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "kind": {
+            "const": "gap"
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "source": {
+            "const": "feed-bridge"
+          },
+          "payload": {
+            "required": [
+              "reason_code"
+            ],
+            "properties": {
+              "reason_code": {
+                "const": "VIS-STALE"
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "kind": {
+            "const": "channel_state"
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "payload": {
+            "properties": {
+              "state": {
+                "enum": [
+                  "connecting",
+                  "handshake",
+                  "attested",
+                  "draining",
+                  "closed",
+                  "refused",
+                  "lost"
+                ]
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "kind": {
+            "const": "channel_state"
+          },
+          "payload": {
+            "properties": {
+              "state": {
+                "const": "refused"
+              }
+            }
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "payload": {
+            "required": [
+              "reason_code"
+            ],
+            "properties": {
+              "reason_code": {
+                "pattern": "^CHAN(-[A-Z0-9]+)+$"
+              }
+            }
+          }
+        }
+      }
+    }
+  ],
+  "$defs": {
+    "runId": {
+      "type": "string",
+      "pattern": "^[A-Za-z0-9._-]{1,64}$"
+    },
+    "source": {
+      "anyOf": [
+        {
+          "type": "string",
+          "pattern": "^(guard|gateway|connector|token-store)-(a|b)$"
+        },
+        {
+          "enum": [
+            "verification",
+            "admission",
+            "feed-bridge"
+          ]
+        }
+      ]
+    },
+    "reasonCode": {
+      "type": "string",
+      "pattern": "^[A-Z]{2,5}(-[A-Z0-9]+)+$"
+    }
+  }
+}

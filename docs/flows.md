@@ -21,6 +21,7 @@ rather than leaving a journey without an outcome.
 | Tampered measurement | Operator alters the expected measurement | Attestation requested → report returned → expected and actual compared → mismatch | Handshake aborted, with the proof that no application traffic passed |
 | Credential issuance | Operator starts the issuing journey | Wallet receives the credential from the OCM W-Stack → credential unlocks the protected resource on the next call | Previously refused call now permitted |
 | Configuration change | Operator edits a trust zone or a policy in the UI | Change previewed → validated → applied as a pull request → effect visible on the next journey | Journey outcome changes, with the change traceable to its pull request |
+| Deployment lifecycle (`flows/lifecycle.json`) | `POST /lifecycle` (operator or acceptance run, [IF-08](api-docs.md)) | Body normalized → `ztd-lifecycle` node validates, acknowledges and runs the lifecycle script (validate → server dry-run → deploy, or uninstall) | `202` or `400` at once; the final result in the flow context, `lifecycle.jobs[requestId]` |
 
 Each step reports its own result to the UI, so a journey that fails halfway shows *where* it
 stopped, not merely that it stopped.
@@ -36,6 +37,37 @@ can be configured without reading its source:
 | Inputs | The message properties it reads, and which are required |
 | Outputs | The message properties it sets, including the result and reason code |
 | Configuration | Editor parameters, their types, defaults and validation |
+
+### ztd-lifecycle
+
+| Field | Meaning |
+|---|---|
+| Purpose | Deploys or uninstalls one Helm release in a provisioned namespace; the deployment step of the lifecycle flow (TDR-BDD-01..04) |
+| Inputs | `msg.payload`: `{type: "command", action: "deploy" \| "uninstall", requestId, payload: {release, namespace, chart, values}}`; `chart` and `values` only for deploy. Contract: `ui/nodes/ztd-lifecycle/ztd-lifecycle.schema.json` |
+| Outputs | `msg.payload`: an immediate result — `ok: true` with `data.accepted`, or `ok: false` with `errors.fields`. Progress and the final result go to the flow context, `lifecycle.jobs[requestId]` ([schema](lifecycle-result.schema.json)), with the reason code in `errors.action` |
+| Configuration | `name` (text); `script` (text, optional): path of the lifecycle script, default `/opt/ztd/scripts/lifecycle.sh` |
+
+It never creates namespaces, never logs the values, masks credentials in the Helm output, and
+writes one log record per result (`lifecycle.result` or `lifecycle.refused`, with the `requestId`).
+
+### ORCE logging
+
+The ORCE image replaces the Node-RED console logger with a JSON handler (`logging` in
+`deployment/docker/orce/settings.js`). Every record sent through the Node-RED logging API is one
+line holding one JSON object with exactly these fields:
+
+| Field | Value |
+|---|---|
+| `time` | ISO 8601 timestamp |
+| `level` | `fatal`, `error`, `warn`, `info`, `debug`, `trace` |
+| `type`, `name`, `id` | the node that logged, or `null` for the runtime |
+| `msg` | the message as a string; an error contributes its message only, never its stack |
+
+The lifecycle node's `msg` is itself a JSON object (`node`, `event`, `requestId`, `action`, `ok`,
+`reason`), so a reader parses the line, then `msg`. The payload is never merged into the top level.
+
+**What this does not cover:** output written outside the logging API — `console` calls in function
+or third-party nodes, Node.js warnings, and the container entrypoint — is not JSON.
 
 A node that alters the security outcome of a journey does not decide it: the decision stays on the
 connector and guard path, and the node reports it. This is the same boundary

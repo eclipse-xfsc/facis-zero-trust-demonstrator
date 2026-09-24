@@ -5,10 +5,11 @@ the protected resource it calls. Each is a separate cluster with its own workloa
 admission control and policy enforcement, and the interesting part of the demonstrator is what
 happens between them.
 
-!!! note "Status"
-    Written from the platform baseline and the decisions that govern it. The clusters are
-    client-provided and were not yet available when this page was written, so every step is marked
-    with how it is verified, and the page is confirmed against a real cluster on first stand-up.
+!!! warning "Cluster not yet provided"
+    The two OSC clusters have not been provided yet (status of 23 September 2026). This page is
+    written from the platform baseline and the decisions that govern it; nothing on it has been run
+    against a real OSC cluster. Every step says how it will be verified, and the page is confirmed
+    against the clusters on first stand-up, as the [IONOS guide](ionos.md) already is.
 
 ## Before you start
 

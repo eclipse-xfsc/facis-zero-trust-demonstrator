@@ -1,0 +1,1 @@
+{"correlation_id":"fx-corr-1","source":{"spiffe_id":"spiffe://bad host/path#fragment"},"request":{"method":"GET","path":"/api/data","host":"guard-a.example"},"token":{"present":false},"tenant":null}

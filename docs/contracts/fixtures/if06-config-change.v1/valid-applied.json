@@ -1,0 +1,1 @@
+{"change_id":"00000000-0000-4000-8000-000000000010","kind":"trust-zone","target":"zone-b","payload":{"zone":"zone-b"},"phase":"applied","validation":{"json_schema":true,"shacl":true,"errors":[]},"pr_url":"https://github.com/eclipse-xfsc/facis-zero-trust-demonstrator/pull/1","requested_by":"operator@zone-a.example","audit_ts":"2026-09-09T12:00:00Z"}

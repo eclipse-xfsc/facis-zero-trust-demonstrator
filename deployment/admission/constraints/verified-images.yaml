@@ -1,0 +1,20 @@
+apiVersion: constraints.gatekeeper.sh/v1beta1
+kind: K8sZtdVerifiedImages
+metadata:
+  name: ztd-verified-images
+spec:
+  enforcementAction: deny
+  match:
+    kinds:
+      - apiGroups: [""]
+        kinds: [Pod]
+      - apiGroups: [apps]
+        kinds: [Deployment, ReplicaSet, StatefulSet, DaemonSet]
+      - apiGroups: [batch]
+        kinds: [Job]
+    # Only namespaces that opt in to admission control.
+    namespaceSelector:
+      matchLabels:
+        facis.ztd/admission-proof: "true"
+  parameters:
+    provider: ztd-image-verifier

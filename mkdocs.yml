@@ -4,6 +4,10 @@ repo_url: https://github.com/eclipse-xfsc/facis-zero-trust-demonstrator
 edit_uri: edit/main/docs/
 copyright: Apache-2.0
 
+# The contract validator and its vendored schema are repository tooling, not documentation.
+exclude_docs: |
+  contracts/tooling/
+
 theme:
   name: readthedocs
 
@@ -23,13 +27,17 @@ nav:
   - Connector OAuth2 provider: oauth2-provider.md
   - API documentation: api-docs.md
   - TRAIN trust-list publishing: tspa-publish-api.md
-  - BDD acceptance: bdd.md
+  - BDD acceptance:
+      - Harness and pack: bdd.md
+      - Catalogue: bdd-catalogue.md
   - CI/CD: ci-cd.md
   - Troubleshooting: troubleshooting.md
   - OSS dependencies: dependencies.md
+  - Licenses: licenses.md
   - Specification changes: specifications.md
   - Architecture decisions:
       - Overview: adr/index.md
+      - TDR decisions ADR 001–006: adr/tdr-decisions.md
       - 0001 Service mesh mode: adr/0001-service-mesh-mode-istio-ambient-with-cilium.md
       - 0002 Gatekeeper external data provider: adr/0002-gatekeeper-external-data-provider-for-cosign-verification.md
       - 0003 OAuth2 surface in the Go connector: adr/0003-oauth2-authorisation-surface-in-the-go-connector.md

@@ -1,9 +1,11 @@
 // Package bddreport merges the cucumber-JSON produced by each BDD runner and
-// derives the requirement-to-test traceability sheet from the scenario tags.
+// derives the requirement-to-test traceability sheet from the scenario tags and
+// their results.
 //
 // The sheet is generated, never maintained: a requirement row is covered when a
-// scenario carries its tag, and a row nobody tagged shows up as a gap. That is
-// the point of generating it.
+// scenario carries its tag, and a row nobody tagged shows up as a gap. Covered is
+// not proven: a row is proven only when every execution of every scenario that
+// covers it passed.
 package bddreport
 
 import (
@@ -18,16 +20,68 @@ import (
 // rowTag matches the Annex A row identifiers and nothing else. Tags like
 // @BDD-ZT-013 (the test identifier) or @platform are not row references and are
 // ignored rather than reported as unknown.
-var rowTag = regexp.MustCompile(`^(ZT-\d+|TDR-BDD-\d+)$`)
+var rowTag = regexp.MustCompile(`^(ZT-\d+|TDR-BDD-\d+|M7-\d+)$`)
 
 type Tag struct {
 	Name string `json:"name"`
 }
 
+type Result struct {
+	Status string `json:"status"`
+}
+
+type Step struct {
+	Result Result `json:"result"`
+}
+
+// Element is one executed scenario. Hooks are reported beside the steps, and a
+// failing After hook (evidence capture, cleanup) fails the scenario too.
 type Element struct {
-	Type string `json:"type"`
-	Name string `json:"name"`
-	Tags []Tag  `json:"tags"`
+	Type   string `json:"type"`
+	Name   string `json:"name"`
+	Tags   []Tag  `json:"tags"`
+	Before []Step `json:"before"`
+	Steps  []Step `json:"steps"`
+	After  []Step `json:"after"`
+}
+
+// Row results. A row with no covering scenario has no result.
+const (
+	Passed = "passed"
+	Failed = "failed"
+	NotRun = "not run"
+)
+
+// status reduces an execution to one result. Anything that is not an outright
+// pass or failure - skipped, or no steps at all - is "not run": it proves nothing.
+// A pending step is "not run" only in a scenario tagged @pending (a row not
+// implemented yet); anywhere else it is a stray and fails the row.
+func (e Element) status() string {
+	steps := append(append(append([]Step{}, e.Before...), e.Steps...), e.After...)
+	pendingRow := false
+	for _, tag := range e.Tags {
+		pendingRow = pendingRow || tag.Name == "@pending"
+	}
+	result := Passed
+	for _, step := range steps {
+		switch step.Result.Status {
+		case "passed":
+		case "pending":
+			if !pendingRow {
+				return Failed
+			}
+			result = NotRun
+		case "failed", "undefined", "ambiguous":
+			return Failed
+		default:
+			result = NotRun
+		}
+	}
+	// A failed hook fails the row even without steps; with nothing failed, no steps proves nothing.
+	if len(e.Steps) == 0 {
+		return NotRun
+	}
+	return result
 }
 
 type Feature struct {
@@ -55,6 +109,9 @@ func Merge(inputs [][]byte) ([]Feature, error) {
 type Row struct {
 	ID        string
 	Scenarios []string
+	// Result is Passed only when every covering execution passed, across every
+	// report merged - each target of a matrix run and each Outline example.
+	Result string
 }
 
 type Report struct {
@@ -80,7 +137,9 @@ func Coverage(features []Feature, rows []string) Report {
 			// deduplicated: a scenario covers a row once or not at all.
 			for _, id := range distinct(rowIDs(tagNames(element.Tags))) {
 				if i, ok := known[id]; ok {
-					report.Rows[i].Scenarios = append(report.Rows[i].Scenarios, element.Name)
+					row := &report.Rows[i]
+					row.Scenarios = distinct(append(row.Scenarios, element.Name))
+					row.Result = worst(row.Result, element.status())
 					continue
 				}
 				unknown[id] = struct{}{}
@@ -93,6 +152,16 @@ func Coverage(features []Feature, rows []string) Report {
 	}
 	sort.Strings(report.UnknownTags)
 	return report
+}
+
+// worst keeps the weakest result seen for a row: one failed execution fails it,
+// and one execution that did not run keeps it from passing.
+func worst(current, next string) string {
+	rank := map[string]int{"": 0, Passed: 1, NotRun: 2, Failed: 3}
+	if rank[next] > rank[current] {
+		return next
+	}
+	return current
 }
 
 func tagNames(tags []Tag) []string {
@@ -127,6 +196,17 @@ func rowIDs(names []string) []string {
 	return ids
 }
 
+// Proven counts the rows whose every covering execution passed.
+func (r Report) Proven() int {
+	proven := 0
+	for _, row := range r.Rows {
+		if row.Result == Passed {
+			proven++
+		}
+	}
+	return proven
+}
+
 // Uncovered counts the rows no scenario claims.
 func (r Report) Uncovered() int {
 	uncovered := 0
@@ -138,18 +218,43 @@ func (r Report) Uncovered() int {
 	return uncovered
 }
 
+// Complete fails when a row is uncovered or failed, naming them. A row that is
+// covered but not run (pending, or not reachable from this run) is complete.
+func (r Report) Complete() error {
+	var failed, uncovered []string
+	for _, row := range r.Rows {
+		switch {
+		case len(row.Scenarios) == 0:
+			uncovered = append(uncovered, row.ID)
+		case row.Result == Failed:
+			failed = append(failed, row.ID)
+		}
+	}
+	var problems []string
+	if len(failed) > 0 {
+		problems = append(problems, fmt.Sprintf("%d row(s) failed: %s", len(failed), strings.Join(failed, ", ")))
+	}
+	if len(uncovered) > 0 {
+		problems = append(problems, fmt.Sprintf("%d row(s) uncovered: %s", len(uncovered), strings.Join(uncovered, ", ")))
+	}
+	if len(problems) > 0 {
+		return fmt.Errorf("%s", strings.Join(problems, "; "))
+	}
+	return nil
+}
+
 func (r Report) Markdown() string {
 	var b strings.Builder
-	b.WriteString("| Row | Covered | Scenarios |\n|---|---|---|\n")
+	b.WriteString("| Row | Covered | Result | Scenarios |\n|---|---|---|---|\n")
 	for _, row := range r.Rows {
-		covered, scenarios := "no", "—"
+		covered, result, scenarios := "no", "—", "—"
 		if len(row.Scenarios) > 0 {
 			// A scenario name is free text; an unescaped pipe would split the row
 			// into extra columns and corrupt the table.
-			covered = "yes"
+			covered, result = "yes", row.Result
 			scenarios = strings.ReplaceAll(strings.Join(row.Scenarios, "; "), "|", `\|`)
 		}
-		fmt.Fprintf(&b, "| %s | %s | %s |\n", row.ID, covered, scenarios)
+		fmt.Fprintf(&b, "| %s | %s | %s | %s |\n", row.ID, covered, result, scenarios)
 	}
 	return b.String()
 }
@@ -170,13 +275,13 @@ func neutralise(cell string) string {
 func (r Report) CSV() string {
 	var b strings.Builder
 	w := csv.NewWriter(&b)
-	_ = w.Write([]string{"row", "covered", "scenarios"})
+	_ = w.Write([]string{"row", "covered", "result", "scenarios"})
 	for _, row := range r.Rows {
 		covered := "no"
 		if len(row.Scenarios) > 0 {
 			covered = "yes"
 		}
-		_ = w.Write([]string{row.ID, covered, neutralise(strings.Join(row.Scenarios, "; "))})
+		_ = w.Write([]string{row.ID, covered, row.Result, neutralise(strings.Join(row.Scenarios, "; "))})
 	}
 	w.Flush()
 	return b.String()

@@ -6,10 +6,17 @@
   "description": "JavaScript side of the FACIS.ZTD acceptance suite",
   "type": "module",
   "scripts": {
-    "bdd": "cucumber-js features/js --import features/js/steps --format summary --format json:bundles/bdd/js-report.json",
-    "bdd:row": "cucumber-js features/js --import features/js/steps --format summary --format json:bundles/bdd/js-report.json --tags"
+    "bdd": "cucumber-js features/js --import features/js/steps --tags \"not @cluster and not @pending\" --format summary --format json:bundles/bdd/js-report.json",
+    "bdd:catalogue": "cucumber-js features/js --import features/js/steps --tags @pending --no-strict --format summary --format json:bundles/bdd/js-catalogue-report.json",
+    "bdd:cluster-dryrun": "cucumber-js features/js --import features/js/steps --tags \"@cluster and not @pending\" --dry-run --format summary --format json:bundles/bdd/js-cluster-dryrun.json",
+    "bdd:row": "cucumber-js features/js --import features/js/steps --format summary --format json:bundles/bdd/js-report.json --tags",
+    "contracts": "node docs/contracts/tooling/verify.mjs",
+    "bdd:cluster": "cucumber-js features/js --import features/js/steps --tags @cluster --format summary --format json:bundles/bdd/js-cluster-report-${BDD_TARGET:-local}.json"
   },
   "devDependencies": {
-    "@cucumber/cucumber": "13.2.1"
+    "@cucumber/cucumber": "13.2.1",
+    "ajv": "8.20.0",
+    "ajv-formats": "3.0.1",
+    "yaml": "2.9.1"
   }
 }

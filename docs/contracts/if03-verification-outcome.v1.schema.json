@@ -1,0 +1,105 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/eclipse-xfsc/facis-zero-trust-demonstrator/docs/contracts/if03-verification-outcome.v1.schema.json",
+  "title": "IF-03 verification outcome, JWS payload (contracts v1)",
+  "description": "The payload of the compact JWS the verification service signs after checking an OID4VP presentation. The JWS protected header follows if03-jws-header.v1.schema.json. Only an outcome with status verified is consumable, once, within its validity interval (see the IF-03 rules in the API documentation), for the client, challenge and audience it names.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "iss",
+    "outcome_id",
+    "client_id",
+    "challenge",
+    "audience",
+    "claims",
+    "verified_at",
+    "expires_at",
+    "status"
+  ],
+  "properties": {
+    "iss": {
+      "type": "string",
+      "format": "uri"
+    },
+    "outcome_id": {
+      "type": "string",
+      "format": "uuid"
+    },
+    "client_id": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 256
+    },
+    "challenge": {
+      "type": "string",
+      "minLength": 16,
+      "maxLength": 256
+    },
+    "audience": {
+      "type": "string",
+      "format": "uri"
+    },
+    "claims": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "role"
+      ],
+      "properties": {
+        "role": {
+          "type": "string",
+          "minLength": 1
+        },
+        "entitlement": {
+          "type": "string",
+          "minLength": 1
+        }
+      }
+    },
+    "credential_refs": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "minLength": 1
+      }
+    },
+    "verified_at": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "expires_at": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "status": {
+      "enum": [
+        "verified",
+        "failed",
+        "revoked"
+      ]
+    },
+    "reason_code": {
+      "type": "string",
+      "pattern": "^CRED(-[A-Z0-9]+)+$"
+    }
+  },
+  "if": {
+    "properties": {
+      "status": {
+        "const": "verified"
+      }
+    }
+  },
+  "then": {
+    "not": {
+      "required": [
+        "reason_code"
+      ]
+    }
+  },
+  "else": {
+    "required": [
+      "reason_code"
+    ]
+  }
+}
