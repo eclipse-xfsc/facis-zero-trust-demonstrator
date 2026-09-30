@@ -54,6 +54,21 @@ Only the row tag drives coverage. A tag shaped like a row id that matches no row
 `features/annex-rows.txt` **fails the run** — a typo would otherwise leave the scenario passing
 while proving nothing about the row it was meant to cover.
 
+A row may be proved by more than one scenario, each carrying the row tag. The sheet then reports
+the row covered as soon as one of them exists, so the scenario names state which claim each makes.
+The ZT-55 row is proved by two:
+
+- **Design conformance** — *The plane-separation matrix is complete and consistent at both
+  layers*, which runs in CI. It asserts that the matrices in the
+  [plane-separation section](architecture.md#6-plane-separation-and-staleness-windows) are complete
+  and consistent: every path from the data plane to the management plane is disposed at both the
+  network policy layer and the service mesh layer, in agreement with its verdict, and the catch-all
+  row denies every management-plane destination without a row of its own. It reaches no network.
+- **Reachability** — not yet written. It runs when the matrix is executed against a cluster, and
+  it asserts that a management-plane destination without a row is unreachable from the data plane
+  at both layers. It is the scenario the section refers to when it says what the plane-separation
+  test asserts for a destination it probes and does not find listed.
+
 ### Running one Annex row
 
 ```bash
