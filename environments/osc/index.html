@@ -59,6 +59,10 @@
                 <li class="toctree-l1"><a class="reference internal" href="../../deployment/">Deployment</a>
                 </li>
               </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../../umbrella-chart/">Umbrella chart</a>
+                </li>
+              </ul>
               <p class="caption"><span class="caption-text">Environments</span></p>
               <ul class="current">
                   <li class="toctree-l1"><a class="reference internal" href="../">Overview</a>
@@ -69,15 +73,17 @@
     </li>
     <li class="toctree-l2"><a class="reference internal" href="#1-cni">1. CNI</a>
     </li>
-    <li class="toctree-l2"><a class="reference internal" href="#2-workload-identity">2. Workload identity</a>
+    <li class="toctree-l2"><a class="reference internal" href="#2-the-zone-layout">2. The zone layout</a>
     </li>
-    <li class="toctree-l2"><a class="reference internal" href="#3-mesh">3. Mesh</a>
+    <li class="toctree-l2"><a class="reference internal" href="#3-workload-identity">3. Workload identity</a>
     </li>
-    <li class="toctree-l2"><a class="reference internal" href="#4-admission-control">4. Admission control</a>
+    <li class="toctree-l2"><a class="reference internal" href="#4-mesh">4. Mesh</a>
     </li>
-    <li class="toctree-l2"><a class="reference internal" href="#5-the-demonstrator">5. The demonstrator</a>
+    <li class="toctree-l2"><a class="reference internal" href="#5-admission-control">5. Admission control</a>
     </li>
-    <li class="toctree-l2"><a class="reference internal" href="#6-the-trust-boundary-between-the-zones">6. The trust boundary between the zones</a>
+    <li class="toctree-l2"><a class="reference internal" href="#6-the-demonstrator-workloads">6. The demonstrator workloads</a>
+    </li>
+    <li class="toctree-l2"><a class="reference internal" href="#7-the-trust-boundary-between-the-zones">7. The trust boundary between the zones</a>
     </li>
     <li class="toctree-l2"><a class="reference internal" href="#teardown">Teardown</a>
     </li>
@@ -198,6 +204,7 @@ with how it is verified, and the page is confirmed against a real cluster on fir
   from both clusters;</li>
 <li>the DNS zone delegation for the trust framework in place, or the trust-list steps will not
   resolve;</li>
+<li>Helm v4.3.0, the version the pipeline pins, and kubectl;</li>
 <li>this repository checked out, and the values file for the zone you are installing.</li>
 </ul>
 <p>Check the version first — everything below assumes 1.29 or later:</p>
@@ -210,38 +217,59 @@ directory, or the Istio CNI plugin cannot chain behind it:</p>
   --set cni.exclusive=false
 </code></pre>
 <p><strong>Verify:</strong> every Cilium pod is <code>Running</code>, and <code>cilium status</code> reports the cluster healthy.</p>
-<h2 id="2-workload-identity">2. Workload identity<a class="headerlink" href="#2-workload-identity" title="Permanent link">&para;</a></h2>
-<p>SPIRE is installed with its controller-manager and the SPIFFE CSI driver, so that SVIDs reach
-workloads through a mounted volume rather than through a secret.</p>
+<h2 id="2-the-zone-layout">2. The zone layout<a class="headerlink" href="#2-the-zone-layout" title="Permanent link">&para;</a></h2>
+<p>The umbrella chart lays the zone down before any component is installed: the management and
+data-plane namespaces, default-deny network policies in both directions, the allow-matrix lanes
+from the data plane into the management plane, and the hook-weight bands the jobs of the
+components plug into. It installs into its own release namespace, which is not a plane namespace,
+from the zone's values file:</p>
+<pre><code class="language-bash">helm upgrade --install ztd deployment/helm/ztd -n ztd-system --create-namespace \
+  -f deployment/helm/ztd/zones/&lt;zone&gt;.yaml --wait
+</code></pre>
+<p><strong>Verify:</strong> <code>ztd-mgmt</code> and <code>ztd-data</code> exist with their <code>ztd.facis.io/plane</code> label and the mesh
+label for the zone's mode, each holds a <code>default-deny</code> NetworkPolicy, and the release's
+post-install verification job completed; the release fails on its own if the layout is not what
+the chart declared. The design, the bands and the evidence script are in
+<a href="../../umbrella-chart/">Umbrella chart</a>.</p>
+<h2 id="3-workload-identity">3. Workload identity<a class="headerlink" href="#3-workload-identity" title="Permanent link">&para;</a></h2>
+<p>SPIRE is installed into the management plane laid down in step 2, with its controller-manager and
+the SPIFFE CSI driver, so that SVIDs reach workloads through a mounted volume rather than through a
+secret. Registrations are regular resources that the controller-manager reconciles into entries,
+never hook jobs; the jobs that check the server, the trust bundle and the entries sit in the
+<code>identity</code> band of the hook-weight scheme.</p>
 <p><strong>Verify:</strong> the SPIRE server has an entry for each registered workload selector, and a test pod
 receives an SVID whose SPIFFE ID matches its service account.</p>
-<h2 id="3-mesh">3. Mesh<a class="headerlink" href="#3-mesh" title="Permanent link">&para;</a></h2>
-<p>Istio is installed in ambient mode. Exactly one component enforces L7 policy on any given traffic
-path — where a waypoint proxy does it, Cilium is held to L3/L4 for that path, and the assignment is
-recorded in the mesh configuration.</p>
+<h2 id="4-mesh">4. Mesh<a class="headerlink" href="#4-mesh" title="Permanent link">&para;</a></h2>
+<p>Istio is installed in the mode the zone's values file names (<code>mesh.mode</code>: ambient under
+ADR-0001, sidecar if a superseding decision flips it); the plane namespaces already carry the matching
+label. Exactly one component enforces L7 policy on any given traffic path — where a waypoint proxy
+does it, Cilium is held to L3/L4 for that path, and the assignment is recorded in the mesh
+configuration.</p>
 <p><strong>Verify:</strong> the ztunnel daemonset is ready on every node, and a request between two meshed workloads
 carries an identity the waypoint can name.</p>
-<h2 id="4-admission-control">4. Admission control<a class="headerlink" href="#4-admission-control" title="Permanent link">&para;</a></h2>
+<h2 id="5-admission-control">5. Admission control<a class="headerlink" href="#5-admission-control" title="Permanent link">&para;</a></h2>
 <p>OPA Gatekeeper is installed together with the signature-verification external-data provider. From
 this point an image whose Cosign signature does not verify against the client key material cannot
 start.</p>
 <p><strong>Verify:</strong> deploy an unsigned image and confirm it is refused, and that the refusal names the
 reason code rather than a generic admission error. A cluster where that image starts is not
 configured.</p>
-<h2 id="5-the-demonstrator">5. The demonstrator<a class="headerlink" href="#5-the-demonstrator" title="Permanent link">&para;</a></h2>
-<p>The zone installs as a single umbrella chart, which orders the components so that workload identity
-exists before any workload that needs it:</p>
-<pre><code class="language-bash">helm install ztd deployment/helm/ztd -n ztd-mgmt --create-namespace -f &lt;values file for the zone&gt;
-</code></pre>
+<h2 id="6-the-demonstrator-workloads">6. The demonstrator workloads<a class="headerlink" href="#6-the-demonstrator-workloads" title="Permanent link">&para;</a></h2>
+<p>The demonstrator services install into the data plane as regular resources; the jobs they bring
+sit in the <code>workloads</code> band of the hook-weight scheme. A workload cannot become READY before its
+identity exists: its container does not start until the SPIFFE CSI driver has mounted the socket
+directory, and it holds no SVID until the agent answers on that socket with a matching
+registration.</p>
 <p><strong>Verify:</strong> the management and data-plane namespaces both reconcile, no pod is in <code>CrashLoopBackOff</code>,
 and the demonstrator UI answers.</p>
-<h2 id="6-the-trust-boundary-between-the-zones">6. The trust boundary between the zones<a class="headerlink" href="#6-the-trust-boundary-between-the-zones" title="Permanent link">&para;</a></h2>
+<h2 id="7-the-trust-boundary-between-the-zones">7. The trust boundary between the zones<a class="headerlink" href="#7-the-trust-boundary-between-the-zones" title="Permanent link">&para;</a></h2>
 <p>With both zones up, the attested channel between them is exercised. Both ends present evidence of
 the software they are running, and that evidence is bound to the TLS connection it was presented on.</p>
 <p><strong>Verify:</strong> run the successful journey end to end from zone A, then the tampered-measurement
 journey, and confirm the second one aborts the handshake before any application traffic flows.</p>
 <h2 id="teardown">Teardown<a class="headerlink" href="#teardown" title="Permanent link">&para;</a></h2>
-<pre><code class="language-bash">helm uninstall ztd -n ztd-mgmt
+<p>Components uninstall in the reverse order of their installation; the layout goes last:</p>
+<pre><code class="language-bash">helm uninstall ztd -n ztd-system
 </code></pre>
 <p><strong>Verify:</strong> no namespace, CRD or secret belonging to the demonstrator survives. This is asserted by
 an acceptance scenario, not by eye.</p>

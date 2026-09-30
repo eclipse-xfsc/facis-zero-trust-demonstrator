@@ -73,6 +73,10 @@
     </ul>
                 </li>
               </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../umbrella-chart/">Umbrella chart</a>
+                </li>
+              </ul>
               <p class="caption"><span class="caption-text">Environments</span></p>
               <ul>
                   <li class="toctree-l1"><a class="reference internal" href="../environments/">Overview</a>
@@ -183,19 +187,28 @@ specific cluster, with the check that proves each stage, see <a href="../environ
 <li>DNS delegation for the trust zone.</li>
 </ul>
 <h2 id="installing-a-zone">Installing a zone<a class="headerlink" href="#installing-a-zone" title="Permanent link">&para;</a></h2>
-<p>The demonstrator installs as a single umbrella Helm chart per zone. The chart separates the
-management and data planes into distinct namespaces and orders installation so that workload
-identity exists before any workload starts.</p>
-<pre><code class="language-bash">helm install ztd deployment/helm/ztd -n ztd-mgmt --create-namespace -f &lt;values file&gt;
+<p>The demonstrator installs as a single umbrella Helm chart per zone. The chart lays the zone down
+first: the management and data planes as distinct namespaces, default-deny network policies in
+both directions, the allow-matrix lanes between the planes, and the hook-weight bands that order
+the jobs of the components after it. The platform components install after it, into the layout it
+made. That workload identity exists before any workload becomes ready is a property of the
+identity path, not of an install order, as the
+<a href="../umbrella-chart/#the-hook-weight-scheme">hook-weight scheme</a> explains.</p>
+<pre><code class="language-bash">helm upgrade --install ztd deployment/helm/ztd -n ztd-system --create-namespace \
+  -f deployment/helm/ztd/zones/&lt;zone&gt;.yaml --wait
 </code></pre>
-<p>Chart values are documented with each chart under <code>deployment/helm/</code>.</p>
+<p>The release namespace holds the release and its hook jobs and is not a plane namespace. The zone
+file is written from what the cluster baseline recorded; the chart has no defaults for it. The
+design, the hook-weight scheme and the evidence are in <a href="../umbrella-chart/">Umbrella chart</a>, and
+chart values are documented with each chart under <code>deployment/helm/</code>.</p>
 <h3 id="through-the-orce-workflow">Through the ORCE workflow<a class="headerlink" href="#through-the-orce-workflow" title="Permanent link">&para;</a></h3>
 <p>The same install, redeploy and uninstall run through ORCE with zero manual steps: a
 <code>POST /lifecycle</code> command (<a href="../api-docs/">IF-08</a>) that the <code>ztd-lifecycle</code> node validates, checks
 with a server-side dry-run and applies with Helm, reporting a machine-readable result in the ORCE
 context. The <code>helm</code> commands on this page are the engine-level equivalent.</p>
 <h2 id="teardown">Teardown<a class="headerlink" href="#teardown" title="Permanent link">&para;</a></h2>
-<pre><code class="language-bash">helm uninstall ztd -n ztd-mgmt
+<p>Components uninstall in the reverse order of their installation; the layout goes last:</p>
+<pre><code class="language-bash">helm uninstall ztd -n ztd-system
 </code></pre>
 <p>Teardown must leave no orphaned namespaces, CRDs or secrets; this is verified by an acceptance
 scenario rather than by inspection.</p>
@@ -208,7 +221,7 @@ by hand against a cluster; anything that cannot be expressed in a chart or a scr
           </div><footer>
     <div class="rst-footer-buttons" role="navigation" aria-label="Footer Navigation">
         <a href="../usage/" class="btn btn-neutral float-left" title="Using the demonstrator"><span class="icon icon-circle-arrow-left"></span> Previous</a>
-        <a href="../environments/" class="btn btn-neutral float-right" title="Overview">Next <span class="icon icon-circle-arrow-right"></span></a>
+        <a href="../umbrella-chart/" class="btn btn-neutral float-right" title="Umbrella chart">Next <span class="icon icon-circle-arrow-right"></span></a>
     </div>
 
   <hr/>
@@ -239,7 +252,7 @@ by hand against a cluster; anything that cannot be expressed in a chart or a scr
       <span><a href="../usage/" style="color: #fcfcfc">&laquo; Previous</a></span>
     
     
-      <span><a href="../environments/" style="color: #fcfcfc">Next &raquo;</a></span>
+      <span><a href="../umbrella-chart/" style="color: #fcfcfc">Next &raquo;</a></span>
     
   </span>
 </div>

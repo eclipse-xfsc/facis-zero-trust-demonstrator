@@ -1,0 +1,454 @@
+<!DOCTYPE html>
+<html class="writer-html5" lang="en" >
+<head>
+    <meta charset="utf-8" />
+    <meta http-equiv="X-UA-Compatible" content="IE=edge" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+      <link rel="shortcut icon" href="../img/favicon.ico" />
+    <title>Umbrella chart - FACIS Zero Trust Demonstrator</title>
+    <link rel="stylesheet" href="../css/theme.css" />
+    <link rel="stylesheet" href="../css/theme_extra.css" />
+        <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.8.0/styles/github.min.css" />
+    
+      <script>
+        // Current page data
+        var mkdocs_page_name = "Umbrella chart";
+        var mkdocs_page_input_path = "umbrella-chart.md";
+        var mkdocs_page_url = null;
+      </script>
+    
+    <!--[if lt IE 9]>
+      <script src="../js/html5shiv.min.js"></script>
+    <![endif]-->
+      <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.8.0/highlight.min.js"></script>
+      <script>hljs.highlightAll();</script> 
+</head>
+
+<body class="wy-body-for-nav" role="document">
+
+  <div class="wy-grid-for-nav">
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side stickynav">
+    <div class="wy-side-scroll">
+      <div class="wy-side-nav-search">
+          <a href=".." class="icon icon-home"> FACIS Zero Trust Demonstrator
+        </a><div role="search">
+  <form id ="rtd-search-form" class="wy-form" action="../search.html" method="get">
+      <input type="text" name="q" placeholder="Search docs" aria-label="Search docs" title="Type search term here" />
+  </form>
+</div>
+      </div>
+
+      <div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="..">Home</a>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../features/">Features and journeys</a>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../architecture/">Architecture</a>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../usage/">Using the demonstrator</a>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../deployment/">Deployment</a>
+                </li>
+              </ul>
+              <ul class="current">
+                <li class="toctree-l1 current"><a class="reference internal current" href="#">Umbrella chart</a>
+    <ul class="current">
+    <li class="toctree-l2"><a class="reference internal" href="#what-the-chart-lays-down">What the chart lays down</a>
+    </li>
+    <li class="toctree-l2"><a class="reference internal" href="#the-mesh-mode-is-one-label">The mesh mode is one label</a>
+    </li>
+    <li class="toctree-l2"><a class="reference internal" href="#the-hook-weight-scheme">The hook-weight scheme</a>
+    </li>
+    <li class="toctree-l2"><a class="reference internal" href="#zone-values-without-defaults">Zone values without defaults</a>
+    </li>
+    <li class="toctree-l2"><a class="reference internal" href="#release-namespace-and-teardown">Release namespace and teardown</a>
+    </li>
+    <li class="toctree-l2"><a class="reference internal" href="#verifying-it">Verifying it</a>
+    </li>
+    </ul>
+                </li>
+              </ul>
+              <p class="caption"><span class="caption-text">Environments</span></p>
+              <ul>
+                  <li class="toctree-l1"><a class="reference internal" href="../environments/">Overview</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../environments/osc/">T-Systems OSC</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../environments/ionos/">IONOS Cloud</a>
+                  </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../packaging/">Packaging and containers</a>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../flows/">Orchestrated flows</a>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../keycloak/">Keycloak integration</a>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../oauth2-provider/">Connector OAuth2 provider</a>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../api-docs/">API documentation</a>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../contracts/">Interface contracts</a>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../tspa-publish-api/">TRAIN trust-list publishing</a>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../bdd/">BDD acceptance</a>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../ci-cd/">CI/CD</a>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../troubleshooting/">Troubleshooting</a>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../dependencies/">OSS dependencies</a>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../specifications/">Specification changes</a>
+                </li>
+              </ul>
+              <p class="caption"><span class="caption-text">Architecture decisions</span></p>
+              <ul>
+                  <li class="toctree-l1"><a class="reference internal" href="../adr/">Overview</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../adr/0001-service-mesh-mode-istio-ambient-with-cilium/">0001 Service mesh mode</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../adr/0002-gatekeeper-external-data-provider-for-cosign-verification/">0002 Gatekeeper external data provider</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../adr/0003-oauth2-authorisation-surface-in-the-go-connector/">0003 OAuth2 surface in the Go connector</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../adr/0004-openbao-as-x509-key-value-store/">0004 OpenBao as X.509 key-value store</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../adr/0005-three-cluster-reading-of-the-target-environment/">0005 Three-cluster target environment</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../adr/0011-mock-tee-evidence-format-and-provisioning/">0011 Mock TEE evidence</a>
+                  </li>
+              </ul>
+      </div>
+    </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap">
+      <nav class="wy-nav-top" role="navigation" aria-label="Mobile navigation menu">
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="..">FACIS Zero Trust Demonstrator</a>
+        
+      </nav>
+      <div class="wy-nav-content">
+        <div class="rst-content"><div role="navigation" aria-label="breadcrumbs navigation">
+  <ul class="wy-breadcrumbs">
+    <li><a href=".." class="icon icon-home" aria-label="Docs"></a></li>
+      <li class="breadcrumb-item active">Umbrella chart</li>
+    <li class="wy-breadcrumbs-aside">
+          <a href="https://github.com/eclipse-xfsc/facis-zero-trust-demonstrator/edit/main/docs/umbrella-chart.md" class="icon icon-github"> Edit on GitHub</a>
+    </li>
+  </ul>
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+            <div class="section" itemprop="articleBody">
+              
+                <h1 id="umbrella-chart">Umbrella chart<a class="headerlink" href="#umbrella-chart" title="Permanent link">&para;</a></h1>
+<p>The zone is laid down once, by one chart, before any component is installed. Everything that
+follows — identity, mesh, admission, the platform services, the demonstrator workloads — installs
+into the layout the umbrella made, and the jobs those components bring run in the order its
+hook-weight bands prescribe. The chart is <code>deployment/helm/ztd</code>; this page is its design, and the
+chart's <code>README.md</code> documents its values.</p>
+<h2 id="what-the-chart-lays-down">What the chart lays down<a class="headerlink" href="#what-the-chart-lays-down" title="Permanent link">&para;</a></h2>
+<p><strong>Two planes, as namespaces.</strong> Management components (SPIRE server, ArgoCD, OpenBao, Harbor, TSPA,
+estserver, admin APIs) live in management-plane namespaces; the demonstrator workloads live in
+data-plane namespaces. The chart creates <code>ztd-mgmt</code> and <code>ztd-data</code>, plus any namespace a component
+task adds through <code>planes.extra</code>, and labels each with <code>ztd.facis.io/plane</code> and the mesh label for
+the zone's mode. Nothing crosses a plane without being named.</p>
+<p><strong>Default deny at the network layer.</strong> Every plane namespace gets a <code>default-deny</code> NetworkPolicy in
+both directions. Three openings follow, each declared in <a href="../architecture/">Architecture §6</a>:</p>
+<table>
+<thead>
+<tr>
+<th>Lane</th>
+<th>Rendered as</th>
+<th>Why it exists</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>workloads → DNS</td>
+<td><code>allow-dns-egress</code>, port 53 to the cluster resolver only</td>
+<td>the declared DNS bypass</td>
+</tr>
+<tr>
+<td>pods within one plane namespace</td>
+<td><code>allow-intra-plane</code></td>
+<td>who may talk is decided on identity by the mesh layer, not on IP</td>
+</tr>
+<tr>
+<td>management → Kubernetes API</td>
+<td><code>allow-kube-api-egress</code>, only when the zone file names the endpoint</td>
+<td>controllers such as the SPIRE controller-manager need it</td>
+</tr>
+</tbody>
+</table>
+<p><strong>The allow matrix, as data.</strong> The lanes of the ZT-55 matrix are entries in <code>allowMatrix</code>, each
+with a source and a destination selector; the chart renders an egress rule in the source namespace
+and an ingress rule in the destination namespace for every lane. The selectors are the label
+contract with the component charts:</p>
+<table>
+<thead>
+<tr>
+<th>Lane</th>
+<th>From (data plane)</th>
+<th>To (management plane)</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>pdp-adapter-to-tsa</code></td>
+<td><code>app.kubernetes.io/name=pdp-adapter</code></td>
+<td><code>tsa-policy-engine</code></td>
+</tr>
+<tr>
+<td><code>atls-gateway-to-cmcd</code></td>
+<td><code>atls-gateway</code></td>
+<td><code>cmcd</code></td>
+</tr>
+<tr>
+<td><code>atls-gateway-to-tcr</code></td>
+<td><code>atls-gateway</code></td>
+<td><code>tcr</code></td>
+</tr>
+<tr>
+<td><code>workloads-to-otel-collector</code></td>
+<td>every data-plane pod</td>
+<td><code>otel-collector</code>, ports 4317 and 4318 only</td>
+</tr>
+<tr>
+<td><code>backend-to-verification-service</code></td>
+<td><code>backend</code></td>
+<td><code>verification-service</code></td>
+</tr>
+</tbody>
+</table>
+<p>The identity provider's token endpoint is not a lane. No data-plane workload calls it: the
+participant backend obtains its authorization from the connector, and Keycloak serves the viewer's
+login and the pipeline (<a href="../keycloak/#connector-boundary">Keycloak integration</a>). A permitted lane
+without a caller would only widen what the matrix exists to limit.</p>
+<p>The architecture names the mesh as the enforcing layer for these pairs. The network layer opens the
+L3/L4 lane; the mesh layer, installed later, decides on identity on top. Anything else from the data
+plane into the management plane is denied by both layers, which is the negative case the evidence
+script proves.</p>
+<h2 id="the-mesh-mode-is-one-label">The mesh mode is one label<a class="headerlink" href="#the-mesh-mode-is-one-label" title="Permanent link">&para;</a></h2>
+<p>ADR-0001 baselines Istio ambient and foresees a superseding decision for sidecar mode. Between the two,
+the layout differs in one namespace label — <code>istio.io/dataplane-mode=ambient</code> or
+<code>istio-injection=enabled</code>, never both on the same namespace — so <code>mesh.mode</code> in the zone file is the
+only thing that changes, and the chart is the same either way; the evidence script switches a live
+install from one mode to the other and back. Istio itself is installed by the mesh step after the
+umbrella; until then the label is inert.</p>
+<p>One piece is mode-specific. Under Istio ambient with Cilium as the CNI, the kubelet's health probes
+reach ambient pods SNAT-ed to <code>169.254.7.127</code>, an address Cilium does not exempt from policy, so a
+default-deny NetworkPolicy would fail every probe. Istio's platform prerequisites prescribe a
+cluster-wide Cilium policy admitting that address, and the chart renders it only when the mode is
+ambient and Cilium is enabled.</p>
+<h2 id="the-hook-weight-scheme">The hook-weight scheme<a class="headerlink" href="#the-hook-weight-scheme" title="Permanent link">&para;</a></h2>
+<p>Helm orders two things. Regular resources — of the chart and of every subchart together — are
+created in Helm's fixed order of kinds, with no waiting between them. Hooks are ordered by
+<code>helm.sh/hook-weight</code> within their phase, and Helm waits for each hook Job to finish before the next.
+Nothing else is ordered, so the scheme is about hooks, and hooks are for Jobs: waits and checks.</p>
+<p>Two rules follow from how Helm runs hooks:</p>
+<ul>
+<li><strong>A long-lived component is never a hook.</strong> Hook resources are not tracked as part of the
+  release and would survive <code>helm uninstall</code>.</li>
+<li><strong>Nothing a regular resource needs in order to become ready is a post-install hook.</strong> With
+  <code>--wait</code>, Helm runs the post-install hooks only after every regular resource is ready
+  (<a href="https://helm.sh/docs/topics/charts_hooks/">Helm, chart hooks</a>). A resource that waits for
+  something a post-install hook creates therefore waits for a hook that waits for the resource,
+  and the install times out.</li>
+</ul>
+<p>Six bands of twenty weights, addressed by name so that the order between the jobs of different
+components is a lookup and not a convention remembered by hand:</p>
+<table>
+<thead>
+<tr>
+<th>Band</th>
+<th>Weights</th>
+<th>Jobs it holds</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>preflight</code></td>
+<td>0–19</td>
+<td>checks that must hold before anything is installed</td>
+</tr>
+<tr>
+<td><code>identity</code></td>
+<td>20–39</td>
+<td>SPIRE: checks on the server, the trust bundle and the registration entries</td>
+</tr>
+<tr>
+<td><code>platform</code></td>
+<td>40–59</td>
+<td>jobs of OpenBao, Harbor, TSPA, estserver, observability and admission</td>
+</tr>
+<tr>
+<td><code>policy</code></td>
+<td>60–79</td>
+<td>jobs of the mesh and admission policy that depends on identity and platform</td>
+</tr>
+<tr>
+<td><code>workloads</code></td>
+<td>80–99</td>
+<td>jobs of the demonstrator workloads</td>
+</tr>
+<tr>
+<td><code>verification</code></td>
+<td>100–119</td>
+<td>read-back checks that fail the release when the layout is wrong</td>
+</tr>
+</tbody>
+</table>
+<p>Helm runs the hooks of a phase from the lowest weight and stops at the first one that fails, so a
+failed install names the earliest band that is wrong.</p>
+<p>A component names its band and an offset inside it:</p>
+<pre><code class="language-yaml">metadata:
+  annotations:
+    {{ include &quot;ztd.hook.annotations&quot; (dict &quot;phase&quot; &quot;post-install,post-upgrade&quot; &quot;band&quot; &quot;identity&quot; &quot;offset&quot; 5) | nindent 4 }}
+</code></pre>
+<p>The helper refuses an unknown band or an offset outside the band at render time. The chart's own
+post-install verification job is the first use of the scheme, in the <code>verification</code> band: it reads
+the layout back through the API and fails the release if a plane namespace, its plane label, its
+mesh label or its <code>default-deny</code> policy is missing.</p>
+<p><strong>Identity before workloads.</strong> The guarantee that a workload cannot become READY before its identity
+exists does not come from a weight. It comes from two facts of the identity path. The SPIFFE CSI
+volume is an ephemeral inline mount: the kubelet does not start the container until the driver,
+which ships in the agent's DaemonSet, has bind-mounted the socket directory, so a workload cannot
+even start on a node without the identity infrastructure. And the socket only answers once the
+agent is up and a registration entry matches the workload, so a workload whose readiness depends on
+holding its SVID is not READY until then. A registration is therefore a regular resource, which
+the SPIRE controller-manager reconciles into an entry on the server, and never a post-install hook:
+by the second rule above, a workload waiting for an entry that a hook creates would make
+<code>helm install --wait</code> time out. The bands order the jobs around that path, the checks on identity
+ahead of the checks on the workloads; the identity path is what makes the order a fact rather than
+a hope.</p>
+<h2 id="zone-values-without-defaults">Zone values without defaults<a class="headerlink" href="#zone-values-without-defaults" title="Permanent link">&para;</a></h2>
+<p><code>zone.kubernetesVersion</code>, <code>zone.storageClass</code> and <code>zone.loadBalancer.type</code> are facts about a cluster
+that the cluster baseline records. The chart has no defaults for them and refuses to render until
+the zone file states them, so a zone is never installed on assumed values. The zone files live in
+<code>deployment/helm/ztd/zones/</code>; the CI chart job and the local kind cluster use
+<code>deployment/helm/ztd/ci/values.yaml</code>, filled the same way with what that cluster is.</p>
+<h2 id="release-namespace-and-teardown">Release namespace and teardown<a class="headerlink" href="#release-namespace-and-teardown" title="Permanent link">&para;</a></h2>
+<p>Helm cannot own or label the namespace it installs into, so the release lives in <code>ztd-system</code>, a
+namespace with no plane semantics that holds the release record and the hook jobs. The plane
+namespaces belong to the release and go with <code>helm uninstall ztd -n ztd-system</code>; components
+uninstall before the layout, in the reverse order of their installation.</p>
+<p>The chart is cluster-scoped by nature. It creates the plane namespaces, the cluster role and binding
+of its verification job, and, under ambient mode with Cilium, one cluster-wide Cilium policy; it
+ships no CRD (the Cilium policy is an instance of Cilium's own CRD and is rendered only where Cilium
+is enabled). An identity confined to one namespace cannot install it. That is the design point to
+settle before the umbrella replaces the fixture chart as the release under test of the
+deployment-lifecycle scenarios (TDR-BDD-01 to TDR-BDD-04), whose deployer works inside its pool
+namespaces and never creates one.</p>
+<h2 id="verifying-it">Verifying it<a class="headerlink" href="#verifying-it" title="Permanent link">&para;</a></h2>
+<p>Locally, <code>scripts/dev/kind-cilium-up.sh</code> gives a kind cluster with Cilium chained the way
+the zones run it, and <code>scripts/verify-umbrella/verify.sh</code> produces the evidence: install from an
+empty cluster, install again to show nothing changes, read the layout back, prove with stand-in pods
+that a data-plane workload reaches nothing in the management plane except through a matrix lane,
+switch the mesh mode and back, and tear down without leaving a namespace behind. The last run's
+<code>evidence.md</code> sits next to the script.</p>
+<p>The evidence also carries the negative proof of the CI chart gate. Section 7 shows the chart refused
+without a zone file and with an unknown mesh mode by <code>helm lint</code> and by <code>helm template</code> alike, because
+both validate the values against <code>values.schema.json</code>; and refused with the API lane enabled but no
+CIDRs by <code>helm template</code> alone, because that guard is a <code>fail</code> call in a template, and Helm's lint
+mode renders <code>fail</code> as a no-op by design (Helm v4.3.0 logs the message at INFO and reports the chart
+as passing). The "Chart lint and render" job runs lint and then template with <code>ci/values.yaml</code>, so
+each of those cases is a red job: the schema cases at the lint step, the CIDR case at the render
+step. The chart is verified with Helm v4.3.0, the version the pipeline pins. The pipeline's criterion
+that a chart failing lint or dry-run cannot be released rests on this proof until the packaging and
+release work adds a chart publishing job, which is where that criterion closes.</p>
+<p>What waits for the client clusters is the first acceptance criterion — the layout on all three
+clusters — and the per-zone values the baseline records, including the API endpoint for the
+management-plane lane. The two OSC clusters are not yet provided. The IONOS cluster is, and
+<code>zones/ionos.yaml</code> is recorded from it, but the chart is not installed there: that cluster holds no
+demonstration workload and runs no mesh, its CNI is the provider-managed Calico rather than the
+Cilium of <a href="../adr/0001-service-mesh-mode-istio-ambient-with-cilium/">ADR-0001</a>, and whether it needs
+Cilium and the mesh at all is a decision for its visualization stage. Until then the IONOS zone file
+is validated against that cluster's API with a server-side dry run, which persists nothing.</p>
+              
+            </div>
+          </div><footer>
+    <div class="rst-footer-buttons" role="navigation" aria-label="Footer Navigation">
+        <a href="../deployment/" class="btn btn-neutral float-left" title="Deployment"><span class="icon icon-circle-arrow-left"></span> Previous</a>
+        <a href="../environments/" class="btn btn-neutral float-right" title="Overview">Next <span class="icon icon-circle-arrow-right"></span></a>
+    </div>
+
+  <hr/>
+
+  <div role="contentinfo">
+    <!-- Copyright etc -->
+      <p>Apache-2.0</p>
+  </div>
+
+  Built with <a href="https://www.mkdocs.org/">MkDocs</a> using a <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a> provided by <a href="https://readthedocs.org">Read the Docs</a>.
+</footer>
+          
+        </div>
+      </div>
+
+    </section>
+
+  </div>
+
+  <div class="rst-versions" role="note" aria-label="Versions">
+  <span class="rst-current-version" data-toggle="rst-current-version">
+    
+        <span>
+          <a href="https://github.com/eclipse-xfsc/facis-zero-trust-demonstrator" class="fa fa-github" style="color: #fcfcfc"> GitHub</a>
+        </span>
+    
+    
+      <span><a href="../deployment/" style="color: #fcfcfc">&laquo; Previous</a></span>
+    
+    
+      <span><a href="../environments/" style="color: #fcfcfc">Next &raquo;</a></span>
+    
+  </span>
+</div>
+    <script src="../js/jquery-3.6.0.min.js"></script>
+    <script>var base_url = "..";</script>
+    <script src="../js/theme_extra.js"></script>
+    <script src="../js/theme.js"></script>
+      <script src="../search/main.js"></script>
+    <script>
+        jQuery(function () {
+            SphinxRtdTheme.Navigation.enable(true);
+        });
+    </script>
+
+</body>
+</html>
