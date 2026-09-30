@@ -89,6 +89,10 @@
                 </li>
               </ul>
               <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../contracts/">Interface contracts</a>
+                </li>
+              </ul>
+              <ul>
                 <li class="toctree-l1"><a class="reference internal" href="../tspa-publish-api/">TRAIN trust-list publishing</a>
                 </li>
               </ul>
@@ -118,6 +122,8 @@
     <ul class="current">
     <li class="toctree-l2"><a class="reference internal" href="#governing-decisions">Governing decisions</a>
     </li>
+    <li class="toctree-l2"><a class="reference internal" href="#implementation-decisions">Implementation decisions</a>
+    </li>
     <li class="toctree-l2"><a class="reference internal" href="#format">Format</a>
     </li>
     </ul>
@@ -131,6 +137,8 @@
                   <li class="toctree-l1"><a class="reference internal" href="0004-openbao-as-x509-key-value-store/">0004 OpenBao as X.509 key-value store</a>
                   </li>
                   <li class="toctree-l1"><a class="reference internal" href="0005-three-cluster-reading-of-the-target-environment/">0005 Three-cluster target environment</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="0011-mock-tee-evidence-format-and-provisioning/">0011 Mock TEE evidence</a>
                   </li>
               </ul>
       </div>
@@ -192,6 +200,31 @@ is a change with a named cost, not a discussion.</p>
 <tr>
 <td><a href="0005-three-cluster-reading-of-the-target-environment/">0005</a></td>
 <td>Three-cluster reading of the target environment</td>
+</tr>
+</tbody>
+</table>
+<h2 id="implementation-decisions">Implementation decisions<a class="headerlink" href="#implementation-decisions" title="Permanent link">&para;</a></h2>
+<p>Implementation decisions are taken by the delivery team as the work proceeds, usually as the outcome
+of a spike, and they are subordinate to the governing decisions above: an implementation record may
+settle how a requirement is met, never whether a governing decision holds.</p>
+<p><strong>These records live here, in this folder and in the same four-digit numbering series as the
+governing ones.</strong> A number is allocated when the decision is identified during planning, which is
+normally before the record is written, so the sequence has gaps: a missing number is a record that is
+allocated and not yet written, never one that was removed. Planning material may write the number
+without its leading zero; the repository always writes four digits.</p>
+<p>A spike's working notes are not an ADR. They stay with the spike; what comes here is the decision,
+its reasons, the requirements it answers, and what would reopen it.</p>
+<table>
+<thead>
+<tr>
+<th>ADR</th>
+<th>Decision</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><a href="0011-mock-tee-evidence-format-and-provisioning/">0011</a></td>
+<td>Mock TEE evidence — format, release artefact, and provisioning</td>
 </tr>
 </tbody>
 </table>

@@ -89,9 +89,15 @@
     <ul class="current">
     <li class="toctree-l2"><a class="reference internal" href="#interface-registry">Interface registry</a>
     </li>
+    <li class="toctree-l2"><a class="reference internal" href="#attestation-evidence">Attestation evidence</a>
+    </li>
     <li class="toctree-l2"><a class="reference internal" href="#conventions">Conventions</a>
     </li>
     </ul>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../contracts/">Interface contracts</a>
                 </li>
               </ul>
               <ul>
@@ -131,6 +137,8 @@
                   <li class="toctree-l1"><a class="reference internal" href="../adr/0004-openbao-as-x509-key-value-store/">0004 OpenBao as X.509 key-value store</a>
                   </li>
                   <li class="toctree-l1"><a class="reference internal" href="../adr/0005-three-cluster-reading-of-the-target-environment/">0005 Three-cluster target environment</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../adr/0011-mock-tee-evidence-format-and-provisioning/">0011 Mock TEE evidence</a>
                   </li>
               </ul>
       </div>
@@ -203,8 +211,18 @@ v1 before the components consuming them are built:</p>
 </tr>
 </tbody>
 </table>
-<p>OpenAPI and JSON Schema definitions are published under <code>docs/</code> alongside this page as each
-interface is frozen.</p>
+<p>OpenAPI and JSON Schema definitions live in <a href="../contracts/"><code>docs/contracts/</code></a>, one file per
+contract, and are frozen at v1 as each interface is agreed. This page is the registry; that folder
+is the machine-readable form.</p>
+<h2 id="attestation-evidence">Attestation evidence<a class="headerlink" href="#attestation-evidence" title="Permanent link">&para;</a></h2>
+<p>The mock attestation document — what a Trusted Execution Environment would emit, produced in
+software because the demonstrator has no TEE hardware — is described by
+<a href="../contracts/mock-attestation.schema.json"><code>contracts/mock-attestation.schema.json</code></a>, with one sample
+per vendor profile in <a href="contracts/samples/"><code>contracts/samples/</code></a>.</p>
+<p>It is a single format serving both sides of the evidence path: the artefact attached to a release
+and verified at admission, and the report exchanged inside the attested channel. It therefore
+underlies both IF-04 and IF-07, and which of the two carries it as its own contract is settled when
+the interfaces are frozen at v1.</p>
 <h2 id="conventions">Conventions<a class="headerlink" href="#conventions" title="Permanent link">&para;</a></h2>
 <ul>
 <li>REST APIs are described with OpenAPI 3; asynchronous interfaces with JSON Schema.</li>
@@ -218,7 +236,7 @@ interface is frozen.</p>
           </div><footer>
     <div class="rst-footer-buttons" role="navigation" aria-label="Footer Navigation">
         <a href="../oauth2-provider/" class="btn btn-neutral float-left" title="Connector OAuth2 provider"><span class="icon icon-circle-arrow-left"></span> Previous</a>
-        <a href="../tspa-publish-api/" class="btn btn-neutral float-right" title="TRAIN trust-list publishing">Next <span class="icon icon-circle-arrow-right"></span></a>
+        <a href="../contracts/" class="btn btn-neutral float-right" title="Interface contracts">Next <span class="icon icon-circle-arrow-right"></span></a>
     </div>
 
   <hr/>
@@ -249,7 +267,7 @@ interface is frozen.</p>
       <span><a href="../oauth2-provider/" style="color: #fcfcfc">&laquo; Previous</a></span>
     
     
-      <span><a href="../tspa-publish-api/" style="color: #fcfcfc">Next &raquo;</a></span>
+      <span><a href="../contracts/" style="color: #fcfcfc">Next &raquo;</a></span>
     
   </span>
 </div>

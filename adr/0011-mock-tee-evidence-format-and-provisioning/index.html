@@ -1,0 +1,614 @@
+<!DOCTYPE html>
+<html class="writer-html5" lang="en" >
+<head>
+    <meta charset="utf-8" />
+    <meta http-equiv="X-UA-Compatible" content="IE=edge" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+      <link rel="shortcut icon" href="../../img/favicon.ico" />
+    <title>0011 Mock TEE evidence - FACIS Zero Trust Demonstrator</title>
+    <link rel="stylesheet" href="../../css/theme.css" />
+    <link rel="stylesheet" href="../../css/theme_extra.css" />
+        <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.8.0/styles/github.min.css" />
+    
+      <script>
+        // Current page data
+        var mkdocs_page_name = "0011 Mock TEE evidence";
+        var mkdocs_page_input_path = "adr/0011-mock-tee-evidence-format-and-provisioning.md";
+        var mkdocs_page_url = null;
+      </script>
+    
+    <!--[if lt IE 9]>
+      <script src="../../js/html5shiv.min.js"></script>
+    <![endif]-->
+      <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.8.0/highlight.min.js"></script>
+      <script>hljs.highlightAll();</script> 
+</head>
+
+<body class="wy-body-for-nav" role="document">
+
+  <div class="wy-grid-for-nav">
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side stickynav">
+    <div class="wy-side-scroll">
+      <div class="wy-side-nav-search">
+          <a href="../.." class="icon icon-home"> FACIS Zero Trust Demonstrator
+        </a><div role="search">
+  <form id ="rtd-search-form" class="wy-form" action="../../search.html" method="get">
+      <input type="text" name="q" placeholder="Search docs" aria-label="Search docs" title="Type search term here" />
+  </form>
+</div>
+      </div>
+
+      <div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../..">Home</a>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../../features/">Features and journeys</a>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../../architecture/">Architecture</a>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../../usage/">Using the demonstrator</a>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../../deployment/">Deployment</a>
+                </li>
+              </ul>
+              <p class="caption"><span class="caption-text">Environments</span></p>
+              <ul>
+                  <li class="toctree-l1"><a class="reference internal" href="../../environments/">Overview</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../environments/osc/">T-Systems OSC</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../environments/ionos/">IONOS Cloud</a>
+                  </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../../packaging/">Packaging and containers</a>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../../flows/">Orchestrated flows</a>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../../keycloak/">Keycloak integration</a>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../../oauth2-provider/">Connector OAuth2 provider</a>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../../api-docs/">API documentation</a>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../../contracts/">Interface contracts</a>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../../tspa-publish-api/">TRAIN trust-list publishing</a>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../../bdd/">BDD acceptance</a>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../../ci-cd/">CI/CD</a>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../../troubleshooting/">Troubleshooting</a>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../../dependencies/">OSS dependencies</a>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../../specifications/">Specification changes</a>
+                </li>
+              </ul>
+              <p class="caption"><span class="caption-text">Architecture decisions</span></p>
+              <ul class="current">
+                  <li class="toctree-l1"><a class="reference internal" href="../">Overview</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../0001-service-mesh-mode-istio-ambient-with-cilium/">0001 Service mesh mode</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../0002-gatekeeper-external-data-provider-for-cosign-verification/">0002 Gatekeeper external data provider</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../0003-oauth2-authorisation-surface-in-the-go-connector/">0003 OAuth2 surface in the Go connector</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../0004-openbao-as-x509-key-value-store/">0004 OpenBao as X.509 key-value store</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../0005-three-cluster-reading-of-the-target-environment/">0005 Three-cluster target environment</a>
+                  </li>
+                  <li class="toctree-l1 current"><a class="reference internal current" href="#">0011 Mock TEE evidence</a>
+    <ul class="current">
+    <li class="toctree-l2"><a class="reference internal" href="#context">Context</a>
+    </li>
+    <li class="toctree-l2"><a class="reference internal" href="#decision">Decision</a>
+        <ul>
+    <li class="toctree-l3"><a class="reference internal" href="#1-reuse-cmcs-formats-rather-than-define-our-own">1. Reuse CMC's formats rather than define our own</a>
+    </li>
+    <li class="toctree-l3"><a class="reference internal" href="#2-a-sample-artefact-per-vendor-profile-is-a-shape-and-the-hardware-profiles-are-synthetic">2. A sample artefact per vendor profile is a shape, and the hardware profiles are synthetic</a>
+    </li>
+    <li class="toctree-l3"><a class="reference internal" href="#3-the-report-commits-to-the-tls-exporter-it-does-not-carry-the-exporter-secret">3. The report commits to the TLS exporter; it does not carry the exporter secret</a>
+    </li>
+    <li class="toctree-l3"><a class="reference internal" href="#4-what-is-published-into-train-in-what-form-and-when-it-may-be-trusted">4. What is published into TRAIN, in what form, and when it may be trusted</a>
+        <ul>
+    <li class="toctree-l4"><a class="reference internal" href="#41-the-published-value-is-the-container-measurement-not-the-image-digest">4.1 The published value is the container measurement, not the image digest</a>
+    </li>
+    <li class="toctree-l4"><a class="reference internal" href="#42-carrier-and-wire-grammar-in-the-trust-list">4.2 Carrier and wire grammar in the trust list</a>
+    </li>
+    <li class="toctree-l4"><a class="reference internal" href="#43-the-trust-list-lookup-key-is-the-service-type-identifier">4.3 The trust-list lookup key is the service type identifier</a>
+    </li>
+    <li class="toctree-l4"><a class="reference internal" href="#44-the-train-comparison-runs-only-after-cmc-verification-has-succeeded">4.4 The TRAIN comparison runs only after CMC verification has succeeded</a>
+    </li>
+        </ul>
+    </li>
+        </ul>
+    </li>
+    <li class="toctree-l2"><a class="reference internal" href="#consequences">Consequences</a>
+    </li>
+    <li class="toctree-l2"><a class="reference internal" href="#open-items">Open items</a>
+    </li>
+    <li class="toctree-l2"><a class="reference internal" href="#references">References</a>
+    </li>
+    </ul>
+                  </li>
+              </ul>
+      </div>
+    </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap">
+      <nav class="wy-nav-top" role="navigation" aria-label="Mobile navigation menu">
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="../..">FACIS Zero Trust Demonstrator</a>
+        
+      </nav>
+      <div class="wy-nav-content">
+        <div class="rst-content"><div role="navigation" aria-label="breadcrumbs navigation">
+  <ul class="wy-breadcrumbs">
+    <li><a href="../.." class="icon icon-home" aria-label="Docs"></a></li>
+          <li class="breadcrumb-item">Architecture decisions</li>
+      <li class="breadcrumb-item active">0011 Mock TEE evidence</li>
+    <li class="wy-breadcrumbs-aside">
+          <a href="https://github.com/eclipse-xfsc/facis-zero-trust-demonstrator/edit/main/docs/adr/0011-mock-tee-evidence-format-and-provisioning.md" class="icon icon-github"> Edit on GitHub</a>
+    </li>
+  </ul>
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+            <div class="section" itemprop="articleBody">
+              
+                <h1 id="adr-0011-mock-tee-evidence-format-release-artefact-and-provisioning">ADR-0011: Mock TEE evidence — format, release artefact, and provisioning<a class="headerlink" href="#adr-0011-mock-tee-evidence-format-release-artefact-and-provisioning" title="Permanent link">&para;</a></h1>
+<ul>
+<li><strong>Status:</strong> Accepted for the format decision and for what is published into TRAIN. Two dependent
+  items remain open: how the verifier derives a peer's trust-list key, and the client's TSPA
+  instance (see Open items).</li>
+<li><strong>Date:</strong> 2026-09-22</li>
+<li><strong>Deciders:</strong> Delivery team, from the mock-attestation format spike (2026-09-17 to 2026-09-18),
+  the TSPA publish-API verification (2026-09-16 to 2026-09-18) and the trust-list traversal
+  (2026-09-22). What "one sample artefact per vendor profile" means was confirmed with the
+  project's technical reviewer on 2026-09-18.</li>
+<li><strong>Requirement basis:</strong> ZT-71, ZT-31; ZT-35 and SRS § 5.2 (expected launch digests in TRAIN)</li>
+<li><strong>Related:</strong> ADR-0010 — session attestation through <code>cmcd</code>. That number is allocated and the
+  record is not yet written, so the references to it below name the decision's owner rather than a
+  document that can be read today.</li>
+<li><strong>Supersedes:</strong> the spike's working note of 2026-09-09, which is kept with the delivery team's
+  spike material outside this repository and is now only the evidence log</li>
+</ul>
+<h2 id="context">Context<a class="headerlink" href="#context" title="Permanent link">&para;</a></h2>
+<p>ZT-71 requires that at signing time "a mock attestation is generated as JSON format for any TEE
+vendor" — a release artefact distinct from the SBOM, the signature, and session-bound evidence.
+ZT-31 requires the report to be TEE-style and its signature verifiable with common cryptography
+libraries such as OpenSSL.</p>
+<p>No TEE hardware is in scope for the demonstrator, so the document a real Trusted Execution
+Environment would emit has to be produced in software. The question this record answers is the one
+the spike was raised to settle: <strong>does CMC's software driver already emit something usable, or do we
+define a mock-attestation format of our own alongside it?</strong> Settling it fixes the document that the
+release pipeline stamps onto images and that the verifier checks — both build against the same
+thing.</p>
+<p>Three artefact classes are in play and are never conflated:</p>
+<table>
+<thead>
+<tr>
+<th>Class</th>
+<th>What it is</th>
+<th>Produced by</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>1 — release</td>
+<td>Mock-attestation JSON, per image and per TEE vendor profile, attached to the release next to the signature and the SBOM</td>
+<td>The signing workflow on the custom runner, post-build</td>
+</tr>
+<tr>
+<td>2 — session</td>
+<td>Attestation reports produced live, bound to a TLS session</td>
+<td><code>cmcd</code>, on peer connection (ADR-0010, allocated)</td>
+</tr>
+<tr>
+<td>3 — reference measurements</td>
+<td>Launch digests as Git-versioned metadata, pipeline-signed, served per zone by a CMC <code>estserver</code>, with expected values published into TRAIN's trust content</td>
+<td>The pipeline and the provisioning chain</td>
+</tr>
+</tbody>
+</table>
+<p>Classes 1 and 2 run the same driver and verifier code. Only the trigger and the context available at
+call time differ: class 1 is generated post-build with a pipeline-generated nonce and no TLS session,
+so it carries no channel binding; class 2 is generated on peer connection, with the nonce derived
+from the live session.</p>
+<h2 id="decision">Decision<a class="headerlink" href="#decision" title="Permanent link">&para;</a></h2>
+<h3 id="1-reuse-cmcs-formats-rather-than-define-our-own">1. Reuse CMC's formats rather than define our own<a class="headerlink" href="#1-reuse-cmcs-formats-rather-than-define-our-own" title="Permanent link">&para;</a></h3>
+<p><strong>Reuse.</strong> The mock attestation uses CMC's <code>attestationreport</code> evidence and collateral types
+unmodified, serialized as CMC serializes them. The only new code is the sample generator, the JSON
+schema, and the checks. A thin wrapper adds two fields and nothing else — <code>mock</code> and <code>profile</code> —
+because CMC's own objects have no field to mark a mock and adding one would change their shape.</p>
+<p><strong>Reasons</strong></p>
+<ol>
+<li><strong>One format for both artefact classes.</strong> The release artefact and the session report from <code>cmcd</code>
+   come from the same driver and verifier code. A format of our own would give two formats and a
+   converter between them.</li>
+<li><strong>The verifier already exists.</strong> CMC's unmodified <code>verifier.VerifySw</code> accepts the <code>sw</code> sample and
+   rejects copies with a changed measurement or a different key. Building would mean writing and
+   maintaining a verifier of our own.</li>
+<li><strong>ZT-71 and ZT-31 are met without CMC code.</strong> The sample parses with <code>jq</code> and decodes with
+   <code>base64</code>, and the <code>sw</code> signature verifies with OpenSSL alone.</li>
+<li><strong>Moving to real hardware keeps the format.</strong> The hardware profiles already use the types CMC's
+   drivers emit, so a real TEE changes the evidence bytes, not the shape consumers read.</li>
+<li><strong>The vendor profile needs no extra field.</strong> It is read from <code>evidence.type</code> / <code>collateral.type</code>.</li>
+</ol>
+<p><strong>Costs accepted</strong></p>
+<ul>
+<li>The evidence payload is opaque base64, so the measurement is not readable at the first <code>jq</code> step,
+  and hardware evidence decodes to a binary struct. A <code>decoded</code> side object was considered and
+  rejected: it wraps the format for readability alone.</li>
+<li>Coupling to CMC's types and to a pinned version. Contained by the pin and by keeping CMC's types
+  behind our own Go interface.</li>
+<li>CMC's own <code>doc/api</code> schema is wrong about which fields are hex and which are base64, so it is not
+  used. Our schema encodes what CMC's code actually does.</li>
+</ul>
+<p><strong>Rejected alternative — build.</strong> A vendor-neutral JSON of our own, with our own generator and
+verifier. Rejected for reasons 1, 2 and 4: it duplicates what CMC already provides and diverges from
+the session evidence that the inter-cluster channel actually verifies.</p>
+<p><strong>Out of scope here:</strong> how the release artefact is attached to the image — a separate JSON file or a
+Cosign attestation. Tracked under Open items.</p>
+<h3 id="2-a-sample-artefact-per-vendor-profile-is-a-shape-and-the-hardware-profiles-are-synthetic">2. A sample artefact per vendor profile is a shape, and the hardware profiles are synthetic<a class="headerlink" href="#2-a-sample-artefact-per-vendor-profile-is-a-shape-and-the-hardware-profiles-are-synthetic" title="Permanent link">&para;</a></h3>
+<p>One sample per evidence type that a driver in <code>cmcd</code>'s <code>drivers</code> config emits as <code>Evidence.type</code> —
+<code>sw</code>, <code>tpm</code>, <code>snp</code>, <code>sgx</code>, <code>tdx</code>, <code>azure-tpm</code>, <code>azure-snp</code>, <code>azure-tdx</code> — validated by
+<a href="../../contracts/mock-attestation.schema.json"><code>mock-attestation.schema.json</code></a>, with the samples in
+<a href="../contracts/samples/"><code>contracts/samples/</code></a>. Two things CMC defines stay out, for different
+reasons: <code>IAS Evidence</code> is a real evidence type that no driver in the pinned tree emits, and IMA
+measurement lists are a software inventory carried inside a <code>PCR Eventlog</code> rather than an evidence
+type — <code>ima</code> is a per-driver boolean, not a member of <code>drivers</code>. The schema's <code>EvidenceType</code> is
+where that rule is stated normatively.</p>
+<ul>
+<li>The <strong><code>sw</code> sample is real</strong>: produced by CMC's software driver, which is pure software. It has
+  exactly the format <code>swdriver</code> emits, its measurement is real and non-zero, and it passes
+  <code>verifier.VerifySw</code> and an OpenSSL-only signature check.</li>
+<li><strong>Every other profile is synthetic</strong> — random bytes stand where the hardware would put a quote, a
+  signature or a certificate — and every sample is marked <code>"mock": true</code>.</li>
+</ul>
+<p>The reasons for generating them rather than capturing them:</p>
+<ol>
+<li><strong>No TEE hardware is in scope</strong>, and nothing external is required to produce these samples. No
+   driver available here can emit a genuine SNP report, TPM quote, or SGX/TDX quote.</li>
+<li><strong>What has to be shown is that the schema covers every profile</strong> — the JSON shape each type of
+   evidence takes, not a real run of each driver. "Vendor" does not mean "a driver with hardware".</li>
+</ol>
+<p>The intellectual-property review did not drive this choice: the samples are synthetic because no TEE
+hardware is in scope, not to keep third-party material out of the repository. Whether captured
+vendor evidence <em>could</em> be committed and redistributed has not been assessed, and would have to be
+before any real sample replaces one here.</p>
+<p>Two consequences follow and are binding: no CMC verifier will accept a synthetic sample, and a
+synthetic sample <strong>must never be presented as vendor evidence</strong>. For those profiles the check is the
+schema plus a round-trip through CMC's own types.</p>
+<p>Of the two exclusions above, <code>IAS Evidence</code> is the one that could have been synthesized like the
+hardware profiles, and deliberately was not: with no driver emitting it, its shape would have to be
+invented rather than copied from a driver's output.</p>
+<h3 id="3-the-report-commits-to-the-tls-exporter-it-does-not-carry-the-exporter-secret">3. The report commits to the TLS exporter; it does not carry the exporter secret<a class="headerlink" href="#3-the-report-commits-to-the-tls-exporter-it-does-not-carry-the-exporter-secret" title="Permanent link">&para;</a></h3>
+<p>ZT-31 requires that the report "MUST contain the TLS-exporter channel binding specified in RFC
+9266", and its acceptance criteria repeat that every report contains that binding for the channel it
+is sent through. SRS section 5.2 states the same duty operationally: the report "contains the
+TLS-exporter secret associated with the underlying TLS connection", that value "MUST be included so
+that its integrity is ensured by the attestation report, e.g. by including it in the report's user
+data field", and the initiator "MUST ensure that the correct TLS-exporter secret is contained
+within".</p>
+<p><strong>The pinned CMC does not carry that secret.</strong> It carries a commitment to it, and this record fixes
+that reading.</p>
+<p>In CMC v0.9.15 (commit <code>6754d3c</code>, "attestedtls: introduce new channel binding") each end exports 32
+bytes from the TLS session with <code>ExportKeyingMaterial("EXPORTER-Channel-Binding")</code> — RFC 9266 — and
+the prover signs the nonce <code>sha256(exporter ‖ its own TLS leaf certificate)</code>
+(<code>attestedtls/attestation.go</code>, <code>bindReportNonce</code>). The verifier recomputes the value from its own
+view of the session and rejects the report on mismatch. Each end requires the same of its peer: the
+outbound report is bound to the prover's own certificate, and an inbound report is checked against
+the peer's.</p>
+<p>The reason is in CMC's own commit: the exporter secret is symmetric, so both ends derive the same
+value. Used alone as the nonce — with mutually recognised certificate authorities and no further
+policy — it let a peer replay a received report back at its sender. Mixing the prover's certificate
+into the nonce makes each direction's expected value different.</p>
+<p>Two consequences follow, and they differ in kind:</p>
+<ul>
+<li><strong>The field is not the issue.</strong> SRS section 5.2 offers the user data field as an example ("e.g."),
+  not a mandate. CMC binding through the report's nonce is a free implementation choice, not a
+  deviation.</li>
+<li><strong>"Contains the TLS-exporter secret" is not met literally.</strong> The report holds
+  <code>sha256(exporter ‖ cert)</code>, not the exporter, so a verifier written to the letter of section 5.2 —
+  looking inside the report for the raw exporter value — will not find it. What CMC's verifier does
+  instead is recompute the expected value from its own view of the session and compare. The
+  integrity duty ZT-31 states is met, and the construction is stronger than the one described,
+  because it also closes the reflection case.</li>
+</ul>
+<p>Proven with a real mutual aTLS handshake in the spike: both ends derive the same exporter, the two
+directions' nonces differ, and a report bound to one session is rejected in another.</p>
+<p>This deviation is declared in the <a href="../../specifications/">specification change index</a> before gate G4.</p>
+<h3 id="4-what-is-published-into-train-in-what-form-and-when-it-may-be-trusted">4. What is published into TRAIN, in what form, and when it may be trusted<a class="headerlink" href="#4-what-is-published-into-train-in-what-form-and-when-it-may-be-trusted" title="Permanent link">&para;</a></h3>
+<p>Reference measurements (class 3) travel as Git-versioned metadata, are signed by the pipeline, and
+are served per zone by a CMC <code>estserver</code> to <code>cmcd</code>. A <strong>single derived value per endpoint</strong> is
+published into TRAIN's trust content for the peer-side check ZT-35 and ZT-67 require. <strong>The
+publication path is the TSPA (Trust Framework Manager) together with the DNS zone manager; the TCR
+is the read side.</strong></p>
+<p>TSPA's publish API is <strong>verified against source and a local instance</strong>: <code>PUT
+/tspa/v1/{fw}/trust-list/tsp</code> creates an entry and <code>PATCH .../tsp/{uuid}</code> replaces it, both behind a
+Bearer JWT carrying the Keycloak <strong>realm</strong> role <code>enrolltf</code>. <code>PUT</code> is create-only, so a redeploy is a
+<code>PATCH</code> against a <strong>stable per-endpoint UUID</strong>, never a fresh one. A write without a token is
+answered <code>200</code> with an empty body and stores nothing, so <strong>the HTTP status is not proof of
+publication</strong>: the pipeline re-reads the trust list and asserts the value it just wrote. What
+remains external is the client's own instance — base URL, framework name, an OIDC client whose
+service account holds <code>enrolltf</code>, and Zone Manager reachability.</p>
+<p><strong>TRAIN cannot carry <code>cmcd</code>'s reference values, and the two must never be conflated.</strong> A CMC
+reference value for a container is not a scalar: the verifier matches on <code>rootfsSha256</code> and then
+recomputes the template hash from the reference's own copy of the OCI runtime spec
+(<code>ValidateTemplateHash</code>), whereas a trust-list field holds one string. TRAIN therefore carries a
+single derived scalar — a second, coarser gate on top of CMC's own verification. Both must be
+derived from the <strong>same signed metadata in the same pipeline step</strong>, or the two sources of truth
+drift apart silently.</p>
+<h4 id="41-the-published-value-is-the-container-measurement-not-the-image-digest">4.1 The published value is the container measurement, not the image digest<a class="headerlink" href="#41-the-published-value-is-the-container-measurement-not-the-image-digest" title="Permanent link">&para;</a></h4>
+<p><strong>The value is the CMC container measurement — the template hash — of the component as deployed,</strong>
+that is <code>sha256(normalised OCI config ‖ rootfs hash)</code> as CMC computes it.</p>
+<p>Three plausible-looking alternatives are rejected, and each rejection is load-bearing:</p>
+<ul>
+<li><strong>Not <code>rootfsSha256</code>,</strong> although that is the field CMC's own verifier matches reference values on,
+  which makes it look canonical. It does not move when only the OCI configuration changes. Measured
+  across the spike's three tags: <code>v3</code> changes only the OCI configuration against <code>v2</code>, so the two
+  share a <code>rootfsSha256</code> — <code>de19a1d3…</code> for both — while their template hashes differ,
+  <code>0842477b…</code> against <code>b47b2a54…</code>. A verifier holding the previous <code>rootfsSha256</code> from TRAIN
+  would accept a peer running a different configuration.</li>
+<li><strong>Not the aggregate</strong> inside the signed payload. It is <code>extend</code>-chained over every container in
+  the log, so a second measured workload changes it although the component did not. It is a property
+  of a report, not of a deployment, so the pipeline cannot pre-generate it as ZT-35 requires. With
+  one container it is exactly <code>extend(zeros32, templateHash)</code>, so nothing is lost: the aggregate is
+  derived at verification time for the binding check in 4.4.</li>
+<li><strong>Not the OCI image digest.</strong> That is what the signing workflow signs with Cosign; it is a
+  different SHA-256 that also reads as "the digest of the image". Publishing it would satisfy no
+  verifier, because it appears nowhere in an attestation report.</li>
+</ul>
+<p>The template hash covers the rootfs <strong>and</strong> the normalised OCI configuration — <code>process.args</code>,
+<code>process.env</code>, user, mounts, capabilities — while ignoring the fields <code>measure.Normalize</code> strips.
+The two halves are not normalised alike: CMC strips the volatile fields from the configuration, but
+the rootfs half is hashed from the filesystem as the measuring machine holds it, which is why the
+value is reproducible only under the conditions the open item below sets out.
+So the published value belongs to the component <strong>as deployed</strong>, not to the image: two deployments
+of the same image with different environment variables have different measurements, and a
+configuration change that ships no new image still requires a republication before rollout.</p>
+<h4 id="42-carrier-and-wire-grammar-in-the-trust-list">4.2 Carrier and wire grammar in the trust list<a class="headerlink" href="#42-carrier-and-wire-grammar-in-the-trust-list" title="Permanent link">&para;</a></h4>
+<p>TSPA's entry schema has <strong>no measurement field</strong>, and extra keys are accepted with <code>201</code> and then
+silently dropped, because the entry is re-serialised from a shared model that does not know them.
+The value therefore rides in an existing free-form <code>Type</code>/<code>Value</code> pair:</p>
+<pre><code class="language-json">&quot;TSPInformation&quot;: {
+  &quot;TSPCertificationList&quot;: {
+    &quot;TSPCertification&quot;: [
+      { &quot;Type&quot;: &quot;TEEM-sha256&quot;, &quot;Value&quot;: &quot;783431065396a0483425b016f6925a321dee6c2146c5ab7244833aa888ebb60c&quot; }
+    ]
+  }
+}
+</code></pre>
+<p>Binding on both ends:</p>
+<ol>
+<li><code>Type</code> is exactly <code>TEEM-sha256</code>. The algorithm lives in the <code>Type</code>, never in the <code>Value</code>: TSPA
+   stores <code>Value</code> verbatim, and a self-describing <code>sha256:&lt;hex&gt;</code> form fails silently against any
+   reader that hex-decodes.</li>
+<li><code>Value</code> matches <code>^[0-9a-f]{64}$</code> — lowercase, unpadded, no <code>0x</code>, no prefix, no whitespace. This
+   is CMC's <code>HexByte</code> output, so the producer emits it without transformation. Readers validate the
+   grammar and reject on mismatch rather than normalising; a liberal reader hides publication bugs
+   until a strict reader appears at the other end.</li>
+<li><strong>Set semantics.</strong> An entry carries one <em>or more</em> <code>TEEM-sha256</code> pairs and the verifier accepts a
+   report matching any of them. A rolling update runs two versions at once, and with a single
+   published value there is always a window in which TRAIN contradicts part of what is running —
+   which, by ZT-70, means denied connections rather than degraded ones. The pipeline publishes the
+   union for the duration of the transition and <strong>prunes back to the current value once the rollout
+   converges</strong>; without pruning the entry degrades into a permanent allow-list. Zero values means
+   "not published" and fails closed.</li>
+<li>A new algorithm takes a new <code>Type</code> (<code>TEEM-sha384</code>), never a re-encoded <code>Value</code>.</li>
+</ol>
+<p>This is a project convention, not a standard: the reduced ETSI TS 119 612 model TSPA implements
+defines extension elements for exactly this purpose, but neither TSPA nor the TCR carries them.
+Implementing them upstream is the cleaner route and is not in scope here.</p>
+<h4 id="43-the-trust-list-lookup-key-is-the-service-type-identifier">4.3 The trust-list lookup key is the service type identifier<a class="headerlink" href="#43-the-trust-list-lookup-key-is-the-service-type-identifier" title="Permanent link">&para;</a></h4>
+<p>The TCR selects an entry by matching the resolve request's <code>issuer</code> against
+<code>TSPServices.TSPService[].ServiceTypeIdentifier</code>. Despite its name, that field holds the subject's
+identifier — upstream trust lists put the DID there — and
+<code>ServiceDigitalIdentity.DigitalId.DID</code> is
+informational and <strong>is not</strong> the lookup key. The pipeline writes the verifier's lookup string into
+<code>ServiceTypeIdentifier</code>; a wrong value there is accepted, stored and signed, and the TCR simply
+never finds the entry.</p>
+<p><strong>Open:</strong> how the verifying connector derives that string from the authenticated aTLS peer, which
+presents an X.509 certificate rather than a DID. It must come from the handshake — not from the
+report, which is what is being checked, and not from DNS, which is not authenticated to the peer.
+Tracked under Open items and owned by the attested-channel work.</p>
+<h4 id="44-the-train-comparison-runs-only-after-cmc-verification-has-succeeded">4.4 The TRAIN comparison runs only after CMC verification has succeeded<a class="headerlink" href="#44-the-train-comparison-runs-only-after-cmc-verification-has-succeeded" title="Permanent link">&para;</a></h4>
+<p>The published value is compared against the measurement in the peer's <strong>event log</strong>, which arrives
+from the peer alongside the evidence and is attacker-supplied on its own: a peer can send a report
+whose event log claims any measurement. What authenticates it is the aggregate —
+<code>extend(zeros32, templateHash)</code> must equal the SHA-256 inside the signed payload, which
+<code>verifier.VerifySw</code> recomputes along with the signature and the nonce.</p>
+<p><strong>The TRAIN check is therefore a post-check.</strong> It runs after CMC verification returns success, never
+instead of it and never in parallel. An implementation that reads the event log and consults TRAIN
+without completing CMC verification is trivially bypassable — and would still pass a test
+that only
+swaps a measurement.</p>
+<h2 id="consequences">Consequences<a class="headerlink" href="#consequences" title="Permanent link">&para;</a></h2>
+<ul>
+<li>The demonstrator carries one attestation document, not two, and no converter between them. When
+  real hardware appears, only the evidence bytes change.</li>
+<li>Consumers must treat the evidence payload as opaque and <strong>compare measurements, never evidence
+  bytes</strong>: the nonce and the ECDSA signature make the bytes differ on every run. This binds TRAIN's
+  expected values and the release artefact alike.</li>
+<li><code>verifier.VerifySw</code> trusts the key carried in the collateral. On real hardware the hardware
+  evidence anchors that key; without hardware, a <code>sw</code> artefact is only self-consistent. If admission
+  is to verify it cryptographically, the artefact has to be anchored — for example a Cosign
+  attestation with the signing-runner key — and the reference values have to come from TRAIN rather
+  than from the artefact itself. That is <strong>new scope</strong>: the release artefact as specified is checked
+  for presence and schema.</li>
+<li>Any change to code, files or measured configuration needs a <strong>new reference value published before
+  rollout</strong>, or the verifier rejects the legitimately updated container exactly as it rejects a
+  tampered one. Because the measurement covers the normalised runtime configuration, this includes
+  changes that ship no new image.</li>
+<li>The publishing pipeline <strong>cannot compute the value by itself</strong>. A plain hash of the rootfs is the
+  wrong value (decision 4.1), so the step runs the same CMC container measurement that produces the
+  reference metadata for <code>cmcd</code> — one computation, two consumers.</li>
+<li>A verifier may cache a TRAIN resolution, with a bounded lifetime, but <strong>never a verification
+  verdict</strong>: the verdict depends on the session nonce, while the resolution does not.</li>
+<li>Acceptance testing has to cover two cases that a naive implementation passes: a
+  <strong>configuration-only
+  change</strong>, which alone distinguishes the published measurement from a rootfs hash, and a <strong>forged
+  event log</strong> claiming the published measurement with an aggregate or signature that does not close.</li>
+<li>Completing an aTLS handshake needs signed metadata — at least an image description and a root
+  manifest, JWS-signed and chaining to a configured root CA — and <code>cmc.NewCmc</code> requires a root CA, an
+  endorser and an enroller even when the software driver uses none. This is a prerequisite for the
+  provisioning chain and the attested channel, not an optional extra.</li>
+</ul>
+<p><strong>What would reopen this decision:</strong> CMC ceasing to be the attestation library; a requirement for a
+vendor-neutral artefact that consumers outside the demonstrator must read without CMC's types; or
+real TEE hardware entering scope with a driver CMC does not provide.</p>
+<h2 id="open-items">Open items<a class="headerlink" href="#open-items" title="Permanent link">&para;</a></h2>
+<ul>
+<li><strong>How the release artefact is attached</strong> — a JSON file alongside the image, or a Cosign
+  attestation. ZT-10 requires "Cosign and an attestation flow which is valid for a mock TEE" on the
+  signing runner.</li>
+<li><strong>How the verifier derives a peer's trust-list key</strong> from the authenticated aTLS peer
+  (decision 4.3). Owned by the attested-channel work; the publishing side cannot choose it alone,
+  because the pipeline has to write the same string it will be asked for.</li>
+<li><strong>The client's TSPA instance.</strong> Base URL, framework name, an OIDC issuer and confidential client
+  whose service account holds the realm role <code>enrolltf</code>, Zone Manager reachability, and confirmation
+  that the client runs the same TSPA version — paths and schema could differ. The API
+  surface itself
+  is no longer open.</li>
+<li><strong>Cross-machine determinism holds for a normalised checkout; it does not hold for a checkout.</strong>
+  The measurement's source is versioned configuration <em>plus a normalised computation environment</em>,
+  and only the first half is under version control. CMC hashes the rootfs as a tar stream and
+  normalises it only in time: <code>ModTime</code>, <code>AccessTime</code> and <code>ChangeTime</code> are zeroed, while <code>Uid</code>,
+  <code>Gid</code> and the permission bits are taken from the filesystem as found, and a file's
+  <code>security.capability</code> xattr is folded in as a PAX record (<code>measure/rootfs.go</code>). Git
+  preserves none of those — it records content, paths and the executable bit alone, so ownership
+  follows whoever checked the tree out and the remaining mode bits follow their <code>umask</code>. One
+  fixture measured under three checkout owners and permission sets gives three template hashes.
+  What closes the gap is normalisation before measurement — ownership flattened and the permission
+  bits taken from the Git index rather than from the working tree — and it is checked rather than
+  asserted: <code>tools/measurement-determinism/</code> measures a fixture on a hosted runner, in a container where the
+  checkout belongs to root instead of the runner user, and on a checkout deliberately given another
+  owner, other permission bits and a file capability — the three inputs Git does not record —
+  and requires <code>configSha256</code>, <code>rootfsSha256</code> and the template hash to be identical on all three. It also requires the perturbed
+  checkout to differ <em>before</em> normalisation, so the check cannot pass by the three machines
+  happening to agree. Whole evidence is never compared: its nonce and signature differ on every run.
+  This matters for ZT-35, because a published reference value that depends on who built it is not a
+  property of the release.
+  What remains open is the same treatment in the image build. <code>COPY</code> carries the mode it finds in
+  the build context, so an unnormalised checkout puts the machine back into the measurement by
+  another route, and the fixture is measured rather than built. The attestation component is not a
+  dependency of the delivery module and the check fetches it at the pinned revision instead, so the
+  licence gate has not yet seen it; adding it to <code>go.mod</code> is a separate step through IP review.</li>
+<li><strong>The evidence reports configured measurements, not what actually runs.</strong> CMC provides the
+  measurement functions but no trigger, and nothing measures the running container. The link is
+  indirect: admission control admits only signed image digests (ZT-11), and the measurement
+  published into TRAIN is required to be the one the deployed component would report — two
+  different SHA-256 values, joined only by the pipeline that produces both. This is coherent for a
+  mock TEE whose evidence is
+  software-rooted, but the demonstrator's claims must say so, and it is to be raised with the client
+  if runtime measurement is expected.</li>
+</ul>
+<h2 id="references">References<a class="headerlink" href="#references" title="Permanent link">&para;</a></h2>
+<ul>
+<li>SRS, Annex A — ZT-31, ZT-71, ZT-10, ZT-11, ZT-35, ZT-67, ZT-70</li>
+<li>SRS § 5.2 — the attested-channel protocol flow: the report carries the TLS-exporter value, and
+  the initiator checks the mocked TEE's launch digest against the expected value in the
+  responder's TCR</li>
+<li><a href="../../contracts/mock-attestation.schema.json"><code>contracts/mock-attestation.schema.json</code></a> and
+  <a href="../contracts/samples/"><code>contracts/samples/</code></a> — the schema and the eight samples this record
+  fixes</li>
+<li><a href="../../specifications/"><code>specifications.md</code></a> — the specification change index, where the
+  channel-binding deviation in decision 3 is declared</li>
+<li><code>eclipse-xfsc/train-trust-framework-manager</code> <code>ecd5fdc</code> and <code>eclipse-xfsc/train-shared</code> <code>6a0abe4</code> —
+  the TSPA endpoints, entry schema and trust-list model behind decision 4; <code>train-trust-validator</code>
+  <code>e27b1ed</code> — the resolver whose lookup rule fixes decision 4.3</li>
+<li>ETSI TS 119 612 — the trusted-list standard TSPA's model reduces, and the source of the extension
+  elements decision 4.2 does not use</li>
+<li>The spike's working material, held with the delivery team outside this repository — the full
+  evidence log: the real <code>sw</code> run, the measurement proof across three tags, the schema and sample
+  checks, the mutual aTLS channel-binding handshake, the TSPA round-trip, and the trust-list
+  traversal that fixes decision 4 (a re-runnable walk of one measurement from the versioned source
+  to the verifier's comparison)</li>
+<li><code>Fraunhofer-AISEC/cmc</code> v0.9.15, commit <code>6754d3c</code> — the pinned version, and the commit that
+  introduced the channel binding described in decision 3</li>
+</ul>
+              
+            </div>
+          </div><footer>
+    <div class="rst-footer-buttons" role="navigation" aria-label="Footer Navigation">
+        <a href="../0005-three-cluster-reading-of-the-target-environment/" class="btn btn-neutral float-left" title="0005 Three-cluster target environment"><span class="icon icon-circle-arrow-left"></span> Previous</a>
+    </div>
+
+  <hr/>
+
+  <div role="contentinfo">
+    <!-- Copyright etc -->
+      <p>Apache-2.0</p>
+  </div>
+
+  Built with <a href="https://www.mkdocs.org/">MkDocs</a> using a <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a> provided by <a href="https://readthedocs.org">Read the Docs</a>.
+</footer>
+          
+        </div>
+      </div>
+
+    </section>
+
+  </div>
+
+  <div class="rst-versions" role="note" aria-label="Versions">
+  <span class="rst-current-version" data-toggle="rst-current-version">
+    
+        <span>
+          <a href="https://github.com/eclipse-xfsc/facis-zero-trust-demonstrator" class="fa fa-github" style="color: #fcfcfc"> GitHub</a>
+        </span>
+    
+    
+      <span><a href="../0005-three-cluster-reading-of-the-target-environment/" style="color: #fcfcfc">&laquo; Previous</a></span>
+    
+    
+  </span>
+</div>
+    <script src="../../js/jquery-3.6.0.min.js"></script>
+    <script>var base_url = "../..";</script>
+    <script src="../../js/theme_extra.js"></script>
+    <script src="../../js/theme.js"></script>
+      <script src="../../search/main.js"></script>
+    <script>
+        jQuery(function () {
+            SphinxRtdTheme.Navigation.enable(true);
+        });
+    </script>
+
+</body>
+</html>

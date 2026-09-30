@@ -89,6 +89,10 @@
                 </li>
               </ul>
               <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../contracts/">Interface contracts</a>
+                </li>
+              </ul>
+              <ul>
                 <li class="toctree-l1"><a class="reference internal" href="../tspa-publish-api/">TRAIN trust-list publishing</a>
                 </li>
               </ul>
@@ -153,6 +157,8 @@
                   <li class="toctree-l1"><a class="reference internal" href="../adr/0004-openbao-as-x509-key-value-store/">0004 OpenBao as X.509 key-value store</a>
                   </li>
                   <li class="toctree-l1"><a class="reference internal" href="../adr/0005-three-cluster-reading-of-the-target-environment/">0005 Three-cluster target environment</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../adr/0011-mock-tee-evidence-format-and-provisioning/">0011 Mock TEE evidence</a>
                   </li>
               </ul>
       </div>
@@ -223,6 +229,11 @@ and is declared as such in <a href="../specifications/#readings-and-additions">S
 <td><code>.github/workflows/ci.yml</code></td>
 <td>every pull request, push to <code>main</code>, manual</td>
 <td>Go lint and tests, image build with the Linux assertion and a Trivy scan, chart lint and dry-run render</td>
+</tr>
+<tr>
+<td><code>.github/workflows/measurement-determinism.yml</code></td>
+<td>pull request and push to <code>main</code> touching the check, manual</td>
+<td>Measures one fixture on a hosted runner, in a container, and on a deliberately divergent checkout, and requires the normalised measurement to be the same on all three</td>
 </tr>
 </tbody>
 </table>
