@@ -80,6 +80,10 @@
     <li class="toctree-l2"><a class="reference internal" href="#flow-inventory">Flow inventory</a>
     </li>
     <li class="toctree-l2"><a class="reference internal" href="#builder-node-ui-and-parameters">Builder node UI and parameters</a>
+        <ul>
+    <li class="toctree-l3"><a class="reference internal" href="#ztd-lifecycle">ztd-lifecycle</a>
+    </li>
+        </ul>
     </li>
     <li class="toctree-l2"><a class="reference internal" href="#governed-configuration">Governed configuration</a>
     </li>
@@ -222,6 +226,12 @@ rather than leaving a journey without an outcome.</p>
 <td>Change previewed → validated → applied as a pull request → effect visible on the next journey</td>
 <td>Journey outcome changes, with the change traceable to its pull request</td>
 </tr>
+<tr>
+<td>Deployment lifecycle (<code>flows/lifecycle.json</code>)</td>
+<td><code>POST /lifecycle</code> (operator or acceptance run, <a href="../api-docs/">IF-08</a>)</td>
+<td>Body normalized → <code>ztd-lifecycle</code> node validates, acknowledges and runs the lifecycle script (validate → server dry-run → deploy, or uninstall)</td>
+<td><code>202</code> or <code>400</code> at once; the final result in the flow context, <code>lifecycle.jobs[requestId]</code></td>
+</tr>
 </tbody>
 </table>
 <p>Each step reports its own result to the UI, so a journey that fails halfway shows <em>where</em> it
@@ -255,6 +265,36 @@ can be configured without reading its source:</p>
 </tr>
 </tbody>
 </table>
+<h3 id="ztd-lifecycle">ztd-lifecycle<a class="headerlink" href="#ztd-lifecycle" title="Permanent link">&para;</a></h3>
+<table>
+<thead>
+<tr>
+<th>Field</th>
+<th>Meaning</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Purpose</td>
+<td>Deploys or uninstalls one Helm release in a provisioned namespace; the deployment step of the lifecycle flow (TDR-BDD-01..04)</td>
+</tr>
+<tr>
+<td>Inputs</td>
+<td><code>msg.payload</code>: <code>{type: "command", action: "deploy" \| "uninstall", requestId, payload: {release, namespace, chart, values}}</code>; <code>chart</code> and <code>values</code> only for deploy. Contract: <code>ui/nodes/ztd-lifecycle/ztd-lifecycle.schema.json</code></td>
+</tr>
+<tr>
+<td>Outputs</td>
+<td><code>msg.payload</code>: an immediate result — <code>ok: true</code> with <code>data.accepted</code>, or <code>ok: false</code> with <code>errors.fields</code>. Progress and the final result go to the flow context, <code>lifecycle.jobs[requestId]</code> (<a href="../lifecycle-result.schema.json">schema</a>), with the reason code in <code>errors.action</code></td>
+</tr>
+<tr>
+<td>Configuration</td>
+<td><code>name</code> (text); <code>script</code> (text, optional): path of the lifecycle script, default <code>/opt/ztd/scripts/lifecycle.sh</code></td>
+</tr>
+</tbody>
+</table>
+<p>It never creates namespaces, never logs the values, masks credentials in the Helm output, and
+writes one structured JSON log line per result (<code>lifecycle.result</code> or <code>lifecycle.refused</code>, with the
+<code>requestId</code>).</p>
 <p>A node that alters the security outcome of a journey does not decide it: the decision stays on the
 connector and guard path, and the node reports it. This is the same boundary
 <a href="../adr/0003-oauth2-authorisation-surface-in-the-go-connector/">ADR-0003</a> draws for the

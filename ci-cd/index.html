@@ -113,6 +113,10 @@
     </li>
         </ul>
     </li>
+    <li class="toctree-l2"><a class="reference internal" href="#lifecycle-scenarios-on-the-client-targets">Lifecycle scenarios on the client targets</a>
+    </li>
+    <li class="toctree-l2"><a class="reference internal" href="#image-scan-exceptions">Image scan exceptions</a>
+    </li>
     <li class="toctree-l2"><a class="reference internal" href="#repository-protection-and-least-privilege">Repository protection and least privilege</a>
         <ul>
     <li class="toctree-l3"><a class="reference internal" href="#branch-protection">Branch protection</a>
@@ -331,6 +335,24 @@ version and the same rule of attaching an SBOM to every release that lacks one �
 actions and declared permissions this repository requires of its own workflows. They can go back to
 being references once the shared workflows accept a Go version or read <code>go.mod</code>; that is a change to
 propose in <code>eclipse-xfsc/dev-ops</code>.</p>
+<h2 id="lifecycle-scenarios-on-the-client-targets">Lifecycle scenarios on the client targets<a class="headerlink" href="#lifecycle-scenarios-on-the-client-targets" title="Permanent link">&para;</a></h2>
+<p>The <code>bdd-cluster</code> job runs the deployment-lifecycle scenarios (TDR-BDD-01..04) against each client
+target, and <code>bdd-cluster-report</code> merges every target into one traceability sheet in which a row is
+proven only if it passed everywhere. They run on pushes to <code>main</code>, on every published release and
+on demand — never on pull requests — and one run at a time per target. Evidence is published even
+when the run fails, and the job keeps its failure. See <a href="../bdd/">BDD acceptance</a> for what they prove.</p>
+<p>Both jobs stay off until the repository variable <code>BDD_CLUSTER_ENABLED</code> is <code>true</code>. A target
+<code>&lt;KEY&gt;</code> (for example <code>IONOS</code>) then needs, as repository secrets, <code>BDD_&lt;KEY&gt;_OBSERVER_KUBECONFIG</code>
+(the read-only observer identity — never an administrator credential), <code>BDD_&lt;KEY&gt;_ORCE_URL</code>,
+<code>BDD_&lt;KEY&gt;_ORCE_READ_TOKEN</code>, <code>BDD_&lt;KEY&gt;_ORCE_HTTP_USER</code> and <code>BDD_&lt;KEY&gt;_ORCE_HTTP_PASS</code>, and as a
+repository variable <code>BDD_&lt;KEY&gt;_ORCE_LOGS_CMD</code>, plus its entry in the job's matrix.</p>
+<h2 id="image-scan-exceptions">Image scan exceptions<a class="headerlink" href="#image-scan-exceptions" title="Permanent link">&para;</a></h2>
+<p>Every image is scanned and a HIGH or CRITICAL finding fails the build. When a finding sits in an
+upstream component that this project cannot fix in its own layer, a <code>scan-exception.json</code> next to
+the image's Dockerfile may exclude named paths from the gate. It must carry an expiry date, the
+reason and the tracking of the upstream fix; the job prints it into the run summary and fails the
+build once it has expired. The ORCE image carries one for the upstream ORCE runtime and kubectl,
+expiring 13 November 2026.</p>
 <h2 id="repository-protection-and-least-privilege">Repository protection and least privilege<a class="headerlink" href="#repository-protection-and-least-privilege" title="Permanent link">&para;</a></h2>
 <p>The demonstrator applies its own zero-trust posture to the delivery machine (ZT-56): nothing reaches
 <code>main</code> unreviewed, and no pipeline holds a credential wider than the job in front of it needs.</p>

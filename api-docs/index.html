@@ -91,6 +91,8 @@
     </li>
     <li class="toctree-l2"><a class="reference internal" href="#attestation-evidence">Attestation evidence</a>
     </li>
+    <li class="toctree-l2"><a class="reference internal" href="#if-08-deployment-lifecycle-command">IF-08 — deployment lifecycle command</a>
+    </li>
     <li class="toctree-l2"><a class="reference internal" href="#conventions">Conventions</a>
     </li>
     </ul>
@@ -223,6 +225,22 @@ per vendor profile in <a href="contracts/samples/"><code>contracts/samples/</cod
 and verified at admission, and the report exchanged inside the attested channel. It therefore
 underlies both IF-04 and IF-07, and which of the two carries it as its own contract is settled when
 the interfaces are frozen at v1.</p>
+<h2 id="if-08-deployment-lifecycle-command">IF-08 — deployment lifecycle command<a class="headerlink" href="#if-08-deployment-lifecycle-command" title="Permanent link">&para;</a></h2>
+<p>The scenario driver hook that deploys and uninstalls a release through the ORCE workflow. It is
+what the lifecycle acceptance scenarios (TDR-BDD-01..04) drive, and it is the same workflow an
+operator uses.</p>
+<ul>
+<li><strong>Command:</strong> <code>POST /lifecycle</code> on ORCE, HTTP Basic (<code>httpNodeAuth</code>), TLS 1.3, management plane
+  only — <a href="../lifecycle.openapi.yaml">OpenAPI definition</a>. The answer comes at once: <code>202</code> with
+  <code>data.accepted</code>, or <code>400</code> with <code>errors.fields</code> naming each invalid parameter.</li>
+<li><strong>Result:</strong> asynchronous, kept in the ORCE flow context under <code>lifecycle.jobs[requestId]</code> —
+  <a href="../lifecycle-result.schema.json">JSON Schema</a>. Read it with the ORCE admin API,
+  <code>GET /context/flow/ztd-lifecycle-tab/lifecycle</code>, using a read-only bearer token.</li>
+<li><strong>Reason codes</strong> (<code>errors.action</code>): <code>valuesSchemaRejected</code>, <code>dryRunRejected</code>, <code>deployFailed</code>,
+  <code>uninstallFailed</code>, <code>releaseNotFound</code>, <code>clusterUnreachable</code>, <code>duplicateRequest</code>, <code>systemError</code>.
+  A parameter the cluster refuses (for example a namespace outside the BDD pool) comes back in
+  <code>errors.fields</code>.</li>
+</ul>
 <h2 id="conventions">Conventions<a class="headerlink" href="#conventions" title="Permanent link">&para;</a></h2>
 <ul>
 <li>REST APIs are described with OpenAPI 3; asynchronous interfaces with JSON Schema.</li>

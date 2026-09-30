@@ -113,9 +113,21 @@
     </li>
     <li class="toctree-l2"><a class="reference internal" href="#scenario-inventory">Scenario inventory</a>
     </li>
+    <li class="toctree-l2"><a class="reference internal" href="#the-deployment-lifecycle-pack">The deployment-lifecycle pack</a>
+        <ul>
+    <li class="toctree-l3"><a class="reference internal" href="#how-the-cluster-decides">How the cluster decides</a>
+    </li>
+    <li class="toctree-l3"><a class="reference internal" href="#running-it">Running it</a>
+    </li>
+    <li class="toctree-l3"><a class="reference internal" href="#the-release-under-test">The release under test</a>
+    </li>
+    <li class="toctree-l3"><a class="reference internal" href="#evidence">Evidence</a>
+    </li>
+        </ul>
+    </li>
     <li class="toctree-l2"><a class="reference internal" href="#traceability">Traceability</a>
     </li>
-    <li class="toctree-l2"><a class="reference internal" href="#evidence">Evidence</a>
+    <li class="toctree-l2"><a class="reference internal" href="#evidence_1">Evidence</a>
     </li>
     </ul>
                 </li>
@@ -247,10 +259,13 @@ while proving nothing about the row it was meant to cover.</p>
 npm run bdd:row -- @ZT-17                    # JavaScript
 </code></pre>
 <h3 id="the-traceability-sheet">The traceability sheet<a class="headerlink" href="#the-traceability-sheet" title="Permanent link">&para;</a></h3>
-<p><code>features/annex-rows.txt</code> holds the 92 Annex A row ids in Annex order and is the denominator: the
+<p><code>features/annex-rows.txt</code> holds the 94 Annex A row ids in Annex order and is the denominator: the
 sheet reports every row, covered or not, so a gap is visible rather than absent. <code>cmd/bddreport</code>
 generates <code>traceability.md</code> and <code>traceability.csv</code> from the tags in the merged report — the sheet
 is never edited by hand.</p>
+<p>Covered is not proven. Each row also carries a <strong>result</strong> taken from the step and hook results of
+every execution that covers it: <code>passed</code> only when every execution passed, on every target and for
+every Outline example; <code>failed</code> when any one failed; <code>not run</code> when any was skipped or had no steps.</p>
 <p>The pipeline runs all of this on every pull request, writes the sheet into the job summary, and
 publishes <code>bundles/bdd</code> as the <code>bdd-evidence</code> artefact, which is the per-gate evidence bundle.</p>
 <h2 id="scenario-inventory">Scenario inventory<a class="headerlink" href="#scenario-inventory" title="Permanent link">&para;</a></h2>
@@ -347,11 +362,133 @@ incomplete, because the demonstrator's claim is about what it refuses.</p>
 </tr>
 </tbody>
 </table>
+<h2 id="the-deployment-lifecycle-pack">The deployment-lifecycle pack<a class="headerlink" href="#the-deployment-lifecycle-pack" title="Permanent link">&para;</a></h2>
+<p><code>features/js/lifecycle.feature</code> covers TDR-BDD-01..04: deploy, invalid parameters (three
+examples), idempotent redeploy and uninstall. Each scenario sends a command to the ORCE lifecycle
+workflow (<a href="../api-docs/">IF-08</a>), reads the final result back from the ORCE context, and decides the
+outcome from the cluster with <code>scripts/bdd/cluster-state.sh</code> under a read-only identity.</p>
+<p>The scenarios are tagged <code>@cluster</code>: they need a cluster with ORCE and are never part of a
+pull-request run, where the traceability sheet shows their rows as gaps.</p>
+<h3 id="how-the-cluster-decides">How the cluster decides<a class="headerlink" href="#how-the-cluster-decides" title="Permanent link">&para;</a></h3>
+<p>Each row has its own namespace from the BDD pool (<code>ztd-bdd-tdr-001</code>..<code>004</code>), provisioned with ORCE
+by the <code>deployment/helm/bdd-pool</code> chart. Before a scenario the namespace must hold only its
+documented baseline; afterwards it is restored through the same workflow. Every object in it is
+classified:</p>
+<table>
+<thead>
+<tr>
+<th>Class</th>
+<th>What</th>
+<th>Rule</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Baseline</td>
+<td>the pool's own ServiceAccount, root-CA ConfigMap, Roles and RoleBindings</td>
+<td>same set, same UIDs, throughout</td>
+</tr>
+<tr>
+<td>Helm metadata</td>
+<td>the release's <code>helm.sh/release.v1</code> Secrets</td>
+<td>one per history revision, exactly one deployed</td>
+</tr>
+<tr>
+<td>Expected</td>
+<td>every top-level object the release rendered</td>
+<td>all present, ready, same UIDs across a redeploy</td>
+</tr>
+<tr>
+<td>Descendants</td>
+<td>ReplicaSets and Pods of an expected Deployment; EndpointSlices and the legacy Endpoints of an expected Service</td>
+<td>allow-list only; one active ReplicaSet, the desired Pods, endpoints that match the ready Pods and the resolved ports</td>
+</tr>
+<tr>
+<td>Events</td>
+<td>Event objects</td>
+<td>ignored</td>
+</tr>
+<tr>
+<td>Unexplained</td>
+<td>anything else</td>
+<td>must be empty — an orphan or duplicate fails the row</td>
+</tr>
+</tbody>
+</table>
+<p>Readiness means the rollout is complete, not that some pods are up. Every check is polled until it
+holds or a deadline passes (120 s by default), so asynchronous controllers are waited for; an API
+or authorization error fails at once and is never retried into a pass. ORCE and the observer must
+report the same <code>kube-system</code> UID, so a result can never come from another cluster.</p>
+<h3 id="running-it">Running it<a class="headerlink" href="#running-it" title="Permanent link">&para;</a></h3>
+<p>Client targets run it <strong>only through CI</strong> (<code>bdd-cluster</code> job, one run at a time per target; see
+<a href="../ci-cd/">CI/CD</a>). Against a developer's local cluster — never evidence:</p>
+<pre><code class="language-bash">scripts/dev/kind-up.sh      # kind (Kubernetes 1.35) + BDD pool + identity kubeconfigs in .dev/kind/
+scripts/dev/orce-up.sh      # the ORCE image on kind's network, deploying as the pool's deployer;
+                            # writes the runner inputs below to .dev/kind/orce.env
+set -a &amp;&amp; . .dev/kind/orce.env &amp;&amp; set +a
+npm run bdd:cluster         # about 40 s; evidence in bundles/bdd/evidence/
+scripts/dev/orce-down.sh &amp;&amp; scripts/dev/kind-down.sh
+</code></pre>
+<p>The ORCE image is amd64 only; on an arm64 machine Docker runs it emulated.</p>
+<table>
+<thead>
+<tr>
+<th>Input</th>
+<th>Meaning</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>KUBECONFIG</code></td>
+<td>the read-only observer identity</td>
+</tr>
+<tr>
+<td><code>BDD_ORCE_URL</code></td>
+<td>ORCE base URL</td>
+</tr>
+<tr>
+<td><code>BDD_ORCE_ADMIN_TOKEN</code></td>
+<td>read-only ORCE admin API bearer token</td>
+</tr>
+<tr>
+<td><code>BDD_ORCE_HTTP_USER</code>, <code>BDD_ORCE_HTTP_PASS</code></td>
+<td>credentials of the ORCE HTTP endpoints</td>
+</tr>
+<tr>
+<td><code>BDD_ORCE_LOGS_CMD</code></td>
+<td>a command printing the ORCE log (row 02 asserts the structured refusal entry)</td>
+</tr>
+<tr>
+<td><code>BDD_RELEASE_CHART</code></td>
+<td>the release under test, a chart path in the ORCE image; default the lifecycle fixture</td>
+</tr>
+<tr>
+<td><code>BDD_RELEASE_VALUES</code></td>
+<td>its valid baseline values; default the fixture's <code>ci/values.yaml</code></td>
+</tr>
+<tr>
+<td><code>BDD_TARGET</code>, <code>BDD_RUN_ID</code></td>
+<td>names the target and the run in the evidence</td>
+</tr>
+</tbody>
+</table>
+<p>A missing input stops the run and is named.</p>
+<h3 id="the-release-under-test">The release under test<a class="headerlink" href="#the-release-under-test" title="Permanent link">&para;</a></h3>
+<p>Until the umbrella chart is ready, the pack deploys <code>features/fixtures/charts/lifecycle-fixture</code>, a
+namespaced chart with no CRDs, and every evidence directory records that it is fixture evidence. A
+fixture pass is <strong>not</strong> acceptance of the umbrella release. Before the umbrella chart may replace
+the fixture, its cluster-scoped deploy rights and the ownership and removal of the CRDs it ships
+(which <code>helm uninstall</code> leaves behind) must be designed; it then needs its own run.</p>
+<h3 id="evidence">Evidence<a class="headerlink" href="#evidence" title="Permanent link">&para;</a></h3>
+<p>Per row, target and example: <code>bundles/bdd/evidence/bdd-tdr-00n/&lt;target&gt;/&lt;example&gt;/</code> holds the
+commands and acknowledgements, the ORCE context entry of each command (with the masked Helm output,
+release revision, chart digest and values hash), every classified inventory, the recorded baseline,
+and for row 02 the refusal log entry.</p>
 <h2 id="traceability">Traceability<a class="headerlink" href="#traceability" title="Permanent link">&para;</a></h2>
 <p>Each scenario's tag is its requirement id, so the requirement-to-test matrix is generated from the
 feature files rather than maintained beside them. A requirement with no tagged scenario shows up as
 a gap in that matrix; that is the point of generating it.</p>
-<h2 id="evidence">Evidence<a class="headerlink" href="#evidence" title="Permanent link">&para;</a></h2>
+<h2 id="evidence_1">Evidence<a class="headerlink" href="#evidence_1" title="Permanent link">&para;</a></h2>
 <p>Each gate produces one indexed evidence bundle, assembled by a single command, with a directory per
 requirement row. Bundles are versioned and immutable once a gate has consumed them.</p>
               

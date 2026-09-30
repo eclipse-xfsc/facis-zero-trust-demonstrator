@@ -61,6 +61,10 @@
     <li class="toctree-l2"><a class="reference internal" href="#preconditions">Preconditions</a>
     </li>
     <li class="toctree-l2"><a class="reference internal" href="#installing-a-zone">Installing a zone</a>
+        <ul>
+    <li class="toctree-l3"><a class="reference internal" href="#through-the-orce-workflow">Through the ORCE workflow</a>
+    </li>
+        </ul>
     </li>
     <li class="toctree-l2"><a class="reference internal" href="#teardown">Teardown</a>
     </li>
@@ -185,6 +189,11 @@ identity exists before any workload starts.</p>
 <pre><code class="language-bash">helm install ztd deployment/helm/ztd -n ztd-mgmt --create-namespace -f &lt;values file&gt;
 </code></pre>
 <p>Chart values are documented with each chart under <code>deployment/helm/</code>.</p>
+<h3 id="through-the-orce-workflow">Through the ORCE workflow<a class="headerlink" href="#through-the-orce-workflow" title="Permanent link">&para;</a></h3>
+<p>The same install, redeploy and uninstall run through ORCE with zero manual steps: a
+<code>POST /lifecycle</code> command (<a href="../api-docs/">IF-08</a>) that the <code>ztd-lifecycle</code> node validates, checks
+with a server-side dry-run and applies with Helm, reporting a machine-readable result in the ORCE
+context. The <code>helm</code> commands on this page are the engine-level equivalent.</p>
 <h2 id="teardown">Teardown<a class="headerlink" href="#teardown" title="Permanent link">&para;</a></h2>
 <pre><code class="language-bash">helm uninstall ztd -n ztd-mgmt
 </code></pre>
