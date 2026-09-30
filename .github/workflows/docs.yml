@@ -1,6 +1,6 @@
 name: Publish documentation
 
-# Requires GitHub Pages enabled with its source set to the gh-pages branch.
+# Requires GitHub Pages enabled with its source set to the gh-pages branch, folder / or /docs.
 on:
   workflow_dispatch:
   push:
@@ -17,7 +17,7 @@ jobs:
   build-and-publish:
     runs-on: ubuntu-latest
     permissions:
-      contents: write # gh-deploy pushes the built site to gh-pages
+      contents: write # ghp-import pushes the built site to gh-pages
     steps:
       - name: Checkout repository
         uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
@@ -38,4 +38,9 @@ jobs:
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
-          mkdocs gh-deploy --force
+          # The site is published at the branch root and again under docs/, so Pages
+          # serves it whether its source folder is / or /docs.
+          mkdocs build
+          mkdocs build --site-dir site/docs
+          touch site/docs/.nojekyll
+          ghp-import --no-jekyll --push --force site

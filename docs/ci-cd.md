@@ -170,9 +170,10 @@ exception before it is merged. The process and the OpenBao worked example are in
 
 ## Documentation publication
 
-`docs.yml` builds the MkDocs site and pushes it to the `gh-pages` branch. GitHub Pages must be
-enabled on the repository with its source set to that branch — a one-time repository setting a
-maintainer applies.
+`docs.yml` builds the MkDocs site and pushes it to the `gh-pages` branch, both at the branch root
+and under `docs/`. GitHub Pages must be enabled on the repository with its source set to that
+branch — a one-time repository setting a maintainer applies. The folder may be `/` (preferred) or
+`/docs`; the site is identical in both.
 
 ## Adding a workflow
 
