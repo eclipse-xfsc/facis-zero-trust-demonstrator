@@ -13,7 +13,7 @@ v1 before the components consuming them are built:
 | IF-04 | Observability and evidence |
 | IF-05 | Policy decision input and output |
 | IF-06 | Governed configuration change |
-| IF-07 | Attested channel control |
+| IF-07 | Attested channel control — v1: [Go interface of `internal/atls`](attested-channel.md); partner sign-off pending |
 | IF-08 | Scenario driver hooks |
 
 OpenAPI and JSON Schema definitions live in [`docs/contracts/`](contracts/index.md), one file per

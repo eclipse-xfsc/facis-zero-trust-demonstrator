@@ -1,0 +1,46 @@
+{
+  "schema": "atls-probe-record/v1",
+  "mode": "client",
+  "role": "dialer",
+  "identities": [
+    "spiffe://b/gateway",
+    "localhost"
+  ],
+  "cert_fingerprint": "fefc21abf08794ae13bd354972cc4228eb6ed6de6fb2e5969a974fda01a53ce5",
+  "expected_peer_identity": "spiffe://a/gateway",
+  "cmcd_addr": "127.0.0.1:42037",
+  "connect_addr": "127.0.0.1:42735",
+  "hold_ms": 0,
+  "interval_ms": 1000,
+  "started_at": "2026-10-01T09:51:57.891728935Z",
+  "started_at_unix_ms": 1790848317891,
+  "finished_at": "2026-10-01T09:51:57.893679315Z",
+  "exit_code": 2,
+  "outcome": "refused",
+  "peer_addr": "127.0.0.1:42735",
+  "handshake_started_at": "2026-10-01T09:51:57.892338228Z",
+  "handshake_ms": 1,
+  "refusal": {
+    "sentinel": "ErrPeerUnreachable",
+    "message": "atls: peer unreachable: no TCP connection to the peer: failed to establish tls connection: dial tcp 127.0.0.1:42735: connect: connection refused. 1 certificate chain(s) provided: CN=spiffe://b/gateway with DNSNames [localhost], IPAddresses [127.0.0.1]; "
+  },
+  "refused_at": "2026-10-01T09:51:57.893650881Z",
+  "refused_at_unix_ms": 1790848317893,
+  "ended_at": "2026-10-01T09:51:57.893650881Z",
+  "ended_at_unix_ms": 1790848317893,
+  "ended": "refused",
+  "heartbeats": {
+    "sent": 0,
+    "received": 0,
+    "max_gap_ms": 0
+  },
+  "application_bytes_sent": 0,
+  "application_bytes_received": 0,
+  "environment": {
+    "commit": "cfbc1dcd2b11d39e1f8bce3045b31681f2d546fb",
+    "dirty": false,
+    "go_version": "go1.27.0",
+    "cmc_version": "v0.9.15",
+    "platform": "linux/amd64"
+  }
+}

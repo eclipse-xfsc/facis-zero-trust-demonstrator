@@ -1,0 +1,25 @@
+{
+  "logLevel": "info",
+  "cmcAddr": "127.0.0.1:42037",
+  "endorsementMode": "direct",
+  "enrollmentMode": "est",
+  "enrollmentAddr": "https://127.0.0.1:1/never-contacted",
+  "metadata": [
+    "file://<work>/fixtures/zone-b/metadata"
+  ],
+  "drivers": [
+    "sw"
+  ],
+  "hashAlg": "SHA-256",
+  "api": "grpc",
+  "storage": "<work>/fixtures/zone-b/storage",
+  "cache": "<work>/fixtures/zone-b/cache",
+  "ctr": true,
+  "ctrDriver": "sw",
+  "rootCas": [
+    "<work>/fixtures/zone-a/ca.pem",
+    "<work>/fixtures/zone-b/ca.pem"
+  ],
+  "allowSystemCerts": false,
+  "vendorCache": "<work>/fixtures/zone-b/vendor-cache"
+}

@@ -1,0 +1,12 @@
+{
+  "script": "scripts/atls-probe/prove-tampered-binding.sh",
+  "commit": "cfbc1dcd2b11d39e1f8bce3045b31681f2d546fb",
+  "dirty": false,
+  "go_version": "go1.27.0",
+  "cmc_version": "v0.9.15",
+  "cmcd_binary": "github.com/Fraunhofer-AISEC/cmc@v0.9.15",
+  "date": "2026-10-01T09:51:43Z",
+  "host_kind": "local",
+  "os": "Linux 7.0.0-34-generic",
+  "arch": "x86_64"
+}

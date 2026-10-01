@@ -1,0 +1,8 @@
+2026-10-01T09:52:24.766Z atls-probe: listening on 127.0.0.1:57965 through cmcd 127.0.0.1:29363, expecting spiffe://b/gateway
+time="2026-10-01T08:52:24-01:00" level=info msg="Server-side aTLS connection complete" service=atls
+2026-10-01T09:52:24.803Z atls-probe: session 0 established with 127.0.0.1:54966: binding a7ae98e66b0034e0eed1e58c20575d29dd53ec2cbc0f9019e701759475b67f32, peer fefc21abf08794ae13bd354972cc4228eb6ed6de6fb2e5969a974fda01a53ce5, verdict success, valid until 2026-10-01T10:07:24Z
+2026-10-01T09:52:46.220Z atls-probe: session 1 refused (ErrPlainTLS): atls: peer does not speak attested TLS 1.3: the TLS 1.3 handshake failed: TLS handshake failed: EOF
+time="2026-10-01T08:52:49-01:00" level=info msg="Server-side aTLS connection complete" service=atls
+2026-10-01T09:52:49.274Z atls-probe: session 2 established with 127.0.0.1:33056: binding 692ba310db149d5459ce5d00b099b853528159a40babeaa12a6cbd97175dbcc1, peer fefc21abf08794ae13bd354972cc4228eb6ed6de6fb2e5969a974fda01a53ce5, verdict success, valid until 2026-10-01T10:07:49Z
+2026-10-01T09:52:49.274Z atls-probe: session 2 ended (peer-closed): read failed after 0s: EOF
+2026-10-01T09:52:49.394Z atls-probe: session 0 ended (peer-closed): read failed after 24.59s: EOF
