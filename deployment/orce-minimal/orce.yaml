@@ -1,0 +1,67 @@
+# ORCE itself: one replica, non-root, no ingress; reachable only from its own namespace.
+# __IMAGE__ is the ORCE image by digest; the credentials come from the orce-credentials Secret.
+# Interim until the ORCE chart; see README.md.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: orce
+  namespace: ztd-orce
+  labels: {app.kubernetes.io/name: orce, app.kubernetes.io/part-of: facis-ztd}
+spec:
+  replicas: 1
+  selector:
+    matchLabels: {app.kubernetes.io/name: orce}
+  template:
+    metadata:
+      labels: {app.kubernetes.io/name: orce, app.kubernetes.io/part-of: facis-ztd}
+    spec:
+      serviceAccountName: orce
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+        runAsGroup: 1000
+        seccompProfile: {type: RuntimeDefault}
+      containers:
+        - name: orce
+          image: __IMAGE__
+          envFrom:
+            - secretRef: {name: orce-credentials}
+          env:
+            - {name: LIFECYCLE_TIMEOUT, value: 5m}
+          ports:
+            - {name: http, containerPort: 1880}
+          readinessProbe:
+            tcpSocket: {port: http}
+            periodSeconds: 5
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities: {drop: ["ALL"]}
+          resources:
+            requests: {cpu: 100m, memory: 256Mi}
+            limits: {memory: 1Gi}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: orce
+  namespace: ztd-orce
+spec:
+  selector: {app.kubernetes.io/name: orce}
+  ports:
+    - {name: http, port: 1880, targetPort: http}
+---
+# Only the management namespace itself may reach ORCE; the data plane cannot.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: orce-ingress
+  namespace: ztd-orce
+spec:
+  podSelector:
+    matchLabels: {app.kubernetes.io/name: orce}
+  policyTypes: [Ingress]
+  ingress:
+    - from:
+        - podSelector: {}
+      ports:
+        - {port: 1880, protocol: TCP}

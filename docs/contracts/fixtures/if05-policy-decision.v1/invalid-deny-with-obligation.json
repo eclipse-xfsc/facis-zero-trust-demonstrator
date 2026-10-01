@@ -1,0 +1,1 @@
+{"allow":false,"reason_code":"POL-RULE-DENY","rule_id":"r","bundle_revision":"v0.3.1","deny_body":{"error":"denied"},"obligations":["substitute_upstream_token"]}

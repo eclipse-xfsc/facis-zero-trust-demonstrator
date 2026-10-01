@@ -7,6 +7,9 @@ metadata:
   labels:
     {{- include "pool.labels" $ | nindent 4 }}
     facis.ztd/bdd-pool: "true"
+    # The deployer may create Deployments, so the pod template is the boundary: only pods that meet
+    # the restricted Pod Security Standard are admitted (no privileged, hostPath or host namespaces).
+    pod-security.kubernetes.io/enforce: restricted
 ---
 # Deployer: exactly what the fixture renders, plus what Helm needs to run - Secrets for release
 # storage, and read access to what --wait inspects. No namespace, RBAC or cluster-scoped writes.

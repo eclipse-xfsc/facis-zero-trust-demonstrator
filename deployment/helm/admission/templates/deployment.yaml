@@ -1,0 +1,83 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "admission.name" . }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "admission.labels" . | nindent 4 }}
+spec:
+  replicas: {{ .Values.replicas }}
+  selector:
+    matchLabels:
+      {{- include "admission.selector" . | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "admission.labels" . | nindent 8 }}
+    spec:
+      automountServiceAccountToken: false
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 65532
+        runAsGroup: 65532
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: provider
+          image: "{{ .Values.image.repository }}@{{ .Values.image.digest }}"
+          args:
+            - --request-timeout={{ .Values.requestTimeout }}
+            {{- with .Values.insecurePlainHTTPRegistry }}
+            - --insecure-plain-http-registry={{ . }}
+            {{- end }}
+          ports:
+            - name: https
+              containerPort: 8443
+            - name: metrics
+              containerPort: 9090
+          readinessProbe:
+            httpGet:
+              path: /readyz
+              port: metrics
+            periodSeconds: 5
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: metrics
+            periodSeconds: 10
+          resources:
+            {{- toYaml .Values.resources | nindent 12 }}
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: [ALL]
+          volumeMounts:
+            - name: tls
+              mountPath: /etc/admission-provider/tls
+              readOnly: true
+            - name: client-ca
+              mountPath: /etc/admission-provider/client-ca
+              readOnly: true
+            - name: trust
+              mountPath: /etc/admission-provider/trust
+              readOnly: true
+      volumes:
+        - name: tls
+          secret:
+            secretName: {{ include "admission.name" . }}-tls
+            items:
+              - key: tls.crt
+                path: tls.crt
+              - key: tls.key
+                path: tls.key
+        # Only the CA certificate of Gatekeeper's webhook Secret, never its private key.
+        - name: client-ca
+          secret:
+            secretName: {{ .Values.gatekeeper.certSecret }}
+            items:
+              - key: ca.crt
+                path: ca.crt
+        - name: trust
+          configMap:
+            name: {{ include "admission.name" . }}-trust

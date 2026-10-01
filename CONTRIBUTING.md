@@ -38,6 +38,21 @@ issue.
 Releases are cut from `main` and tagged. Published releases trigger the SBOM and Eclipse Dash
 licence workflows; see [docs/ci-cd.md](docs/ci-cd.md).
 
+## Eclipse Project Handbook
+
+The project follows the [Eclipse Foundation Project Handbook](https://www.eclipse.org/projects/handbook/):
+
+- **Contributions** need an ECA on the commit author's email (above).
+- **Intellectual property.** Third-party content goes through Eclipse IP due diligence before it is
+  merged: the Eclipse Dash licence gate runs on every pull request, and what it cannot clear is
+  sent to the Eclipse IP team. A component the requirements prescribe under a licence that is not
+  Apache-2.0-compatible is declared to the client first ([Licenses](docs/licenses.md)).
+- **Licence.** Apache-2.0, in `LICENSE` at the root.
+- **Security issues** are reported through the Eclipse security policy, never as public issues.
+- **Documentation** lives in this repository (`docs/` and `README.md`) and is published to GitHub
+  Pages from `main`; the FAP Partner Onboarding repositories are the reference for its structure.
+- **Conduct** follows the Eclipse Community Code of Conduct.
+
 ## Code of conduct
 
 This project follows the [Eclipse Community Code of Conduct](CODE_OF_CONDUCT.md).

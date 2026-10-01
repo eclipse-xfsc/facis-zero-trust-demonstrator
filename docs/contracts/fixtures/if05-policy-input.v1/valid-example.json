@@ -1,0 +1,1 @@
+{"correlation_id":"fx-corr-1","source":{"spiffe_id":"spiffe://zone-a.example/ns/data/sa/backend"},"request":{"method":"GET","path":"/api/data","host":"guard-a.example"},"token":{"present":true,"sub":"fx-client","client_id":"fx-client","jkt":"0ZcOCORZNYy-DWpqq30jZyJGHTN0d2HglBV3uiguA4I","scope":"read","aud":"https://guard-a.example","proof_valid":true},"tenant":null}

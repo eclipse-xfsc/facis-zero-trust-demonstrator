@@ -26,10 +26,25 @@ RUN set -eux; \
     install -m 0755 kubectl /usr/local/bin/kubectl; \
     rm -rf /tmp/helm.tgz /tmp/linux-amd64 /tmp/kubectl; \
     apk upgrade --no-cache; \
-    rm -f /usr/local/bin/filebrowser; \
-    # The upstream demo flows carry a live cloud API token; this image loads its own flow file.
-    rm -f /data/flows.json /data/.flows.json.backup /data/flows_cred.json; \
-    mv /data/settings.js /data/settings.upstream.js
+    rm -rf /usr/local/bin/filebrowser /data/filebrowser; \
+    # The upstream demo flows carry a live cloud API token, and their encrypted credentials ship
+    # with the key that decrypts them (.config.runtime.json). This image loads its own flow file,
+    # and ORCE generates a fresh runtime key at first start. Upstream sessions, user settings and
+    # caches go too.
+    rm -f /data/flows.json /data/.flows.json.backup /data/flows_cred.json /data/.flows_cred.json.backup \
+          /data/.config.runtime.json /data/.config.runtime.json.backup /data/.sessions.json \
+          /data/.config.users.json /data/.config.users.json.backup; \
+    rm -rf /data/.npm; \
+    mv /data/settings.js /data/settings.upstream.js; \
+    # The upstream settings stay as the base of ours, without their fixed or sample password hashes.
+    sed -i -E 's/((password|pass): *")[$]2[aby][$][^"]*"/\1"/g' /data/settings.upstream.js; \
+    # Guard: no credential store, session or password hash is left under /data outside node_modules.
+    # Each check is a command substitution, so an error in find or grep fails the build (set -e)
+    # instead of reading as "nothing found".
+    left="$(find /data -maxdepth 1 \( -name '*cred*' -o -name '.sessions.json' -o -name '.config.runtime.json*' \))"; \
+    [ -z "$left" ]; \
+    hits="$(grep -rlE '[$]2[aby][$][0-9]{2}[$]|_credentialSecret' /data || [ $? -eq 1 ])"; \
+    [ -z "$(printf '%s\n' "$hits" | grep -v '^/data/node_modules/' || true)" ]
 
 COPY deployment/docker/orce/settings.js /data/settings.js
 COPY flows/lifecycle.json /data/lifecycle.json

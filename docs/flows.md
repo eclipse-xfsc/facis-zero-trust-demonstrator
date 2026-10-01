@@ -48,8 +48,26 @@ can be configured without reading its source:
 | Configuration | `name` (text); `script` (text, optional): path of the lifecycle script, default `/opt/ztd/scripts/lifecycle.sh` |
 
 It never creates namespaces, never logs the values, masks credentials in the Helm output, and
-writes one structured JSON log line per result (`lifecycle.result` or `lifecycle.refused`, with the
-`requestId`).
+writes one log record per result (`lifecycle.result` or `lifecycle.refused`, with the `requestId`).
+
+### ORCE logging
+
+The ORCE image replaces the Node-RED console logger with a JSON handler (`logging` in
+`deployment/docker/orce/settings.js`). Every record sent through the Node-RED logging API is one
+line holding one JSON object with exactly these fields:
+
+| Field | Value |
+|---|---|
+| `time` | ISO 8601 timestamp |
+| `level` | `fatal`, `error`, `warn`, `info`, `debug`, `trace` |
+| `type`, `name`, `id` | the node that logged, or `null` for the runtime |
+| `msg` | the message as a string; an error contributes its message only, never its stack |
+
+The lifecycle node's `msg` is itself a JSON object (`node`, `event`, `requestId`, `action`, `ok`,
+`reason`), so a reader parses the line, then `msg`. The payload is never merged into the top level.
+
+**What this does not cover:** output written outside the logging API — `console` calls in function
+or third-party nodes, Node.js warnings, and the container entrypoint — is not JSON.
 
 A node that alters the security outcome of a journey does not decide it: the decision stays on the
 connector and guard path, and the node reports it. This is the same boundary

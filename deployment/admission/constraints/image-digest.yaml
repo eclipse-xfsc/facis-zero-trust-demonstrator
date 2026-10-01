@@ -1,0 +1,18 @@
+apiVersion: constraints.gatekeeper.sh/v1beta1
+kind: K8sZtdImageDigest
+metadata:
+  name: ztd-image-digest
+spec:
+  enforcementAction: deny
+  match:
+    kinds:
+      - apiGroups: [""]
+        kinds: [Pod]
+      - apiGroups: [apps]
+        kinds: [Deployment, ReplicaSet, StatefulSet, DaemonSet]
+      - apiGroups: [batch]
+        kinds: [Job]
+    # Only namespaces that opt in to admission control.
+    namespaceSelector:
+      matchLabels:
+        facis.ztd/admission-proof: "true"

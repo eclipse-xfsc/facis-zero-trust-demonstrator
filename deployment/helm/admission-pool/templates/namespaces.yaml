@@ -1,0 +1,47 @@
+{{- range .Values.namespaces }}
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: {{ . }}
+  labels:
+    {{- include "admpool.labels" $ | nindent 4 }}
+    # Opts the namespace in to admission control (webhook and constraints).
+    facis.ztd/admission-proof: "true"
+    pod-security.kubernetes.io/enforce: restricted
+---
+# Tester: create and remove test pods and workloads, add ephemeral containers, read the evidence.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: ztd-adm-tester
+  namespace: {{ . }}
+  labels:
+    {{- include "admpool.labels" $ | nindent 4 }}
+rules:
+  - apiGroups: [""]
+    resources: ["pods", "pods/ephemeralcontainers"]
+    verbs: ["get", "list", "watch", "create", "delete", "update", "patch"]
+  - apiGroups: ["apps"]
+    resources: ["deployments", "replicasets"]
+    verbs: ["get", "list", "watch", "create", "delete"]
+  - apiGroups: [""]
+    resources: ["events"]
+    verbs: ["get", "list"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: ztd-adm-tester
+  namespace: {{ . }}
+  labels:
+    {{- include "admpool.labels" $ | nindent 4 }}
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: ztd-adm-tester
+subjects:
+  - kind: ServiceAccount
+    name: {{ $.Values.tester.serviceAccount.name }}
+    namespace: {{ include "admpool.saNamespace" $ }}
+{{- end }}

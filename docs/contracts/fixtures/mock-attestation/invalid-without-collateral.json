@@ -1,0 +1,8 @@
+{
+  "mock": true,
+  "profile": "sw",
+  "evidence": {
+    "type": "SW Evidence",
+    "evidence": "eyJwYXlsb2FkIjoiZXlKdWIyNWpaU0k2SWsxU1J6Qm9lRXRKVjBGTWR6WndiblpwTW5wb2RuazNkRXRKUXpCcWMwcHpSRmRCTkd4WmEwbFlNV3M5SWl3aWMyaGhNalUySWpvaVQzVkpSMFJHTldzdlVIRkhRMDFtZUV0WU1UTlFSRUl4WWpCemEwWkNXVTVpTnpScGFGTnNZa0ZuY3owaWZRIiwicHJvdGVjdGVkIjoiZXlKaGJHY2lPaUpGVXpJMU5pSjkiLCJzaWduYXR1cmUiOiJEVVRPV09YQ3lza0g5dUk5aXlZSldRVHpZcERmMmhQUmRKOTFjdTlEelFUaVJEdUVMNElyS01PcTRkdEZ1LWR0cUl6VmNjblBaTEVMWnd5dWxCSXdoZyJ9"
+  }
+}

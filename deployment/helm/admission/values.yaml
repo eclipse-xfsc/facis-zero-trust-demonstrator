@@ -1,0 +1,41 @@
+# The provider image, by digest only - the chart refuses a tag.
+image:
+  repository: ghcr.io/eclipse-xfsc/facis-zero-trust-demonstrator/admission-provider
+  digest: ""
+
+replicas: 2
+
+# Gatekeeper's namespace and the Secret holding its webhook certificate. The provider must run in
+# that namespace: it trusts client certificates that chain to that Secret's ca.crt, which is how it
+# knows the caller is Gatekeeper. The chart refuses any other release namespace.
+gatekeeper:
+  namespace: gatekeeper-system
+  certSecret: gatekeeper-webhook-server-cert
+
+# The Provider object Gatekeeper calls. timeoutSeconds is Gatekeeper's deadline; the provider answers
+# within requestTimeout, which must be shorter.
+provider:
+  name: ztd-image-verifier
+  timeoutSeconds: 2
+requestTimeout: 1s
+
+# Trust policy: allowed repository prefixes ("host/path") and the trusted cosign public keys (PEM).
+# Both are required; an edit takes effect within the reload interval, without a restart.
+trust:
+  repositories: []
+  publicKeys: ""
+
+# Validity of the generated provider CA and server certificate. Generated once and kept on upgrade;
+# delete the Secret to rotate (the Provider's caBundle is updated in the same release).
+tls:
+  validityDays: 825
+
+# A plain-http registry host (host:port) - a local test registry only. Empty in any real deployment.
+insecurePlainHTTPRegistry: ""
+
+resources:
+  requests:
+    cpu: 50m
+    memory: 64Mi
+  limits:
+    memory: 256Mi
