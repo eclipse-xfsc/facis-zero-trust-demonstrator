@@ -19,7 +19,7 @@ and is declared as such in [Specification changes](specifications.md#readings-an
 | `.github/workflows/sbom.yml` | schedule, release, manual | Generates a CycloneDX SBOM for every release that has none and attaches it |
 | `.github/workflows/docs.yml` | push to `main` affecting `docs/`, manual | Builds the MkDocs site and publishes it to the `gh-pages` branch |
 | `.github/workflows/workflow-hygiene.yml` | every pull request, manual | Fails the pull request when an action is not pinned to a commit or a token scope is too wide |
-| `.github/workflows/ci.yml` | every pull request, push to `main`, manual | Go lint and tests, image build with the Linux assertion and a Trivy scan, chart lint and dry-run render |
+| `.github/workflows/ci.yml` | every pull request, push to `main`, published release, manual | Go lint and tests, image build with the Linux assertion and a Trivy scan, chart lint and dry-run render; on a published release, the chart packaging and publication |
 | `.github/workflows/measurement-determinism.yml` | pull request and push to `main` touching the check, manual | Measures one fixture on a hosted runner, in a container, and on a deliberately divergent checkout, and requires the normalised measurement to be the same on all three |
 
 ## The service pipeline
@@ -32,7 +32,8 @@ and nobody hand-rolls their own:
 | `Go tests` | Calls the shared `go-test.yml`, which runs the tests of every Go module it finds | yes |
 | `Go lint` | `golangci-lint run ./...`, with a pinned golangci-lint built by the Go version `go.mod` names | yes |
 | `Image build and scan` | Builds each context under `deployment/docker/` for `linux/amd64`, asserts the built image's OS, then scans it with Trivy for HIGH and CRITICAL vulnerabilities | yes |
-| `Chart lint and render` | `helm lint` and a `helm template` dry-run render of every chart under `deployment/helm/` | yes |
+| `Chart lint and render` | `scripts/check-charts.sh`: `helm lint` and a `helm template` dry-run render of every chart under `deployment/helm/` and of the fixture charts under `features/fixtures/charts/` | yes |
+| `Release charts` | On a published release only, once every job above has passed: packages the charts under `deployment/helm/` at the release version, attaches them to the release with their checksums and, when a registry is configured, pushes them as OCI chart artefacts — see [Chart release](#chart-release) | yes — a release whose gates fail ships no chart |
 
 ZT-13 requires Linux images. The pipeline reads the OS back off the built image with
 `docker image inspect` and fails if it is anything but `linux/amd64`, rather than trusting the
@@ -73,6 +74,33 @@ version and the same rule of attaching an SBOM to every release that lacks one �
 actions and declared permissions this repository requires of its own workflows. They can go back to
 being references once the shared workflows accept a Go version or read `go.mod`; that is a change to
 propose in `eclipse-xfsc/dev-ops`.
+
+## Chart release
+
+The Technical Development Requirements deliver the Helm charts with each release. The `Release
+charts` job does that on a published release, and only after every other job in the pipeline has
+passed: the lint and dry-run render are the gate in front of the package, so a chart that fails
+either is never released (TDR-BDD-11). The pull-request job and the release job run the same
+`scripts/check-charts.sh`, which checks every chart first and packages only when all of them pass,
+so the gate a pull request clears is the gate the release is held to. The scenarios in
+`features/go/chart-release.feature` hold the script to that on every run.
+
+A release is tagged `vX.Y.Z`. The charts are packaged at `X.Y.Z` — the tag drives `--version` and
+`--app-version`, over the development version in each `Chart.yaml` — so the release and every chart
+in it carry one version, and the documentation of a release describes the charts it ships. A tag
+that is not semantic versioning stops the job before it names a package. The packages and a
+`SHA256SUMS` file are attached to the release as assets.
+
+Publication to a registry stays off until one exists. When the repository variable `CHART_REGISTRY`
+names the OCI path for charts (for example `harbor.example.org/facis/charts`) and the secrets
+`CHART_REGISTRY_USER` and `CHART_REGISTRY_PASSWORD` hold a robot account allowed to push there, the
+job also pushes every package with `helm push` and prints the digest of each into the run summary.
+That digest is what a zone file pins: the lifecycle workflow accepts a chart only as a local path or
+as an `oci://` reference pinned by digest.
+
+Locally, `scripts/check-charts.sh` runs the same check, and
+`scripts/check-charts.sh --package dist --version 0.0.0-local` the same packaging, for a look at what
+a release would ship.
 
 ## Lifecycle scenarios on the client targets
 

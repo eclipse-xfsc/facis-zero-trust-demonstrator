@@ -119,6 +119,8 @@ func InitializeScenario(ctx *godog.ScenarioContext) {
 	ctx.Step(`^the repository workflows$`, check.theRepositoryWorkflows)
 	ctx.Step(`^the workflow hygiene check runs$`, check.theWorkflowHygieneCheckRuns)
 	ctx.Step(`^it reports no unpinned action and no wildcard write scope$`, check.itReportsNoUnpinnedActionAndNoWildcardWriteScope)
+
+	initializeChartSteps(ctx)
 }
 
 // repoRoot is resolved once. Failing to locate it is a setup failure like any
