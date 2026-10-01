@@ -93,6 +93,93 @@ jobs:
               aquasec/trivy:0.74.0 image --exit-code 1 --severity HIGH,CRITICAL "${skips[@]}" "$image"
           done
 
+  # The signing profile end to end: the release signing script signs and attests throwaway images
+  # with the pinned cosign and an ephemeral key, in a registry:2 on the runner, and the admission
+  # provider verifies them. No secret and no external push.
+  admission-interop:
+    name: Admission provider interop
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+
+      - name: Set up Go
+        uses: actions/setup-go@40f1582b2485089dde7abd97c1529aa768e1baff # v5.6.0
+        with:
+          go-version-file: go.mod
+
+      - name: Start a local registry and install the pinned cosign
+        run: |
+          . scripts/tools/pins.env
+          docker run -d --name registry -p 127.0.0.1:5000:5000 "$REGISTRY_IMAGE"
+          scripts/tools/install.sh "$RUNNER_TEMP/bin" cosign
+
+      - name: Sign, attest and verify through the provider
+        run: go test -count=1 -run Interop -v ./services/admission-provider/
+        env:
+          FACIS_INTEROP_REGISTRY: localhost:5000
+          COSIGN: ${{ runner.temp }}/bin/cosign
+
+  # The constraints that need nothing but the object (digest-only, allowed repositories, naming, the
+  # namespace scope), tested offline with the pinned gator.
+  gator:
+    name: Admission constraints (gator)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+
+      - name: Install the pinned gator
+        run: scripts/tools/install.sh "$RUNNER_TEMP/bin" gator
+
+      - name: Verify the constraint suite
+        run: '"$RUNNER_TEMP/bin/gator" verify -v deployment/admission'
+
+      - name: Test the enforcement check
+        run: scripts/admission/enforced_test.sh
+
+  # The whole admission catalogue in a real Gatekeeper: a kind cluster with Gatekeeper (pinned chart,
+  # cache off), the provider and a local registry of test images signed with the release script and
+  # an ephemeral key. Includes provider-down, Gatekeeper-down and trust-removal cases.
+  admission-kind:
+    name: Admission catalogue (kind)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+
+      - name: Set up Helm
+        uses: azure/setup-helm@1a275c3b69536ee54be43f2070a358922e12c8d4 # v4
+        with:
+          version: v4.3.0
+
+      - name: Install the pinned tools
+        run: scripts/tools/install.sh "$RUNNER_TEMP/bin" kind kubectl cosign syft gatekeeper-chart
+
+      - name: Run the admission catalogue
+        run: BIN="$RUNNER_TEMP/bin" scripts/admission/kind-e2e.sh
+
+  contracts:
+    name: Contracts
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+
+      - name: Set up Node
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: '22'
+          cache: npm
+
+      - name: Install the JavaScript tooling
+        run: npm ci
+
+      # Schemas compile, valid fixtures pass and invalid ones fail, reason codes are registered,
+      # OpenAPI documents are valid OpenAPI 3.1 with resolvable references.
+      - name: Validate the interface contracts
+        run: npm run contracts
+
   bdd:
     name: BDD suite
     runs-on: ubuntu-latest
@@ -117,19 +204,41 @@ jobs:
       - name: Test the ORCE Builder nodes
         run: node --test ui/nodes/*/test/*.test.mjs
 
+      # Every scenario is the Annex wording, every row has one, and the generated files are current.
+      - name: Check the pack against Annex A
+        run: go run ./cmd/bddpack -check
+
+      # Strict: the implemented, non-cluster scenarios. A pending or undefined step fails.
       - name: Run the Go scenarios
         run: GODOG_CUCUMBER_OUT=bundles/bdd/go-report.json go test ./internal/bdd
 
       - name: Run the JavaScript scenarios
         run: npm run bdd
 
-      - name: Merge the reports and generate the traceability sheet
+      # The rows not implemented yet, reported as not run rather than as gaps.
+      - name: Run the pending catalogue
         run: |
-          go run ./cmd/bddreport --rows features/annex-rows.txt --out bundles/bdd \
-            bundles/bdd/go-report.json bundles/bdd/js-report.json
+          BDD_MODE=catalogue GODOG_CUCUMBER_OUT=bundles/bdd/go-catalogue-report.json go test ./internal/bdd
+          npm run bdd:catalogue
+
+      # The cluster rows cannot run here; a dry run lists them as not run. Only this job's sheet
+      # merges it: the cluster jobs never do, so it cannot stand in for a real cluster run.
+      - name: List the cluster scenarios
+        run: |
+          npm run bdd:cluster-dryrun
+          BDD_MODE=cluster-dryrun GODOG_CUCUMBER_OUT=bundles/bdd/go-cluster-dryrun.json go test ./internal/bdd
+
+      - name: Merge the reports and generate the traceability sheet
+        if: always()
+        run: |
+          go run ./cmd/bddreport --require-complete --rows features/annex-rows.txt --out bundles/bdd \
+            bundles/bdd/go-report.json bundles/bdd/js-report.json \
+            bundles/bdd/go-catalogue-report.json bundles/bdd/js-catalogue-report.json \
+            bundles/bdd/js-cluster-dryrun.json bundles/bdd/go-cluster-dryrun.json
           cat bundles/bdd/traceability.md >> "$GITHUB_STEP_SUMMARY"
 
       - name: Publish the evidence bundle
+        if: always()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
           name: bdd-evidence
@@ -150,30 +259,16 @@ jobs:
 
       # The fixture chart under features/ is linted like a release chart: the TDR's lint and
       # dry-run rule applies to every chart the pipeline installs. A chart whose values have no
-      # defaults ships its valid baseline in ci/values.yaml.
+      # defaults ships its valid baseline in ci/values.yaml. The same script is the release gate,
+      # where it adds a server dry-run against a disposable cluster (release.yml, TDR-BDD-11).
       - name: Lint and render every chart
-        run: |
-          shopt -s nullglob
-          charts=(deployment/helm/*/Chart.yaml features/fixtures/charts/*/Chart.yaml)
-          if [ ${#charts[@]} -eq 0 ]; then
-            echo 'No chart yet - nothing to lint.'
-            exit 0
-          fi
-          for chart in "${charts[@]}"; do
-            directory=$(dirname "$chart")
-            values=()
-            if [ -f "$directory/ci/values.yaml" ]; then
-              values=(-f "$directory/ci/values.yaml")
-            fi
-            helm lint "$directory" "${values[@]}"
-            helm template "$directory" "${values[@]}" >/dev/null
-          done
+        run: scripts/ci/check-charts.sh
 
   # The deployment-lifecycle scenarios (TDR-BDD-01..04) against each client target. They run
   # automatically on main, on every release and on demand - never on pull requests - one run at a
   # time per target, with the read-only observer identity; ORCE does the deploying.
   #
-  # Off until a target has ORCE and the BDD pool installed (FZTD-187): it runs only once the
+  # Off until a target has ORCE and the BDD pool installed: it runs only once the
   # repository variable BDD_CLUSTER_ENABLED is "true" and the target's secrets and variable are set
   # (see docs/bdd.md).
   bdd-cluster:
@@ -232,18 +327,57 @@ jobs:
           BDD_ORCE_LOGS_CMD: ${{ vars[format('BDD_{0}_ORCE_LOGS_CMD', matrix.key)] }}
         run: npm run bdd:cluster
 
+      # The admission proof (ZT-72) with the namespaced tester identity, against the signed fixtures the
+      # admission-fixtures workflow published. Where the target has neither, the row is listed as not
+      # run (dry run), so it is never missing from the sheet and never reported as passed.
+      - name: Write the admission tester kubeconfig and fixture list
+        id: admission
+        env:
+          TESTER_KUBECONFIG: ${{ secrets[format('BDD_{0}_ADM_TESTER_KUBECONFIG', matrix.key)] }}
+          FIXTURES: ${{ vars[format('BDD_{0}_ADM_FIXTURES', matrix.key)] }}
+        run: |
+          if [ -z "$TESTER_KUBECONFIG" ] || [ -z "$FIXTURES" ]; then
+            echo "No admission tester or fixtures for this target - the admission proof does not run here."
+            exit 0
+          fi
+          umask 077
+          printf '%s' "$TESTER_KUBECONFIG" > "$RUNNER_TEMP/tester.kubeconfig"
+          printf '%s\n' "$FIXTURES" > "$RUNNER_TEMP/fixtures.txt"
+          echo "configured=true" >> "$GITHUB_OUTPUT"
+
+      - name: Run the admission proof
+        if: always()
+        env:
+          KUBECONFIG: ${{ runner.temp }}/tester.kubeconfig
+          BDD_ADM_FIXTURES: ${{ runner.temp }}/fixtures.txt
+          BDD_TARGET: ${{ matrix.target }}
+          BDD_RUN_ID: ci-${{ github.run_id }}-${{ github.run_attempt }}
+          MODE: ${{ steps.admission.outputs.configured == 'true' && 'cluster' || 'cluster-dryrun' }}
+        run: BDD_MODE="$MODE" GODOG_CUCUMBER_OUT=bundles/bdd/go-cluster-report-${{ matrix.target }}.json go test ./internal/bdd -godog.tags=@ZT-72
+
+      # The chart gate (TDR-BDD-11) and the secrets baseline (TDR-BDD-08) run on a disposable cluster in
+      # release.yml, which decides them; here they are listed as not run, never as passed.
+      - name: List the release-workflow rows
+        if: always()
+        run: BDD_MODE=cluster-dryrun GODOG_CUCUMBER_OUT=bundles/bdd/go-cluster-report-${{ matrix.target }}-release-rows.json go test ./internal/bdd -godog.tags=@TDR-BDD-08,@TDR-BDD-11
+
       - name: Run the repository scenarios
         if: always()
         run: |
           GODOG_CUCUMBER_OUT=bundles/bdd/go-report.json go test ./internal/bdd
           npm run bdd
+          BDD_MODE=catalogue GODOG_CUCUMBER_OUT=bundles/bdd/go-catalogue-report.json go test ./internal/bdd
+          npm run bdd:catalogue
 
       - name: Generate the traceability sheet for this target
         if: always()
         run: |
           go run ./cmd/bddreport --rows features/annex-rows.txt --out bundles/bdd \
-            bundles/bdd/go-report.json bundles/bdd/js-report.json bundles/bdd/js-cluster-report-*.json
+            bundles/bdd/go-report.json bundles/bdd/js-report.json \
+            bundles/bdd/go-catalogue-report.json bundles/bdd/js-catalogue-report.json \
+            bundles/bdd/js-cluster-report-*.json bundles/bdd/go-cluster-report-*.json
           cat bundles/bdd/traceability.md >> "$GITHUB_STEP_SUMMARY"
+          go run ./cmd/bddpack -evidence bundles/bdd/evidence -catalogue bundles/bdd/bdd-catalogue.md
 
       - name: Publish the evidence bundle
         if: always()
@@ -275,11 +409,15 @@ jobs:
 
       - name: Generate the cross-target sheet
         run: |
-          go run ./cmd/bddreport --rows features/annex-rows.txt --out bundles/bdd \
-            evidence/*/go-report.json evidence/*/js-report.json evidence/*/js-cluster-report-*.json
+          go run ./cmd/bddreport --require-complete --rows features/annex-rows.txt --out bundles/bdd \
+            evidence/*/go-report.json evidence/*/js-report.json \
+            evidence/*/go-catalogue-report.json evidence/*/js-catalogue-report.json \
+            evidence/*/js-cluster-report-*.json evidence/*/go-cluster-report-*.json
           cat bundles/bdd/traceability.md >> "$GITHUB_STEP_SUMMARY"
+          go run ./cmd/bddpack -evidence evidence -catalogue bundles/bdd/bdd-catalogue.md
 
       - name: Publish the cross-target sheet
+        if: always()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
           name: bdd-traceability

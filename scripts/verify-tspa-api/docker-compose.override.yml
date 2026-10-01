@@ -1,4 +1,4 @@
-# Local round-trip overrides for FZTD-162 (write side). Not part of upstream.
+# Local round-trip overrides for the TSPA API verification (write side). Not part of upstream.
 # Copy next to the TSPA docker-compose.yml before `docker compose up`.
 services:
   tspa-service:

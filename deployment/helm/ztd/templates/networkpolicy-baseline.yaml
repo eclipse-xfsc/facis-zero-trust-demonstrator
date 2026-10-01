@@ -1,8 +1,17 @@
 {{- /*
 Network-layer baseline per plane namespace: default deny in both directions, the DNS bypass, the
 intra-plane lane, and (management plane only, when configured) egress to the Kubernetes API.
+
+The API lane takes two forms. A NetworkPolicy to the API server's addresses (networkPolicy.kubeApi.cidrs)
+works where the CNI selects the API server by address. Cilium does not when the API server runs on a
+cluster node: it treats it as the kube-apiserver entity, and an ipBlock never matches it. With Cilium
+the lane is therefore a CiliumNetworkPolicy to that entity, and the addresses are optional; any that
+are given still render as the address lane. Its ports are the `kubernetes` Service port, 443, and the
+endpoint ports (networkPolicy.kubeApi.ports): with kube-proxy, Cilium sees the Service port before
+kube-proxy translates it; without, the endpoint port. Leaving the ports open would open every port of
+the node the API server runs on, the kubelet's among them.
 */ -}}
-{{- if and .Values.networkPolicy.kubeApi.enabled (not .Values.networkPolicy.kubeApi.cidrs) }}
+{{- if and .Values.networkPolicy.kubeApi.enabled (not .Values.networkPolicy.kubeApi.cidrs) (not .Values.cni.cilium.enabled) }}
 {{- fail "networkPolicy.kubeApi.enabled needs at least one entry in networkPolicy.kubeApi.cidrs; an empty destination would open every address" }}
 {{- end }}
 {{- range (include "ztd.planeNamespaces" . | fromJsonArray) }}
@@ -77,7 +86,7 @@ spec:
     - to:
         - podSelector: {}
 {{- end }}
-{{- if and (eq $plane "management") $.Values.networkPolicy.kubeApi.enabled }}
+{{- if and (eq $plane "management") $.Values.networkPolicy.kubeApi.enabled $.Values.networkPolicy.kubeApi.cidrs }}
 ---
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
@@ -102,5 +111,29 @@ spec:
         - port: {{ . }}
           protocol: TCP
         {{- end }}
+{{- end }}
+{{- if and (eq $plane "management") $.Values.networkPolicy.kubeApi.enabled $.Values.cni.cilium.enabled }}
+{{- $ports := list "443" }}
+{{- range $.Values.networkPolicy.kubeApi.ports }}{{ $ports = append $ports (toString .) }}{{ end }}
+---
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: allow-kube-api-egress
+  namespace: {{ $ns }}
+  labels:
+    {{- include "ztd.labels" $ | nindent 4 }}
+    ztd.facis.io/plane: {{ $plane }}
+spec:
+  endpointSelector: {}
+  egress:
+    - toEntities:
+        - kube-apiserver
+      toPorts:
+        - ports:
+            {{- range (uniq $ports) }}
+            - port: {{ . | quote }}
+              protocol: TCP
+            {{- end }}
 {{- end }}
 {{- end }}

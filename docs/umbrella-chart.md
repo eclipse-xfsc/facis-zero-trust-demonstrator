@@ -21,7 +21,16 @@ both directions. Three openings follow, each declared in [Architecture §6](arch
 |---|---|---|
 | workloads → DNS | `allow-dns-egress`, port 53 to the cluster resolver only | the declared DNS bypass |
 | pods within one plane namespace | `allow-intra-plane` | who may talk is decided on identity by the mesh layer, not on IP |
-| management → Kubernetes API | `allow-kube-api-egress`, only when the zone file names the endpoint | controllers such as the SPIRE controller-manager need it |
+| management → Kubernetes API | `allow-kube-api-egress`, only when the zone file turns it on: with Cilium a CiliumNetworkPolicy to the `kube-apiserver` entity, otherwise a NetworkPolicy to the API endpoint the zone file names | controllers such as the SPIRE controller-manager need it |
+
+**The API lane under Cilium.** Cilium does not select an API server that runs on a cluster node by its
+address: it treats it as the `kube-apiserver` entity, and a NetworkPolicy `ipBlock` never matches it,
+so the lane would stay shut. With `cni.cilium.enabled` the lane is therefore a CiliumNetworkPolicy to
+that entity, and the CIDRs are optional; any that are given still render as the address lane. It opens
+the `kubernetes` Service port, 443, and the zone's endpoint ports: with kube-proxy, Cilium sees the
+Service port before kube-proxy translates it, without kube-proxy the endpoint port. Opening every port
+instead would open the whole node the API server runs on, the kubelet included. The evidence (section 7) shows the lane shut, then open from the management plane only,
+then shut again, on a kind cluster with Cilium chained as the zones run it.
 
 **The allow matrix, as data.** The lanes of the ZT-55 matrix are entries in `allowMatrix`, each
 with a source and a destination selector; the chart renders an egress rule in the source namespace
@@ -151,16 +160,18 @@ that a data-plane workload reaches nothing in the management plane except throug
 switch the mesh mode and back, and tear down without leaving a namespace behind. The last run's
 `evidence.md` sits next to the script.
 
-The evidence also carries the negative proof of the CI chart gate. Section 7 shows the chart refused
+The evidence also carries the negative proof of the CI chart gate. Section 8 shows the chart refused
 without a zone file and with an unknown mesh mode by `helm lint` and by `helm template` alike, because
 both validate the values against `values.schema.json`; and refused with the API lane enabled but no
-CIDRs by `helm template` alone, because that guard is a `fail` call in a template, and Helm's lint
+CIDRs on a zone without Cilium by `helm template` alone, because that guard is a `fail` call in a template, and Helm's lint
 mode renders `fail` as a no-op by design (Helm v4.3.0 logs the message at INFO and reports the chart
 as passing). The "Chart lint and render" job runs lint and then template with `ci/values.yaml`, so
 each of those cases is a red job: the schema cases at the lint step, the CIDR case at the render
-step. The chart is verified with Helm v4.3.0, the version the pipeline pins. The pipeline's criterion
-that a chart failing lint or dry-run cannot be released rests on this proof until the packaging and
-release work adds a chart publishing job, which is where that criterion closes.
+step. The chart is verified with Helm v4.3.0, the version the pipeline pins. The release workflow's
+chart gate (TDR-BDD-11) adds a server-side dry-run against a disposable cluster that serves the
+Cilium and Gatekeeper CRDs, and no candidate is built unless it passes; a later chart publishing or
+promotion job must need the same gate. OpenBao, installed by this chart when a zone turns it on, is
+described in [Secrets](secrets.md).
 
 What waits for the client clusters is the first acceptance criterion — the layout on all three
 clusters — and the per-zone values the baseline records, including the API endpoint for the

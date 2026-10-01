@@ -1,0 +1,68 @@
+apiVersion: templates.gatekeeper.sh/v1
+kind: ConstraintTemplate
+metadata:
+  name: k8sztdallowedrepositories
+  annotations:
+    description: Every container image comes from an allowed repository prefix (ADM-REGISTRY-DENIED).
+spec:
+  crd:
+    spec:
+      names:
+        kind: K8sZtdAllowedRepositories
+      validation:
+        openAPIV3Schema:
+          type: object
+          properties:
+            repositories:
+              description: Allowed prefixes, "host/path"; an image is allowed when its name equals one or continues it with "/".
+              type: array
+              items:
+                type: string
+  targets:
+    - target: admission.k8s.gatekeeper.sh
+      rego: |
+        package k8sztdallowedrepositories
+
+        import future.keywords.contains
+        import future.keywords.if
+        import future.keywords.in
+
+        pod_spec := input.review.object.spec if {
+          input.review.kind.kind == "Pod"
+        }
+
+        pod_spec := input.review.object.spec.template.spec if {
+          input.review.kind.kind in {"Deployment", "ReplicaSet", "StatefulSet", "DaemonSet", "Job"}
+        }
+
+        containers contains c if {
+          some field in ["containers", "initContainers", "ephemeralContainers"]
+          some c in object.get(pod_spec, field, [])
+        }
+
+        # The image name without digest or tag. A tag follows the last "/"; a registry port does not.
+        name(image) := n if {
+          without_digest := split(image, "@")[0]
+          parts := split(without_digest, "/")
+          last := parts[count(parts) - 1]
+          n := concat("/", array.concat(array.slice(parts, 0, count(parts) - 1), [split(last, ":")[0]]))
+        }
+
+        allowed(image) if {
+          some prefix in input.parameters.repositories
+          p := trim_suffix(prefix, "/")
+          n := name(image)
+          n == p
+        }
+
+        allowed(image) if {
+          some prefix in input.parameters.repositories
+          p := trim_suffix(prefix, "/")
+          startswith(name(image), concat("", [p, "/"]))
+        }
+
+        violation contains {"msg": msg} if {
+          some c in containers
+          not allowed(c.image)
+          msg := sprintf("ADM-REGISTRY-DENIED: container %q image %q is not from an allowed repository", [c.name, c.image])
+        }

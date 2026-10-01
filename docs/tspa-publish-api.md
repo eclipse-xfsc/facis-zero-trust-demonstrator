@@ -1,12 +1,12 @@
 # Publishing to TRAIN: the TSPA trust-list API
 
-*Established in FZTD-162 for ZT-35 (gate G4), 2026-09-16/18. Re-confirmation against the client's instance is
-pending (EXT-C-XFSC).*
+*Established by the TSPA API verification for ZT-35 (gate G4), 2026-09-16/18. Re-confirmation against the client's instance is
+pending (it depends on the client's XFSC stack).*
 
 Source of truth: `eclipse-xfsc/train-trust-framework-manager` on GitHub, commit `ecd5fdc` (2025-05-25), which was
 the `main` HEAD on 2026-09-16 and still is on 2026-09-19; the repository is not archived but has had no commit on
 `main` since then. The original GitLab project `eclipse/xfsc/train/tspa` is archived and read-only (last activity
-May 2025) but still readable, so the "404 against the wrong repository" mentioned in FZTD-162 did not come from it;
+May 2025) but still readable, so the "404 against the wrong repository" mentioned in the verification brief did not come from it;
 that earlier attempt is not characterised further here. Everything below was read from that commit plus
 `eclipse-xfsc/train-shared` `6a0abe4` (the trust-list model) and, where marked, exercised against a local instance
 built from those two commits.
@@ -14,7 +14,7 @@ built from those two commits.
 ## 1. Summary
 
 **The publish API surface is confirmed and a measurement value round-trips locally** (§4–§7, §10). Three of the
-four "done when" items are closed. What ADR-011's *Blocked-external* item still lacks is now named precisely:
+four "done when" items are closed. What the artefact-chain design's open publication item still lacks is now named precisely:
 
 1. **There is no field for the measurement.** TSPA's entry schema (`TSPSchema.json`) has no
    measurement/hash/TEEM attribute. The value can only ride in a free-form `Type`/`Value` pair. Until the project
@@ -55,7 +55,7 @@ four "done when" items are closed. What ADR-011's *Blocked-external* item still 
    This document deliberately does not pick one. **The carrier used in the local round-trip
    (`TSPCertificationList`, `Type = TEEM-sha256`) is a test choice only, made so that a value could be written and
    read back; it is not a recommendation and the design decision remains open.**
-2. **Client-side inputs still external** (EXT-C-XFSC): TSPA base URL, framework name, OIDC issuer + a
+2. **Client-side inputs still external** (the client's XFSC stack): TSPA base URL, framework name, OIDC issuer + a
    confidential client whose service account holds realm role `enrolltf`, Zone Manager reachability, and the
    TSPA version actually deployed.
 
@@ -211,7 +211,7 @@ TSPA_REPO=./tspa bash roundtrip.sh      # writes evidence.md and bodies/ next to
 ```
 
 `scripts/verify-tspa-api/tcr-findings/tcr-findings.md` holds an out-of-scope finding about the TCR; it is not
-part of this ticket's evidence.
+part of this verification's evidence.
 
 ### Runtime observations worth knowing before the client instance
 
@@ -231,24 +231,24 @@ part of this ticket's evidence.
 - `request.get.mapping` must be the public base URL of TSPA in a real deployment: the TCR follows
   `credentialSubject.trustlistURI` to fetch the list.
 
-## 9. ADR-011 "Blocked-external" — what is closed and what remains
+## 9. The open publication item — what is closed and what remains
 
-ADR-011 (2026-09-09) places reference measurements (launch digests) in its artifact class 3 and states:
+The project's artefact-chain design (2026-09-09) places reference measurements (launch digests) in its artifact class 3 and states:
 *"Publication path = TSPA (Trust Framework Manager) + DNS zone manager — the TCR is the read side. TSPA's exact
-publish API is UNVERIFIED (Blocked-external-verify): read the TSPA repo / ask the client before building E02-09's
-task on it; until then that task is not Ready."*
+publish API is UNVERIFIED (Blocked-external-verify): read the TSPA repo / ask the client before building the
+launch-digest publication on it; until then that task is not Ready."*
 
-The "read the TSPA repo" half is done by this document. **Proposed replacement for that sentence in ADR-011:**
+The "read the TSPA repo" half is done by this document. **Proposed replacement for that statement in the design:**
 
-> TSPA's publish API is **VERIFIED against source and a local instance (FZTD-162, 2026-09-16)**:
+> TSPA's publish API is **VERIFIED against source and a local instance (2026-09-16)**:
 > `PUT /tspa/v1/{fw}/trust-list/tsp` (create) and `PATCH .../tsp/{uuid}` (update), Bearer JWT with Keycloak
-> realm role `enrolltf`, entry schema `TSPSchema.json`, create-only PUT. Two items remain before E02-09 is Ready:
+> realm role `enrolltf`, entry schema `TSPSchema.json`, create-only PUT. Two items remain before the launch-digest publication can be built:
 > **(a) Open-decision:** TSPA's entry schema has no measurement field — the carrier for the launch digest
-> (candidates A–C in FZTD-162 §1) must be chosen together with whoever consumes it on the read side
-> (TCR → connector/cmcd comparison, ZT-64/ZT-67); **(b) Blocked-external (EXT-C-XFSC):** client TSPA URL,
+> (candidates A–C in the verification brief, §1) must be chosen together with whoever consumes it on the read side
+> (TCR → connector/cmcd comparison, ZT-64/ZT-67); **(b) Blocked-external (the client's XFSC stack):** client TSPA URL,
 > framework name, OIDC client with `enrolltf`, Zone Manager reachability, deployed TSPA version.
 
-Note for (a): ADR-011's chain is *Git-versioned metadata → pipeline-signed → per-zone CMC estserver → cmcd, with
+Note for (a): the design's chain is *Git-versioned metadata → pipeline-signed → per-zone CMC estserver → cmcd, with
 expected values published into TRAIN*. The value published to TRAIN must therefore be **derived from the same
 signed reference metadata** the pipeline already produces for cmcd, not computed separately, or the two sources
 of truth can disagree. Which representation of that metadata goes into the trust-list entry is the decision.
@@ -260,7 +260,7 @@ Still open — **first, and not external:**
 - **decision**: which TSP field carries the TEEM and what the TCR/policy side reads (candidates in §1). This is a
   project convention to agree with the connector/attestation owner; nothing in TSPA forces it.
 
-Still external (needs EXT-C-XFSC / the client's XFSC stack):
+Still external (needs the client's XFSC stack):
 - the client's TSPA base URL and framework name;
 - an OIDC issuer + confidential client whose service account has realm role `enrolltf`, provisioned for the pipeline;
 - Zone Manager availability (framework/DID publication cannot be exercised offline);
@@ -300,5 +300,5 @@ instance without additional infrastructure. Concretely: the VC issuer TSPA uses 
 `did:web:essif.iao.fraunhofer.de`, no longer has a DID document (HTTP 404), so the TCR cannot verify the signature;
 and switching the issuer to a self-contained `did:key` makes the TCR's `resolveDid` fail with a null
 `getServices()` for documents without a `service` section (HTTP 500). An exploratory run with a locally patched
-TCR exists outside this ticket's scope and is recorded in `scripts/verify-tspa-api/tcr-findings/tcr-findings.md`; it is not evidence for the
+TCR exists outside this verification's scope and is recorded in `scripts/verify-tspa-api/tcr-findings/tcr-findings.md`; it is not evidence for the
 "done when" criteria, which are all on the write side.

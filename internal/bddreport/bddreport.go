@@ -54,20 +54,32 @@ const (
 
 // status reduces an execution to one result. Anything that is not an outright
 // pass or failure - skipped, or no steps at all - is "not run": it proves nothing.
+// A pending step is "not run" only in a scenario tagged @pending (a row not
+// implemented yet); anywhere else it is a stray and fails the row.
 func (e Element) status() string {
 	steps := append(append(append([]Step{}, e.Before...), e.Steps...), e.After...)
-	if len(e.Steps) == 0 {
-		return NotRun
+	pendingRow := false
+	for _, tag := range e.Tags {
+		pendingRow = pendingRow || tag.Name == "@pending"
 	}
 	result := Passed
 	for _, step := range steps {
 		switch step.Result.Status {
 		case "passed":
-		case "failed", "undefined", "pending", "ambiguous":
+		case "pending":
+			if !pendingRow {
+				return Failed
+			}
+			result = NotRun
+		case "failed", "undefined", "ambiguous":
 			return Failed
 		default:
 			result = NotRun
 		}
+	}
+	// A failed hook fails the row even without steps; with nothing failed, no steps proves nothing.
+	if len(e.Steps) == 0 {
+		return NotRun
 	}
 	return result
 }
@@ -204,6 +216,31 @@ func (r Report) Uncovered() int {
 		}
 	}
 	return uncovered
+}
+
+// Complete fails when a row is uncovered or failed, naming them. A row that is
+// covered but not run (pending, or not reachable from this run) is complete.
+func (r Report) Complete() error {
+	var failed, uncovered []string
+	for _, row := range r.Rows {
+		switch {
+		case len(row.Scenarios) == 0:
+			uncovered = append(uncovered, row.ID)
+		case row.Result == Failed:
+			failed = append(failed, row.ID)
+		}
+	}
+	var problems []string
+	if len(failed) > 0 {
+		problems = append(problems, fmt.Sprintf("%d row(s) failed: %s", len(failed), strings.Join(failed, ", ")))
+	}
+	if len(uncovered) > 0 {
+		problems = append(problems, fmt.Sprintf("%d row(s) uncovered: %s", len(uncovered), strings.Join(uncovered, ", ")))
+	}
+	if len(problems) > 0 {
+		return fmt.Errorf("%s", strings.Join(problems, "; "))
+	}
+	return nil
 }
 
 func (r Report) Markdown() string {

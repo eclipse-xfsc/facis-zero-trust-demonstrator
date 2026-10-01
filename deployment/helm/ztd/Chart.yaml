@@ -13,3 +13,11 @@ keywords:
   - umbrella
 sources:
   - https://github.com/eclipse-xfsc/facis-zero-trust-demonstrator
+dependencies:
+  # OpenBao (ZT-11, ADR-0004): the key-value store for X.509 key material. Off by default; a zone
+  # turns it on. Chart 0.28.3 ships OpenBao v2.5.4 - the chart version and the server version are
+  # recorded separately in docs/secrets.md.
+  - name: openbao
+    version: 0.28.3
+    repository: https://openbao.github.io/openbao-helm
+    condition: openbao.enabled

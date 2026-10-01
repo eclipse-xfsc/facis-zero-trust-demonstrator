@@ -1,0 +1,67 @@
+openapi: 3.1.0
+info:
+  title: FACIS ZTD security-state feed (IF-01)
+  version: 1.0.0
+  description: >-
+    The feed bridge collects the IF-01 events the components write and serves them to the
+    demonstrator UI: a snapshot for a consistent starting point, then a server-sent event stream.
+    Delivery is at least once; the UI deduplicates by (run_id, seq). When the bridge's buffer of
+    1000 events per run overflows it drops the oldest events and emits a gap event, and the affected
+    panels show UNKNOWN until the next snapshot. The bridge is reachable inside the mesh only, from
+    the UI's workload identity.
+  license:
+    name: Apache-2.0
+    identifier: Apache-2.0
+paths:
+  /snapshot:
+    get:
+      summary: The state of one run as of a sequence number
+      operationId: getSnapshot
+      parameters:
+        - $ref: '#/components/parameters/runId'
+      responses:
+        '200':
+          description: The snapshot.
+          content:
+            application/json:
+              schema:
+                $ref: if01-snapshot.v1.schema.json
+        '404':
+          $ref: '#/components/responses/unknownRun'
+  /events:
+    get:
+      summary: The events of one run from a sequence number on, as server-sent events
+      operationId: streamEvents
+      parameters:
+        - $ref: '#/components/parameters/runId'
+        - name: from_seq
+          in: query
+          required: true
+          description: The first sequence number wanted, normally the snapshot's as_of_seq + 1.
+          schema:
+            type: integer
+            minimum: 0
+      responses:
+        '200':
+          description: >-
+            A text/event-stream. Each message has the event's seq as its id and one IF-01 event,
+            serialised as JSON on a single data line.
+          content:
+            text/event-stream:
+              schema:
+                type: string
+              x-facis-message-schema: if01-event.v1.schema.json
+        '404':
+          $ref: '#/components/responses/unknownRun'
+components:
+  parameters:
+    runId:
+      name: run_id
+      in: query
+      required: true
+      schema:
+        type: string
+        pattern: '^[A-Za-z0-9._-]{1,64}$'
+  responses:
+    unknownRun:
+      description: No run with this identifier is known to the bridge.

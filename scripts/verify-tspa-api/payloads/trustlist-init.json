@@ -14,7 +14,7 @@
       "FrameworkAuditURI": { "URI": "https://facis-ztd.local/train/audit" },
       "FrameworkTypeCommunityRules": { "URI": "https://facis-ztd.local/train/rules" },
       "FrameworkScope": "EU",
-      "PolicyOrLegalNotice": { "TSLLegalNotice": "Local verification only (FZTD-162)." },
+      "PolicyOrLegalNotice": { "TSLLegalNotice": "Local verification only." },
       "ListIssueDateTime": "2026-09-16T00:00:00Z"
     }
   }

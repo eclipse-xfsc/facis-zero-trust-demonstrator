@@ -1,0 +1,116 @@
+{
+  "$comment": "Reason-code registry, contracts v1. Validated by reason-codes.v1.schema.json. A family gives the layer, the default HTTP status and the UI state; a code may override the status. http null: the layer refuses without an HTTP response of its own (a connection, an admission, a display state).",
+  "version": "1.0.0",
+  "families": {
+    "ADM": {
+      "layer": "admission",
+      "http": 403,
+      "ui": "BLOCKED-ADMISSION",
+      "codes": {
+        "ADM-UNSIGNED": { "meaning": "No valid signature by a trusted key for the image digest" },
+        "ADM-NO-ATTESTATION": { "meaning": "The release mock attestation is absent (ZT-71)" },
+        "ADM-ATTESTATION-INVALID": { "meaning": "An attestation is present but its signature, subject digest or predicate does not verify, for example one copied from another image" },
+        "ADM-SBOM-MISSING": { "meaning": "The signed SBOM attestation is absent (ZT-11, ZT-54)" },
+        "ADM-SBOM-INVALID": { "meaning": "The SBOM is not CycloneDX 1.5, 1.6 or 1.7 JSON, fails its schema, or does not name the image" },
+        "ADM-NOT-LINUX": { "meaning": "The image configuration does not declare the linux operating system (ZT-13)" },
+        "ADM-ARCH-UNSUPPORTED": { "meaning": "The image configuration declares an architecture other than amd64" },
+        "ADM-INDEX-UNSUPPORTED": { "meaning": "The digest names an image index; only single-platform manifests are admitted" },
+        "ADM-NOT-DIGEST": { "meaning": "The image is referenced by a mutable tag instead of a digest" },
+        "ADM-REGISTRY-DENIED": { "meaning": "The image registry or repository is not on the allow-list" },
+        "ADM-NAME-INVALID": { "meaning": "The workload or image name does not follow the project naming convention" },
+        "ADM-PROVIDER-DOWN": { "meaning": "The verification provider is unreachable, timed out or reported a system error - fail closed" }
+      }
+    },
+    "MESH": {
+      "layer": "identity and mesh policy",
+      "http": null,
+      "ui": "BLOCKED-IDENTITY",
+      "codes": {
+        "MESH-NO-SVID": { "meaning": "The workload has no SPIFFE identity" },
+        "MESH-PAIR-DENIED": { "meaning": "No authorization policy allows this service pair" },
+        "MESH-PLANE-DENIED": { "meaning": "A data-plane to management-plane path is denied (ZT-55)" }
+      }
+    },
+    "TOK": {
+      "layer": "token authentication",
+      "http": 401,
+      "ui": "DENIED-TOKEN",
+      "codes": {
+        "TOK-MISSING": { "meaning": "No access token was presented" },
+        "TOK-INVALID": { "meaning": "The token is unknown, malformed, not key-bound, or presented under the wrong scheme" },
+        "TOK-EXPIRED": { "meaning": "The token has expired" },
+        "TOK-JKT-MISMATCH": { "meaning": "The proof key does not match the token's cnf.jkt" },
+        "TOK-PROOF-INVALID": { "meaning": "The DPoP proof is missing where required or fails its checks (signature, typ, htm, htu, iat)" },
+        "TOK-ATH-MISMATCH": { "meaning": "The proof's ath claim is missing or does not match the presented token" },
+        "TOK-REPLAY": { "meaning": "The proof's jti was already used" },
+        "TOK-NONCE": { "meaning": "A server-issued DPoP nonce is required; the response carries DPoP-Nonce" },
+        "TOK-CLIENT-INVALID": { "meaning": "Client authentication failed" },
+        "TOK-SCOPE": { "meaning": "The token lacks a required scope", "http": 403 },
+        "TOK-REQUEST-INVALID": { "meaning": "The request is malformed", "http": 400 },
+        "TOK-REGISTRATION-REJECTED": { "meaning": "The submitted client metadata was refused", "http": 400 },
+        "TOK-NO-UPSTREAM": { "meaning": "The token store has no valid upstream token for the route", "http": 409 },
+        "TOK-CALLER-DENIED": { "meaning": "The caller's client certificate is not on the token store's allow-list", "http": 403 },
+        "TOK-ROUTE-DENIED": { "meaning": "The peer zone, audience or target URI is not a configured route", "http": 403 },
+        "TOK-STORE-UNAVAILABLE": { "meaning": "The token or replay store cannot be read or written - fail closed", "http": 503 },
+        "TOK-SERVER-ERROR": { "meaning": "An internal error in the authorization surface - fail closed", "http": 500 }
+      }
+    },
+    "POL": {
+      "layer": "policy decision",
+      "http": 403,
+      "ui": "DENIED-POLICY",
+      "codes": {
+        "POL-RULE-DENY": { "meaning": "A policy rule denied the request; rule_id names it" },
+        "POL-PRESENTATION-REQUIRED": { "meaning": "A credential presentation is required; the response carries the OID4VP link", "http": 401 },
+        "POL-PDP-UNAVAILABLE": { "meaning": "The policy engine is unreachable - fail closed", "http": 503 },
+        "POL-BUNDLE-STALE": { "meaning": "The policy bundle is older than its freshness bound - fail closed", "http": 503 }
+      }
+    },
+    "CRED": {
+      "layer": "credential verification",
+      "http": 403,
+      "ui": "DENIED-CREDENTIAL",
+      "codes": {
+        "CRED-INVALID": { "meaning": "The presentation failed verification" },
+        "CRED-REVOKED": { "meaning": "The credential is revoked (status list)" },
+        "CRED-ISSUER-UNTRUSTED": { "meaning": "The credential issuer is not on the trust list" },
+        "CRED-OUTCOME-SIGNATURE": { "meaning": "The verification outcome's JWS does not verify, or its kid names no trusted issuer key" },
+        "CRED-OUTCOME-MISMATCH": { "meaning": "The outcome's client, challenge or audience does not match the grant request" },
+        "CRED-OUTCOME-EXPIRED": { "meaning": "The verification outcome is outside its validity interval (expired, not yet valid, or valid for too long)" },
+        "CRED-OUTCOME-CONSUMED": { "meaning": "The verification outcome was already used" },
+        "CRED-OUTCOME-NOT-VERIFIED": { "meaning": "The outcome's status is not verified" }
+      }
+    },
+    "CHAN": {
+      "layer": "attested channel",
+      "http": null,
+      "ui": "CHANNEL-DOWN",
+      "codes": {
+        "CHAN-MEASUREMENT-MISMATCH": { "meaning": "The peer's launch measurement differs from the expected value on the trust list (ZT-70)" },
+        "CHAN-ZONE-UNKNOWN": { "meaning": "The peer zone is absent from the trust list" },
+        "CHAN-EVIDENCE-STALE": { "meaning": "The attestation report is outside its validity" },
+        "CHAN-DOWNGRADE": { "meaning": "A client without an attested handshake was refused" },
+        "CHAN-TRUST-UNREACHABLE": { "meaning": "Trust resolution failed - deny" }
+      }
+    },
+    "CFG": {
+      "layer": "configuration governance",
+      "http": 422,
+      "ui": "CHANGE-REJECTED",
+      "codes": {
+        "CFG-SCHEMA-INVALID": { "meaning": "The change payload fails its JSON Schema" },
+        "CFG-SHAPE-INVALID": { "meaning": "The change payload fails its SHACL shape" },
+        "CFG-NOT-AUTHORISED": { "meaning": "The requester's role may not make this kind of change", "http": 403 }
+      }
+    },
+    "VIS": {
+      "layer": "display",
+      "http": null,
+      "ui": "UNKNOWN",
+      "codes": {
+        "VIS-STALE": { "meaning": "An event gap or a stale feed - the panel shows UNKNOWN" },
+        "VIS-DISCONNECTED": { "meaning": "The feed is disconnected - a snapshot is pending" }
+      }
+    }
+  }
+}

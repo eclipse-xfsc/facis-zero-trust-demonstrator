@@ -41,3 +41,12 @@ The implementation baseline is **Istio Ambient with Cilium**.
 - SRS 2.3.3 — service mesh and enforcement constraints
 - Project Plan v1.7, section 4, "Service-mesh declaration (F-08)"
 - Annex A v1.7 — ZT-23, ZT-24, ZT-26, ZT-55, ZT-58, ZT-61
+
+## Note — IONOS cluster as provided (2026-09-23)
+
+This note records a fact and does not reopen the decision. The IONOS cluster was provided with the
+provider-managed Calico CNI, and it runs no mesh and no demonstration workload today
+([IONOS setup](../environments/ionos.md)). The statement above that Cilium is the CNI "in all three
+target clusters" therefore holds only for the clusters that run the mesh, and no mesh-based policy
+applies on the IONOS cluster. Whether that cluster needs Cilium and the mesh is decided with its
+visualization stage, for the Technical Design Authority, and recorded here when it is.

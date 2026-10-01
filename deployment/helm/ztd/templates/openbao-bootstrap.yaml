@@ -1,0 +1,153 @@
+{{- /*
+Bootstrap of the bundled OpenBao (docs/secrets.md). A regular Job, not a hook: a sealed server is not
+ready, and with --wait Helm runs post-install hooks only after every regular resource is ready, so a
+hook could never unseal it. `helm install --wait --wait-for-jobs` waits for this Job instead.
+
+The Job name carries a hash of the script and its values: it is rerun when the bootstrap changes and
+left alone otherwise, so an unchanged upgrade renders the same manifest. Every run is safe to repeat;
+the state lives in the Secret ztd-openbao-bootstrap (keys: unseal-key, root-token until revoked,
+verify-token, state = initialized | configured):
+
+  not initialised, no Secret      -> init (1 share), store unseal key + root token, state=initialized
+  not initialised, Secret present -> fail: the store was lost; the Secret is never overwritten
+  initialised, no Secret          -> fail: never re-initialise
+  sealed                          -> unseal with the stored key
+  state=initialized               -> enable kv-v2 at secret/ and transit at transit/, create the
+                                     fixture transit key and KV value, the ztd-verify policy and a
+                                     periodic verification token; check the token; state=configured
+  state=configured, root present  -> revoke the root token if it is still valid, then remove it
+  state=configured                -> renew the verification token; done
+
+Credentials reach curl through header and body files in a memory volume, never through the command
+line or the log; the log names states and HTTP codes only. The Job needs the Kubernetes API: under
+Cilium the chart opens that lane itself (below); with another CNI, networkPolicy.kubeApi must be open.
+*/ -}}
+{{- if and .Values.openbao.enabled .Values.openbaoExternal.address }}
+{{- fail "openbao.enabled and openbaoExternal.address are exclusive: either the umbrella installs OpenBao or it uses an existing one" }}
+{{- end }}
+{{- if and .Values.openbaoExternal.address (not .Values.openbaoExternal.verifyTokenSecret) }}
+{{- fail "openbaoExternal.address needs openbaoExternal.verifyTokenSecret, the Secret holding the verification token" }}
+{{- end }}
+{{- if .Values.openbao.enabled }}
+{{- if ne .Values.openbao.global.namespace .Values.planes.management.namespace }}
+{{- fail (printf "openbao.global.namespace (%s) must be the management plane namespace (%s)" .Values.openbao.global.namespace .Values.planes.management.namespace) }}
+{{- end }}
+{{- if ne (toString .Values.openbao.server.dataStorage.storageClass) (toString .Values.zone.storageClass) }}
+{{- fail (printf "openbao.server.dataStorage.storageClass (%v) must be the zone's storage class (%v)" .Values.openbao.server.dataStorage.storageClass .Values.zone.storageClass) }}
+{{- end }}
+{{- $ns := .Values.planes.management.namespace }}
+{{- $name := "ztd-openbao-bootstrap" }}
+{{- $script := include "ztd.openbao.bootstrapScript" . }}
+{{- $hash := printf "%s%s" $script (toJson .Values.openbaoBootstrap) | sha256sum | trunc 8 }}
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: {{ $name }}
+  namespace: {{ $ns }}
+  labels:
+    {{- include "ztd.labels" . | nindent 4 }}
+---
+# Create cannot be limited to one name (Kubernetes RBAC has no resourceNames for create), so the Job
+# may create any Secret in the management namespace; it may read and change only its own.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: {{ $name }}
+  namespace: {{ $ns }}
+  labels:
+    {{- include "ztd.labels" . | nindent 4 }}
+rules:
+  - apiGroups: [""]
+    resources: ["secrets"]
+    verbs: ["create"]
+  - apiGroups: [""]
+    resources: ["secrets"]
+    resourceNames: [{{ $name | quote }}]
+    verbs: ["get", "patch"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: {{ $name }}
+  namespace: {{ $ns }}
+  labels:
+    {{- include "ztd.labels" . | nindent 4 }}
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: {{ $name }}
+subjects:
+  - kind: ServiceAccount
+    name: {{ $name }}
+    namespace: {{ $ns }}
+{{- if .Values.cni.cilium.enabled }}
+---
+# Under Cilium a NetworkPolicy ipBlock does not select the API server - Cilium treats it as the
+# kube-apiserver entity, not as an address - so networkPolicy.kubeApi does not open this lane there.
+# The bootstrap's lane is a Cilium policy to that entity, for this Job's pods only.
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: {{ $name }}-kube-api
+  namespace: {{ $ns }}
+  labels:
+    {{- include "ztd.labels" . | nindent 4 }}
+spec:
+  endpointSelector:
+    matchLabels:
+      app.kubernetes.io/name: {{ $name }}
+  egress:
+    - toEntities:
+        - kube-apiserver
+{{- end }}
+---
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: {{ printf "%s-%s" $name $hash }}
+  namespace: {{ $ns }}
+  labels:
+    {{- include "ztd.labels" . | nindent 4 }}
+spec:
+  backoffLimit: 3
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: {{ $name }}
+        app.kubernetes.io/instance: {{ .Release.Name }}
+    spec:
+      serviceAccountName: {{ $name }}
+      restartPolicy: Never
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 100
+        runAsGroup: 101
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: bootstrap
+          image: {{ .Values.openbaoBootstrap.image | quote }}
+          imagePullPolicy: IfNotPresent
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: ["ALL"]
+          env:
+            - name: BAO_ADDR
+              value: {{ include "ztd.openbao.address" . | quote }}
+            - name: SECRET
+              value: {{ $name | quote }}
+          volumeMounts:
+            - name: work
+              mountPath: /work
+          command: ["/bin/sh", "-eu", "-c"]
+          args:
+            - {{ $script | quote }}
+      volumes:
+        - name: work
+          emptyDir:
+            medium: Memory
+            sizeLimit: 1Mi
+{{- end }}

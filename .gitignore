@@ -33,3 +33,6 @@ kubeconfig*
 
 # Local developer cluster state (identity kubeconfigs) - never commit
 /.dev/
+
+# Pinned tools installed by scripts/tools/install.sh
+.tools/

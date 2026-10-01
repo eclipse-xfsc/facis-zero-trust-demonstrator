@@ -93,6 +93,27 @@
         "enabled": { "type": "boolean" },
         "image": { "type": "string", "pattern": "@sha256:[0-9a-f]{64}$" }
       }
+    },
+    "openbao": {
+      "type": "object",
+      "required": ["enabled"],
+      "properties": {
+        "enabled": { "type": "boolean" }
+      }
+    },
+    "openbaoBootstrap": {
+      "type": "object",
+      "required": ["image"],
+      "properties": {
+        "image": { "type": "string", "pattern": "@sha256:[0-9a-f]{64}$" }
+      }
+    },
+    "openbaoExternal": {
+      "type": "object",
+      "properties": {
+        "address": { "type": "string", "pattern": "^(|https?://.+)$" },
+        "verifyTokenSecret": { "type": "string" }
+      }
     }
   },
   "$defs": {

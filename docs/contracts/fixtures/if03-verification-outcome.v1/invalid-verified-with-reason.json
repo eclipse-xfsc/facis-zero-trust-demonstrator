@@ -1,0 +1,1 @@
+{"iss":"https://verifier.zone-b.example","outcome_id":"00000000-0000-4000-8000-000000000004","client_id":"fx-client","challenge":"fx-challenge-0123456789ab","audience":"https://zone-b.example/resource","claims":{"role":"participant"},"verified_at":"2026-09-09T12:00:00Z","expires_at":"2026-09-09T12:02:00Z","status":"verified","reason_code":"CRED-INVALID"}

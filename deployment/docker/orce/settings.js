@@ -16,6 +16,33 @@ function required (name) {
 
 const readToken = Buffer.from(required('ORCE_READ_TOKEN'))
 
+// One JSON object per line for every record sent through the Node-RED logging API. Only these
+// fields are written: never an error object or its stack, and never a payload merged into the
+// top level, so a message cannot overwrite level or id. Output outside the logging API (console
+// calls in function or third-party nodes, Node.js itself, the entrypoint) is not covered.
+const LEVELS = { 10: 'fatal', 20: 'error', 30: 'warn', 40: 'info', 50: 'debug', 60: 'trace', 98: 'audit', 99: 'metric' }
+function jsonLogger () {
+  return function (record) {
+    // A message whose conversion throws must not crash ORCE (the upstream logger guards the same).
+    let msg
+    try {
+      msg = record.msg
+      if (msg instanceof Error || (msg && typeof msg === 'object' && typeof msg.message === 'string')) msg = msg.message
+      msg = typeof msg === 'string' ? msg : String(msg)
+    } catch {
+      msg = '[unprintable log message]'
+    }
+    process.stdout.write(JSON.stringify({
+      time: new Date(record.timestamp || Date.now()).toISOString(),
+      level: LEVELS[record.level] || String(record.level),
+      type: record.type || null,
+      name: record.name || null,
+      id: record.id || null,
+      msg
+    }) + '\n')
+  }
+}
+
 module.exports = {
   ...base,
   // Fixed on purpose: the upstream image sets FLOWS=flows.json, which would load its demo flows.
@@ -32,6 +59,9 @@ module.exports = {
       return Promise.resolve(match ? { user: 'bdd-observer', permissions: 'read' } : null)
     }
   },
+
+  // Replaces the upstream console logger: the only handler is the JSON one (TDR logging).
+  logging: { json: { level: 'info', metrics: false, audit: false, handler: jsonLogger } },
 
   // The flow's own HTTP endpoints, including the lifecycle command endpoint.
   httpNodeAuth: { user: required('ORCE_HTTP_USER'), pass: required('ORCE_HTTP_PASSWORD_HASH') },

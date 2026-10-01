@@ -22,9 +22,11 @@ by `helm uninstall`.
 Installing the chart needs rights beyond one namespace: it creates the plane namespaces, a
 ClusterRole and ClusterRoleBinding for the verification job (read-only on namespaces and network
 policies, removed with the job by its hook policy) and, with `mesh.mode=ambient` and
-`cni.cilium.enabled=true`, one CiliumClusterwideNetworkPolicy. It ships no CRD; the Cilium policy is
-an instance of Cilium's own CRD and is rendered only where Cilium is enabled. Everything else is
-namespaced and lives in the plane namespaces.
+`cni.cilium.enabled=true`, one CiliumClusterwideNetworkPolicy. It ships no CRD; the Cilium policies
+are instances of Cilium's own CRDs and are rendered only where Cilium is enabled. Everything else is
+namespaced and lives in the plane namespaces, including, with OpenBao on, the bootstrap Job's Role
+(it may create Secrets in the management namespace and read and patch only its own) and, under
+Cilium, its CiliumNetworkPolicy to the API server.
 
 ## Values
 
@@ -43,10 +45,21 @@ namespaced and lives in the plane namespaces.
 | `networkPolicy.defaultDeny` | `true` | Default deny, ingress and egress, in every plane namespace |
 | `networkPolicy.dns.*` | kube-dns in `kube-system` | The declared DNS bypass, port 53 only |
 | `networkPolicy.intraPlane` | `true` | Pods within one plane namespace may reach each other at L3/L4 |
-| `networkPolicy.kubeApi.*` | off | Management-plane egress to the API server; `cidrs` are a per-zone fact |
+| `networkPolicy.kubeApi.*` | off | Management-plane egress to the API server on `ports`: with Cilium a CiliumNetworkPolicy to the `kube-apiserver` entity on `ports` and 443 (`cidrs` optional), otherwise a NetworkPolicy to `cidrs` (required) |
 | `allowMatrix` | the lanes of architecture §6 | Data-plane → management-plane lanes, as data (see below) |
 | `verification.enabled` | `true` | Post-install job that reads the layout back and fails the release if it is wrong |
 | `verification.image` | `curlimages/curl` by digest | Image of the verification job |
+| `openbao.enabled` | `false` | Install OpenBao (chart 0.28.3, server v2.5.4) in the management plane; on in `ci/values.yaml` |
+| `openbao.global.namespace` | `ztd-mgmt` | Must equal `planes.management.namespace`; the chart refuses to render otherwise |
+| `openbao.server.dataStorage.storageClass` | `null` | Must equal `zone.storageClass` when OpenBao is on |
+| `openbao.*` | see `values.yaml` | Passed to the upstream chart: standalone, file storage, no injector, no auth-delegator |
+| `openbaoBootstrap.image` | `curlimages/curl` by digest | Image of the bootstrap Job and the OpenBao verification hook |
+| `openbaoExternal.address` | `""` | An OpenBao the umbrella does not own; exclusive with `openbao.enabled` |
+| `openbaoExternal.verifyTokenSecret` | `""` | Secret in the management namespace with its `verify-token` |
+
+OpenBao, its bootstrap, the manual unseal after a restart and the secrets baseline are described in
+[docs/secrets.md](../../../docs/secrets.md). Install with `--wait --wait-for-jobs`: the bootstrap is a
+regular Job, and the OpenBao verification hook needs its result.
 
 The zone record has no defaults on purpose and `values.schema.json` enforces it: the chart does
 not render until a zone file states what the cluster is. `zones/` holds the zone files;

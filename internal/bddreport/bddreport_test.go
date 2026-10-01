@@ -281,3 +281,61 @@ func TestTheSameScenarioOnSeveralTargetsIsListedOnce(t *testing.T) {
 		t.Fatalf("Scenarios = %v, want one entry", got)
 	}
 }
+
+func taggedScenario(row string, tags []string, statuses ...string) string {
+	element := scenario("row "+row, row, statuses...)
+	for _, tag := range tags {
+		element = strings.Replace(element, `"tags":[`, `"tags":[{"name":"`+tag+`"},`, 1)
+	}
+	return element
+}
+
+// A row not implemented yet runs as pending: it proves nothing, but it is not a failure either.
+func TestAPendingStepUnderThePendingTagIsNotRun(t *testing.T) {
+	if got := resultOf(t, taggedScenario("TDR-BDD-01", []string{"@pending"}, "pending", "skipped", "skipped")); got != NotRun {
+		t.Fatalf("result = %q, want %q", got, NotRun)
+	}
+}
+
+// Anywhere else a pending step is a stray: an implemented scenario that meets one fails.
+func TestAPendingStepWithoutThePendingTagFails(t *testing.T) {
+	if got := resultOf(t, taggedScenario("TDR-BDD-01", nil, "passed", "pending", "skipped")); got != Failed {
+		t.Fatalf("result = %q, want %q", got, Failed)
+	}
+}
+
+// The pending tag excuses pending steps only; an undefined or failed step still fails the row.
+func TestThePendingTagDoesNotExcuseAnUndefinedStep(t *testing.T) {
+	if got := resultOf(t, taggedScenario("TDR-BDD-01", []string{"@pending"}, "pending", "undefined")); got != Failed {
+		t.Fatalf("result = %q, want %q", got, Failed)
+	}
+}
+
+func TestCompleteNamesGapsAndFailures(t *testing.T) {
+	features, err := Merge([][]byte{[]byte(`[{"uri":"f","name":"F","tags":[],"elements":[` +
+		scenario("a", "ZT-01", "passed") + `,` + scenario("b", "ZT-02", "failed") + `,` +
+		taggedScenario("ZT-03", []string{"@pending"}, "pending") + `]}]`)})
+	if err != nil {
+		t.Fatal(err)
+	}
+	report := Coverage(features, []string{"ZT-01", "ZT-02", "ZT-03", "ZT-04"})
+	err = report.Complete()
+	if err == nil || err.Error() != "1 row(s) failed: ZT-02; 1 row(s) uncovered: ZT-04" {
+		t.Fatalf("Complete() = %v", err)
+	}
+
+	features, _ = Merge([][]byte{[]byte(`[{"uri":"f","name":"F","tags":[],"elements":[` +
+		scenario("a", "ZT-01", "passed") + `,` + taggedScenario("ZT-03", []string{"@pending"}, "pending") + `]}]`)})
+	if err := Coverage(features, []string{"ZT-01", "ZT-03"}).Complete(); err != nil {
+		t.Fatalf("a covered sheet with no failure is complete: %v", err)
+	}
+}
+
+// A scenario whose Before hook failed may be reported without steps; it must still fail the row.
+func TestAFailedHookFailsTheRowEvenWithoutSteps(t *testing.T) {
+	element := `{"type":"scenario","name":"deploy","tags":[{"name":"@TDR-BDD-01"}],` +
+		`"before":[{"result":{"status":"failed"}}],"steps":[]}`
+	if got := resultOf(t, element); got != Failed {
+		t.Fatalf("result = %q, want %q", got, Failed)
+	}
+}

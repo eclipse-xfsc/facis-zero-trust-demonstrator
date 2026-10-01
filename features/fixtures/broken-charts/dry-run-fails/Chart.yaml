@@ -1,0 +1,8 @@
+apiVersion: v2
+name: dry-run-fails
+description: >-
+  Negative test data for the chart gate (TDR-BDD-11). It lints and renders cleanly, but it ships a
+  resource whose API the cluster does not serve, as a chart that needs a missing CRD would. Only a
+  server dry-run catches it.
+type: application
+version: 0.1.0

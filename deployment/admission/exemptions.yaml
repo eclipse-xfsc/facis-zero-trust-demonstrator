@@ -1,0 +1,18 @@
+# Exemptions from admission control, each with its reason. Reviewed in the pull request that changes
+# it; nothing else is exempt. The webhook and the constraints apply only to namespaces labelled
+# facis.ztd/admission-proof=true, so these entries are a second line: they also keep Gatekeeper's audit
+# and sync away from them.
+apiVersion: config.gatekeeper.sh/v1alpha1
+kind: Config
+metadata:
+  name: config
+  namespace: gatekeeper-system
+spec:
+  match:
+    - excludedNamespaces:
+        # Kubernetes system components; blocking them would take the cluster down with Gatekeeper.
+        - kube-system
+        # Gatekeeper and the image-verification provider themselves: they must start for any admission
+        # to be decided, so they cannot depend on it.
+        - gatekeeper-system
+      processes: ["*"]

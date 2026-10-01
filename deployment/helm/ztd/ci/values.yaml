@@ -4,9 +4,18 @@
 # job renders every chart with its ci/values.yaml.
 zone:
   name: kind
-  kubernetesVersion: v1.35.5
+  kubernetesVersion: v1.35.8
   storageClass: standard
   loadBalancer:
     type: none
 mesh:
   mode: ambient
+# OpenBao is on in the kind zone, so the CI render, the release gate's dry-run and the secrets
+# baseline cover it. Its bootstrap reaches the Kubernetes API from the management plane: on a live
+# kind cluster the API lane (networkPolicy.kubeApi) comes from scripts/secrets/kind-api-lane.sh, which
+# reads the endpoint off the cluster; this file stays a static render input with the lane off.
+openbao:
+  enabled: true
+  server:
+    dataStorage:
+      storageClass: standard

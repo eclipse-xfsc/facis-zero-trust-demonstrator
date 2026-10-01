@@ -10,12 +10,15 @@
 # renders a cluster-wide Cilium policy. On that cluster the chart installs only with
 # cni.cilium.enabled=false; this one proves it the way the zones run it.
 #   KIND_CLUSTER      cluster name            (default: ztd)
-#   KIND_NODE_IMAGE   kindest/node image      (default: v1.35.5 by digest, the Kubernetes minor the IONOS target runs)
+#   KIND_NODE_IMAGE   kindest/node image      (default: KIND_NODE_IMAGE in scripts/tools/pins.env)
 #   CILIUM_VERSION    Cilium chart version    (default: 1.20.2)
 set -euo pipefail
 
 CLUSTER=${KIND_CLUSTER:-ztd}
-NODE_IMAGE=${KIND_NODE_IMAGE:-kindest/node:v1.35.5@sha256:ce977ae6d65918d0b58a5f8b5e940429c2ce42fa3a5619ec2bbc60b949c0ac95}
+requested_image=${KIND_NODE_IMAGE:-}
+# shellcheck source=scripts/tools/pins.env disable=SC1091
+. "$(dirname "${BASH_SOURCE[0]}")/../tools/pins.env"
+NODE_IMAGE=${requested_image:-$KIND_NODE_IMAGE}
 CILIUM_VERSION=${CILIUM_VERSION:-1.20.2}
 
 for tool in kind kubectl helm cilium; do

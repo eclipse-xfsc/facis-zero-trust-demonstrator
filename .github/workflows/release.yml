@@ -1,0 +1,243 @@
+name: Release
+
+# The candidate stage of the release: every image built, pushed to this repository's GHCR namespace,
+# signed and attested by digest with the interim key (Grype-enriched SBOM and the mock attestation),
+# and verified by digest with the admission provider's own code and with cosign against the committed
+# public key. It creates no tag and no release; the promote stage comes later.
+#
+# Nothing is built unless the chart gate (TDR-BDD-11) passed. A later stage that publishes charts or
+# promotes a release must need the chart gate too. Beside it, the secrets baseline (TDR-BDD-08) installs
+# the umbrella with OpenBao on a disposable cluster, scans every log and ConfigMap for a synthetic
+# canary, and a second job audits the first job's published log once it has completed.
+#
+# Started by hand, or by pushing a branch named candidate/<anything> - which also works in a fork whose
+# default branch does not carry this workflow. The release environment only accepts those branches and
+# the main and PR branches.
+on:
+  workflow_dispatch:
+  push:
+    branches: ['candidate/**']
+
+permissions:
+  contents: read
+
+concurrency:
+  group: release
+  cancel-in-progress: false
+
+jobs:
+  # TDR-BDD-11: every chart passes lint, render and a server dry-run against a disposable cluster that
+  # serves the CRDs the charts render against (Cilium, Gatekeeper), and the two negative charts are
+  # refused by the check each targets. A server dry-run proves render, API discovery and schemas; it
+  # does not run admission webhooks or hooks and proves nothing about the release at runtime.
+  chart-gate:
+    name: Chart gate
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+
+      - name: Set up Go
+        uses: actions/setup-go@40f1582b2485089dde7abd97c1529aa768e1baff # v5.6.0
+        with:
+          go-version-file: go.mod
+
+      - name: Set up Helm
+        uses: azure/setup-helm@1a275c3b69536ee54be43f2070a358922e12c8d4 # v4
+        with:
+          version: v4.3.0
+
+      - name: Install the pinned tools
+        run: |
+          scripts/tools/install.sh "$RUNNER_TEMP/bin" kind kubectl gatekeeper-chart cilium-crds
+          echo "$RUNNER_TEMP/bin" >> "$GITHUB_PATH"
+
+      - name: Create the gate cluster with the CRDs the charts render against
+        run: |
+          . scripts/tools/pins.env
+          kind create cluster --name ztd-gate --image "$KIND_NODE_IMAGE" --wait 180s
+          tar -xzf "$RUNNER_TEMP/bin/gatekeeper-${GATEKEEPER_CHART_VERSION}.tgz" -C "$RUNNER_TEMP" gatekeeper/crds
+          kubectl apply -f "$RUNNER_TEMP/gatekeeper/crds/provider-customresourcedefinition.yaml" -f "$RUNNER_TEMP/bin/cilium-crds/"
+          kubectl wait --for condition=established --timeout=60s crd/providers.externaldata.gatekeeper.sh \
+            crd/ciliumclusterwidenetworkpolicies.cilium.io crd/ciliumnetworkpolicies.cilium.io
+
+      - name: Run the chart gate
+        env:
+          BDD_TARGET: kind-ci
+          BDD_RUN_ID: ci-${{ github.run_id }}-${{ github.run_attempt }}
+        run: |
+          BDD_MODE=cluster GODOG_CUCUMBER_OUT=bundles/bdd/go-chart-gate-report.json go test ./internal/bdd -godog.tags=@TDR-BDD-11
+          echo TDR-BDD-11 > "$RUNNER_TEMP/rows.txt"
+          go run ./cmd/bddreport --require-complete --rows "$RUNNER_TEMP/rows.txt" --out bundles/bdd bundles/bdd/go-chart-gate-report.json
+          cat bundles/bdd/traceability.md >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Keep the gate evidence
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: chart-gate
+          path: bundles/bdd
+
+  candidate:
+    name: Candidate images
+    needs: [chart-gate]
+    runs-on: ubuntu-latest
+    # The interim signing key lives only in this protected environment's secrets.
+    environment: release
+    permissions:
+      contents: read
+      packages: write # pushes the images and their signatures to GHCR
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+
+      - name: Set up Go
+        uses: actions/setup-go@40f1582b2485089dde7abd97c1529aa768e1baff # v5.6.0
+        with:
+          go-version-file: go.mod
+
+      - name: Install the pinned signing and SBOM tools
+        run: |
+          scripts/tools/install.sh "$RUNNER_TEMP/bin" cosign syft grype
+          echo "$RUNNER_TEMP/bin" >> "$GITHUB_PATH"
+
+      # Before anything is built or pushed: the key must be present and match the committed public key.
+      - name: Check the signing key
+        env:
+          COSIGN_INTERIM_KEY: ${{ secrets.COSIGN_INTERIM_KEY }}
+          COSIGN_PASSWORD: ${{ secrets.COSIGN_INTERIM_PASSWORD }}
+        run: scripts/supplychain/check-key.sh
+
+      - name: Log in to GHCR
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: echo "$GITHUB_TOKEN" | docker login ghcr.io -u "$GITHUB_ACTOR" --password-stdin
+
+      # GHCR names are lower case; the repository owner may not be.
+      - name: Image repository
+        id: repo
+        run: echo "path=ghcr.io/${GITHUB_REPOSITORY,,}" >> "$GITHUB_OUTPUT"
+
+      - name: Build and push every image
+        run: scripts/supplychain/build-push.sh "${{ steps.repo.outputs.path }}" "candidate-${GITHUB_SHA::12}" images.txt
+
+      - name: Sign, attest and verify every image by digest
+        env:
+          COSIGN_KEY: env://COSIGN_INTERIM_KEY
+          COSIGN_INTERIM_KEY: ${{ secrets.COSIGN_INTERIM_KEY }}
+          COSIGN_PASSWORD: ${{ secrets.COSIGN_INTERIM_PASSWORD }}
+          # New GHCR packages are private: the provider-code check reads them with the job token.
+          IMAGEVERIFY_FLAGS: -registry-username ${{ github.actor }}
+          IMAGEVERIFY_PASSWORD: ${{ github.token }}
+        run: scripts/supplychain/sign-verify.sh "${{ steps.repo.outputs.path }}" images.txt candidate
+
+      - name: Summary
+        if: always()
+        run: |
+          {
+            echo "### Candidate images (interim key - not the client trust chain)"
+            [ -f images.txt ] && sed 's/^/- `/; s/$/`/' images.txt
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Keep the SBOMs and the mock attestation
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: candidate
+          path: |
+            images.txt
+            candidate/
+
+  # TDR-BDD-08, producer: the umbrella with OpenBao on a disposable kind cluster (kind's own CNI), a
+  # restart with manual unseal, and the canary scan of every log and ConfigMap (scripts/secrets/).
+  # The canary and the masking control are synthetic values derived from this run and masked before
+  # first use; the control is printed once so the audit can prove masking happened.
+  secrets-baseline:
+    name: Secrets baseline
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+
+      - name: Set up Helm
+        uses: azure/setup-helm@1a275c3b69536ee54be43f2070a358922e12c8d4 # v4
+        with:
+          version: v4.3.0
+
+      - name: Install the pinned tools
+        run: |
+          scripts/tools/install.sh "$RUNNER_TEMP/bin" kind kubectl
+          echo "$RUNNER_TEMP/bin" >> "$GITHUB_PATH"
+
+      - name: Derive and mask the synthetic canary and the masking control
+        run: |
+          canary=$(python3 scripts/secrets/log_audit.py derive canary)
+          control=$(python3 scripts/secrets/log_audit.py derive mask-control)
+          echo "::add-mask::$canary"
+          echo "::add-mask::$control"
+          echo "ZTD_CANARY=$canary" >> "$GITHUB_ENV"
+          echo "ZTD_MASK_CONTROL=$control"
+
+      - name: Create the cluster
+        run: |
+          . scripts/tools/pins.env
+          kind create cluster --name ztd-secrets --image "$KIND_NODE_IMAGE" --wait 180s
+
+      - name: Install, restart and scan
+        run: scripts/secrets/baseline.sh bundles/secrets kind-ci "ci-${{ github.run_id }}-${{ github.run_attempt }}"
+
+      - name: Keep the sanitized evidence
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: secrets-baseline
+          path: bundles/secrets
+
+  # TDR-BDD-08, auditor: once the producer job has completed, its published log is downloaded and must
+  # hold neither the canary nor the raw masking control, and must show the control masked. The row is
+  # decided here, from the producer's evidence and this audit, for the same run and attempt.
+  secrets-log-audit:
+    name: Secrets log audit
+    needs: [secrets-baseline]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      actions: read # downloads the secrets-baseline job's published log
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+
+      - name: Set up Go
+        uses: actions/setup-go@40f1582b2485089dde7abd97c1529aa768e1baff # v5.6.0
+        with:
+          go-version-file: go.mod
+
+      - name: Collect the producer's evidence
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        with:
+          name: secrets-baseline
+          path: bundles/secrets
+
+      - name: Audit the producer's published log
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: python3 scripts/secrets/log_audit.py audit --job "Secrets baseline" --evidence bundles/secrets
+
+      - name: Decide the row
+        if: always()
+        env:
+          BDD_SECRETS_EVIDENCE: bundles/secrets
+          BDD_TARGET: kind-ci
+          BDD_RUN_ID: ci-${{ github.run_id }}-${{ github.run_attempt }}
+        run: |
+          BDD_MODE=cluster GODOG_CUCUMBER_OUT=bundles/bdd/go-secrets-report.json go test ./internal/bdd -godog.tags=@TDR-BDD-08
+          echo TDR-BDD-08 > "$RUNNER_TEMP/rows.txt"
+          go run ./cmd/bddreport --require-complete --rows "$RUNNER_TEMP/rows.txt" --out bundles/bdd bundles/bdd/go-secrets-report.json
+          cat bundles/bdd/traceability.md >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Keep the row's evidence
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: secrets-row
+          path: bundles/bdd

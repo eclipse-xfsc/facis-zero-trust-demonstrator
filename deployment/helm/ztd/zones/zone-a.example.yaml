@@ -10,5 +10,5 @@ mesh:
 networkPolicy:
   kubeApi:
     enabled: true              # management components that talk to the API need this lane
-    cidrs: ["10.0.0.1/32"]     # the API endpoint of this cluster, recorded by the baseline
+    cidrs: ["10.0.0.1/32"]     # the API endpoint of this cluster, recorded by the baseline; optional with Cilium
     ports: [443]

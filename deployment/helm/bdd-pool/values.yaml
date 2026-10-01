@@ -5,6 +5,7 @@ namespaces:
   - ztd-bdd-tdr-002
   - ztd-bdd-tdr-003
   - ztd-bdd-tdr-004
+  - ztd-bdd-tdr-006   # TDR-BDD-06: a controlled error in its own namespace
 
 # The identity ORCE deploys with. With ORCE installed, point this at ORCE's ServiceAccount and
 # set create to false.

@@ -20,6 +20,7 @@ and is declared as such in [Specification changes](specifications.md#readings-an
 | `.github/workflows/docs.yml` | push to `main` affecting `docs/`, manual | Builds the MkDocs site and publishes it to the `gh-pages` branch |
 | `.github/workflows/workflow-hygiene.yml` | every pull request, manual | Fails the pull request when an action is not pinned to a commit or a token scope is too wide |
 | `.github/workflows/ci.yml` | every pull request, push to `main`, manual | Go lint and tests, image build with the Linux assertion and a Trivy scan, chart lint and dry-run render |
+| `.github/workflows/release.yml` | manual, push to a `candidate/**` branch | Release candidate: the chart gate (see [Chart gate](#chart-gate)), then builds, pushes, signs and attests every image by digest and verifies each one (see [Image signing](#image-signing)); beside it the secrets baseline (see [Secrets](secrets.md#the-baseline-proof-tdr-bdd-08)) |
 | `.github/workflows/measurement-determinism.yml` | pull request and push to `main` touching the check, manual | Measures one fixture on a hosted runner, in a container, and on a deliberately divergent checkout, and requires the normalised measurement to be the same on all three |
 
 ## The service pipeline
@@ -32,7 +33,7 @@ and nobody hand-rolls their own:
 | `Go tests` | Calls the shared `go-test.yml`, which runs the tests of every Go module it finds | yes |
 | `Go lint` | `golangci-lint run ./...`, with a pinned golangci-lint built by the Go version `go.mod` names | yes |
 | `Image build and scan` | Builds each context under `deployment/docker/` for `linux/amd64`, asserts the built image's OS, then scans it with Trivy for HIGH and CRITICAL vulnerabilities | yes |
-| `Chart lint and render` | `helm lint` and a `helm template` dry-run render of every chart under `deployment/helm/` | yes |
+| `Chart lint and render` | `scripts/ci/check-charts.sh`: `helm lint` and a `helm template` render of every chart under `deployment/helm/` and `features/fixtures/charts/`, dependencies built from `Chart.lock` | yes |
 
 ZT-13 requires Linux images. The pipeline reads the OS back off the built image with
 `docker image inspect` and fails if it is anything but `linux/amd64`, rather than trusting the
@@ -74,13 +75,68 @@ actions and declared permissions this repository requires of its own workflows. 
 being references once the shared workflows accept a Go version or read `go.mod`; that is a change to
 propose in `eclipse-xfsc/dev-ops`.
 
+## Chart gate
+
+No release candidate is built unless every chart passes (TDR-BDD-11). The `chart-gate` job of
+`release.yml` creates a disposable kind cluster, installs the CRDs the charts render against (Cilium's
+network policies and Gatekeeper's external-data `Provider`, pinned in `scripts/tools/pins.env`), and
+runs the row in cluster mode: `scripts/ci/check-charts.sh --server-dry-run` lints, renders and
+dry-runs every chart against that API server, and two deliberately broken charts under
+`features/fixtures/broken-charts/` must be refused by the check each targets — one by `helm lint`,
+one only by the server dry-run (it ships a resource whose API the cluster does not serve). The step
+also checks that the `candidate` job needs the gate. The `candidate` job has `needs: [chart-gate]`;
+any later job that publishes charts or promotes a release must need it too.
+
+A server dry-run renders the chart, discovers the API and its schemas and checks existing resources.
+It does not run admission webhooks or hooks, and proves nothing about the release at runtime: that is
+what the lifecycle scenarios and the secrets baseline install for real. Without `--server-dry-run`,
+as in the pull-request job, the script records the server dry-run as not run, never as passed.
+
+The gate and the secrets baseline (TDR-BDD-08) run on a disposable cluster in `release.yml`, which
+decides both rows with a sheet of its own; the pull-request sheet and the client-target sheets list
+them as not run.
+
+## Image signing
+
+The candidate job of `release.yml` builds every image under `deployment/docker/` for `linux/amd64`,
+labels it `eu.facis.ztd.signing-key=interim` and pushes it to `ghcr.io/<owner>/<repository>/<name>`.
+Then, for each image digest:
+
+1. `scripts/supplychain/sbom.sh` — the Syft SBOM of the image, scanned by digest, enriched by Grype with
+   the known vulnerabilities (CycloneDX JSON);
+2. `go run ./cmd/mockattest` — the mock attestation (ZT-71), checked against the schema admission
+   enforces;
+3. `scripts/supplychain/sign-attest.sh` — the cosign signature and both attestations, the same commands
+   the CI interop and kind tests use;
+4. verification of every digest against the committed public key
+   (`docs/contracts/keys/interim-cosign.pub`), with the admission provider's own code
+   (`cmd/imageverify`) and with `cosign verify` / `verify-attestation`.
+
+The private key is the `COSIGN_INTERIM_KEY` secret (with `COSIGN_INTERIM_PASSWORD`) of the protected
+`release` environment; without it, or without the public key, the job fails before anything is
+signed. The interim key is not the client trust chain; it is replaced by the client key and Harbor.
+The job creates no tag and no release.
+
+It checks the key before it builds anything: the secret must be set and must be the private half of
+the committed public key, so a missing environment, secret or key file stops the job before an image
+is pushed. GHCR creates new packages as private; the job verifies them with its own token, but a
+cluster pulls and verifies anonymously, so the candidate packages must be made public in the package
+settings (once per package) before a cluster can admit them.
+
 ## Lifecycle scenarios on the client targets
 
-The `bdd-cluster` job runs the deployment-lifecycle scenarios (TDR-BDD-01..04) against each client
+The `bdd` job runs on every pull request: `bddpack -check`, the strict and catalogue runs of both
+runners and the cluster dry run, then `bddreport --require-complete` over the five reports, so a
+row that is uncovered or failed fails the job (see [BDD acceptance](bdd.md#the-harness)). The dry
+run exists only in this job: where a cluster run happens, its real report is used instead.
+
+The `bdd-cluster` job runs the cluster scenarios (TDR-BDD-01..04 and TDR-BDD-06) against each client
 target, and `bdd-cluster-report` merges every target into one traceability sheet in which a row is
 proven only if it passed everywhere. They run on pushes to `main`, on every published release and
 on demand — never on pull requests — and one run at a time per target. Evidence is published even
-when the run fails, and the job keeps its failure. See [BDD acceptance](bdd.md) for what they prove.
+when the run fails, and the job keeps its failure. See [BDD acceptance](bdd.md) for what they prove. Each target's evidence and the cross-target
+sheet also carry a `bdd-catalogue.md` rendered from that run (`bddpack -evidence`), whose evidence
+basis column says what each row was proven with — for example the fixture release.
 
 Both jobs stay off until the repository variable `BDD_CLUSTER_ENABLED` is `true`. A target
 `<KEY>` (for example `IONOS`) then needs, as repository secrets, `BDD_<KEY>_OBSERVER_KUBECONFIG`
@@ -122,7 +178,7 @@ The repository's default workflow token is read-only — an administrator settin
 ruleset above. Every workflow then declares its own top-level `permissions:` block rather than
 relying on that default, and a job that needs more than read access grants it at the job level with
 a comment naming the reason: `docs.yml` writes to `gh-pages`, `sbom.yml` uploads the SBOM onto a
-release. Wildcard scopes (`write-all`) are never used.
+release, the release candidate job pushes images and signatures to GHCR (`packages: write`). Wildcard scopes (`write-all`) are never used.
 
 ### Action pinning
 

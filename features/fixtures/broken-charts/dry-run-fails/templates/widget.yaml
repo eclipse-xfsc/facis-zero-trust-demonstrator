@@ -1,0 +1,6 @@
+apiVersion: gate.example.invalid/v1
+kind: Widget
+metadata:
+  name: {{ .Release.Name }}-dry-run-fails
+spec:
+  purpose: negative test data

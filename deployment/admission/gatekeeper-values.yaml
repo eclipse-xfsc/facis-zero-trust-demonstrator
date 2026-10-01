@@ -1,0 +1,40 @@
+# Values for the pinned Gatekeeper chart (scripts/tools/pins.env), used by the kind job and the IONOS
+# proof, always installed with the ztd-webhook-scope post-renderer (webhook-scope/). Every webhook the
+# chart renders is reviewed against these values.
+
+# Fail closed: a request the webhook cannot decide is denied.
+validatingWebhookFailurePolicy: Fail
+validatingWebhookTimeoutSeconds: 3
+
+# The webhook is called only for namespaces labelled facis.ztd/admission-proof=true - the same label
+# the constraints select on - and only for the workload resources they cover, so a Gatekeeper outage
+# cannot block system, ORCE or lifecycle-pool workloads. The chart's namespaceSelector values can only
+# exclude namespaces; the positive label selector is added by the ztd-webhook-scope post-renderer.
+validatingWebhookCustomRules:
+  - apiGroups: [""]
+    apiVersions: ["v1"]
+    operations: [CREATE, UPDATE]
+    resources: [pods, pods/ephemeralcontainers]
+    scope: Namespaced
+  - apiGroups: [apps]
+    apiVersions: ["v1"]
+    operations: [CREATE, UPDATE]
+    resources: [deployments, replicasets, statefulsets, daemonsets]
+    scope: Namespaced
+  - apiGroups: [batch]
+    apiVersions: ["v1"]
+    operations: [CREATE, UPDATE]
+    resources: [jobs]
+    scope: Namespaced
+
+# The webhook guarding the admission.gatekeeper.sh/ignore namespace label is scoped to the same label
+# by the post-renderer; it also must not block namespace updates when Gatekeeper is down.
+validatingWebhookCheckIgnoreFailurePolicy: Ignore
+
+# No mutation in this wave.
+disableMutation: true
+
+# The provider keeps its own cache, keyed on the trust policy and emptied when it changes; a
+# Gatekeeper-side cache would keep admitting an image after its key is removed.
+externaldataProviderResponseCacheTTL: 0s
+enableExternalData: true

@@ -1,0 +1,4 @@
+apiVersion: v2
+name: lint-fails
+description: Negative test data for the chart gate (TDR-BDD-11). Its version is missing, which helm lint must refuse.
+type: application

@@ -20,12 +20,12 @@ tampered measurement each produce a distinct, explained denial.
 | Follow the orchestrated journeys | [Orchestrated flows](flows.md) |
 | Wire up identity | [Keycloak integration](keycloak.md) |
 | Call its APIs | [API documentation](api-docs.md) |
-| See how acceptance is proven | [BDD acceptance](bdd.md) |
+| See how acceptance is proven | [BDD acceptance](bdd.md) and the [BDD catalogue](bdd-catalogue.md) of every Annex A row |
 | Understand the pipeline | [CI/CD](ci-cd.md) |
 | Diagnose a problem | [Troubleshooting](troubleshooting.md) |
-| Check what it depends on | [OSS dependencies](dependencies.md) |
+| Check what it depends on | [OSS dependencies](dependencies.md) and [Licenses](licenses.md) |
 | Find where we depart from the specification | [Specification changes](specifications.md) |
-| Understand why it is built this way | [Architecture decisions](adr/index.md) |
+| Understand why it is built this way | [Architecture decisions](adr/index.md), including how the [TDR decisions ADR 001–006](adr/tdr-decisions.md) are applied |
 
 ## Conventions this documentation follows
 
@@ -37,6 +37,9 @@ The FAP Partner Onboarding project is the reference for structure —
 [its specification](https://github.com/eclipse-xfsc/facis/tree/main/FAP/Partner%20Onboarding%20(Reference%20FAP)/specification)
 and [its implementation](https://github.com/eclipse-xfsc/facis-fap-partner-onboarding) — so a reader
 who knows one FACIS repository can navigate this one without relearning where things are.
+
+How the project applies the handbook's contribution, intellectual-property and release rules is in
+[CONTRIBUTING.md](https://github.com/eclipse-xfsc/facis-zero-trust-demonstrator/blob/main/CONTRIBUTING.md#eclipse-project-handbook).
 
 The site is built with [MkDocs](https://www.mkdocs.org/) and published to GitHub Pages on every
 change to `main`.
