@@ -7,7 +7,7 @@ How the demonstrator is built, packaged and shipped.
 | Artefact | Built from | Published as |
 |---|---|---|
 | Service images | `deployment/docker/` | OCI images, signed by digest |
-| Helm charts | `deployment/helm/` | OCI chart artefacts |
+| Helm charts | `deployment/helm/` | Packaged at the release version and attached to the GitHub release with checksums; pushed as OCI chart artefacts once a registry is configured |
 | SBOM | CI | CycloneDX, signed, one per release |
 | Mock attestation | CI, at signing time | JSON document per image |
 

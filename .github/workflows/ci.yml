@@ -111,6 +111,12 @@ jobs:
           node-version: '22'
           cache: npm
 
+      # The chart-release scenarios run scripts/check-charts.sh, which needs Helm.
+      - name: Set up Helm
+        uses: azure/setup-helm@1a275c3b69536ee54be43f2070a358922e12c8d4 # v4
+        with:
+          version: v4.3.0
+
       - name: Install the JavaScript runner
         run: npm ci
 
@@ -149,24 +155,64 @@ jobs:
           version: v4.3.0
 
       # The fixture chart under features/ is linted like a release chart: the TDR's lint and
-      # dry-run rule applies to every chart the pipeline installs. A chart whose values have no
-      # defaults ships its valid baseline in ci/values.yaml.
+      # dry-run rule applies to every chart the pipeline installs. The same script packages the
+      # release, so the gate a pull request clears is the gate the release is held to.
       - name: Lint and render every chart
+        run: scripts/check-charts.sh
+
+  # The release set of charts. It runs on a published release only, and only once every gate above
+  # has passed, so a chart that fails lint or the dry-run render is never released (TDR-BDD-11):
+  # the script checks every chart first and refuses to package when one fails. The chart version is
+  # the release tag without its leading v, so the release and every chart in it carry one version.
+  # The packages and their checksums are attached to the release; once the client's registry exists
+  # and CHART_REGISTRY names it, they are also pushed as OCI chart artefacts, and the digest each
+  # push prints is what a zone file pins (oci://...@sha256:).
+  release-charts:
+    name: Release charts
+    if: github.event_name == 'release'
+    needs: [tests, lint, images, bdd, charts]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write # attaches the packaged charts to the release
+    env:
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+
+      - name: Set up Helm
+        uses: azure/setup-helm@1a275c3b69536ee54be43f2070a358922e12c8d4 # v4
+        with:
+          version: v4.3.0
+
+      - name: Check and package the release charts
+        run: scripts/check-charts.sh --package dist/charts --version "${GITHUB_REF_NAME#v}"
+
+      - name: Attach the charts to the release
         run: |
-          shopt -s nullglob
-          charts=(deployment/helm/*/Chart.yaml features/fixtures/charts/*/Chart.yaml)
-          if [ ${#charts[@]} -eq 0 ]; then
-            echo 'No chart yet - nothing to lint.'
-            exit 0
-          fi
-          for chart in "${charts[@]}"; do
-            directory=$(dirname "$chart")
-            values=()
-            if [ -f "$directory/ci/values.yaml" ]; then
-              values=(-f "$directory/ci/values.yaml")
-            fi
-            helm lint "$directory" "${values[@]}"
-            helm template "$directory" "${values[@]}" >/dev/null
+          gh release upload "$GITHUB_REF_NAME" dist/charts/* --clobber
+          {
+            echo "### Charts released at ${GITHUB_REF_NAME#v}"
+            echo '```'
+            cat dist/charts/SHA256SUMS
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Push the charts to the registry
+        if: vars.CHART_REGISTRY != ''
+        env:
+          CHART_REGISTRY: ${{ vars.CHART_REGISTRY }}
+          CHART_REGISTRY_USER: ${{ secrets.CHART_REGISTRY_USER }}
+          CHART_REGISTRY_PASSWORD: ${{ secrets.CHART_REGISTRY_PASSWORD }}
+        run: |
+          printf '%s' "$CHART_REGISTRY_PASSWORD" |
+            helm registry login "${CHART_REGISTRY%%/*}" --username "$CHART_REGISTRY_USER" --password-stdin
+          echo "### Charts pushed to oci://$CHART_REGISTRY" >> "$GITHUB_STEP_SUMMARY"
+          for chart in dist/charts/*.tgz; do
+            # helm push prints the digest; it goes to the summary so a zone file can pin it.
+            pushed=$(helm push "$chart" "oci://$CHART_REGISTRY" 2>&1)
+            echo "$pushed"
+            echo "$pushed" >> "$GITHUB_STEP_SUMMARY"
           done
 
   # The deployment-lifecycle scenarios (TDR-BDD-01..04) against each client target. They run
