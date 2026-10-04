@@ -93,9 +93,27 @@
     <ul class="current">
     <li class="toctree-l2"><a class="reference internal" href="#interface-registry">Interface registry</a>
     </li>
+    <li class="toctree-l2"><a class="reference internal" href="#reason-codes">Reason codes</a>
+        <ul>
+    <li class="toctree-l3"><a class="reference internal" href="#mapping-of-existing-vocabularies">Mapping of existing vocabularies</a>
+    </li>
+        </ul>
+    </li>
+    <li class="toctree-l2"><a class="reference internal" href="#if-01-security-state-feed">IF-01 — security-state feed</a>
+    </li>
+    <li class="toctree-l2"><a class="reference internal" href="#if-03-signed-verification-outcome">IF-03 — signed verification outcome</a>
+    </li>
+    <li class="toctree-l2"><a class="reference internal" href="#if-04-observability-and-evidence">IF-04 — observability and evidence</a>
+    </li>
+    <li class="toctree-l2"><a class="reference internal" href="#header-propagation-guard-to-gateway">Header propagation, guard to gateway</a>
+    </li>
+    <li class="toctree-l2"><a class="reference internal" href="#if-07-attested-channel-control">IF-07 — attested channel control</a>
+    </li>
     <li class="toctree-l2"><a class="reference internal" href="#attestation-evidence">Attestation evidence</a>
     </li>
     <li class="toctree-l2"><a class="reference internal" href="#if-08-deployment-lifecycle-command">IF-08 — deployment lifecycle command</a>
+    </li>
+    <li class="toctree-l2"><a class="reference internal" href="#validation">Validation</a>
     </li>
     <li class="toctree-l2"><a class="reference internal" href="#conventions">Conventions</a>
     </li>
@@ -110,9 +128,12 @@
                 <li class="toctree-l1"><a class="reference internal" href="../tspa-publish-api/">TRAIN trust-list publishing</a>
                 </li>
               </ul>
+              <p class="caption"><span class="caption-text">BDD acceptance</span></p>
               <ul>
-                <li class="toctree-l1"><a class="reference internal" href="../bdd/">BDD acceptance</a>
-                </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../bdd/">Harness and pack</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../bdd-catalogue/">Catalogue</a>
+                  </li>
               </ul>
               <ul>
                 <li class="toctree-l1"><a class="reference internal" href="../ci-cd/">CI/CD</a>
@@ -127,12 +148,18 @@
                 </li>
               </ul>
               <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../licenses/">Licenses</a>
+                </li>
+              </ul>
+              <ul>
                 <li class="toctree-l1"><a class="reference internal" href="../specifications/">Specification changes</a>
                 </li>
               </ul>
               <p class="caption"><span class="caption-text">Architecture decisions</span></p>
               <ul>
                   <li class="toctree-l1"><a class="reference internal" href="../adr/">Overview</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../adr/tdr-decisions/">TDR decisions ADR 001–006</a>
                   </li>
                   <li class="toctree-l1"><a class="reference internal" href="../adr/0001-service-mesh-mode-istio-ambient-with-cilium/">0001 Service mesh mode</a>
                   </li>
@@ -173,53 +200,343 @@
               
                 <h1 id="api-documentation">API documentation<a class="headerlink" href="#api-documentation" title="Permanent link">&para;</a></h1>
 <h2 id="interface-registry">Interface registry<a class="headerlink" href="#interface-registry" title="Permanent link">&para;</a></h2>
-<p>The demonstrator's cross-component interfaces are identified <code>IF-01</code> through <code>IF-08</code> and frozen at
-v1 before the components consuming them are built:</p>
+<p>The demonstrator's cross-component interfaces are identified <code>IF-01</code> through <code>IF-08</code>. Version 1 of
+each is defined by the machine-readable artefacts in <code>docs/contracts/</code>, which CI
+validates on every change (see <a href="#validation">Validation</a>). A v1 contract changes only by a
+compatible addition; anything else is a v2.</p>
 <table>
 <thead>
 <tr>
 <th>Interface</th>
 <th>Purpose</th>
+<th>v1 artefacts</th>
+<th>Status</th>
 </tr>
 </thead>
 <tbody>
 <tr>
 <td>IF-01</td>
 <td>Security-state event stream to the demonstrator UI</td>
+<td><a href="../contracts/if01-event.v1.schema.json">event</a>, <a href="../contracts/if01-snapshot.v1.schema.json">snapshot</a>, <a href="../contracts/if01-feed.v1.openapi.yaml">feed API</a></td>
+<td>v1</td>
 </tr>
 <tr>
 <td>IF-02</td>
 <td>Connector authorization surface — registration and token issuance</td>
+<td><a href="../contracts/if02-connector.v1.openapi.yaml">connector API</a></td>
+<td>v1</td>
 </tr>
 <tr>
 <td>IF-03</td>
 <td>Credential verification outcome</td>
+<td><a href="../contracts/if03-verification-outcome.v1.schema.json">JWS payload</a>, <a href="../contracts/if03-jws-header.v1.schema.json">JWS header</a>, <a href="#if-03-signed-verification-outcome">signing rules</a></td>
+<td>v1</td>
 </tr>
 <tr>
 <td>IF-04</td>
 <td>Observability and evidence</td>
+<td>The IF-01 event schema, as a JSON log line; <a href="#if-04-observability-and-evidence">rules</a></td>
+<td>v1</td>
 </tr>
 <tr>
 <td>IF-05</td>
 <td>Policy decision input and output</td>
+<td><a href="../contracts/if05-policy-input.v1.schema.json">input</a>, <a href="../contracts/if05-policy-decision.v1.schema.json">decision</a>, <a href="#header-propagation-guard-to-gateway">header rules</a></td>
+<td>v1</td>
 </tr>
 <tr>
 <td>IF-06</td>
 <td>Governed configuration change</td>
+<td><a href="../contracts/if06-config-change.v1.schema.json">change</a></td>
+<td>v1</td>
 </tr>
 <tr>
 <td>IF-07</td>
 <td>Attested channel control</td>
+<td><a href="#if-07-attested-channel-control">States and rules</a></td>
+<td>v0, not frozen</td>
 </tr>
 <tr>
 <td>IF-08</td>
 <td>Scenario driver hooks</td>
+<td><a href="../lifecycle.openapi.yaml">lifecycle command</a>, <a href="../lifecycle-result.schema.json">lifecycle result</a></td>
+<td>v1 (delivered with the BDD pack)</td>
 </tr>
 </tbody>
 </table>
-<p>OpenAPI and JSON Schema definitions live in <a href="../contracts/"><code>docs/contracts/</code></a>, one file per
-contract, and are frozen at v1 as each interface is agreed. This page is the registry; that folder
-is the machine-readable form.</p>
+<p>Internal to a zone, and not a numbered interface: the token store's API,
+<a href="../contracts/token-store.v1.openapi.yaml">token-store.v1.openapi.yaml</a> — substitution for the guard
+and DPoP replay detection for the connector and the guard.</p>
+<p>Three agreements are conventions rather than interfaces, and are documented where they live:</p>
+<table>
+<thead>
+<tr>
+<th>Convention</th>
+<th>Where</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Identity provider realm, clients, roles and scopes</td>
+<td><a href="../keycloak/">Keycloak integration</a></td>
+</tr>
+<tr>
+<td>Repository, CI and Helm conventions</td>
+<td><a href="../ci-cd/">CI/CD</a>, <a href="../packaging/">Packaging and containers</a></td>
+</tr>
+<tr>
+<td>Acceptance evidence and its handover</td>
+<td><a href="../bdd/">BDD acceptance</a></td>
+</tr>
+</tbody>
+</table>
+<p>Upstream APIs are referenced and pinned, never redefined here: Envoy <code>ext_authz</code>
+(<code>envoy/service/auth/v3</code>), Keycloak OIDC, SPIFFE Workload API, the attested-TLS library, and the
+XFSC services' own APIs.</p>
+<h2 id="reason-codes">Reason codes<a class="headerlink" href="#reason-codes" title="Permanent link">&para;</a></h2>
+<p>Every refusal names a code from one registry, <a href="../contracts/reason-codes.json">reason-codes.json</a>
+(schema: <a href="../contracts/reason-codes.v1.schema.json">reason-codes.v1.schema.json</a>). A family names the
+layer that refuses, its default HTTP status and the state the UI shows; a code may override the
+status.</p>
+<table>
+<thead>
+<tr>
+<th>Family</th>
+<th>Layer</th>
+<th>Default HTTP</th>
+<th>UI state</th>
+<th>Overrides</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>ADM</code></td>
+<td>admission</td>
+<td>403</td>
+<td><code>BLOCKED-ADMISSION</code></td>
+<td>—</td>
+</tr>
+<tr>
+<td><code>MESH</code></td>
+<td>identity and mesh policy</td>
+<td>none (connection refused)</td>
+<td><code>BLOCKED-IDENTITY</code></td>
+<td>—</td>
+</tr>
+<tr>
+<td><code>TOK</code></td>
+<td>token authentication</td>
+<td>401</td>
+<td><code>DENIED-TOKEN</code></td>
+<td><code>TOK-SCOPE</code> 403, <code>TOK-REQUEST-INVALID</code> 400, <code>TOK-REGISTRATION-REJECTED</code> 400, <code>TOK-NO-UPSTREAM</code> 409, <code>TOK-CALLER-DENIED</code> 403, <code>TOK-ROUTE-DENIED</code> 403, <code>TOK-STORE-UNAVAILABLE</code> 503, <code>TOK-SERVER-ERROR</code> 500</td>
+</tr>
+<tr>
+<td><code>POL</code></td>
+<td>policy decision</td>
+<td>403</td>
+<td><code>DENIED-POLICY</code></td>
+<td><code>POL-PRESENTATION-REQUIRED</code> 401, <code>POL-PDP-UNAVAILABLE</code> 503, <code>POL-BUNDLE-STALE</code> 503</td>
+</tr>
+<tr>
+<td><code>CRED</code></td>
+<td>credential verification</td>
+<td>403</td>
+<td><code>DENIED-CREDENTIAL</code></td>
+<td>—</td>
+</tr>
+<tr>
+<td><code>CHAN</code></td>
+<td>attested channel</td>
+<td>none (handshake refused)</td>
+<td><code>CHANNEL-DOWN</code></td>
+<td>—</td>
+</tr>
+<tr>
+<td><code>CFG</code></td>
+<td>configuration governance</td>
+<td>422</td>
+<td><code>CHANGE-REJECTED</code></td>
+<td><code>CFG-NOT-AUTHORISED</code> 403</td>
+</tr>
+<tr>
+<td><code>VIS</code></td>
+<td>display</td>
+<td>none (display state)</td>
+<td><code>UNKNOWN</code></td>
+<td>—</td>
+</tr>
+</tbody>
+</table>
+<p>The status is what a protected resource — the guard — returns to its caller. Two surfaces keep
+statuses of their own: the connector's token and registration endpoints answer with the OAuth 2.0
+statuses (400 for a DPoP proof or nonce problem at the token endpoint, for example; see
+<a href="../contracts/if02-connector.v1.openapi.yaml">IF-02</a>), and the token store's internal API states its
+own; the guard maps both to the caller's refusal.</p>
+<p>Admission refusals, one code per cause: <code>ADM-UNSIGNED</code>, <code>ADM-NO-ATTESTATION</code>,
+<code>ADM-ATTESTATION-INVALID</code>, <code>ADM-SBOM-MISSING</code>, <code>ADM-SBOM-INVALID</code>, <code>ADM-NOT-LINUX</code>,
+<code>ADM-ARCH-UNSUPPORTED</code> (only <code>linux/amd64</code> is admitted), <code>ADM-INDEX-UNSUPPORTED</code> (only
+single-platform manifests are admitted), <code>ADM-NOT-DIGEST</code>,
+<code>ADM-REGISTRY-DENIED</code>, <code>ADM-NAME-INVALID</code>, and <code>ADM-PROVIDER-DOWN</code> when verification cannot run —
+admission then fails closed.</p>
+<h3 id="mapping-of-existing-vocabularies">Mapping of existing vocabularies<a class="headerlink" href="#mapping-of-existing-vocabularies" title="Permanent link">&para;</a></h3>
+<p>The connector's error responses carry the OAuth 2.0 members plus a <code>reason</code> member
+(<a href="../oauth2-provider/#reason-codes">Connector OAuth2 provider</a>). They map one to one onto the
+registry's codes; the HTTP status stays the connector's:</p>
+<table>
+<thead>
+<tr>
+<th>Connector <code>reason</code></th>
+<th>Registry code</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>invalid_request</code></td>
+<td><code>TOK-REQUEST-INVALID</code></td>
+</tr>
+<tr>
+<td><code>invalid_client</code></td>
+<td><code>TOK-CLIENT-INVALID</code></td>
+</tr>
+<tr>
+<td><code>invalid_token</code></td>
+<td><code>TOK-INVALID</code> (<code>TOK-MISSING</code> when no token was presented)</td>
+</tr>
+<tr>
+<td><code>insufficient_scope</code></td>
+<td><code>TOK-SCOPE</code></td>
+</tr>
+<tr>
+<td><code>registration_rejected</code></td>
+<td><code>TOK-REGISTRATION-REJECTED</code></td>
+</tr>
+<tr>
+<td><code>server_error</code></td>
+<td><code>TOK-SERVER-ERROR</code></td>
+</tr>
+<tr>
+<td><code>dpop_invalid_proof</code></td>
+<td><code>TOK-PROOF-INVALID</code></td>
+</tr>
+<tr>
+<td><code>dpop_replayed</code></td>
+<td><code>TOK-REPLAY</code></td>
+</tr>
+<tr>
+<td><code>dpop_use_nonce</code></td>
+<td><code>TOK-NONCE</code></td>
+</tr>
+<tr>
+<td><code>dpop_jkt_mismatch</code></td>
+<td><code>TOK-JKT-MISMATCH</code></td>
+</tr>
+<tr>
+<td><code>dpop_invalid_ath</code></td>
+<td><code>TOK-ATH-MISMATCH</code></td>
+</tr>
+</tbody>
+</table>
+<p>IF-08 keeps the <code>errors.action</code> vocabulary it was delivered with (below); it reports the outcome of
+an operator command, not an access refusal, so it is not part of the registry.</p>
+<h2 id="if-01-security-state-feed">IF-01 — security-state feed<a class="headerlink" href="#if-01-security-state-feed" title="Permanent link">&para;</a></h2>
+<p>Components write IF-01 events as JSON log lines. A feed bridge collects them per run and serves the
+UI a snapshot followed by a server-sent event stream; WebSocket is not used, since the flow is one
+way.</p>
+<ul>
+<li><strong>Order and delivery.</strong> Ordering holds per <code>source</code> only; across sources, events are ordered for
+  display by <code>ts</code> and <code>correlation_id</code>. Delivery is at least once and the UI deduplicates by
+  <code>(run_id, seq)</code>.</li>
+<li><strong>Staleness.</strong> On a sequence gap or a stale <code>ts</code> a panel shows <code>UNKNOWN</code>, never its last known
+  value. When the bridge's buffer of 1000 events per run overflows, it drops the oldest and emits a
+  <code>gap</code> event with <code>VIS-STALE</code>. On reconnect the UI reads the snapshot and resumes from
+  <code>as_of_seq + 1</code>.</li>
+<li><strong>Content.</strong> A decision or admission event is <code>allowed</code> or <code>denied</code>, and a denial names its
+  reason code. Events carry no secrets or tokens; <code>detail</code> is at most 512 characters.</li>
+</ul>
+<h2 id="if-03-signed-verification-outcome">IF-03 — signed verification outcome<a class="headerlink" href="#if-03-signed-verification-outcome" title="Permanent link">&para;</a></h2>
+<p>The verification service signs the outcome of an OID4VP presentation check; the connector's
+issuance consumes it. The outcome is an object, never a boolean.</p>
+<ul>
+<li><strong>Format.</strong> A compact JWS (RFC 7515). The payload is the UTF-8 JSON of
+  <a href="../contracts/if03-verification-outcome.v1.schema.json">if03-verification-outcome.v1.schema.json</a>.
+  The protected header has exactly <code>alg</code>, <code>kid</code> and <code>typ</code>
+  (<a href="../contracts/if03-jws-header.v1.schema.json">if03-jws-header.v1.schema.json</a>): <code>alg</code> is <code>ES256</code>,
+  <code>typ</code> is <code>facis-verification-outcome+jws</code>. Any other member — <code>crit</code>, <code>b64</code>, <code>jwk</code>, <code>jku</code>, <code>x5u</code>,
+  <code>x5c</code> — is refused, so a key or a processing rule is never taken from the token itself.</li>
+<li><strong>Key selection.</strong> The verifier holds a configured set of trusted issuers, each with its keys.
+  <code>kid</code> selects one key; the payload's <code>iss</code> must be the issuer that key belongs to. An unknown
+  <code>kid</code>, a key of another issuer, or a signature that does not verify → <code>CRED-OUTCOME-SIGNATURE</code>.</li>
+<li><strong>Consumption.</strong> An outcome is consumed only when all hold, otherwise the grant is refused with
+  the code named:<ul>
+<li><code>status</code> is <code>verified</code> → else <code>CRED-OUTCOME-NOT-VERIFIED</code>;</li>
+<li><code>client_id</code>, <code>challenge</code> and <code>audience</code> equal those of the grant request → else
+  <code>CRED-OUTCOME-MISMATCH</code>;</li>
+<li>the validity interval is sound and current: <code>verified_at</code> is before <code>expires_at</code>, at most
+  120 s before it, and not more than 30 s in the future (clock skew); now is before
+  <code>expires_at</code> → else <code>CRED-OUTCOME-EXPIRED</code>;</li>
+<li><code>outcome_id</code> has not been consumed before; it is recorded in the same transaction that
+  issues the grant → else <code>CRED-OUTCOME-CONSUMED</code>.</li>
+</ul>
+</li>
+<li>A <code>failed</code> or <code>revoked</code> outcome carries its <code>CRED-*</code> reason; a <code>verified</code> one carries none.</li>
+</ul>
+<h2 id="if-04-observability-and-evidence">IF-04 — observability and evidence<a class="headerlink" href="#if-04-observability-and-evidence" title="Permanent link">&para;</a></h2>
+<ul>
+<li>Every component logs JSON to stdout; security-relevant events use the IF-01 event schema, so the
+  same record feeds the UI, the collector and the acceptance evidence.</li>
+<li><code>correlation_id</code> is the guard's <code>x-request-id</code> (see the header rules below) and joins the events
+  of one request across components; W3C trace context (<code>traceparent</code>) links the spans.</li>
+<li>Acceptance evidence — reports, logs and the manifest — is described in
+  <a href="../bdd/">BDD acceptance</a>.</li>
+</ul>
+<h2 id="header-propagation-guard-to-gateway">Header propagation, guard to gateway<a class="headerlink" href="#header-propagation-guard-to-gateway" title="Permanent link">&para;</a></h2>
+<p>The guard terminates the caller's TLS, authenticates the caller's DPoP-bound token, asks the policy
+engine (IF-05), and forwards an allowed request towards the zone's gateway. What it forwards:</p>
+<table>
+<thead>
+<tr>
+<th>Header</th>
+<th>Rule</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>Authorization</code>, <code>DPoP</code></td>
+<td>Removed from the caller's request after verification. With the <code>substitute_upstream_token</code> obligation they are replaced by the token store's values: the upstream token, and a new proof minted with the store's key for exactly the upstream method and URI. The caller's proof is never forwarded. Without a successful substitution the request is refused, not forwarded.</td>
+</tr>
+<tr>
+<td><code>DPoP-Nonce</code></td>
+<td>Not relayed to the caller. When the upstream answers with a nonce challenge, the guard asks the token store once more with that nonce (<code>upstream_nonce</code>) and retries with the new proof; a second challenge is a refusal.</td>
+</tr>
+<tr>
+<td><code>X-Forwarded-For</code>, <code>X-Forwarded-Proto</code>, <code>X-Forwarded-Host</code>, <code>Forwarded</code></td>
+<td>Removed when they arrive from outside the mesh. Only the mesh ingress sets them. The proof's <code>htu</code> is rebuilt from configuration — <code>https://&lt;published host&gt;&lt;route path&gt;</code> — never from these headers or <code>Host</code>.</td>
+</tr>
+<tr>
+<td><code>x-request-id</code></td>
+<td>Generated by the guard for a request from outside the mesh (an inbound value is replaced), then carried unchanged. It is the <code>correlation_id</code> of IF-01, IF-04 and IF-05.</td>
+</tr>
+<tr>
+<td><code>traceparent</code>, <code>tracestate</code></td>
+<td>Propagated (W3C Trace Context).</td>
+</tr>
+<tr>
+<td>Any <code>x-facis-*</code> header</td>
+<td>Removed from the caller's request; only the guard sets them.</td>
+</tr>
+</tbody>
+</table>
+<h2 id="if-07-attested-channel-control">IF-07 — attested channel control<a class="headerlink" href="#if-07-attested-channel-control" title="Permanent link">&para;</a></h2>
+<p>Not frozen: the channel's control surface is defined by the attested-channel component when it is
+built. What is fixed now:</p>
+<ul>
+<li><strong>States:</strong> <code>connecting → handshake → attested → draining → closed</code>, with error edges to
+  <code>refused</code> (carrying a <code>CHAN-*</code> code) and <code>lost</code>. These are the <code>state</code> values of IF-01
+  <code>channel_state</code> events.</li>
+<li><strong>Rules:</strong> the evidence is bound to one TLS session, so a channel has a maximum lifetime and is
+  replaced by a freshly attested one rather than refreshed. The gateway port speaks only the
+  attested protocol; a plain TLS or plaintext client is refused (<code>CHAN-DOWNGRADE</code>).</li>
+</ul>
 <h2 id="attestation-evidence">Attestation evidence<a class="headerlink" href="#attestation-evidence" title="Permanent link">&para;</a></h2>
 <p>The mock attestation document — what a Trusted Execution Environment would emit, produced in
 software because the demonstrator has no TEE hardware — is described by
@@ -227,8 +544,9 @@ software because the demonstrator has no TEE hardware — is described by
 per vendor profile in <a href="contracts/samples/"><code>contracts/samples/</code></a>.</p>
 <p>It is a single format serving both sides of the evidence path: the artefact attached to a release
 and verified at admission, and the report exchanged inside the attested channel. It therefore
-underlies both IF-04 and IF-07, and which of the two carries it as its own contract is settled when
-the interfaces are frozen at v1.</p>
+underlies both IF-04 and IF-07. IF-04 is already frozen at v1 with the IF-01 event schema as its
+contract, so this format is not part of it; whether IF-07 carries it as its own contract is settled
+when IF-07 is frozen.</p>
 <h2 id="if-08-deployment-lifecycle-command">IF-08 — deployment lifecycle command<a class="headerlink" href="#if-08-deployment-lifecycle-command" title="Permanent link">&para;</a></h2>
 <p>The scenario driver hook that deploys and uninstalls a release through the ORCE workflow. It is
 what the lifecycle acceptance scenarios (TDR-BDD-01..04) drive, and it is the same workflow an
@@ -241,16 +559,29 @@ operator uses.</p>
   <a href="../lifecycle-result.schema.json">JSON Schema</a>. Read it with the ORCE admin API,
   <code>GET /context/flow/ztd-lifecycle-tab/lifecycle</code>, using a read-only bearer token.</li>
 <li><strong>Reason codes</strong> (<code>errors.action</code>): <code>valuesSchemaRejected</code>, <code>dryRunRejected</code>, <code>deployFailed</code>,
-  <code>uninstallFailed</code>, <code>releaseNotFound</code>, <code>clusterUnreachable</code>, <code>duplicateRequest</code>, <code>systemError</code>.
-  A parameter the cluster refuses (for example a namespace outside the BDD pool) comes back in
-  <code>errors.fields</code>.</li>
+  <code>uninstallFailed</code>, <code>releaseNotFound</code>, <code>clusterUnreachable</code>, <code>duplicateRequest</code>, <code>invalidAction</code>,
+  <code>systemError</code>. A parameter the cluster refuses (for example a namespace outside the BDD pool)
+  comes back in <code>errors.fields</code>.</li>
+</ul>
+<h2 id="validation">Validation<a class="headerlink" href="#validation" title="Permanent link">&para;</a></h2>
+<p><code>npm run contracts</code> (and the <code>Contracts</code> CI job) checks that:</p>
+<ul>
+<li>every JSON Schema compiles as strict JSON Schema 2020-12 and its <code>$id</code> carries <code>v1</code>;</li>
+<li>under <code>contracts/fixtures/&lt;schema&gt;/</code>, every <code>valid-*</code> fixture passes and every <code>invalid-*</code>
+  fixture fails, and each schema has at least one of each;</li>
+<li>the registry is well formed, every code sits in its family, and every reason code used in a
+  fixture, an OpenAPI document or this page is registered;</li>
+<li>every OpenAPI document parses without duplicate keys, validates against the official OpenAPI
+  3.1 schema (vendored with its checksum), resolves every reference, and every Schema Object in it
+  compiles as strict JSON Schema 2020-12.</li>
 </ul>
 <h2 id="conventions">Conventions<a class="headerlink" href="#conventions" title="Permanent link">&para;</a></h2>
 <ul>
-<li>REST APIs are described with OpenAPI 3; asynchronous interfaces with JSON Schema.</li>
+<li>REST APIs are described with OpenAPI 3.1 (IF-08, delivered earlier, with OpenAPI 3.0); events
+  and stored objects with JSON Schema 2020-12.</li>
 <li>Structured data carries a JSON-LD context and a SHACL shape where the content is meant to be
   interoperable rather than internal.</li>
-<li>Error responses use a shared reason-code vocabulary, so a refusal is machine-readable and not
+<li>Error responses use the shared reason-code registry, so a refusal is machine-readable and not
   just a status code.</li>
 </ul>
               

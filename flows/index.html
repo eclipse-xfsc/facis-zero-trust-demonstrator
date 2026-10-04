@@ -87,6 +87,8 @@
         <ul>
     <li class="toctree-l3"><a class="reference internal" href="#ztd-lifecycle">ztd-lifecycle</a>
     </li>
+    <li class="toctree-l3"><a class="reference internal" href="#orce-logging">ORCE logging</a>
+    </li>
         </ul>
     </li>
     <li class="toctree-l2"><a class="reference internal" href="#governed-configuration">Governed configuration</a>
@@ -114,9 +116,12 @@
                 <li class="toctree-l1"><a class="reference internal" href="../tspa-publish-api/">TRAIN trust-list publishing</a>
                 </li>
               </ul>
+              <p class="caption"><span class="caption-text">BDD acceptance</span></p>
               <ul>
-                <li class="toctree-l1"><a class="reference internal" href="../bdd/">BDD acceptance</a>
-                </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../bdd/">Harness and pack</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../bdd-catalogue/">Catalogue</a>
+                  </li>
               </ul>
               <ul>
                 <li class="toctree-l1"><a class="reference internal" href="../ci-cd/">CI/CD</a>
@@ -131,12 +136,18 @@
                 </li>
               </ul>
               <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../licenses/">Licenses</a>
+                </li>
+              </ul>
+              <ul>
                 <li class="toctree-l1"><a class="reference internal" href="../specifications/">Specification changes</a>
                 </li>
               </ul>
               <p class="caption"><span class="caption-text">Architecture decisions</span></p>
               <ul>
                   <li class="toctree-l1"><a class="reference internal" href="../adr/">Overview</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../adr/tdr-decisions/">TDR decisions ADR 001–006</a>
                   </li>
                   <li class="toctree-l1"><a class="reference internal" href="../adr/0001-service-mesh-mode-istio-ambient-with-cilium/">0001 Service mesh mode</a>
                   </li>
@@ -297,8 +308,41 @@ can be configured without reading its source:</p>
 </tbody>
 </table>
 <p>It never creates namespaces, never logs the values, masks credentials in the Helm output, and
-writes one structured JSON log line per result (<code>lifecycle.result</code> or <code>lifecycle.refused</code>, with the
-<code>requestId</code>).</p>
+writes one log record per result (<code>lifecycle.result</code> or <code>lifecycle.refused</code>, with the <code>requestId</code>).</p>
+<h3 id="orce-logging">ORCE logging<a class="headerlink" href="#orce-logging" title="Permanent link">&para;</a></h3>
+<p>The ORCE image replaces the Node-RED console logger with a JSON handler (<code>logging</code> in
+<code>deployment/docker/orce/settings.js</code>). Every record sent through the Node-RED logging API is one
+line holding one JSON object with exactly these fields:</p>
+<table>
+<thead>
+<tr>
+<th>Field</th>
+<th>Value</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>time</code></td>
+<td>ISO 8601 timestamp</td>
+</tr>
+<tr>
+<td><code>level</code></td>
+<td><code>fatal</code>, <code>error</code>, <code>warn</code>, <code>info</code>, <code>debug</code>, <code>trace</code></td>
+</tr>
+<tr>
+<td><code>type</code>, <code>name</code>, <code>id</code></td>
+<td>the node that logged, or <code>null</code> for the runtime</td>
+</tr>
+<tr>
+<td><code>msg</code></td>
+<td>the message as a string; an error contributes its message only, never its stack</td>
+</tr>
+</tbody>
+</table>
+<p>The lifecycle node's <code>msg</code> is itself a JSON object (<code>node</code>, <code>event</code>, <code>requestId</code>, <code>action</code>, <code>ok</code>,
+<code>reason</code>), so a reader parses the line, then <code>msg</code>. The payload is never merged into the top level.</p>
+<p><strong>What this does not cover:</strong> output written outside the logging API — <code>console</code> calls in function
+or third-party nodes, Node.js warnings, and the container entrypoint — is not JSON.</p>
 <p>A node that alters the security outcome of a journey does not decide it: the decision stays on the
 connector and guard path, and the node reports it. This is the same boundary
 <a href="../adr/0003-oauth2-authorisation-surface-in-the-go-connector/">ADR-0003</a> draws for the

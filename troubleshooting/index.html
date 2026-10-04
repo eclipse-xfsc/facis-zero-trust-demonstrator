@@ -100,9 +100,12 @@
                 <li class="toctree-l1"><a class="reference internal" href="../tspa-publish-api/">TRAIN trust-list publishing</a>
                 </li>
               </ul>
+              <p class="caption"><span class="caption-text">BDD acceptance</span></p>
               <ul>
-                <li class="toctree-l1"><a class="reference internal" href="../bdd/">BDD acceptance</a>
-                </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../bdd/">Harness and pack</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../bdd-catalogue/">Catalogue</a>
+                  </li>
               </ul>
               <ul>
                 <li class="toctree-l1"><a class="reference internal" href="../ci-cd/">CI/CD</a>
@@ -123,6 +126,8 @@
     </li>
     <li class="toctree-l2"><a class="reference internal" href="#credential-verification-and-trust-list-staleness">Credential verification and trust-list staleness</a>
     </li>
+    <li class="toctree-l2"><a class="reference internal" href="#deployment-lifecycle-and-the-acceptance-scenarios">Deployment lifecycle and the acceptance scenarios</a>
+    </li>
     <li class="toctree-l2"><a class="reference internal" href="#logs">Logs</a>
     </li>
     </ul>
@@ -133,12 +138,18 @@
                 </li>
               </ul>
               <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../licenses/">Licenses</a>
+                </li>
+              </ul>
+              <ul>
                 <li class="toctree-l1"><a class="reference internal" href="../specifications/">Specification changes</a>
                 </li>
               </ul>
               <p class="caption"><span class="caption-text">Architecture decisions</span></p>
               <ul>
                   <li class="toctree-l1"><a class="reference internal" href="../adr/">Overview</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../adr/tdr-decisions/">TDR decisions ADR 001–006</a>
                   </li>
                   <li class="toctree-l1"><a class="reference internal" href="../adr/0001-service-mesh-mode-istio-ambient-with-cilium/">0001 Service mesh mode</a>
                   </li>
@@ -334,9 +345,69 @@ whether the reason is the one you expected.</p>
 </tr>
 </tbody>
 </table>
+<h2 id="deployment-lifecycle-and-the-acceptance-scenarios">Deployment lifecycle and the acceptance scenarios<a class="headerlink" href="#deployment-lifecycle-and-the-acceptance-scenarios" title="Permanent link">&para;</a></h2>
+<p>Met while building and running the lifecycle pack (TDR-BDD-01..06) on kind and IONOS.</p>
+<table>
+<thead>
+<tr>
+<th>Symptom</th>
+<th>Likely cause</th>
+<th>Check</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>A scenario fails before it starts with "the pool namespace is not in its baseline state"</td>
+<td>A previous run was interrupted and left a release or objects behind</td>
+<td><code>kubectl -n &lt;pool namespace&gt; get all,secrets</code>; uninstall the leftover release through ORCE (an <code>uninstall</code> command), not by hand, then rerun</td>
+</tr>
+<tr>
+<td><code>cluster-state.sh</code> exits 2, "the cluster could not be observed"</td>
+<td>The observer kubeconfig is wrong, expired or points at another cluster; API errors are never retried into a pass</td>
+<td><code>kubectl --kubeconfig &lt;observer&gt; auth whoami</code>, then <code>get namespace kube-system</code> — the UID must be the target's</td>
+</tr>
+<tr>
+<td>The lifecycle result says <code>valuesSchemaRejected</code> for a release you expect to be valid</td>
+<td>Its values fail the chart's <code>values.schema.json</code>; that is the refusal TDR-BDD-02 relies on</td>
+<td><code>helm template &lt;chart&gt; -f &lt;values&gt;</code> locally shows the schema error</td>
+</tr>
+<tr>
+<td>ORCE starts with the upstream demo flows instead of the lifecycle flow</td>
+<td>An old or upstream image: the upstream image sets <code>FLOWS=flows.json</code></td>
+<td>The first-party image fixes <code>flowFile</code> to <code>lifecycle.json</code>; the ORCE log's <code>Flows file</code> record must name <code>/data/lifecycle.json</code></td>
+</tr>
+<tr>
+<td>ORCE refuses to start: "must be set: ORCE does not start without its credentials"</td>
+<td>A key of the <code>orce-credentials</code> Secret is missing</td>
+<td>Compare the Secret's keys with <a href="../environments/ionos/#3-orce">the ORCE install</a></td>
+</tr>
+<tr>
+<td>The ORCE context read returns 401</td>
+<td>The read token is wrong, or it was sent without <code>Bearer</code></td>
+<td>The read token is the <code>ORCE_READ_TOKEN</code> of the Secret; it can read, never write</td>
+</tr>
+<tr>
+<td>No JSON refusal record for a request in the ORCE log (rows 02 and 06)</td>
+<td>An image without the JSON log handler, or the log command reads another pod</td>
+<td>Every line of <code>kubectl -n ztd-orce logs deployment/orce</code> must be one JSON object (<a href="../flows/#orce-logging">ORCE logging</a>)</td>
+</tr>
+<tr>
+<td>ORCE is slow to start on an Apple Silicon machine</td>
+<td>The image is <code>linux/amd64</code> only and runs emulated</td>
+<td>Expected locally; allow a few minutes</td>
+</tr>
+<tr>
+<td><code>helm</code> commands behave differently from the docs</td>
+<td>Another Helm major version</td>
+<td>The project pins Helm v4.3.0 for chart QA and inside the ORCE image</td>
+</tr>
+</tbody>
+</table>
 <h2 id="logs">Logs<a class="headerlink" href="#logs" title="Permanent link">&para;</a></h2>
-<p>Services emit structured JSON logs. Correlate by the request identifier carried across hops rather
-than by timestamp.</p>
+<p>Records sent through the ORCE logging API are one JSON object per line
+(<a href="../flows/#orce-logging">ORCE logging</a>); output outside that API is not. The Go services'
+logging convention is set with the observability stack (ZT-27). Correlate by the request identifier
+carried across hops rather than by timestamp.</p>
               
             </div>
           </div><footer>

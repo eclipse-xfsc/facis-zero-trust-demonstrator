@@ -106,9 +106,12 @@
                 <li class="toctree-l1"><a class="reference internal" href="../tspa-publish-api/">TRAIN trust-list publishing</a>
                 </li>
               </ul>
+              <p class="caption"><span class="caption-text">BDD acceptance</span></p>
               <ul>
-                <li class="toctree-l1"><a class="reference internal" href="../bdd/">BDD acceptance</a>
-                </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../bdd/">Harness and pack</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../bdd-catalogue/">Catalogue</a>
+                  </li>
               </ul>
               <ul>
                 <li class="toctree-l1"><a class="reference internal" href="../ci-cd/">CI/CD</a>
@@ -123,12 +126,18 @@
                 </li>
               </ul>
               <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../licenses/">Licenses</a>
+                </li>
+              </ul>
+              <ul>
                 <li class="toctree-l1"><a class="reference internal" href="../specifications/">Specification changes</a>
                 </li>
               </ul>
               <p class="caption"><span class="caption-text">Architecture decisions</span></p>
               <ul>
                   <li class="toctree-l1"><a class="reference internal" href="../adr/">Overview</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../adr/tdr-decisions/">TDR decisions ADR 001–006</a>
                   </li>
                   <li class="toctree-l1"><a class="reference internal" href="../adr/0001-service-mesh-mode-istio-ambient-with-cilium/">0001 Service mesh mode</a>
                   </li>
@@ -187,13 +196,13 @@ visualization environment. The reasoning for three rather than two is recorded i
 <td>T-Systems Open Sovereign Cloud</td>
 <td>2</td>
 <td>Zone A and zone B — the two demonstration zones and their trust boundary</td>
-<td><a href="osc/">OSC setup</a></td>
+<td><a href="osc/">OSC setup</a> — clusters not yet provided</td>
 </tr>
 <tr>
 <td>IONOS Cloud</td>
 <td>1</td>
 <td>CI/CD and the visualization environment</td>
-<td><a href="ionos/">IONOS setup</a></td>
+<td><a href="ionos/">IONOS setup</a> — provided; ORCE and the BDD pool installed</td>
 </tr>
 </tbody>
 </table>
@@ -203,8 +212,10 @@ Where a step cannot be executed yet it says so, rather than reading as though it
 <ul>
 <li><strong>Kubernetes 1.29 or later.</strong> Older versions are not supported; the mesh and admission baselines
   assume it.</li>
-<li><strong>Cilium as CNI</strong>, configured with <code>cni.exclusive=false</code> so the Istio CNI plugin can chain behind
-  it (<a href="../adr/0001-service-mesh-mode-istio-ambient-with-cilium/">ADR-0001</a>).</li>
+<li><strong>Cilium as CNI</strong> on the clusters that run the mesh, configured with <code>cni.exclusive=false</code> so the
+  Istio CNI plugin can chain behind it
+  (<a href="../adr/0001-service-mesh-mode-istio-ambient-with-cilium/">ADR-0001</a>). The IONOS cluster runs
+  no mesh today and keeps its provider-managed Calico; see its guide.</li>
 <li><strong>The clusters are client-provided.</strong> Provisioning them is out of scope; these guides begin at the
   point where a kubeconfig is in hand.</li>
 <li><strong>Nothing is applied by hand.</strong> Every step below is a chart, a script in <code>scripts/</code> or a pipeline

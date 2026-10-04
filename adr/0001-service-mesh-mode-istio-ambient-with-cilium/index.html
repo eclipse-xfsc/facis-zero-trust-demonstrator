@@ -100,9 +100,12 @@
                 <li class="toctree-l1"><a class="reference internal" href="../../tspa-publish-api/">TRAIN trust-list publishing</a>
                 </li>
               </ul>
+              <p class="caption"><span class="caption-text">BDD acceptance</span></p>
               <ul>
-                <li class="toctree-l1"><a class="reference internal" href="../../bdd/">BDD acceptance</a>
-                </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../bdd/">Harness and pack</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../bdd-catalogue/">Catalogue</a>
+                  </li>
               </ul>
               <ul>
                 <li class="toctree-l1"><a class="reference internal" href="../../ci-cd/">CI/CD</a>
@@ -117,12 +120,18 @@
                 </li>
               </ul>
               <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../../licenses/">Licenses</a>
+                </li>
+              </ul>
+              <ul>
                 <li class="toctree-l1"><a class="reference internal" href="../../specifications/">Specification changes</a>
                 </li>
               </ul>
               <p class="caption"><span class="caption-text">Architecture decisions</span></p>
               <ul class="current">
                   <li class="toctree-l1"><a class="reference internal" href="../">Overview</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../tdr-decisions/">TDR decisions ADR 001–006</a>
                   </li>
                   <li class="toctree-l1 current"><a class="reference internal current" href="#">0001 Service mesh mode</a>
     <ul class="current">
@@ -133,6 +142,8 @@
     <li class="toctree-l2"><a class="reference internal" href="#consequences">Consequences</a>
     </li>
     <li class="toctree-l2"><a class="reference internal" href="#references">References</a>
+    </li>
+    <li class="toctree-l2"><a class="reference internal" href="#note-ionos-cluster-as-provided-2026-09-23">Note — IONOS cluster as provided (2026-09-23)</a>
     </li>
     </ul>
                   </li>
@@ -213,11 +224,18 @@ fail-closed behaviour required by ZT-26 and ZT-55 impossible to demonstrate reli
 <li>Project Plan v1.7, section 4, "Service-mesh declaration (F-08)"</li>
 <li>Annex A v1.7 — ZT-23, ZT-24, ZT-26, ZT-55, ZT-58, ZT-61</li>
 </ul>
+<h2 id="note-ionos-cluster-as-provided-2026-09-23">Note — IONOS cluster as provided (2026-09-23)<a class="headerlink" href="#note-ionos-cluster-as-provided-2026-09-23" title="Permanent link">&para;</a></h2>
+<p>This note records a fact and does not reopen the decision. The IONOS cluster was provided with the
+provider-managed Calico CNI, and it runs no mesh and no demonstration workload today
+(<a href="../../environments/ionos/">IONOS setup</a>). The statement above that Cilium is the CNI "in all three
+target clusters" therefore holds only for the clusters that run the mesh, and no mesh-based policy
+applies on the IONOS cluster. Whether that cluster needs Cilium and the mesh is decided with its
+visualization stage, for the Technical Design Authority, and recorded here when it is.</p>
               
             </div>
           </div><footer>
     <div class="rst-footer-buttons" role="navigation" aria-label="Footer Navigation">
-        <a href="../" class="btn btn-neutral float-left" title="Overview"><span class="icon icon-circle-arrow-left"></span> Previous</a>
+        <a href="../tdr-decisions/" class="btn btn-neutral float-left" title="TDR decisions ADR 001–006"><span class="icon icon-circle-arrow-left"></span> Previous</a>
         <a href="../0002-gatekeeper-external-data-provider-for-cosign-verification/" class="btn btn-neutral float-right" title="0002 Gatekeeper external data provider">Next <span class="icon icon-circle-arrow-right"></span></a>
     </div>
 
@@ -246,7 +264,7 @@ fail-closed behaviour required by ZT-26 and ZT-55 impossible to demonstrate reli
         </span>
     
     
-      <span><a href="../" style="color: #fcfcfc">&laquo; Previous</a></span>
+      <span><a href="../tdr-decisions/" style="color: #fcfcfc">&laquo; Previous</a></span>
     
     
       <span><a href="../0002-gatekeeper-external-data-provider-for-cosign-verification/" style="color: #fcfcfc">Next &raquo;</a></span>

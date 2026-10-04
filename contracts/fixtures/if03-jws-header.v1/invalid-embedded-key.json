@@ -1,0 +1,1 @@
+{"alg":"ES256","kid":"verifier-2026-09","typ":"facis-verification-outcome+jws","jwk":{"kty":"EC","crv":"P-256","x":"fx","y":"fx"}}

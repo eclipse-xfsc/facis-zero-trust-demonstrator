@@ -100,9 +100,12 @@
                 <li class="toctree-l1"><a class="reference internal" href="../tspa-publish-api/">TRAIN trust-list publishing</a>
                 </li>
               </ul>
+              <p class="caption"><span class="caption-text">BDD acceptance</span></p>
               <ul>
-                <li class="toctree-l1"><a class="reference internal" href="../bdd/">BDD acceptance</a>
-                </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../bdd/">Harness and pack</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../bdd-catalogue/">Catalogue</a>
+                  </li>
               </ul>
               <ul>
                 <li class="toctree-l1"><a class="reference internal" href="../ci-cd/">CI/CD</a>
@@ -127,7 +130,17 @@
     </li>
     <li class="toctree-l2"><a class="reference internal" href="#go-dependencies">Go dependencies</a>
     </li>
+    <li class="toctree-l2"><a class="reference internal" href="#javascript-development-dependencies">JavaScript development dependencies</a>
+    </li>
+    <li class="toctree-l2"><a class="reference internal" href="#supply-chain-policy-and-test-tooling">Supply-chain, policy and test tooling</a>
+    </li>
+    <li class="toctree-l2"><a class="reference internal" href="#go-dependencies-being-added">Go dependencies being added</a>
+    </li>
     </ul>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../licenses/">Licenses</a>
                 </li>
               </ul>
               <ul>
@@ -137,6 +150,8 @@
               <p class="caption"><span class="caption-text">Architecture decisions</span></p>
               <ul>
                   <li class="toctree-l1"><a class="reference internal" href="../adr/">Overview</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../adr/tdr-decisions/">TDR decisions ADR 001–006</a>
                   </li>
                   <li class="toctree-l1"><a class="reference internal" href="../adr/0001-service-mesh-mode-istio-ambient-with-cilium/">0001 Service mesh mode</a>
                   </li>
@@ -236,14 +251,175 @@ and ORCE for orchestration. Versions are pinned at deployment and recorded with 
 <td>BSD-3-Clause</td>
 <td>bcrypt hashing of client secrets</td>
 </tr>
+<tr>
+<td><code>github.com/cucumber/godog</code></td>
+<td>v0.16.0</td>
+<td>MIT</td>
+<td>runs the Go acceptance scenarios (<code>internal/bdd</code>)</td>
+</tr>
+<tr>
+<td><code>github.com/cucumber/gherkin/go/v42</code></td>
+<td>v42.0.0</td>
+<td>MIT</td>
+<td>parses the feature files for the Annex verbatim check (<code>cmd/bddpack</code>)</td>
+</tr>
+<tr>
+<td><code>github.com/cucumber/messages/go/v34</code></td>
+<td>v34.2.0</td>
+<td>MIT</td>
+<td>the Gherkin document model used with it</td>
+</tr>
+<tr>
+<td><code>github.com/santhosh-tekuri/jsonschema/v6</code></td>
+<td>v6.0.3</td>
+<td>Apache-2.0</td>
+<td>validates SBOMs and mock attestations against their JSON Schemas at admission</td>
+</tr>
 </tbody>
 </table>
+<p>The admission check validates SBOMs against the official CycloneDX 1.5, 1.6 and 1.7 JSON Schemas and
+the schemas they reference (CycloneDX specification tag 1.7.2, Apache-2.0), vendored in
+<code>internal/cosignverify/schemas/</code> and pinned by SHA-256. CycloneDX 1.7 is accepted because it is what
+the pinned Syft and Grype write by default.</p>
+<h2 id="javascript-development-dependencies">JavaScript development dependencies<a class="headerlink" href="#javascript-development-dependencies" title="Permanent link">&para;</a></h2>
+<p>Used by the acceptance harness only; never shipped in an image.</p>
+<table>
+<thead>
+<tr>
+<th>Dependency</th>
+<th>Version</th>
+<th>Licence</th>
+<th>Purpose</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>@cucumber/cucumber</code></td>
+<td>13.2.1</td>
+<td>MIT</td>
+<td>runs the JavaScript acceptance scenarios</td>
+</tr>
+<tr>
+<td><code>ajv</code></td>
+<td>8.20.0</td>
+<td>MIT</td>
+<td>validates the interface contracts (JSON Schema and OpenAPI documents) against their fixtures</td>
+</tr>
+<tr>
+<td><code>ajv-formats</code></td>
+<td>3.0.1</td>
+<td>MIT</td>
+<td>the string formats (date-time, uri, …) Ajv checks</td>
+</tr>
+<tr>
+<td><code>yaml</code></td>
+<td>2.9.1</td>
+<td>ISC</td>
+<td>reads the OpenAPI documents for validation (already present as a dependency of <code>@cucumber/cucumber</code>)</td>
+</tr>
+</tbody>
+</table>
+<p>The contract check also uses the official OpenAPI 3.1 JSON Schema (<code>schema/2025-09-15</code>, Apache-2.0,
+from the OpenAPI Initiative), vendored in <code>docs/contracts/tooling/oas-3.1/</code> and pinned by SHA-256.</p>
+<h2 id="supply-chain-policy-and-test-tooling">Supply-chain, policy and test tooling<a class="headerlink" href="#supply-chain-policy-and-test-tooling" title="Permanent link">&para;</a></h2>
+<p>Used by CI and the release workflow; never shipped inside a demonstrator image. Everything is pinned in
+<code>scripts/tools/pins.env</code>:</p>
+<ul>
+<li>the executables (cosign, Syft, Grype, gator) and the Gatekeeper chart archive by SHA-256 — installed
+  by <code>scripts/tools/install.sh</code>, which refuses a download whose checksum does not match;</li>
+<li>the container images (Gatekeeper, PostgreSQL, OpenBao, the test registry) by digest — pulled by
+  digest where they are used.</li>
+</ul>
+<p>The JavaScript packages above are pinned by exact version with integrity hashes in <code>package-lock.json</code>.</p>
+<table>
+<thead>
+<tr>
+<th>Tool</th>
+<th>Version</th>
+<th>Licence</th>
+<th>Purpose</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>cosign (Sigstore)</td>
+<td>v2.6.2</td>
+<td>Apache-2.0</td>
+<td>signs images by digest and attaches attestations (classic <code>.sig</code>/<code>.att</code> layout, key-based)</td>
+</tr>
+<tr>
+<td>Syft (Anchore)</td>
+<td>1.52.0</td>
+<td>Apache-2.0</td>
+<td>CycloneDX SBOM of each image and of the repository</td>
+</tr>
+<tr>
+<td>Grype (Anchore)</td>
+<td>0.119.0</td>
+<td>Apache-2.0</td>
+<td>adds the known-vulnerability references to the SBOM before it is signed</td>
+</tr>
+<tr>
+<td>gator (OPA Gatekeeper)</td>
+<td>v3.23.1</td>
+<td>Apache-2.0</td>
+<td>offline tests of the admission constraints</td>
+</tr>
+<tr>
+<td>OPA Gatekeeper (Helm chart)</td>
+<td>3.23.1</td>
+<td>Apache-2.0</td>
+<td>admission control with the first-party external-data provider</td>
+</tr>
+<tr>
+<td>PostgreSQL</td>
+<td>16.10 (test service)</td>
+<td>PostgreSQL License</td>
+<td>token-store integration tests</td>
+</tr>
+<tr>
+<td>OpenBao</td>
+<td>2.7.0 (test service)</td>
+<td>MPL-2.0</td>
+<td>token-store integration tests only; its use in the demonstrator is the declared licence exception</td>
+</tr>
+<tr>
+<td>Docker Distribution registry</td>
+<td>2.8.3 (test service)</td>
+<td>Apache-2.0</td>
+<td>a local registry for signing and verification tests in CI</td>
+</tr>
+</tbody>
+</table>
+<h2 id="go-dependencies-being-added">Go dependencies being added<a class="headerlink" href="#go-dependencies-being-added" title="Permanent link">&para;</a></h2>
+<p>Added to the Go module together with the code that uses them; each goes through the licence gate like any
+other dependency.</p>
+<table>
+<thead>
+<tr>
+<th>Dependency</th>
+<th>Version</th>
+<th>Licence</th>
+<th>Purpose</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>github.com/jackc/pgx/v5</code></td>
+<td>v5.11.0</td>
+<td>MIT</td>
+<td>PostgreSQL driver of the token store</td>
+</tr>
+</tbody>
+</table>
+<p>The admission provider talks to OCI registries through a small first-party client built on the Go
+standard library rather than a general-purpose registry library, to keep its dependency set minimal.</p>
               
             </div>
           </div><footer>
     <div class="rst-footer-buttons" role="navigation" aria-label="Footer Navigation">
         <a href="../troubleshooting/" class="btn btn-neutral float-left" title="Troubleshooting"><span class="icon icon-circle-arrow-left"></span> Previous</a>
-        <a href="../specifications/" class="btn btn-neutral float-right" title="Specification changes">Next <span class="icon icon-circle-arrow-right"></span></a>
+        <a href="../licenses/" class="btn btn-neutral float-right" title="Licenses">Next <span class="icon icon-circle-arrow-right"></span></a>
     </div>
 
   <hr/>
@@ -274,7 +450,7 @@ and ORCE for orchestration. Versions are pinned at deployment and recorded with 
       <span><a href="../troubleshooting/" style="color: #fcfcfc">&laquo; Previous</a></span>
     
     
-      <span><a href="../specifications/" style="color: #fcfcfc">Next &raquo;</a></span>
+      <span><a href="../licenses/" style="color: #fcfcfc">Next &raquo;</a></span>
     
   </span>
 </div>

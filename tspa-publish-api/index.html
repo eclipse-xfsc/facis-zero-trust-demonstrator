@@ -123,16 +123,19 @@
     </li>
         </ul>
     </li>
-    <li class="toctree-l2"><a class="reference internal" href="#9-adr-011-blocked-external-what-is-closed-and-what-remains">9. ADR-011 "Blocked-external" — what is closed and what remains</a>
+    <li class="toctree-l2"><a class="reference internal" href="#9-the-open-publication-item-what-is-closed-and-what-remains">9. The open publication item — what is closed and what remains</a>
     </li>
     <li class="toctree-l2"><a class="reference internal" href="#10-round-trip-evidence-local-2026-09-16-re-run-2026-09-18">10. Round-trip evidence (local, 2026-09-16; re-run 2026-09-18)</a>
     </li>
     </ul>
                 </li>
               </ul>
+              <p class="caption"><span class="caption-text">BDD acceptance</span></p>
               <ul>
-                <li class="toctree-l1"><a class="reference internal" href="../bdd/">BDD acceptance</a>
-                </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../bdd/">Harness and pack</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../bdd-catalogue/">Catalogue</a>
+                  </li>
               </ul>
               <ul>
                 <li class="toctree-l1"><a class="reference internal" href="../ci-cd/">CI/CD</a>
@@ -147,12 +150,18 @@
                 </li>
               </ul>
               <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../licenses/">Licenses</a>
+                </li>
+              </ul>
+              <ul>
                 <li class="toctree-l1"><a class="reference internal" href="../specifications/">Specification changes</a>
                 </li>
               </ul>
               <p class="caption"><span class="caption-text">Architecture decisions</span></p>
               <ul>
                   <li class="toctree-l1"><a class="reference internal" href="../adr/">Overview</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../adr/tdr-decisions/">TDR decisions ADR 001–006</a>
                   </li>
                   <li class="toctree-l1"><a class="reference internal" href="../adr/0001-service-mesh-mode-istio-ambient-with-cilium/">0001 Service mesh mode</a>
                   </li>
@@ -192,18 +201,18 @@
             <div class="section" itemprop="articleBody">
               
                 <h1 id="publishing-to-train-the-tspa-trust-list-api">Publishing to TRAIN: the TSPA trust-list API<a class="headerlink" href="#publishing-to-train-the-tspa-trust-list-api" title="Permanent link">&para;</a></h1>
-<p><em>Established in FZTD-162 for ZT-35 (gate G4), 2026-09-16/18. Re-confirmation against the client's instance is
-pending (EXT-C-XFSC).</em></p>
+<p><em>Established by the TSPA API verification for ZT-35 (gate G4), 2026-09-16/18. Re-confirmation against the client's instance is
+pending (it depends on the client's XFSC stack).</em></p>
 <p>Source of truth: <code>eclipse-xfsc/train-trust-framework-manager</code> on GitHub, commit <code>ecd5fdc</code> (2025-05-25), which was
 the <code>main</code> HEAD on 2026-09-16 and still is on 2026-09-19; the repository is not archived but has had no commit on
 <code>main</code> since then. The original GitLab project <code>eclipse/xfsc/train/tspa</code> is archived and read-only (last activity
-May 2025) but still readable, so the "404 against the wrong repository" mentioned in FZTD-162 did not come from it;
+May 2025) but still readable, so the "404 against the wrong repository" mentioned in the verification brief did not come from it;
 that earlier attempt is not characterised further here. Everything below was read from that commit plus
 <code>eclipse-xfsc/train-shared</code> <code>6a0abe4</code> (the trust-list model) and, where marked, exercised against a local instance
 built from those two commits.</p>
 <h2 id="1-summary">1. Summary<a class="headerlink" href="#1-summary" title="Permanent link">&para;</a></h2>
 <p><strong>The publish API surface is confirmed and a measurement value round-trips locally</strong> (§4–§7, §10). Three of the
-four "done when" items are closed. What ADR-011's <em>Blocked-external</em> item still lacks is now named precisely:</p>
+four "done when" items are closed. What the artefact-chain design's open publication item still lacks is now named precisely:</p>
 <ol>
 <li><strong>There is no field for the measurement.</strong> TSPA's entry schema (<code>TSPSchema.json</code>) has no
    measurement/hash/TEEM attribute. The value can only ride in a free-form <code>Type</code>/<code>Value</code> pair. Until the project
@@ -276,7 +285,7 @@ four "done when" items are closed. What ADR-011's <em>Blocked-external</em> item
    This document deliberately does not pick one. <strong>The carrier used in the local round-trip
    (<code>TSPCertificationList</code>, <code>Type = TEEM-sha256</code>) is a test choice only, made so that a value could be written and
    read back; it is not a recommendation and the design decision remains open.</strong>
-2. <strong>Client-side inputs still external</strong> (EXT-C-XFSC): TSPA base URL, framework name, OIDC issuer + a
+2. <strong>Client-side inputs still external</strong> (the client's XFSC stack): TSPA base URL, framework name, OIDC issuer + a
    confidential client whose service account holds realm role <code>enrolltf</code>, Zone Manager reachability, and the
    TSPA version actually deployed.</p>
 <p>Everything else in this document is the evidence behind those two statements.</p>
@@ -499,7 +508,7 @@ cp docker-compose.override.yml tspa/ &amp;&amp; (cd tspa &amp;&amp; docker compo
 TSPA_REPO=./tspa bash roundtrip.sh      # writes evidence.md and bodies/ next to the script
 </code></pre>
 <p><code>scripts/verify-tspa-api/tcr-findings/tcr-findings.md</code> holds an out-of-scope finding about the TCR; it is not
-part of this ticket's evidence.</p>
+part of this verification's evidence.</p>
 <h3 id="runtime-observations-worth-knowing-before-the-client-instance">Runtime observations worth knowing before the client instance<a class="headerlink" href="#runtime-observations-worth-knowing-before-the-client-instance" title="Permanent link">&para;</a></h3>
 <ul>
 <li><code>GET /actuator/health</code> returns <strong>503 DOWN</strong> whenever the Zone Manager is unreachable: <code>ZonemanagerHealthCheck</code>
@@ -518,22 +527,22 @@ part of this ticket's evidence.</p>
 <li><code>request.get.mapping</code> must be the public base URL of TSPA in a real deployment: the TCR follows
   <code>credentialSubject.trustlistURI</code> to fetch the list.</li>
 </ul>
-<h2 id="9-adr-011-blocked-external-what-is-closed-and-what-remains">9. ADR-011 "Blocked-external" — what is closed and what remains<a class="headerlink" href="#9-adr-011-blocked-external-what-is-closed-and-what-remains" title="Permanent link">&para;</a></h2>
-<p>ADR-011 (2026-09-09) places reference measurements (launch digests) in its artifact class 3 and states:
+<h2 id="9-the-open-publication-item-what-is-closed-and-what-remains">9. The open publication item — what is closed and what remains<a class="headerlink" href="#9-the-open-publication-item-what-is-closed-and-what-remains" title="Permanent link">&para;</a></h2>
+<p>The project's artefact-chain design (2026-09-09) places reference measurements (launch digests) in its artifact class 3 and states:
 <em>"Publication path = TSPA (Trust Framework Manager) + DNS zone manager — the TCR is the read side. TSPA's exact
-publish API is UNVERIFIED (Blocked-external-verify): read the TSPA repo / ask the client before building E02-09's
-task on it; until then that task is not Ready."</em></p>
-<p>The "read the TSPA repo" half is done by this document. <strong>Proposed replacement for that sentence in ADR-011:</strong></p>
+publish API is UNVERIFIED (Blocked-external-verify): read the TSPA repo / ask the client before building the
+launch-digest publication on it; until then that task is not Ready."</em></p>
+<p>The "read the TSPA repo" half is done by this document. <strong>Proposed replacement for that statement in the design:</strong></p>
 <blockquote>
-<p>TSPA's publish API is <strong>VERIFIED against source and a local instance (FZTD-162, 2026-09-16)</strong>:
+<p>TSPA's publish API is <strong>VERIFIED against source and a local instance (2026-09-16)</strong>:
 <code>PUT /tspa/v1/{fw}/trust-list/tsp</code> (create) and <code>PATCH .../tsp/{uuid}</code> (update), Bearer JWT with Keycloak
-realm role <code>enrolltf</code>, entry schema <code>TSPSchema.json</code>, create-only PUT. Two items remain before E02-09 is Ready:
+realm role <code>enrolltf</code>, entry schema <code>TSPSchema.json</code>, create-only PUT. Two items remain before the launch-digest publication can be built:
 <strong>(a) Open-decision:</strong> TSPA's entry schema has no measurement field — the carrier for the launch digest
-(candidates A–C in FZTD-162 §1) must be chosen together with whoever consumes it on the read side
-(TCR → connector/cmcd comparison, ZT-64/ZT-67); <strong>(b) Blocked-external (EXT-C-XFSC):</strong> client TSPA URL,
+(candidates A–C in the verification brief, §1) must be chosen together with whoever consumes it on the read side
+(TCR → connector/cmcd comparison, ZT-64/ZT-67); <strong>(b) Blocked-external (the client's XFSC stack):</strong> client TSPA URL,
 framework name, OIDC client with <code>enrolltf</code>, Zone Manager reachability, deployed TSPA version.</p>
 </blockquote>
-<p>Note for (a): ADR-011's chain is <em>Git-versioned metadata → pipeline-signed → per-zone CMC estserver → cmcd, with
+<p>Note for (a): the design's chain is <em>Git-versioned metadata → pipeline-signed → per-zone CMC estserver → cmcd, with
 expected values published into TRAIN</em>. The value published to TRAIN must therefore be <strong>derived from the same
 signed reference metadata</strong> the pipeline already produces for cmcd, not computed separately, or the two sources
 of truth can disagree. Which representation of that metadata goes into the trust-list entry is the decision.</p>
@@ -542,7 +551,7 @@ payload schema, error/idempotency semantics, and a working local round-trip.</p>
 <p>Still open — <strong>first, and not external:</strong>
 - <strong>decision</strong>: which TSP field carries the TEEM and what the TCR/policy side reads (candidates in §1). This is a
   project convention to agree with the connector/attestation owner; nothing in TSPA forces it.</p>
-<p>Still external (needs EXT-C-XFSC / the client's XFSC stack):
+<p>Still external (needs the client's XFSC stack):
 - the client's TSPA base URL and framework name;
 - an OIDC issuer + confidential client whose service account has realm role <code>enrolltf</code>, provisioned for the pipeline;
 - Zone Manager availability (framework/DID publication cannot be exercised offline);
@@ -646,14 +655,14 @@ instance without additional infrastructure. Concretely: the VC issuer TSPA uses 
 <code>did:web:essif.iao.fraunhofer.de</code>, no longer has a DID document (HTTP 404), so the TCR cannot verify the signature;
 and switching the issuer to a self-contained <code>did:key</code> makes the TCR's <code>resolveDid</code> fail with a null
 <code>getServices()</code> for documents without a <code>service</code> section (HTTP 500). An exploratory run with a locally patched
-TCR exists outside this ticket's scope and is recorded in <code>scripts/verify-tspa-api/tcr-findings/tcr-findings.md</code>; it is not evidence for the
+TCR exists outside this verification's scope and is recorded in <code>scripts/verify-tspa-api/tcr-findings/tcr-findings.md</code>; it is not evidence for the
 "done when" criteria, which are all on the write side.</p>
               
             </div>
           </div><footer>
     <div class="rst-footer-buttons" role="navigation" aria-label="Footer Navigation">
         <a href="../contracts/" class="btn btn-neutral float-left" title="Interface contracts"><span class="icon icon-circle-arrow-left"></span> Previous</a>
-        <a href="../bdd/" class="btn btn-neutral float-right" title="BDD acceptance">Next <span class="icon icon-circle-arrow-right"></span></a>
+        <a href="../bdd/" class="btn btn-neutral float-right" title="Harness and pack">Next <span class="icon icon-circle-arrow-right"></span></a>
     </div>
 
   <hr/>

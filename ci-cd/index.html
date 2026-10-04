@@ -100,9 +100,12 @@
                 <li class="toctree-l1"><a class="reference internal" href="../tspa-publish-api/">TRAIN trust-list publishing</a>
                 </li>
               </ul>
+              <p class="caption"><span class="caption-text">BDD acceptance</span></p>
               <ul>
-                <li class="toctree-l1"><a class="reference internal" href="../bdd/">BDD acceptance</a>
-                </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../bdd/">Harness and pack</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../bdd-catalogue/">Catalogue</a>
+                  </li>
               </ul>
               <ul class="current">
                 <li class="toctree-l1 current"><a class="reference internal current" href="#">CI/CD</a>
@@ -116,6 +119,8 @@
     <li class="toctree-l3"><a class="reference internal" href="#go-version">Go version</a>
     </li>
         </ul>
+    </li>
+    <li class="toctree-l2"><a class="reference internal" href="#image-signing">Image signing</a>
     </li>
     <li class="toctree-l2"><a class="reference internal" href="#lifecycle-scenarios-on-the-client-targets">Lifecycle scenarios on the client targets</a>
     </li>
@@ -149,12 +154,18 @@
                 </li>
               </ul>
               <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../licenses/">Licenses</a>
+                </li>
+              </ul>
+              <ul>
                 <li class="toctree-l1"><a class="reference internal" href="../specifications/">Specification changes</a>
                 </li>
               </ul>
               <p class="caption"><span class="caption-text">Architecture decisions</span></p>
               <ul>
                   <li class="toctree-l1"><a class="reference internal" href="../adr/">Overview</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../adr/tdr-decisions/">TDR decisions ADR 001–006</a>
                   </li>
                   <li class="toctree-l1"><a class="reference internal" href="../adr/0001-service-mesh-mode-istio-ambient-with-cilium/">0001 Service mesh mode</a>
                   </li>
@@ -237,6 +248,11 @@ and is declared as such in <a href="../specifications/#readings-and-additions">S
 <td><code>.github/workflows/ci.yml</code></td>
 <td>every pull request, push to <code>main</code>, manual</td>
 <td>Go lint and tests, image build with the Linux assertion and a Trivy scan, chart lint and dry-run render</td>
+</tr>
+<tr>
+<td><code>.github/workflows/release.yml</code></td>
+<td>manual, push to a <code>candidate/**</code> branch</td>
+<td>Release candidate: builds, pushes, signs and attests every image by digest, then verifies each one (see <a href="#image-signing">Image signing</a>)</td>
 </tr>
 <tr>
 <td><code>.github/workflows/measurement-determinism.yml</code></td>
@@ -339,12 +355,42 @@ version and the same rule of attaching an SBOM to every release that lacks one �
 actions and declared permissions this repository requires of its own workflows. They can go back to
 being references once the shared workflows accept a Go version or read <code>go.mod</code>; that is a change to
 propose in <code>eclipse-xfsc/dev-ops</code>.</p>
+<h2 id="image-signing">Image signing<a class="headerlink" href="#image-signing" title="Permanent link">&para;</a></h2>
+<p>The candidate job of <code>release.yml</code> builds every image under <code>deployment/docker/</code> for <code>linux/amd64</code>,
+labels it <code>eu.facis.ztd.signing-key=interim</code> and pushes it to <code>ghcr.io/&lt;owner&gt;/&lt;repository&gt;/&lt;name&gt;</code>.
+Then, for each image digest:</p>
+<ol>
+<li><code>scripts/supplychain/sbom.sh</code> — the Syft SBOM of the image, scanned by digest, enriched by Grype with
+   the known vulnerabilities (CycloneDX JSON);</li>
+<li><code>go run ./cmd/mockattest</code> — the mock attestation (ZT-71), checked against the schema admission
+   enforces;</li>
+<li><code>scripts/supplychain/sign-attest.sh</code> — the cosign signature and both attestations, the same commands
+   the CI interop and kind tests use;</li>
+<li>verification of every digest against the committed public key
+   (<code>docs/contracts/keys/interim-cosign.pub</code>), with the admission provider's own code
+   (<code>cmd/imageverify</code>) and with <code>cosign verify</code> / <code>verify-attestation</code>.</li>
+</ol>
+<p>The private key is the <code>COSIGN_INTERIM_KEY</code> secret (with <code>COSIGN_INTERIM_PASSWORD</code>) of the protected
+<code>release</code> environment; without it, or without the public key, the job fails before anything is
+signed. The interim key is not the client trust chain; it is replaced by the client key and Harbor.
+The job creates no tag and no release.</p>
+<p>It checks the key before it builds anything: the secret must be set and must be the private half of
+the committed public key, so a missing environment, secret or key file stops the job before an image
+is pushed. GHCR creates new packages as private; the job verifies them with its own token, but a
+cluster pulls and verifies anonymously, so the candidate packages must be made public in the package
+settings (once per package) before a cluster can admit them.</p>
 <h2 id="lifecycle-scenarios-on-the-client-targets">Lifecycle scenarios on the client targets<a class="headerlink" href="#lifecycle-scenarios-on-the-client-targets" title="Permanent link">&para;</a></h2>
-<p>The <code>bdd-cluster</code> job runs the deployment-lifecycle scenarios (TDR-BDD-01..04) against each client
+<p>The <code>bdd</code> job runs on every pull request: <code>bddpack -check</code>, the strict and catalogue runs of both
+runners and the cluster dry run, then <code>bddreport --require-complete</code> over the five reports, so a
+row that is uncovered or failed fails the job (see <a href="../bdd/#the-harness">BDD acceptance</a>). The dry
+run exists only in this job: where a cluster run happens, its real report is used instead.</p>
+<p>The <code>bdd-cluster</code> job runs the cluster scenarios (TDR-BDD-01..04 and TDR-BDD-06) against each client
 target, and <code>bdd-cluster-report</code> merges every target into one traceability sheet in which a row is
 proven only if it passed everywhere. They run on pushes to <code>main</code>, on every published release and
 on demand — never on pull requests — and one run at a time per target. Evidence is published even
-when the run fails, and the job keeps its failure. See <a href="../bdd/">BDD acceptance</a> for what they prove.</p>
+when the run fails, and the job keeps its failure. See <a href="../bdd/">BDD acceptance</a> for what they prove. Each target's evidence and the cross-target
+sheet also carry a <code>bdd-catalogue.md</code> rendered from that run (<code>bddpack -evidence</code>), whose evidence
+basis column says what each row was proven with — for example the fixture release.</p>
 <p>Both jobs stay off until the repository variable <code>BDD_CLUSTER_ENABLED</code> is <code>true</code>. A target
 <code>&lt;KEY&gt;</code> (for example <code>IONOS</code>) then needs, as repository secrets, <code>BDD_&lt;KEY&gt;_OBSERVER_KUBECONFIG</code>
 (the read-only observer identity — never an administrator credential), <code>BDD_&lt;KEY&gt;_ORCE_URL</code>,
@@ -402,7 +448,7 @@ organisation setting and cannot be declared from this repository's tree. The req
 ruleset above. Every workflow then declares its own top-level <code>permissions:</code> block rather than
 relying on that default, and a job that needs more than read access grants it at the job level with
 a comment naming the reason: <code>docs.yml</code> writes to <code>gh-pages</code>, <code>sbom.yml</code> uploads the SBOM onto a
-release. Wildcard scopes (<code>write-all</code>) are never used.</p>
+release, the release candidate job pushes images and signatures to GHCR (<code>packages: write</code>). Wildcard scopes (<code>write-all</code>) are never used.</p>
 <h3 id="action-pinning">Action pinning<a class="headerlink" href="#action-pinning" title="Permanent link">&para;</a></h3>
 <p>Third-party actions are referenced by full commit SHA with the version in a trailing comment, so a
 moved tag cannot change what runs in the pipeline:</p>
@@ -450,7 +496,7 @@ maintainer applies.</p>
             </div>
           </div><footer>
     <div class="rst-footer-buttons" role="navigation" aria-label="Footer Navigation">
-        <a href="../bdd/" class="btn btn-neutral float-left" title="BDD acceptance"><span class="icon icon-circle-arrow-left"></span> Previous</a>
+        <a href="../bdd-catalogue/" class="btn btn-neutral float-left" title="Catalogue"><span class="icon icon-circle-arrow-left"></span> Previous</a>
         <a href="../troubleshooting/" class="btn btn-neutral float-right" title="Troubleshooting">Next <span class="icon icon-circle-arrow-right"></span></a>
     </div>
 
@@ -479,7 +525,7 @@ maintainer applies.</p>
         </span>
     
     
-      <span><a href="../bdd/" style="color: #fcfcfc">&laquo; Previous</a></span>
+      <span><a href="../bdd-catalogue/" style="color: #fcfcfc">&laquo; Previous</a></span>
     
     
       <span><a href="../troubleshooting/" style="color: #fcfcfc">Next &raquo;</a></span>

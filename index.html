@@ -110,9 +110,12 @@
                 <li class="toctree-l1"><a class="reference internal" href="tspa-publish-api/">TRAIN trust-list publishing</a>
                 </li>
               </ul>
+              <p class="caption"><span class="caption-text">BDD acceptance</span></p>
               <ul>
-                <li class="toctree-l1"><a class="reference internal" href="bdd/">BDD acceptance</a>
-                </li>
+                  <li class="toctree-l1"><a class="reference internal" href="bdd/">Harness and pack</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="bdd-catalogue/">Catalogue</a>
+                  </li>
               </ul>
               <ul>
                 <li class="toctree-l1"><a class="reference internal" href="ci-cd/">CI/CD</a>
@@ -127,12 +130,18 @@
                 </li>
               </ul>
               <ul>
+                <li class="toctree-l1"><a class="reference internal" href="licenses/">Licenses</a>
+                </li>
+              </ul>
+              <ul>
                 <li class="toctree-l1"><a class="reference internal" href="specifications/">Specification changes</a>
                 </li>
               </ul>
               <p class="caption"><span class="caption-text">Architecture decisions</span></p>
               <ul>
                   <li class="toctree-l1"><a class="reference internal" href="adr/">Overview</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="adr/tdr-decisions/">TDR decisions ADR 001–006</a>
                   </li>
                   <li class="toctree-l1"><a class="reference internal" href="adr/0001-service-mesh-mode-istio-ambient-with-cilium/">0001 Service mesh mode</a>
                   </li>
@@ -221,7 +230,7 @@ tampered measurement each produce a distinct, explained denial.</p>
 </tr>
 <tr>
 <td>See how acceptance is proven</td>
-<td><a href="bdd/">BDD acceptance</a></td>
+<td><a href="bdd/">BDD acceptance</a> and the <a href="bdd-catalogue/">BDD catalogue</a> of every Annex A row</td>
 </tr>
 <tr>
 <td>Understand the pipeline</td>
@@ -233,7 +242,7 @@ tampered measurement each produce a distinct, explained denial.</p>
 </tr>
 <tr>
 <td>Check what it depends on</td>
-<td><a href="dependencies/">OSS dependencies</a></td>
+<td><a href="dependencies/">OSS dependencies</a> and <a href="licenses/">Licenses</a></td>
 </tr>
 <tr>
 <td>Find where we depart from the specification</td>
@@ -241,7 +250,7 @@ tampered measurement each produce a distinct, explained denial.</p>
 </tr>
 <tr>
 <td>Understand why it is built this way</td>
-<td><a href="adr/">Architecture decisions</a></td>
+<td><a href="adr/">Architecture decisions</a>, including how the <a href="adr/tdr-decisions/">TDR decisions ADR 001–006</a> are applied</td>
 </tr>
 </tbody>
 </table>
@@ -253,6 +262,8 @@ the README, and is published from the same commit as the code it describes.</p>
 <a href="https://github.com/eclipse-xfsc/facis/tree/main/FAP/Partner%20Onboarding%20(Reference%20FAP)/specification">its specification</a>
 and <a href="https://github.com/eclipse-xfsc/facis-fap-partner-onboarding">its implementation</a> — so a reader
 who knows one FACIS repository can navigate this one without relearning where things are.</p>
+<p>How the project applies the handbook's contribution, intellectual-property and release rules is in
+<a href="https://github.com/eclipse-xfsc/facis-zero-trust-demonstrator/blob/main/CONTRIBUTING.md#eclipse-project-handbook">CONTRIBUTING.md</a>.</p>
 <p>The site is built with <a href="https://www.mkdocs.org/">MkDocs</a> and published to GitHub Pages on every
 change to <code>main</code>.</p>
 <h2 id="project-context">Project context<a class="headerlink" href="#project-context" title="Permanent link">&para;</a></h2>
@@ -315,5 +326,5 @@ other demonstrators — is indexed at
 
 <!--
 MkDocs version : 1.6.1
-Build Date UTC : 2026-09-30 11:15:39.922583+00:00
+Build Date UTC : 2026-10-04 21:35:42.130086+00:00
 -->
