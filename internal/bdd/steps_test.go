@@ -150,15 +150,55 @@ func (h *hygieneCheck) itReportsNoUnpinnedActionAndNoWildcardWriteScope() error 
 	return nil
 }
 
+// planeSeparationCheck asserts that the plane-separation section of the
+// architecture document satisfies the invariants it states about its own tables.
+// It proves the design, not reachability: no cluster is involved.
+type planeSeparationCheck struct {
+	output   string
+	exitCode int
+}
+
+func (p *planeSeparationCheck) thePlaneSeparationSectionOfTheArchitectureDocument() error {
+	if _, err := os.Stat(repoPath("docs/architecture.md")); err != nil {
+		return fmt.Errorf("no architecture document: %w", err)
+	}
+	return nil
+}
+
+func (p *planeSeparationCheck) thePlaneSeparationConformanceCheckRuns() error {
+	cmd := exec.Command(repoPath("scripts/check-plane-separation.sh"))
+	cmd.Dir = repoPath(".")
+	output, err := cmd.CombinedOutput()
+	p.output = string(output)
+	var exit *exec.ExitError
+	if errors.As(err, &exit) {
+		p.exitCode = exit.ExitCode()
+		return nil
+	}
+	return err
+}
+
+func (p *planeSeparationCheck) itReportsNoRowThatBreaksAnInvariantTheSectionStates() error {
+	if p.exitCode != 0 {
+		return fmt.Errorf("the plane-separation check failed:\n%s", p.output)
+	}
+	return nil
+}
+
 func InitializeScenario(ctx *godog.ScenarioContext) {
 	check := &hygieneCheck{}
+	planes := &planeSeparationCheck{}
 	ctx.Before(func(ctx context.Context, _ *godog.Scenario) (context.Context, error) {
 		*check = hygieneCheck{}
+		*planes = planeSeparationCheck{}
 		return ctx, nil
 	})
 	ctx.Step(`^the repository workflows$`, check.theRepositoryWorkflows)
 	ctx.Step(`^the workflow hygiene check runs$`, check.theWorkflowHygieneCheckRuns)
 	ctx.Step(`^it reports no unpinned action and no wildcard write scope$`, check.itReportsNoUnpinnedActionAndNoWildcardWriteScope)
+	ctx.Step(`^the plane-separation section of the architecture document$`, planes.thePlaneSeparationSectionOfTheArchitectureDocument)
+	ctx.Step(`^the plane-separation conformance check runs$`, planes.thePlaneSeparationConformanceCheckRuns)
+	ctx.Step(`^it reports no row that breaks an invariant the section states$`, planes.itReportsNoRowThatBreaksAnInvariantTheSectionStates)
 	registerAdmissionProof(ctx, os.Getenv("BDD_MODE") == "cluster-dryrun")
 	registerPending(ctx)
 }
