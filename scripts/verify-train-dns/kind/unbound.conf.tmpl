@@ -1,0 +1,13 @@
+# A validating resolver for the local zone: the DS the zone manager printed at first start is its
+# trust anchor, and the stub sends every query for the zone straight to the zone manager, since no
+# parent delegates it. What a validating resolver on the internet would do once the DS is published.
+server:
+  interface: 0.0.0.0
+  access-control: 0.0.0.0/0 allow
+  do-not-query-localhost: no
+  verbosity: 1
+  trust-anchor: "__DS__"
+  local-zone: "test." nodefault   # unbound answers NXDOMAIN for the reserved .test by default
+stub-zone:
+  name: "__ZONE__."
+  stub-addr: __DNS_IP__

@@ -9,7 +9,7 @@ specific cluster, with the check that proves each stage, see [Environments](envi
 - A CNI that supports the mesh baseline recorded in
   [ADR-0001](adr/0001-service-mesh-mode-istio-ambient-with-cilium.md).
 - A container registry reachable from the clusters, with credentials available to the cluster.
-- DNS delegation for the trust zone.
+- DNS delegation for the trust-framework zone, as described in [TRAIN DNS zone](train-dns.md).
 
 ## Installing a zone
 

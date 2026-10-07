@@ -44,6 +44,15 @@ whether the reason is the one you expected.
 | The report verifies but the channel is refused | The evidence is not bound to this connection | Confirm the TLS exporter value is present in the report's user data — an unbound report is a replay risk, so refusal is correct |
 | Application traffic appears after a failed handshake | A serious defect | This must be impossible and is asserted by an acceptance scenario; treat any instance as a stop-the-line finding |
 
+## Trust-framework DNS
+
+| Symptom | Likely cause | Check |
+|---|---|---|
+| The verifier refuses every peer with "no expected value" and nothing was changed | The TCR turns any DNS failure into an empty result, so a broken zone looks like an empty trust list | Run `scripts/verify-train-dns/verify.sh` from the cluster; its sections say which link of the chain failed — see [TRAIN DNS zone](train-dns.md) |
+| Every query to the zone manager is REFUSED after a pod restart | NSD came up before the zone's include was written and never reloaded | `nsd-control zonestatus` in the pod lists no zone; `nsd-control reconfig && nsd-control reload` serves it — the deployment runs this at start |
+| Validating resolvers answer SERVFAIL for the zone; `dig +cd` answers | The zone is bogus: the DS at the parent no longer matches the key (the volume was rebuilt), or the signatures expired (the `resign` job stopped) | Compare the DS at the parent in full with the DS of the key the zone serves (`dnssec-dsfromkey`, see [TRAIN DNS zone](train-dns.md#dnssec)): a matching key tag is not enough; read the RRSIG expiry on the SOA; the inspector's section 5 does both |
+| A pointer was published but a resolver still says NXDOMAIN, with the `ad` flag | The resolver cached the signed denial from before the record existed (NSEC, 3600 s) | Ask the authoritative server directly; wait out the TTL or flush the resolver |
+
 ## Credential verification and trust-list staleness
 
 | Symptom | Likely cause | Check |
