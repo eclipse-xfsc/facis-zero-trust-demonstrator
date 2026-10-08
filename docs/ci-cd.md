@@ -19,7 +19,7 @@ and is declared as such in [Specification changes](specifications.md#readings-an
 | `.github/workflows/sbom.yml` | schedule, release, manual | Generates a CycloneDX SBOM for every release that has none and attaches it |
 | `.github/workflows/docs.yml` | push to `main` affecting `docs/`, manual | Builds the MkDocs site and publishes it to the `gh-pages` branch |
 | `.github/workflows/workflow-hygiene.yml` | every pull request, manual | Fails the pull request when an action is not pinned to a commit or a token scope is too wide |
-| `.github/workflows/ci.yml` | every pull request, push to `main`, manual | Go lint and tests, image build with the Linux assertion and a Trivy scan, chart lint and dry-run render |
+| `.github/workflows/ci.yml` | every pull request, push to `main`, published release, manual | Go lint and tests, image build with the Linux assertion and a Trivy scan, chart lint and dry-run render; on a published release, the chart packaging and publication (see [Chart release](#chart-release)) |
 | `.github/workflows/release.yml` | manual, push to a `candidate/**` branch | Release candidate: builds, pushes, signs and attests every image by digest, then verifies each one (see [Image signing](#image-signing)) |
 | `.github/workflows/measurement-determinism.yml` | pull request and push to `main` touching the check, manual | Measures one fixture on a hosted runner, in a container, and on a deliberately divergent checkout, and requires the normalised measurement to be the same on all three |
 
@@ -33,7 +33,8 @@ and nobody hand-rolls their own:
 | `Go tests` | Calls the shared `go-test.yml`, which runs the tests of every Go module it finds | yes |
 | `Go lint` | `golangci-lint run ./...`, with a pinned golangci-lint built by the Go version `go.mod` names | yes |
 | `Image build and scan` | Builds each context under `deployment/docker/` for `linux/amd64`, asserts the built image's OS, then scans it with Trivy for HIGH and CRITICAL vulnerabilities | yes |
-| `Chart lint and render` | `helm lint` and a `helm template` dry-run render of every chart under `deployment/helm/` | yes |
+| `Chart lint and render` | `scripts/check-charts.sh`: `helm lint` and a `helm template` dry-run render of every chart under `deployment/helm/` and of the fixture charts under `features/fixtures/charts/`; then `scripts/check-charts_test.sh`, the cases that hold the script to refusing a package when a chart fails | yes |
+| `Release charts` | On a published release only, once every other gate job of the workflow has passed: packages the charts under `deployment/helm/` at the release version, attaches them to the release with their checksums and, when a registry is configured, pushes them as OCI chart artefacts — see [Chart release](#chart-release) | yes — a release whose gates fail ships no chart |
 
 ZT-13 requires Linux images. The pipeline reads the OS back off the built image with
 `docker image inspect` and fails if it is anything but `linux/amd64`, rather than trusting the
@@ -102,6 +103,41 @@ is pushed. GHCR creates new packages as private; the job verifies them with its 
 cluster pulls and verifies anonymously, so the candidate packages must be made public in the package
 settings (once per package) before a cluster can admit them.
 
+## Chart release
+
+The Technical Development Requirements deliver the Helm charts with each release. The candidate
+stage above creates no tag and no release; the charts are delivered when a release is published, by
+the `Release charts` job of `ci.yml`, and only after every gate job of that workflow has passed —
+the lifecycle jobs included, which may be skipped while the repository variable is off but not
+failed or cancelled. The lint and dry-run render are the gate in front of the package, so a chart
+that fails either is never released, which is the rule of Annex A row TDR-BDD-11. The pull-request
+job and the release job run the same `scripts/check-charts.sh`, which checks every chart first and
+packages only when all of them pass, so the gate a pull request clears is the gate the release is
+held to. Each package is then linted and rendered again with the chart's own values: the version
+now differs from `Chart.yaml`, and a template that reads it renders differently. One failing
+package leaves no package at all. `scripts/check-charts_test.sh` holds the script to that in the
+chart job, against charts it writes itself: a set that passes is packaged at the version with
+matching checksums, and one failing chart leaves no package, at the source or once packaged.
+
+A release is tagged `vX.Y.Z`, or `vX.Y.Z-prerelease`. The charts are packaged at that version — the
+tag drives `--version` and `--app-version`, over the development version in each `Chart.yaml` — so
+the release and every chart in it carry one version, and the documentation of a release describes
+the charts it ships. A tag that is not semantic versioning stops the job before it names a package,
+and so does build metadata (`+`): the charts put their version into the `helm.sh/chart` label, and
+`+` is not allowed in a label value. The packages and a `SHA256SUMS` file are attached to the
+release as assets.
+
+Publication to a registry stays off until one exists. When the repository variable `CHART_REGISTRY`
+names the OCI path for charts (for example `harbor.example.org/facis/charts`) and the secrets
+`CHART_REGISTRY_USER` and `CHART_REGISTRY_PASSWORD` hold a robot account allowed to push there, the
+job also pushes every package with `helm push` and prints the digest of each into the run summary.
+That digest is what a zone file pins: the lifecycle workflow accepts a chart only as a local path or
+as an `oci://` reference pinned by digest.
+
+Locally, `scripts/check-charts.sh` runs the same check, and
+`scripts/check-charts.sh --package dist --version 0.0.0-local` the same packaging, for a look at what
+a release would ship.
+
 ## Lifecycle scenarios on the client targets
 
 The `bdd` job runs on every pull request: `bddpack -check`, the strict and catalogue runs of both
@@ -157,7 +193,9 @@ The repository's default workflow token is read-only — an administrator settin
 ruleset above. Every workflow then declares its own top-level `permissions:` block rather than
 relying on that default, and a job that needs more than read access grants it at the job level with
 a comment naming the reason: `docs.yml` writes to `gh-pages`, `sbom.yml` uploads the SBOM onto a
-release, the release candidate job pushes images and signatures to GHCR (`packages: write`). Wildcard scopes (`write-all`) are never used.
+release, the release candidate job pushes images and signatures to GHCR (`packages: write`), and the
+`Release charts` job attaches the packaged charts to a release. Wildcard scopes (`write-all`) are
+never used.
 
 ### Action pinning
 
