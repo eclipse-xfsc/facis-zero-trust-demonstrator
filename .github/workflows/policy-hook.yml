@@ -1,0 +1,67 @@
+name: Guard policy-hook proofs
+
+# Runs the policy-hook proofs from the commit under review on a hosted runner: the echo
+# upstream, the hook and the probe as plain processes, Envoy as one container from the image
+# pinned in scripts/tools/pins.env. The records are this run's artefact and the verdict goes to
+# the job summary; nothing is committed, and the numbers are those of a Linux host.
+on:
+  pull_request:
+    paths:
+      - cmd/policy-hook-probe/**
+      - scripts/verify-policy-hook/**
+      - scripts/tools/pins.env
+      - docs/contracts/fixtures/if05-policy-decision.v1/**
+      - docs/contracts/fixtures/if05-policy-input.v1/**
+      - go.mod
+      - go.sum
+      - .github/workflows/policy-hook.yml
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  proofs:
+    name: Guard policy-hook proofs
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+
+      # The probe is built with the Go version go.mod names.
+      - name: Set up Go
+        uses: actions/setup-go@40f1582b2485089dde7abd97c1529aa768e1baff # v5.6.0
+        with:
+          go-version-file: go.mod
+
+      # The records go to the runner's temp directory, outside the checkout.
+      - name: Run the proofs against the pinned Envoy
+        run: scripts/verify-policy-hook/verify.sh --out "$RUNNER_TEMP/evidence"
+
+      - name: Write the verdict to the job summary
+        if: ${{ !cancelled() }}
+        run: |
+          {
+            echo '```'
+            cat "$RUNNER_TEMP/evidence/verdict.txt"
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload this run's records
+        if: ${{ !cancelled() }}
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: policy-hook-evidence
+          path: ${{ runner.temp }}/evidence
+          if-no-files-found: error
+
+      # The proofs write outside the checkout; the checkout must be as it was.
+      - name: The repository is unchanged
+        if: ${{ !cancelled() }}
+        run: |
+          if [ -n "$(git status --porcelain)" ]; then
+            git status --porcelain
+            echo "::error::the proofs changed files in the repository"
+            exit 1
+          fi

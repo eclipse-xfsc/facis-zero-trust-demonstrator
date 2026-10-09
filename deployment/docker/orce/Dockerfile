@@ -1,30 +1,50 @@
 # First-party ORCE image for the FACIS ZTD deployment workflow: upstream ORCE plus the pinned
-# Helm and kubectl the lifecycle Builder Node needs, the node itself, its flow, the lifecycle
-# script and the lifecycle fixture chart. Built with the repository root as the context:
+# Helm (built from source) and kubectl the lifecycle Builder Node needs, the node itself, its
+# flow, the lifecycle script and the lifecycle fixture chart. Built with the repository root as the context:
 #
 #   docker build --platform linux/amd64 -f deployment/docker/orce/Dockerfile .
 #
 # Unlike the upstream image it does not run as root, removes the unauthenticated file browser
 # rather than starting it, takes the Alpine security updates, and has no built-in credentials
 # (see settings.js).
-FROM ecofacis/xfsc-orce:2.0.13@sha256:52e4f98ff21a45225525057612f065ee8b32234f1f444d61cc83efded2949b80 AS orce
+
+# Helm is built from its tagged source on the same pinned Go toolchain as the first-party
+# services, not taken from the release archive: a release binary carries the Go standard
+# library of its release day until the next Helm release, and the image scan fails on every
+# standard-library CVE fixed in between. Here a Go fix is a change of this one pin. The stage
+# runs on the build host's platform and cross-compiles for linux/amd64.
+FROM --platform=$BUILDPLATFORM golang:1.27.2@sha256:5bc7f572bbaa98885a3a1fd9c0aa76b59e3e14e8628bfc316bbfd0c701e4818c AS helm
 
 ARG HELM_VERSION=v4.3.0
-ARG HELM_SHA256=86584a54def73570558f66f5111cc53dfed56689637ae32c1201205d494f54fb
+ARG HELM_COMMIT=bec5b06ed841fe5269972d864d5177944fd5970f
+
+# The clone is checked against the commit the tag names; the linker flags are those of Helm's
+# own Makefile for a tagged, clean tree, so `helm version` reports the release as upstream's does.
+RUN set -eux; \
+    git clone --depth 1 --branch "${HELM_VERSION}" https://github.com/helm/helm.git /src; \
+    cd /src; \
+    [ "$(git rev-parse HEAD)" = "${HELM_COMMIT}" ]; \
+    CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -trimpath \
+      -ldflags "-w -s \
+        -X helm.sh/helm/v4/internal/version.version=${HELM_VERSION} \
+        -X helm.sh/helm/v4/internal/version.metadata= \
+        -X helm.sh/helm/v4/internal/version.gitCommit=${HELM_COMMIT} \
+        -X helm.sh/helm/v4/internal/version.gitTreeState=clean" \
+      -o /out/helm ./cmd/helm
+
+FROM ecofacis/xfsc-orce:2.0.13@sha256:52e4f98ff21a45225525057612f065ee8b32234f1f444d61cc83efded2949b80 AS orce
+
 ARG KUBECTL_VERSION=v1.35.8
 ARG KUBECTL_SHA256=874d5e72dbb819f43cff16bcd1e4f8bac5b7f2361fe1e55049b0a6c676fb0cbf
 
 USER root
+COPY --from=helm /out/helm /usr/local/bin/helm
 RUN set -eux; \
     cd /tmp; \
-    curl -fsSLo helm.tgz "https://get.helm.sh/helm-${HELM_VERSION}-linux-amd64.tar.gz"; \
-    echo "${HELM_SHA256}  helm.tgz" | sha256sum -c -; \
-    tar -xzf helm.tgz linux-amd64/helm; \
-    install -m 0755 linux-amd64/helm /usr/local/bin/helm; \
     curl -fsSLo kubectl "https://dl.k8s.io/release/${KUBECTL_VERSION}/bin/linux/amd64/kubectl"; \
     echo "${KUBECTL_SHA256}  kubectl" | sha256sum -c -; \
     install -m 0755 kubectl /usr/local/bin/kubectl; \
-    rm -rf /tmp/helm.tgz /tmp/linux-amd64 /tmp/kubectl; \
+    rm -f /tmp/kubectl; \
     apk upgrade --no-cache; \
     rm -rf /usr/local/bin/filebrowser /data/filebrowser; \
     # The upstream demo flows carry a live cloud API token, and their encrypted credentials ship

@@ -1,7 +1,9 @@
 package authelia
 
 import (
+	"context"
 	"errors"
+	"fmt"
 	"time"
 
 	"authelia.com/provider/oauth2"
@@ -38,7 +40,7 @@ func newLibraryConfig(cfg oauth2provider.Config) (*oauth2.Config, error) {
 		lifespan = defaultAccessTokenLifespan
 	}
 
-	return &oauth2.Config{
+	config := &oauth2.Config{
 		GlobalSecret:        cfg.Secret,
 		AccessTokenLifespan: lifespan,
 		TokenEntropy:        tokenEntropy,
@@ -63,5 +65,15 @@ func newLibraryConfig(cfg oauth2provider.Config) (*oauth2.Config, error) {
 		RFC7591ClientRegistrationScopes:            []string{oauth2provider.RegistrationScope},
 		RFC7591ClientRegistrationGrantTypes:        cfg.Registration.GrantTypes,
 		RFC7591ClientRegistrationStrategy:          rfc7591.NewDefaultClientRegistrationStrategy(),
-	}, nil
+	}
+
+	// Checked on the library's getters, so that its defaults for a zero
+	// lifespan or skew are counted as well.
+	ctx := context.Background()
+	if window := config.GetDPoPProofLifespan(ctx) + config.GetDPoPClockSkew(ctx); window > oauth2provider.MaxDPoPProofWindow {
+		return nil, fmt.Errorf("oauth2provider: Config.DPoP.ProofLifespan plus Config.DPoP.ClockSkew is %s, more than the %s a proof may stay acceptable",
+			window, oauth2provider.MaxDPoPProofWindow)
+	}
+
+	return config, nil
 }

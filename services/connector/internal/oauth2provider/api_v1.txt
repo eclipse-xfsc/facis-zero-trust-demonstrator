@@ -1,0 +1,101 @@
+# Exported API of the oauth2provider contract, frozen at version 1: one line per exported
+# identifier. A struct field's line carries its position, since a caller may build the struct
+# positionally. TestContractAPIIsFrozen (api_test.go) regenerates this listing from the package and
+# fails when the two differ. A change to the contract is deliberate: an addition is an ordinary
+# change, a removal, a changed signature or a reordered field is a breaking one and is reviewed as
+# such. Describe
+# the change in docs/oauth2-provider.md, then regenerate this file with
+#   OAUTH2PROVIDER_API_UPDATE=1 go test -run TestContractAPIIsFrozen ./services/connector/internal/oauth2provider
+type Client struct
+type Client struct, field 0 ID string
+type Client struct, field 1 SecretHash []byte
+type Client struct, field 2 GrantTypes []string
+type Client struct, field 3 Scopes []string
+type Client struct, field 4 Audience []string
+type Client struct, field 5 DPoPBound bool
+type Client struct, field 6 Metadata encoding/json.RawMessage
+type ClientStore interface
+type ClientStore interface, CreateClient(context.Context, Client) error
+type ClientStore interface, DeleteClient(context.Context, string) error
+type ClientStore interface, GetClient(context.Context, string) (Client, error)
+type ClientStore interface, UpdateClient(context.Context, Client) error
+type Code string
+const CodeDPoPInvalidATH Code = "dpop_invalid_ath"
+const CodeDPoPInvalidProof Code = "dpop_invalid_proof"
+const CodeDPoPKeyMismatch Code = "dpop_jkt_mismatch"
+const CodeDPoPReplayed Code = "dpop_replayed"
+const CodeDPoPUseNonce Code = "dpop_use_nonce"
+const CodeInsufficientScope Code = "insufficient_scope"
+const CodeInvalidClient Code = "invalid_client"
+const CodeInvalidRequest Code = "invalid_request"
+const CodeInvalidToken Code = "invalid_token"
+const CodeRegistrationRejected Code = "registration_rejected"
+const CodeServerError Code = "server_error"
+type Config struct
+type Config struct, field 0 Secret []byte
+type Config struct, field 1 AccessTokenLifespan time.Duration
+type Config struct, field 2 DPoP DPoPConfig
+type Config struct, field 3 Registration RegistrationConfig
+type DPoPConfig struct
+type DPoPConfig struct, field 0 Enforce bool
+type DPoPConfig struct, field 1 NonceRequired bool
+type DPoPConfig struct, field 2 ProofLifespan time.Duration
+type DPoPConfig struct, field 3 ClockSkew time.Duration
+type DPoPConfig struct, field 4 NonceLifespan time.Duration
+type DPoPConfig struct, field 5 Algorithms []string
+type DPoPNonceStore interface
+type DPoPNonceStore interface, CreateNonce(context.Context, string, time.Time) error
+type DPoPNonceStore interface, IsNonceValid(context.Context, string) (bool, error)
+type DPoPProofUse struct
+type DPoPProofUse struct, field 0 Thumbprint string
+type DPoPProofUse struct, field 1 Method string
+type DPoPProofUse struct, field 2 URI string
+type DPoPProofUse struct, field 3 ID string
+type DPoPProofUse struct, field 4 Nonce string
+type DPoPProofUse struct, field 5 IssuedAt time.Time
+type DPoPProofUse struct, field 6 NotAfter time.Time
+type DPoPReplayStore interface
+type DPoPReplayStore interface, MarkUsed(context.Context, DPoPProofUse) (bool, error)
+var ErrNotFound error
+type Error struct
+type Error struct, field 0 Code Code
+type Error struct, field 1 Status int
+type Error struct, field 2 DPoPNonce string
+method (*Error) Error() string
+method (*Error) Unwrap() error
+const MaxDPoPProofWindow time.Duration = 90000000000
+func NewError(Code, int, error) *Error
+type Provider interface
+type Provider interface, RegistrationHandler() net/http.Handler
+type Provider interface, TokenHandler() net/http.Handler
+type Provider interface, ValidateResourceRequest(*net/http.Request) (ResourceAccess, error)
+const ReasonField untyped string = "reason"
+type RegistrationConfig struct
+type RegistrationConfig struct, field 0 Secret []byte
+type RegistrationConfig struct, field 1 EndpointURL string
+type RegistrationConfig struct, field 2 GrantTypes []string
+const RegistrationScope untyped string = "connector:client_registration"
+type ResourceAccess struct
+type ResourceAccess struct, field 0 ClientID string
+type ResourceAccess struct, field 1 Thumbprint string
+type ResourceAccess struct, field 2 Scopes []string
+type ResourceAccess struct, field 3 Audience []string
+type Stores struct
+type Stores struct, field 0 Clients ClientStore
+type Stores struct, field 1 AccessTokens TokenStore
+type Stores struct, field 2 RegistrationTokens TokenStore
+type Stores struct, field 3 DPoPNonces DPoPNonceStore
+type Stores struct, field 4 DPoPReplay DPoPReplayStore
+type TokenRecord struct
+type TokenRecord struct, field 0 RequestID string
+type TokenRecord struct, field 1 ClientID string
+type TokenRecord struct, field 2 RequestedAt time.Time
+type TokenRecord struct, field 3 RequestedScopes []string
+type TokenRecord struct, field 4 GrantedScopes []string
+type TokenRecord struct, field 5 RequestedAudience []string
+type TokenRecord struct, field 6 GrantedAudience []string
+type TokenRecord struct, field 7 Session []byte
+type TokenStore interface
+type TokenStore interface, CreateToken(context.Context, string, TokenRecord) error
+type TokenStore interface, DeleteToken(context.Context, string) error
+type TokenStore interface, GetToken(context.Context, string) (TokenRecord, error)

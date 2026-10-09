@@ -22,6 +22,7 @@ and is declared as such in [Specification changes](specifications.md#readings-an
 | `.github/workflows/ci.yml` | every pull request, push to `main`, manual | Go lint and tests, image build with the Linux assertion and a Trivy scan, chart lint and dry-run render |
 | `.github/workflows/release.yml` | manual, push to a `candidate/**` branch | Release candidate: builds, pushes, signs and attests every image by digest, then verifies each one (see [Image signing](#image-signing)) |
 | `.github/workflows/measurement-determinism.yml` | pull request and push to `main` touching the check, manual | Measures one fixture on a hosted runner, in a container, and on a deliberately divergent checkout, and requires the normalised measurement to be the same on all three |
+| `.github/workflows/policy-hook.yml` | pull requests touching the policy-hook probe, its script, the pinned Envoy image or the policy fixtures; manual | Runs the guard policy-hook proofs (`scripts/verify-policy-hook/verify.sh`) against Envoy from the pinned image, uploads the records as an artefact and writes the verdict and the latency numbers to the job summary |
 
 ## The service pipeline
 
