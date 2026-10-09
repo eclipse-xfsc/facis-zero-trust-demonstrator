@@ -11,6 +11,13 @@ zone:
   storageClass: ""       # storage class the zone provides to persistent components
   loadBalancer:
     type: ""             # how the zone exposes services: cloud | metallb | none
+  # The zone's SPIFFE trust domain: the DNS zone delegated to this trust zone, the one in which the
+  # trust framework publishes its records (kind: kind.facis-ztd.local). Shared by SPIRE
+  # (global.spire.trustDomain) and the mesh (meshConfig.trustDomain), both read from this key by
+  # scripts/install-zone. Required whenever mesh.mode is not none. It is baked into the SPIRE
+  # server's root CA at first start: changing it later means reinstalling SPIRE and reissuing every
+  # identity (docs/workload-identity.md).
+  trustDomain: ""
 
 # --------------------------------------------------------------------------------------------
 # Planes. Management components (SPIRE server, ArgoCD, OpenBao, Harbor, TSPA, estserver, admin
@@ -23,27 +30,41 @@ planes:
     namespace: ztd-mgmt
   data:
     namespace: ztd-data
-  # Further plane namespaces that component tasks add, for example a dedicated SPIRE namespace.
+  # Further plane namespaces: the control planes of the identity path and of the mesh, and any
+  # namespace a component task adds. Each entry gets the plane label, the default deny and the
+  # baseline lanes. `mesh: false` leaves out the mesh label (default true): the SPIRE server, the
+  # controller-manager, istiod and the Istio CNI agent must never receive a sidecar.
   extra: []
   # - name: spire-system
   #   plane: management
+  #   mesh: false
+  # - name: istio-system
+  #   plane: management
+  #   mesh: false
 
 # --------------------------------------------------------------------------------------------
-# Mesh mode. ADR-0001 baselines ambient and foresees a superseding decision for sidecar. Only the
-# namespace label changes between the modes, so the chart is the same either way:
-#   ambient -> istio.io/dataplane-mode=ambient     sidecar -> istio-injection=enabled
+# Mesh mode. ADR-0009 baselines Istio sidecar mode with Cilium as the CNI, superseding the ambient
+# baseline of ADR-0001 (the mesh cannot take SPIRE-issued identities under ambient). Ambient is
+# parked, not abandoned: the value stays accepted and the Cilium host-probe exception below still
+# renders in that mode, so returning is a zone value, not a chart change. Only the namespace label
+# changes between the modes, so the chart is the same either way:
+#   sidecar -> istio-injection=enabled             ambient -> istio.io/dataplane-mode=ambient
 #   none    -> no mesh label (a cluster without Istio, such as a plain kind cluster)
 # Istio itself is installed by the mesh task after this chart; until then the label is inert.
 # --------------------------------------------------------------------------------------------
 mesh:
-  mode: ambient
+  mode: sidecar
   revision: ""  # sidecar mode may pin an Istio revision (istio.io/rev) instead of the default injector
 
 # --------------------------------------------------------------------------------------------
-# CNI-specific pieces. Under Istio ambient with Cilium, a default-deny NetworkPolicy blocks the
-# kubelet health probes, which Istio SNATs to 169.254.7.127; the documented remedy is a
-# cluster-wide Cilium policy admitting that address. Rendered only with cilium enabled AND mode
-# ambient. See https://istio.io/latest/docs/ambient/install/platform-prerequisites/ (istio/istio#49277).
+# CNI-specific pieces. The openings whose source is an entity (the API server, the
+# host-networked SPIRE agents) and the API lane (networkPolicy, below) are Cilium policies; with a
+# mesh and without Cilium the chart refuses to render, because another CNI needs a declared
+# derogation (docs/workload-identity.md). Under Istio ambient (the parked mode) with Cilium, a
+# default-deny NetworkPolicy blocks the kubelet health probes, which Istio SNATs to 169.254.7.127;
+# the documented remedy is a cluster-wide Cilium policy admitting that address. Rendered only with
+# cilium enabled AND mode ambient; nothing is rendered in sidecar mode.
+# See https://istio.io/latest/docs/ambient/install/platform-prerequisites/ (istio/istio#49277).
 # --------------------------------------------------------------------------------------------
 cni:
   cilium:
@@ -66,12 +87,63 @@ networkPolicy:
   # actually talk is decided on identity by the mesh layer, not on IP.
   intraPlane: true
   # Egress from management-plane namespaces to the Kubernetes API, for controllers such as the
-  # SPIRE controller-manager. Off here: the API endpoint is a per-zone fact that the baseline
-  # records, so it is set in the zone values file.
+  # SPIRE server and controller-manager and istiod. Off here: the API endpoint is a per-zone fact
+  # that the baseline records, so it is set in the zone values file. Required wherever mesh.mode is
+  # not none (values.schema.json). With Cilium (cni.cilium.enabled) the lane is a CiliumNetworkPolicy
+  # to the kube-apiserver entity on `ports`, and `cidrs` is not used: a Kubernetes ipBlock does not
+  # match the API server's identity under Cilium. Without Cilium the lane is an ipBlock egress to
+  # `cidrs`. `ports` is the port the API server listens on behind the kubernetes Service.
   kubeApi:
     enabled: false
-    cidrs: []     # e.g. ["10.0.0.1/32"]
+    cidrs: []     # e.g. ["10.0.0.1/32"]; used only without Cilium
     ports: [6443]
+
+  # ------------------------------------------------------------------------------------------
+  # Declared openings of the control planes (docs/architecture.md, section 6, beside the DNS
+  # bypass): entries of the cluster-administration class, not rows of the allow matrix. Each is
+  # rendered only when the zone enables it. Nothing else opens toward spire-system or istio-system.
+  # ------------------------------------------------------------------------------------------
+  # Sidecars of every plane namespace that carries the mesh label -> istiod on the xDS port: an
+  # egress policy in each meshed plane namespace and the matching ingress in the mesh control-plane
+  # namespace (Kubernetes NetworkPolicy; the source is a pod).
+  meshControlPlane:
+    enabled: false
+    namespace: istio-system
+    podSelector:
+      app: istiod
+    port: 15012
+  # The API server -> the admission webhooks of the two control planes, as a CiliumNetworkPolicy
+  # by entity in each namespace (a Kubernetes policy cannot name the API server). A self-hosted API
+  # server runs on the host network of a control-plane node, and Cilium sees its calls to a pod on
+  # another node with the identity of that node (remote-node), on its own node as host: the
+  # kube-apiserver entity matches only the API server's own address. The kind proof showed it
+  # (docs/evidences/mesh-identity), so the lane names the three entities, on the webhook port of the
+  # webhook pod only.
+  controlPlaneWebhooks:
+    enabled: false
+    fromEntities: [kube-apiserver, host, remote-node]
+    targets:
+      - name: istiod
+        namespace: istio-system
+        podSelector:
+          app: istiod
+        port: 15017
+      - name: spire-controller-manager   # a container of the SPIRE server pod
+        namespace: spire-system
+        podSelector:
+          app.kubernetes.io/name: server
+        port: 9443
+  # The host-networked SPIRE agents -> the SPIRE server, as a CiliumNetworkPolicy fromEntities host
+  # and remote-node (the agents run on the host network; no pod selector or ipBlock names them).
+  # The sidecar reaches its agent over the CSI-mounted socket and the agent reaches the kubelet over
+  # the host's loopback, so neither needs an opening.
+  identityServer:
+    enabled: false
+    namespace: spire-system
+    podSelector:
+      app.kubernetes.io/name: server
+    port: 8081
+    fromEntities: [host, remote-node]
 
 # --------------------------------------------------------------------------------------------
 # The ZT-55 allow matrix, data plane -> management plane (docs/architecture.md, section 6), as

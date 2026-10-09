@@ -1,7 +1,9 @@
 {{- /*
 The chart's own use of the hook-weight scheme, band "verification": after install or upgrade a
 Job reads the layout back through the API and fails the release when a plane namespace, its
-plane label, its mesh label or its default-deny policy is missing. It runs in the release
+plane label, its mesh label or its default-deny policy is missing, or when a control-plane
+namespace (a planes.extra entry with mesh: false) carries an injection label: SPIRE and istiod
+must never receive a sidecar. It runs in the release
 namespace, outside the default-deny, with read-only access to namespaces and network policies.
 */ -}}
 {{- if .Values.verification.enabled }}
@@ -99,19 +101,21 @@ spec:
               get() { curl -sS --cacert "$SA/ca.crt" -H "Authorization: Bearer $(cat "$SA/token")" -o /tmp/body -w '%{http_code}' "$API$1?pretty=false"; }
               fail=0
               {{- range (include "ztd.planeNamespaces" . | fromJsonArray) }}
-              ns={{ .name }}; plane={{ .plane }}; nsfail=0
+              ns={{ .name }}; plane={{ .plane }}; nsfail=0; meshnote="{{ if and $meshKey .mesh }} {{ $meshKey }}={{ $meshValue }}{{ else if not .mesh }} no-injection-label{{ end }}"
               code=$(get "/api/v1/namespaces/$ns")
               if [ "$code" != 200 ]; then
                 echo "FAIL namespace $ns: HTTP $code"; nsfail=1
               else
                 grep -qE "\"ztd.facis.io/plane\": ?\"$plane\"" /tmp/body || { echo "FAIL $ns: plane label is not $plane"; nsfail=1; }
-                {{- if $meshKey }}
+                {{- if and $meshKey .mesh }}
                 grep -qE '"{{ $meshKey }}": ?"{{ $meshValue }}"' /tmp/body || { echo "FAIL $ns: mesh label {{ $meshKey }}={{ $meshValue }} missing"; nsfail=1; }
+                {{- else if not .mesh }}
+                if grep -qE '"(istio-injection|istio\.io/rev|istio\.io/dataplane-mode)":' /tmp/body; then echo "FAIL $ns: a control-plane namespace carries a mesh label"; nsfail=1; fi
                 {{- end }}
                 code=$(get "/apis/networking.k8s.io/v1/namespaces/$ns/networkpolicies/default-deny")
                 [ "$code" = 200 ] || { echo "FAIL $ns: default-deny policy: HTTP $code"; nsfail=1; }
               fi
-              [ "$nsfail" = 0 ] && echo "ok $ns plane=$plane{{ if $meshKey }} {{ $meshKey }}={{ $meshValue }}{{ end }} default-deny"
+              [ "$nsfail" = 0 ] && echo "ok $ns plane=$plane$meshnote default-deny"
               fail=$((fail + nsfail))
               {{- end }}
               [ "$fail" = 0 ] || { echo "layout verification failed ($fail namespace(s))"; exit 1; }

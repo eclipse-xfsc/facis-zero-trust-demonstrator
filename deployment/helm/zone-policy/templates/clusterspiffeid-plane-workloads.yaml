@@ -1,0 +1,24 @@
+{{- /*
+Registration by selector: one ClusterSPIFFEID, a regular resource reconciled by the SPIRE
+controller-manager into entries on the server, never a hook (a workload waiting for an entry a
+hook creates would make --wait time out). Every pod that carries the identity label, in a
+namespace that carries the umbrella's plane label, gets
+spiffe://<trust domain>/ns/<namespace>/sa/<service account>. The controller-manager fills
+.TrustDomain from its own configuration, the zone's trust domain.
+*/ -}}
+apiVersion: spire.spiffe.io/v1alpha1
+kind: ClusterSPIFFEID
+metadata:
+  name: {{ .Values.registration.name }}
+  labels:
+    {{- include "zone-policy.labels" . | nindent 4 }}
+spec:
+  className: {{ .Values.spire.className | quote }}
+  spiffeIDTemplate: {{ "spiffe://{{ .TrustDomain }}/ns/{{ .PodMeta.Namespace }}/sa/{{ .PodSpec.ServiceAccountName }}" | quote }}
+  podSelector:
+    matchLabels:
+      {{ .Values.registration.identityLabel.key }}: {{ .Values.registration.identityLabel.value | quote }}
+  namespaceSelector:
+    matchExpressions:
+      - key: {{ .Values.registration.planeLabel }}
+        operator: Exists

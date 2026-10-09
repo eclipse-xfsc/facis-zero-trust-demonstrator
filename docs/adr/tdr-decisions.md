@@ -68,8 +68,16 @@ pending.
   ORCE refuses to start without them. No credential is in the image or the repository.
 - **Log masking.** The lifecycle node and script mask credential-shaped values in the Helm output
   before it is stored or logged, and never log the deployment values.
+- **TLS 1.3 for mesh mTLS.** The `istiod` release raises the mesh-wide minimum for mesh mTLS to
+  TLS 1.3 (`meshConfig.meshMTLS.minProtocolVersion: TLSV1_3` in
+  `deployment/helm/values/istiod.yaml`; Istio's default minimum is TLS 1.2). The CI chart job
+  asserts the value in the rendered `istio` ConfigMap, and the mesh identity proof shows a meshed
+  peer's proxy completing a TLS 1.3 handshake with the caller's SPIRE SVID and refusing one capped
+  at TLS 1.2 with a protocol alert, in section
+  [8. mesh-identity-issued-by-spire](../evidences/mesh-identity/evidence.md#8-mesh-identity-issued-by-spire)
+  of the mesh identity evidence.
 
-**Not yet:** TLS 1.3 on the endpoints. ORCE has no ingress yet and is reached by port-forward;
+**Not yet:** TLS 1.3 on ORCE's endpoints. ORCE has no ingress yet and is reached by port-forward;
 TLS 1.3 termination comes with its exposure, together with the ORCE chart. The rows that check the baseline at run
 time — TLS 1.3 (TDR-BDD-07) and secrets and log masking (TDR-BDD-08) — are pending.
 

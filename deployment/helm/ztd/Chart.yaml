@@ -1,11 +1,12 @@
 apiVersion: v2
 name: ztd
 description: >-
-  Umbrella chart for one zone of the FACIS Zero Trust Demonstrator: plane namespaces, the baseline
-  deny network policies, the ZT-55 allow matrix at the network layer, and the hook-weight scheme
-  that the platform components plug into.
+  Umbrella chart for one zone of the FACIS Zero Trust Demonstrator: plane namespaces (including the
+  SPIRE and Istio control-plane namespaces), the baseline deny network policies with the declared
+  openings, the ZT-55 allow matrix at the network layer, and the hook-weight scheme that the
+  platform components plug into.
 type: application
-version: 0.1.0
+version: 0.2.0
 appVersion: "0.1.0"
 keywords:
   - facis

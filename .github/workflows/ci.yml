@@ -278,6 +278,82 @@ jobs:
             helm template "$directory" "${values[@]}" >/dev/null
           done
 
+      # A zone is seven releases (scripts/install-zone/install.sh): the two project charts above and
+      # five upstream charts, SPIRE's and Istio's, pinned by version and digest in the installer.
+      # Each upstream release is rendered from its pinned chart with its values file under
+      # deployment/helm/values/ and the kind zone's facts. Rendering only: CI never installs.
+      # The rendered istiod mesh configuration must carry the TLS 1.3 minimum of the security
+      # baseline (ADR 005), and the installer must refuse a revisioned or an ambient zone before it
+      # renders anything (it installs the default, unrevisioned istiod in sidecar mode only), and a
+      # zone-policy whose proxy image or status port differs from istiod's before it renders anything.
+      - name: Render the upstream releases of a zone
+        run: |
+          python3 -c 'import yaml' 2>/dev/null || python3 -m pip install --user pyyaml
+          RENDER_DIR="$RUNNER_TEMP/render" \
+            scripts/install-zone/install.sh render spire-crds spire istio-base istiod istio-cni
+          python3 - "$RUNNER_TEMP/render/istiod.yaml" <<'PY'
+          import sys, yaml
+          docs = [d for d in yaml.safe_load_all(open(sys.argv[1])) if d]
+          cm = [d for d in docs if d.get("kind") == "ConfigMap" and d["metadata"]["name"] == "istio"]
+          mesh = yaml.safe_load(cm[0]["data"]["mesh"]) if cm else {}
+          got = ((mesh or {}).get("meshMTLS") or {}).get("minProtocolVersion")
+          if got != "TLSV1_3":
+              sys.exit(f"istiod render: meshConfig.meshMTLS.minProtocolVersion is {got!r}, not 'TLSV1_3' (ADR 005)")
+          print("istiod render: meshConfig.meshMTLS.minProtocolVersion is TLSV1_3")
+          PY
+          for setting in revision=canary mode=ambient; do
+            key=${setting%%=*}
+            zone="$RUNNER_TEMP/zone-$key.yaml"
+            out="$RUNNER_TEMP/refused-$key"
+            mkdir -p "$out"
+            python3 - deployment/helm/ztd/ci/values.yaml "$key" "${setting#*=}" "$zone" <<'PY'
+          import sys, yaml
+          source, key, value, target = sys.argv[1:]
+          zone = yaml.safe_load(open(source))
+          zone.setdefault("mesh", {})[key] = value
+          yaml.safe_dump(zone, open(target, "w"), sort_keys=False)
+          PY
+            if ZONE_VALUES="$zone" RENDER_DIR="$out" \
+                scripts/install-zone/install.sh render 2>"$out.err"; then
+              echo "install-zone rendered a zone with mesh.$key set to ${setting#*=}" >&2; exit 1
+            fi
+            cat "$out.err"
+            grep -q "mesh\.$key" "$out.err" || { echo "the refusal does not name mesh.$key" >&2; exit 1; }
+            [ -z "$(ls -A "$out")" ] || { echo "install-zone rendered into $out before refusing" >&2; exit 1; }
+          done
+          # zone-policy pins the injected proxy's image and status port; a copy of the tree whose
+          # zone-policy image or status port differs from istiod's must be refused before anything
+          # renders, and the refusal must name the value that differs.
+          for field in statusPort proxyImage; do
+            copy="$RUNNER_TEMP/coupling-$field"
+            mkdir -p "$copy/scripts" "$copy/deployment/helm"
+            cp -r scripts/install-zone "$copy/scripts/"
+            cp -r deployment/helm/values deployment/helm/zone-policy deployment/helm/ztd "$copy/deployment/helm/"
+            case $field in
+              statusPort) sed -i 's/^  statusPort: 15020$/  statusPort: 15021/' "$copy/deployment/helm/zone-policy/values.yaml" ;;
+              proxyImage) sed -i 's|^  proxyImage: .*$|  proxyImage: docker.io/istio/proxyv2:1.31.0|' "$copy/deployment/helm/zone-policy/values.yaml" ;;
+            esac
+            ! cmp -s "$copy/deployment/helm/zone-policy/values.yaml" deployment/helm/zone-policy/values.yaml \
+              || { echo "the test did not change zone-policy proxySocketPolicy.$field" >&2; exit 1; }
+            if RENDER_DIR="$copy/out" "$copy/scripts/install-zone/install.sh" render istiod 2>"$copy.err"; then
+              echo "install-zone rendered istiod with a zone-policy $field other than istiod's" >&2; exit 1
+            fi
+            cat "$copy.err"
+            grep -q "proxySocketPolicy.$field" "$copy.err" || { echo "the refusal does not name proxySocketPolicy.$field" >&2; exit 1; }
+            [ ! -e "$copy/out/istiod.yaml" ] || { echo "install-zone rendered istiod before refusing the $field mismatch" >&2; exit 1; }
+          done
+
+      # The upstream-state checker against local stand-ins that answer 404, 500 and the wrong
+      # document: an error page must count as unreachable, never as the document. Its record goes
+      # to a temporary directory; CI never writes the evidence under docs/evidences/.
+      - name: Test the upstream-state checker's failure paths
+        env:
+          ALLOW_CI: "1"
+        run: |
+          scripts/mesh-mode/check-upstream-state-test.sh
+          changed=$(git status --porcelain docs/evidences/mesh-mode-upstream-state)
+          [ -z "$changed" ] || { echo "the checker's test changed the evidence: $changed" >&2; exit 1; }
+
   # The deployment-lifecycle scenarios (TDR-BDD-01..04) against each client target. They run
   # automatically on main, on every release and on demand - never on pull requests - one run at a
   # time per target, with the read-only observer identity; ORCE does the deploying.

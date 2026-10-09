@@ -10,13 +10,14 @@ ztd.facis.io/zone: {{ .Values.zone.name }}
 {{- end }}
 
 {{/*
-The plane namespaces as a JSON list of {name, plane}: the two fixed planes, then planes.extra.
-Read it back with fromJsonArray.
+The plane namespaces as a JSON list of {name, plane, mesh}: the two fixed planes, then
+planes.extra. `mesh` is false only for an extra entry that sets `mesh: false` (the control-plane
+namespaces), which then carries no mesh label. Read it back with fromJsonArray.
 */}}
 {{- define "ztd.planeNamespaces" -}}
-{{- $out := list (dict "name" .Values.planes.management.namespace "plane" "management") (dict "name" .Values.planes.data.namespace "plane" "data") -}}
+{{- $out := list (dict "name" .Values.planes.management.namespace "plane" "management" "mesh" true) (dict "name" .Values.planes.data.namespace "plane" "data" "mesh" true) -}}
 {{- range .Values.planes.extra -}}
-{{- $out = append $out (dict "name" .name "plane" .plane) -}}
+{{- $out = append $out (dict "name" .name "plane" .plane "mesh" (ne (toString .mesh) "false")) -}}
 {{- end -}}
 {{- toJson $out -}}
 {{- end }}
@@ -39,7 +40,8 @@ Called with (dict "root" $ "endpoint" <endpoint>).
 
 {{/*
 Mesh label key and value for the plane namespaces, by mode. The only place the mode shapes the
-layout: ambient and sidecar differ in one namespace label, so the chart is the same either way.
+layout: sidecar (the ADR-0009 baseline) and ambient (parked) differ in one namespace label, so the
+chart is the same either way.
 */}}
 {{- define "ztd.meshLabelKey" -}}
 {{- if eq .Values.mesh.mode "ambient" -}}istio.io/dataplane-mode
@@ -59,6 +61,7 @@ and an offset inside it, never a raw number, so the order between the jobs of di
 is a lookup and not a convention remembered by hand:
   preflight       0-19   checks that must hold before anything is installed
   identity       20-39   SPIRE: checks on the server, the trust bundle and the registration entries
+                         (the zone-policy chart, through a copy of these helpers)
   platform       40-59   jobs of OpenBao, Harbor, TSPA, estserver, observability and admission
   policy         60-79   jobs of the mesh and admission policy that depends on identity and platform
   workloads      80-99   jobs of the demonstrator workloads
@@ -68,6 +71,8 @@ resources are not tracked by the release and would survive helm uninstall. Nothi
 resource needs in order to become ready is a post-install hook either: with --wait, Helm runs those
 hooks only after every regular resource is ready, so the install would time out. That is why a
 registration is a regular resource and not a hook job.
+The bands order jobs within one release. The order between releases (the umbrella, SPIRE, Istio,
+zone-policy) is the installer's, scripts/install-zone/install.sh.
 */}}
 {{- define "ztd.hook.weight" -}}
 {{- $bands := dict "preflight" 0 "identity" 20 "platform" 40 "policy" 60 "workloads" 80 "verification" 100 -}}

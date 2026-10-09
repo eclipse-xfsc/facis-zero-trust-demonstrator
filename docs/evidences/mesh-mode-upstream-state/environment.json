@@ -1,0 +1,24 @@
+{
+  "generatedAt": "2026-10-09T09:19:38Z",
+  "script": "scripts/mesh-mode/check-upstream-state.sh",
+  "commit": "451f9928db4a099f4d9a1f527af1dfe982352711",
+  "dirty": false,
+  "exitStatus": 0,
+  "host": {
+    "kind": "operator workstation",
+    "os": "Ubuntu 24.04.5 LTS",
+    "kernel": "6.8.0-146-generic",
+    "arch": "x86_64"
+  },
+  "tools": {
+    "fetchedWith": "gh",
+    "curl": "8.5.0",
+    "jq": "1.7",
+    "python3": "3.12.3",
+    "gh": "2.102.0 (2026-09-30)"
+  },
+  "upstream": {
+    "istioLatest": "1.31.1",
+    "spireLatest": "v1.15.3"
+  }
+}

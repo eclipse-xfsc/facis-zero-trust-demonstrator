@@ -1,0 +1,112 @@
+# Release `spire` of the zone: the SPIRE server, the agents, the SPIFFE CSI driver and the SPIRE
+# controller-manager, installed as the upstream chart ships it.
+#   chart repository  https://spiffe.github.io/helm-charts-hardened/
+#   chart             spire 0.30.2 (SPIRE v1.15.3)
+#   namespace         spire-system (created by the umbrella chart, never by this release)
+# Pinned in scripts/install-zone/install.sh and docs/dependencies.md. Every value set here is
+# listed with its reason in README.md next to this file. Values marked "zone fact" are filled by
+# scripts/install-zone from the zone file; the installer refuses to render the release when the
+# zone file does not state them.
+# Images: every image the release runs is pinned by tag and digest (the multi-arch index digest of
+# that tag, read from its registry), in the `tag` value as "<tag>@sha256:<digest>", which the chart
+# renders as <registry>/<repository>:<tag>@sha256:<digest>. The tags are the chart's own defaults
+# for 0.30.2; an upgrade of the chart re-reads every digest (docs/dependencies.md).
+global:
+  spire:
+    trustDomain: ""            # zone fact: zone.trustDomain (required)
+    clusterName: ""            # zone fact: zone.name (required)
+    recommendations:
+      enabled: false           # keeps every component in the release namespace, spire-system
+    namespaces:
+      create: false            # the umbrella creates spire-system as a management-plane namespace
+    persistence:
+      storageClass: ""         # zone fact: zone.storageClass (required)
+    # The subject of the server's CA, which every SVID names as its issuer (the SVIDs themselves
+    # carry O = SPIRE). The country stays the chart's placeholder.
+    caSubject:
+      organization: FACIS ZTD
+      commonName: ""           # zone fact: zone.trustDomain (required)
+
+spire-server:
+  # The datastore stays the chart's SQLite on the server's volume, one replica.
+  image:
+    tag: "1.15.3@sha256:4082f30d3e0ddc4000a171392c4ea174345ee44d161ee917c70b97b2ecfba141"
+  chown:
+    image:                     # the init container that fixes the datastore volume's ownership
+      tag: "1.37.0-uclibc@sha256:31b72538c3019a20336b04c4cebcd47c36511d0b45aa76666804c2845055bbd3"
+  tools:
+    kubectl:
+      image:
+        # The server's install, upgrade and delete hooks. The chart's default tag follows the
+        # cluster's version, so the image would change with the cluster; the pin is the kind
+        # node's version (v1.35.5), within kubectl's one-minor skew of every zone at 1.34 to 1.36.
+        tag: "v1.35.5@sha256:ecc1c77b6d799dce39328a8622fc8ff9d089e8a85c982f264d17a7cbb85deed5"
+  telemetry:
+    prometheus:
+      enabled: true            # contract with the observability collector: server metrics on 9988
+  federation:
+    enabled: false             # each zone is its own trust domain; zones never federate
+  ingress:
+    enabled: false             # the agents reach the server inside the cluster only
+  tornjak:
+    enabled: false
+  controllerManager:
+    enabled: true              # reconciles the ClusterSPIFFEID of the zone-policy release
+    image:
+      tag: "0.7.0@sha256:d7b9e710f5428ea25daa35a07083fe517ed70c23df902d21c54a0f444455a84b"
+    identities:
+      clusterSPIFFEIDs:
+        # The chart's own registrations are switched off: the zone's one registration, by
+        # selector and identity label, is the ClusterSPIFFEID of the zone-policy release.
+        # `default` would give every pod of every namespace an identity, the opposite of
+        # "no label, no entry".
+        default:
+          enabled: false
+        oidc-discovery-provider:
+          enabled: false
+        test-keys:
+          enabled: false
+
+spire-agent:
+  # The agents run on the host network: the chart's defaults hostNetwork: auto with
+  # kubeletAddress.mode: auto mean localhost off OpenShift, so the agent reaches the kubelet over the
+  # host's loopback and no kubelet opening exists. The umbrella opens the server to the agents by
+  # node entity (networkPolicy.identityServer).
+  image:
+    tag: "1.15.3@sha256:41b0dcd8b258a69db9e2768292a060766fb76fd866e4bc925849981ea1b825ff"
+  hostNetwork: auto
+  kubeletAddress:
+    mode: auto
+  # The SDS contract with the mesh: Istio's proxy asks the agent's SDS endpoint for its certificate
+  # under `default` and for its validation context under `ROOTCA`. The agent's own defaults
+  # (`default`, `ROOTCA` for the own bundle, `ALL` for every bundle) would serve the own bundle
+  # under ROOTCA; the mesh contract serves every bundle under ROOTCA instead, so that federation
+  # later changes nothing, and the own-bundle resource is disabled with the string "null" so that
+  # no two resources answer one name.
+  sds:
+    enabled: true
+    defaultSVIDName: "default"
+    defaultBundleName: "null"
+    defaultAllBundlesName: "ROOTCA"
+  telemetry:
+    prometheus:
+      enabled: true            # contract with the observability collector: agent metrics on 9988 of the node
+      # The agent runs on the host network, where the chart's 0.0.0.0 would open an unauthenticated
+      # metrics endpoint on every node address, out of reach of any network policy. Bound to the
+      # node's loopback, it answers only a collector that runs on the node's host network.
+      host: 127.0.0.1
+
+spiffe-csi-driver:
+  enabled: true                # mounts the agent's Workload API socket into pods (csi.spiffe.io)
+  image:
+    tag: "0.2.7@sha256:9dfe4f0caff096164fd921aa7f15319804df2fc0325f1d90bc793ef3256ab1cd"
+  nodeDriverRegistrar:
+    image:
+      tag: "v2.15.0@sha256:11f199f6bec47403b03cb49c79a41f445884b213b382582a60710b8c6fdc316a"
+
+spiffe-oidc-discovery-provider:
+  enabled: false               # no JWT consumer outside the zone
+tornjak-frontend:
+  enabled: false
+upstream:
+  enabled: false               # no nested SPIRE

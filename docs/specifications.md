@@ -12,7 +12,7 @@ the decision.
 
 | Specification clause | What the implementation does | Reason | Decision |
 |---|---|---|---|
-| SRS 2.3.3 — secure service mesh with SPIFFE/SPIRE, mode unspecified | Istio **Ambient** with Cilium as CNI, `cni.exclusive=false`, one named L7 enforcement owner per traffic path | The SRS fixes the identity model but not the data-plane mode; leaving it unfixed would put mesh and CNI in contention for L7 enforcement | [ADR-0001](adr/0001-service-mesh-mode-istio-ambient-with-cilium.md) |
+| SRS 2.3.3 — secure service mesh with SPIFFE/SPIRE, mode unspecified | Istio **sidecar** mode with Cilium as CNI, `cni.exclusive=false`, one named L7 enforcement owner per traffic path, SVIDs consumed by the sidecar over SDS; ambient parked | The SRS fixes the identity model but not the data-plane mode; the ambient baseline first chosen cannot take SPIRE-issued identities with community Istio (SRS § 5.1.2, ZT-24), so the pre-approved fallback applies | [ADR-0009](adr/0009-service-mesh-mode-istio-sidecar-with-cilium.md) (supersedes [ADR-0001](adr/0001-service-mesh-mode-istio-ambient-with-cilium.md)) |
 | ZT-10, ZT-12, ZT-37 — admission must refuse unsigned images | A first-party Go external-data provider verifies Cosign signatures for OPA Gatekeeper; Ratify v1 is the documented fallback | Gatekeeper cannot verify signatures itself and the upstream provider is archived, so the component has to be built rather than adopted | [ADR-0002](adr/0002-gatekeeper-external-data-provider-for-cosign-verification.md) |
 | ZT-21, ZT-22 — DCR, OID4VP-derived tokens, DPoP-bound storage, with Keycloak as identity provider | The OAuth2 authorisation surface is implemented in the Go Connector; Keycloak is used unmodified for realm, client, role and scope management | Keycloak's DPoP support is preview and OID4VCI experimental; the authoritative decision stays on the enforcement path rather than depending on preview features | [ADR-0003](adr/0003-oauth2-authorisation-surface-in-the-go-connector.md) |
 | ZT-11 — key material stored in OpenBao | OpenBao is used as prescribed, deployed as a cluster-internal service and consumed unmodified through its API | OpenBao is MPL-2.0 where the rest of the baseline is Apache-2.0; a written licence exception was submitted rather than the component silently swapped | [ADR-0004](adr/0004-openbao-as-x509-key-value-store.md) · [licence exception](dependencies.md#licence-exceptions) |
@@ -26,9 +26,11 @@ the decision.
 
 ## Deviation status
 
-Every reading above is declared rather than assumed. The five governing ADRs were submitted to FACIS
-as the F-05 deviation package and the OpenBao licence exception as F-07; both are open at the time of
-writing. A reading found after that package was submitted is recorded here as soon as it is found and
+Every reading above is declared rather than assumed. The five governing ADRs of 2026-09-08 (0001 to
+0005) were submitted to FACIS as the F-05 deviation package and the OpenBao licence exception as F-07;
+both are open at the time of writing. ADR-0009, which supersedes 0001 through the fallback clause that
+record foresaw, entered as *Proposed* after the package was submitted and is carried into its next
+update. A reading found after that package was submitted is recorded here as soon as it is found and
 carried into the next update of the package. A reading that FACIS declines is handled as a plan change
 under the written-agreement rule, not absorbed into the implementation.
 

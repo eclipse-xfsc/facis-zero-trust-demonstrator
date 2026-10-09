@@ -12,7 +12,7 @@ zone:
     type: cloud                   # IONOS provisions Services of type LoadBalancer; not yet exercised here
 
 # The CNI is Calico v3.30.7 (IONOS managed), not Cilium: the Cilium-only pieces stay off and the
-# mesh baseline of ADR-0001 (Istio CNI chained behind Cilium) does not apply to this cluster as is.
+# mesh baseline of ADR-0009 (Istio CNI chained behind Cilium) does not apply to this cluster as is.
 cni:
   cilium:
     enabled: false

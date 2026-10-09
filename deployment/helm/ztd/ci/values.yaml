@@ -1,12 +1,43 @@
 # Zone file for the CI render and for the local kind cluster (scripts/dev/kind-cilium-up.sh), filled
 # the same way a real zone file is filled from the cluster baseline: with what the cluster is, not
-# with what the chart would like it to be. Mesh mode ambient, the ADR-0001 baseline. The CI chart
-# job renders every chart with its ci/values.yaml.
+# with what the chart would like it to be. Mesh mode sidecar, the ADR-0009 baseline; the parked
+# ambient mode is exercised by scripts/verify-umbrella/ambient-values.yaml, not here. The CI chart
+# job renders every chart with its ci/values.yaml, and scripts/install-zone/install.sh installs the
+# kind zone from this file (the umbrella reads all of it; the SPIRE, Istio and zone-policy releases
+# read the zone facts they need).
 zone:
   name: kind
   kubernetesVersion: v1.35.5
   storageClass: standard
   loadBalancer:
     type: none
+  # The local fixture zone the trust-list verification already uses; a .local name is acceptable
+  # here and nowhere else (docs/workload-identity.md, "The trust domain").
+  trustDomain: kind.facis-ztd.local
 mesh:
-  mode: ambient
+  mode: sidecar
+# The control planes of the identity path and of the mesh: management-plane namespaces under the
+# default deny, without the mesh label (no sidecar for SPIRE or istiod).
+planes:
+  extra:
+    - name: spire-system
+      plane: management
+      mesh: false
+    - name: istio-system
+      plane: management
+      mesh: false
+networkPolicy:
+  # The API server of the kind cluster listens on 6443 on the control-plane node, an address in
+  # kind's Docker network 172.18.0.0/16 (`kubectl get endpointslices -n default -l
+  # kubernetes.io/service-name=kubernetes`); under Cilium the lane is by entity and the CIDR is only
+  # recorded.
+  kubeApi:
+    enabled: true
+    cidrs: ["172.18.0.0/16"]
+    ports: [6443]
+  meshControlPlane:
+    enabled: true
+  controlPlaneWebhooks:
+    enabled: true
+  identityServer:
+    enabled: true

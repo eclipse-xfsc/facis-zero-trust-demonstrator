@@ -1,0 +1,33 @@
+# The kind zone in ambient mode: the excursion fixture of verify.sh. The chart installs in sidecar
+# mode (ci/values.yaml, the ADR-0009 baseline); verify.sh switches the live release to this file to
+# prove that the parked ambient mode still renders its label and its Cilium host-probe exception,
+# and that the mesh decision changes one namespace label and nothing else, then switches back.
+# Everything but mesh.mode is the kind zone file's.
+zone:
+  name: kind
+  kubernetesVersion: v1.35.5
+  storageClass: standard
+  loadBalancer:
+    type: none
+  trustDomain: kind.facis-ztd.local
+mesh:
+  mode: ambient
+planes:
+  extra:
+    - name: spire-system
+      plane: management
+      mesh: false
+    - name: istio-system
+      plane: management
+      mesh: false
+networkPolicy:
+  kubeApi:
+    enabled: true
+    cidrs: ["172.18.0.0/16"]
+    ports: [6443]
+  meshControlPlane:
+    enabled: true
+  controlPlaneWebhooks:
+    enabled: true
+  identityServer:
+    enabled: true

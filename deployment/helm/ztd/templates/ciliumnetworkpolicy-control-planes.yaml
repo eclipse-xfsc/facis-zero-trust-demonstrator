@@ -1,0 +1,111 @@
+{{- /*
+Declared openings whose source a Kubernetes NetworkPolicy cannot name (docs/architecture.md,
+section 6; docs/workload-identity.md): the API server reaching the admission webhooks of the two
+control planes, the host-networked SPIRE agents reaching the SPIRE server, and every
+management-plane namespace reaching the API server. Cilium identifies these as the kube-apiserver,
+host and remote-node entities (a self-hosted API server's calls into a pod on another node carry the
+remote-node identity, on its own node the host identity); a podSelector does not match them and an ipBlock matches node
+addresses only under policy-cidr-match-mode=nodes, a cluster setting the zones may not have.
+
+One CiliumNetworkPolicy per control-plane namespace holds that namespace's ingress openings (one per
+pod selector, should a namespace's openings select different pods), and one per management-plane
+namespace holds the API lane. Every rule sets enableDefaultDeny false: the
+policy adds its lane and leaves the deny to the Kubernetes default-deny policy of the baseline.
+
+With a mesh and without Cilium the chart refuses to render: the control planes cannot be opened
+under the default deny, and another CNI needs a declared derogation.
+*/ -}}
+{{- $np := .Values.networkPolicy }}
+{{- if and (ne .Values.mesh.mode "none") (not .Values.cni.cilium.enabled) }}
+{{- fail (printf "mesh.mode %s needs Cilium (cni.cilium.enabled): the control-plane openings (controlPlaneWebhooks, identityServer and the kubeApi lane) have the API server and the host-networked SPIRE agents as sources, which only a Cilium policy can name. A zone on another CNI needs a declared derogation of the preferred stack before it is installed (docs/workload-identity.md)." .Values.mesh.mode) }}
+{{- end }}
+{{- if .Values.cni.cilium.enabled }}
+{{- /* namespace -> list of ingress rules */ -}}
+{{- $byNs := dict }}
+{{- if $np.controlPlaneWebhooks.enabled }}
+{{- range $np.controlPlaneWebhooks.targets }}
+{{- $rule := dict "description" (printf "controlPlaneWebhooks: the API server -> the %s admission webhook on %v" .name .port) "opening" "controlPlaneWebhooks" "selector" .podSelector "entities" $np.controlPlaneWebhooks.fromEntities "port" .port }}
+{{- $_ := set $byNs .namespace (append (get $byNs .namespace | default list) $rule) }}
+{{- end }}
+{{- end }}
+{{- if $np.identityServer.enabled }}
+{{- $is := $np.identityServer }}
+{{- $rule := dict "description" (printf "identityServer: the host-networked SPIRE agents -> the SPIRE server on %v" $is.port) "opening" "identityServer" "selector" $is.podSelector "entities" $is.fromEntities "port" $is.port }}
+{{- $_ := set $byNs $is.namespace (append (get $byNs $is.namespace | default list) $rule) }}
+{{- end }}
+{{- range $ns := keys $byNs | sortAlpha }}
+{{- /* one policy per pod selector in the namespace; a single `spec`, because the Cilium operator's
+status writes conflict with Helm's server-side apply on the `specs` list */ -}}
+{{- $groups := dict }}
+{{- range (get $byNs $ns) }}
+{{- $key := toJson .selector }}
+{{- $_ := set $groups $key (append (get $groups $key | default list) .) }}
+{{- end }}
+{{- $keys := keys $groups | sortAlpha }}
+{{- range $i, $key := $keys }}
+{{- $rules := get $groups $key }}
+{{- $openings := list }}
+{{- $descriptions := list }}
+{{- range $rules }}{{ $openings = append $openings .opening }}{{ $descriptions = append $descriptions .description }}{{ end }}
+---
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: allow-control-plane-openings{{ if gt (len $keys) 1 }}-{{ $i }}{{ end }}
+  namespace: {{ $ns }}
+  labels:
+    {{- include "ztd.labels" $ | nindent 4 }}
+  annotations:
+    ztd.facis.io/declared-opening: {{ $openings | uniq | join "," | quote }}
+spec:
+  description: {{ $descriptions | join "; " | quote }}
+  enableDefaultDeny:
+    ingress: false
+    egress: false
+  endpointSelector:
+    matchLabels:
+      {{- fromJson $key | toYaml | nindent 6 }}
+  ingress:
+    {{- range $rules }}
+    - fromEntities:
+        {{- toYaml .entities | nindent 8 }}
+      toPorts:
+        - ports:
+            - port: {{ .port | quote }}
+              protocol: TCP
+    {{- end }}
+{{- end }}
+{{- end }}
+{{- if $np.kubeApi.enabled }}
+{{- range (include "ztd.planeNamespaces" . | fromJsonArray) }}
+{{- if eq .plane "management" }}
+---
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: allow-kube-api-egress
+  namespace: {{ .name }}
+  labels:
+    {{- include "ztd.labels" $ | nindent 4 }}
+    ztd.facis.io/plane: {{ .plane }}
+  annotations:
+    ztd.facis.io/declared-opening: kubeApi
+spec:
+  description: "kubeApi: management-plane pods -> the API server, by entity"
+  enableDefaultDeny:
+    ingress: false
+    egress: false
+  endpointSelector: {}
+  egress:
+    - toEntities:
+        - kube-apiserver
+      toPorts:
+        - ports:
+            {{- range $np.kubeApi.ports }}
+            - port: {{ . | quote }}
+              protocol: TCP
+            {{- end }}
+{{- end }}
+{{- end }}
+{{- end }}
+{{- end }}

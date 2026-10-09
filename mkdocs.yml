@@ -18,6 +18,7 @@ nav:
   - Using the demonstrator: usage.md
   - Deployment: deployment.md
   - Umbrella chart: umbrella-chart.md
+  - Workload identity: workload-identity.md
   - Environments:
       - Overview: environments/index.md
       - T-Systems OSC: environments/osc.md
@@ -37,14 +38,20 @@ nav:
   - OSS dependencies: dependencies.md
   - Licenses: licenses.md
   - Specification changes: specifications.md
+  - Evidence:
+      - "Mesh mode, upstream state: about": evidences/mesh-mode-upstream-state/README.md
+      - "Mesh mode, upstream state: record": evidences/mesh-mode-upstream-state/upstream-state.md
+      - "Mesh identity: about": evidences/mesh-identity/README.md
+      - "Mesh identity: record": evidences/mesh-identity/evidence.md
   - Architecture decisions:
       - Overview: adr/index.md
       - TDR decisions ADR 001–006: adr/tdr-decisions.md
-      - 0001 Service mesh mode: adr/0001-service-mesh-mode-istio-ambient-with-cilium.md
+      - 0001 Service mesh mode (superseded by 0009): adr/0001-service-mesh-mode-istio-ambient-with-cilium.md
       - 0002 Gatekeeper external data provider: adr/0002-gatekeeper-external-data-provider-for-cosign-verification.md
       - 0003 OAuth2 surface in the Go connector: adr/0003-oauth2-authorisation-surface-in-the-go-connector.md
       - 0004 OpenBao as X.509 key-value store: adr/0004-openbao-as-x509-key-value-store.md
       - 0005 Three-cluster target environment: adr/0005-three-cluster-reading-of-the-target-environment.md
+      - 0009 Service mesh mode (sidecar, supersedes 0001): adr/0009-service-mesh-mode-istio-sidecar-with-cilium.md
       - 0011 Mock TEE evidence: adr/0011-mock-tee-evidence-format-and-provisioning.md
 
 markdown_extensions:
