@@ -594,21 +594,8 @@ func validateWith(s *jsonschema.Schema, predicate json.RawMessage) error {
 // same decoded document (exact key names, one value per key), so no second reading of the JSON can
 // see a different SBOM.
 func validateSBOM(s *compiledSchemas, ref Ref, predicate json.RawMessage) error {
-	doc, err := jsonschema.UnmarshalJSON(bytes.NewReader(predicate))
+	sbom, err := validateCycloneDX(s, predicate)
 	if err != nil {
-		return err
-	}
-	sbom, ok := doc.(map[string]any)
-	if !ok {
-		return errors.New("not a JSON object")
-	}
-	format, _ := sbom["bomFormat"].(string)
-	version, _ := sbom["specVersion"].(string)
-	schema, ok := s.sbom[version]
-	if format != "CycloneDX" || !ok {
-		return fmt.Errorf("not CycloneDX 1.5, 1.6 or 1.7 JSON (bomFormat %q, specVersion %q)", truncate(format, 32), truncate(version, 32))
-	}
-	if err := schema.Validate(doc); err != nil {
 		return err
 	}
 	metadata, _ := sbom["metadata"].(map[string]any)

@@ -4,6 +4,9 @@ Architecture Decision Records capture the decisions that shape this demonstrator
 taken, and what would cause them to be revisited. A decision recorded here is settled: reopening it
 is a change with a named cost, not a discussion.
 
+Every decision, its record, status and evidence — including those still in open pull requests and
+numbers allocated but not yet written — is listed in the [Decision ledger](decision-ledger.md).
+
 ## Governing decisions
 
 These five were taken by the project's Technical Design Authority and Project Leader on
