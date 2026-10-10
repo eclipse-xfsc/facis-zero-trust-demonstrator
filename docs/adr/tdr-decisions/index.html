@@ -112,6 +112,10 @@
                 </li>
               </ul>
               <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../../secrets/">Secrets</a>
+                </li>
+              </ul>
+              <ul>
                 <li class="toctree-l1"><a class="reference internal" href="../../troubleshooting/">Troubleshooting</a>
                 </li>
               </ul>
@@ -199,8 +203,9 @@ Consequence: Repeatable Kubernetes-native deployments.</p>
 <p><strong>Applied.</strong> Everything the demonstrator installs is a Helm chart; deploy, redeploy and uninstall
 go through Helm, driven by ORCE (<code>scripts/lifecycle.sh</code>, Helm v4.3.0 pinned). Charts are linted and
 rendered on every pull request (<code>deployment/helm/README.md</code> lists the charts).</p>
-<p><strong>Not yet:</strong> the ORCE chart; ORCE is installed from interim manifests until then. A dry-run gate
-before release promotion (TDR-BDD-11) is pending. Since 30 September 2026 the umbrella chart for a
+<p>Every chart passes lint, render and a server-side dry-run against a disposable cluster before a
+release candidate is built (TDR-BDD-11, the chart gate in <code>release.yml</code>).</p>
+<p><strong>Not yet:</strong> the ORCE chart; ORCE is installed from interim manifests until then. Since 30 September 2026 the umbrella chart for a
 zone (<code>deployment/helm/ztd</code>) is in place, but it is not yet the release the lifecycle scenarios
 deploy (see <a href="../../bdd/#the-release-under-test">bdd.md</a>).</p>
 <h2 id="adr-002-orchestration-layer">ADR 002 — Orchestration layer<a class="headerlink" href="#adr-002-orchestration-layer" title="Permanent link">&para;</a></h2>
@@ -249,7 +254,8 @@ Consequence: Secure, auditable deployment operations.</p>
 </ul>
 <p><strong>Not yet:</strong> TLS 1.3 on the endpoints. ORCE has no ingress yet and is reached by port-forward;
 TLS 1.3 termination comes with its exposure, together with the ORCE chart. The rows that check the baseline at run
-time — TLS 1.3 (TDR-BDD-07) and secrets and log masking (TDR-BDD-08) — are pending.</p>
+time: TLS 1.3 (TDR-BDD-07) is pending; secrets and log masking (TDR-BDD-08) is proven on every
+release candidate by a canary scan and a pipeline-log audit (<a href="../../secrets/">Secrets</a>).</p>
 <h2 id="adr-006-logging-and-observability">ADR 006 — Logging and observability<a class="headerlink" href="#adr-006-logging-and-observability" title="Permanent link">&para;</a></h2>
 <blockquote>
 <p>Decision: Structured JSON logs exposed via ORCE context outputs.

@@ -120,6 +120,8 @@
     </li>
         </ul>
     </li>
+    <li class="toctree-l2"><a class="reference internal" href="#chart-gate">Chart gate</a>
+    </li>
     <li class="toctree-l2"><a class="reference internal" href="#image-signing">Image signing</a>
     </li>
     <li class="toctree-l2"><a class="reference internal" href="#lifecycle-scenarios-on-the-client-targets">Lifecycle scenarios on the client targets</a>
@@ -143,6 +145,10 @@
     <li class="toctree-l2"><a class="reference internal" href="#adding-a-workflow">Adding a workflow</a>
     </li>
     </ul>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../secrets/">Secrets</a>
                 </li>
               </ul>
               <ul>
@@ -252,7 +258,7 @@ and is declared as such in <a href="../specifications/#readings-and-additions">S
 <tr>
 <td><code>.github/workflows/release.yml</code></td>
 <td>manual, push to a <code>candidate/**</code> branch</td>
-<td>Release candidate: builds, pushes, signs and attests every image by digest, then verifies each one (see <a href="#image-signing">Image signing</a>)</td>
+<td>Release candidate: the chart gate (see <a href="#chart-gate">Chart gate</a>), then builds, pushes, signs and attests every image by digest and verifies each one (see <a href="#image-signing">Image signing</a>); beside it the secrets baseline (see <a href="../secrets/#the-baseline-proof-tdr-bdd-08">Secrets</a>)</td>
 </tr>
 <tr>
 <td><code>.github/workflows/measurement-determinism.yml</code></td>
@@ -290,7 +296,7 @@ and nobody hand-rolls their own:</p>
 </tr>
 <tr>
 <td><code>Chart lint and render</code></td>
-<td><code>helm lint</code> and a <code>helm template</code> dry-run render of every chart under <code>deployment/helm/</code></td>
+<td><code>scripts/ci/check-charts.sh</code>: <code>helm lint</code> and a <code>helm template</code> render of every chart under <code>deployment/helm/</code> and <code>features/fixtures/charts/</code>, dependencies built from <code>Chart.lock</code></td>
 <td>yes</td>
 </tr>
 </tbody>
@@ -355,6 +361,23 @@ version and the same rule of attaching an SBOM to every release that lacks one �
 actions and declared permissions this repository requires of its own workflows. They can go back to
 being references once the shared workflows accept a Go version or read <code>go.mod</code>; that is a change to
 propose in <code>eclipse-xfsc/dev-ops</code>.</p>
+<h2 id="chart-gate">Chart gate<a class="headerlink" href="#chart-gate" title="Permanent link">&para;</a></h2>
+<p>No release candidate is built unless every chart passes (TDR-BDD-11). The <code>chart-gate</code> job of
+<code>release.yml</code> creates a disposable kind cluster, installs the CRDs the charts render against (Cilium's
+network policies and Gatekeeper's external-data <code>Provider</code>, pinned in <code>scripts/tools/pins.env</code>), and
+runs the row in cluster mode: <code>scripts/ci/check-charts.sh --server-dry-run</code> lints, renders and
+dry-runs every chart against that API server, and two deliberately broken charts under
+<code>features/fixtures/broken-charts/</code> must be refused by the check each targets — one by <code>helm lint</code>,
+one only by the server dry-run (it ships a resource whose API the cluster does not serve). The step
+also checks that the <code>candidate</code> job needs the gate. The <code>candidate</code> job has <code>needs: [chart-gate]</code>;
+any later job that publishes charts or promotes a release must need it too.</p>
+<p>A server dry-run renders the chart, discovers the API and its schemas and checks existing resources.
+It does not run admission webhooks or hooks, and proves nothing about the release at runtime: that is
+what the lifecycle scenarios and the secrets baseline install for real. Without <code>--server-dry-run</code>,
+as in the pull-request job, the script records the server dry-run as not run, never as passed.</p>
+<p>The gate and the secrets baseline (TDR-BDD-08) run on a disposable cluster in <code>release.yml</code>, which
+decides both rows with a sheet of its own; the pull-request sheet and the client-target sheets list
+them as not run.</p>
 <h2 id="image-signing">Image signing<a class="headerlink" href="#image-signing" title="Permanent link">&para;</a></h2>
 <p>The candidate job of <code>release.yml</code> builds every image under <code>deployment/docker/</code> for <code>linux/amd64</code>,
 labels it <code>eu.facis.ztd.signing-key=interim</code> and pushes it to <code>ghcr.io/&lt;owner&gt;/&lt;repository&gt;/&lt;name&gt;</code>.
@@ -498,7 +521,7 @@ branch — a one-time repository setting a maintainer applies. The folder may be
           </div><footer>
     <div class="rst-footer-buttons" role="navigation" aria-label="Footer Navigation">
         <a href="../bdd-catalogue/" class="btn btn-neutral float-left" title="Catalogue"><span class="icon icon-circle-arrow-left"></span> Previous</a>
-        <a href="../troubleshooting/" class="btn btn-neutral float-right" title="Troubleshooting">Next <span class="icon icon-circle-arrow-right"></span></a>
+        <a href="../secrets/" class="btn btn-neutral float-right" title="Secrets">Next <span class="icon icon-circle-arrow-right"></span></a>
     </div>
 
   <hr/>
@@ -529,7 +552,7 @@ branch — a one-time repository setting a maintainer applies. The folder may be
       <span><a href="../bdd-catalogue/" style="color: #fcfcfc">&laquo; Previous</a></span>
     
     
-      <span><a href="../troubleshooting/" style="color: #fcfcfc">Next &raquo;</a></span>
+      <span><a href="../secrets/" style="color: #fcfcfc">Next &raquo;</a></span>
     
   </span>
 </div>
