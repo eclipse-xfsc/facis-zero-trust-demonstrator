@@ -35,12 +35,16 @@ jobs:
         with:
           go-version-file: go.mod
 
+      # .golangci.yml adds depguard to the standard linters: only internal/atls may import the
+      # CMC attested-TLS library, and the test-only internal/atls/atlstest stays out of
+      # non-test code. Naming the file makes the job fail if it goes missing.
       - name: Run golangci-lint
         env:
           GOLANGCI_LINT_VERSION: v2.13.2
         run: |
           go install "github.com/golangci/golangci-lint/v2/cmd/golangci-lint@${GOLANGCI_LINT_VERSION}"
-          "$(go env GOPATH)/bin/golangci-lint" run ./...
+          "$(go env GOPATH)/bin/golangci-lint" config verify --config .golangci.yml
+          "$(go env GOPATH)/bin/golangci-lint" run --config .golangci.yml ./...
 
   images:
     name: Image build and scan

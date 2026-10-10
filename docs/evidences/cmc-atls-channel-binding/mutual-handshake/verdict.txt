@@ -1,0 +1,12 @@
+Mutual attested handshake, identical binding
+
+PASS  the server returned an established channel with verdict success
+PASS  the client returned an established channel with verdict success
+PASS  the server required spiffe://b/gateway and the client's certificate carries it
+PASS  the client required spiffe://a/gateway and the server's certificate carries it
+PASS  both ends state until when the channel is valid
+PASS  each binding is 32 bytes
+PASS  both ends hold the same binding: 15688eea05b60911bed517b2cbbeb9c504e636bd806ec486e9e8759090acb586
+PASS  application data crossed the channel in both directions
+
+verdict: PASS

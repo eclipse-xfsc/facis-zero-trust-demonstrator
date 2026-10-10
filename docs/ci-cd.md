@@ -22,6 +22,7 @@ and is declared as such in [Specification changes](specifications.md#readings-an
 | `.github/workflows/ci.yml` | every pull request, push to `main`, manual | Go lint and tests, image build with the Linux assertion and a Trivy scan, chart lint and dry-run render |
 | `.github/workflows/release.yml` | manual, push to a `candidate/**` branch | Release candidate: the chart gate (see [Chart gate](#chart-gate)), then builds, pushes, signs and attests every image by digest and verifies each one (see [Image signing](#image-signing)); beside it the secrets baseline (see [Secrets](secrets.md#the-baseline-proof-tdr-bdd-08)) |
 | `.github/workflows/measurement-determinism.yml` | pull request and push to `main` touching the check, manual | Measures one fixture on a hosted runner, in a container, and on a deliberately divergent checkout, and requires the normalised measurement to be the same on all three |
+| `.github/workflows/atls-channel-binding.yml` | pull requests touching the attested channel, its probe or its proof scripts; manual | Re-runs the three attested-channel proofs (`scripts/atls-probe/`) as plain processes, uploads the run's records and writes the verdicts to the job summary. It never writes the committed evidence |
 
 ## The service pipeline
 
@@ -31,7 +32,7 @@ and nobody hand-rolls their own:
 | Job | What it does | Blocking |
 |---|---|---|
 | `Go tests` | Calls the shared `go-test.yml`, which runs the tests of every Go module it finds | yes |
-| `Go lint` | `golangci-lint run ./...`, with a pinned golangci-lint built by the Go version `go.mod` names | yes |
+| `Go lint` | `golangci-lint run --config .golangci.yml ./...`, with a pinned golangci-lint built by the Go version `go.mod` names. `.golangci.yml` adds `depguard` to the standard linters: only `internal/atls` may import the CMC attested-TLS library, and the test-only `internal/atls/atlstest` may not be imported from non-test code | yes |
 | `Image build and scan` | Builds each context under `deployment/docker/` for `linux/amd64`, asserts the built image's OS, then scans it with Trivy for HIGH and CRITICAL vulnerabilities | yes |
 | `Chart lint and render` | `scripts/ci/check-charts.sh`: `helm lint` and a `helm template` render of every chart under `deployment/helm/` and `features/fixtures/charts/`, dependencies built from `Chart.lock` | yes |
 

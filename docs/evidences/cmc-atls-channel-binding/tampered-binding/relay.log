@@ -1,0 +1,4 @@
+2026-10-01T09:51:45.273Z atls-probe: relay listening on 127.0.0.1:55454, upstream 127.0.0.1:25591
+2026-10-01T09:51:45.285Z atls-probe: TLS session with the dialing end 127.0.0.1:56896 is up
+2026-10-01T09:51:45.286Z atls-probe: TLS session with the listener 127.0.0.1:25591 is up
+2026-10-01T09:51:45.293Z atls-probe: forwarded 6429 bytes to the listener and 6413 bytes to the dialing end; ended because the listener closed its session
