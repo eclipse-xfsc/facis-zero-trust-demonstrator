@@ -1,0 +1,348 @@
+<!DOCTYPE html>
+<html class="writer-html5" lang="en" >
+<head>
+    <meta charset="utf-8" />
+    <meta http-equiv="X-UA-Compatible" content="IE=edge" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+      <link rel="shortcut icon" href="../../img/favicon.ico" />
+    <title>T-Systems OSC - FACIS Zero Trust Demonstrator</title>
+    <link rel="stylesheet" href="../../css/theme.css" />
+    <link rel="stylesheet" href="../../css/theme_extra.css" />
+        <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.8.0/styles/github.min.css" />
+    
+      <script>
+        // Current page data
+        var mkdocs_page_name = "T-Systems OSC";
+        var mkdocs_page_input_path = "environments/osc.md";
+        var mkdocs_page_url = null;
+      </script>
+    
+    <!--[if lt IE 9]>
+      <script src="../../js/html5shiv.min.js"></script>
+    <![endif]-->
+      <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.8.0/highlight.min.js"></script>
+      <script>hljs.highlightAll();</script> 
+</head>
+
+<body class="wy-body-for-nav" role="document">
+
+  <div class="wy-grid-for-nav">
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side stickynav">
+    <div class="wy-side-scroll">
+      <div class="wy-side-nav-search">
+          <a href="../.." class="icon icon-home"> FACIS Zero Trust Demonstrator
+        </a><div role="search">
+  <form id ="rtd-search-form" class="wy-form" action="../../search.html" method="get">
+      <input type="text" name="q" placeholder="Search docs" aria-label="Search docs" title="Type search term here" />
+  </form>
+</div>
+      </div>
+
+      <div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../..">Home</a>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../../features/">Features and journeys</a>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../../architecture/">Architecture</a>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../../usage/">Using the demonstrator</a>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../../deployment/">Deployment</a>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../../umbrella-chart/">Umbrella chart</a>
+                </li>
+              </ul>
+              <p class="caption"><span class="caption-text">Environments</span></p>
+              <ul class="current">
+                  <li class="toctree-l1"><a class="reference internal" href="../">Overview</a>
+                  </li>
+                  <li class="toctree-l1 current"><a class="reference internal current" href="#">T-Systems OSC</a>
+    <ul class="current">
+    <li class="toctree-l2"><a class="reference internal" href="#before-you-start">Before you start</a>
+    </li>
+    <li class="toctree-l2"><a class="reference internal" href="#1-cni">1. CNI</a>
+    </li>
+    <li class="toctree-l2"><a class="reference internal" href="#2-the-zone-layout">2. The zone layout</a>
+    </li>
+    <li class="toctree-l2"><a class="reference internal" href="#3-workload-identity">3. Workload identity</a>
+    </li>
+    <li class="toctree-l2"><a class="reference internal" href="#4-mesh">4. Mesh</a>
+    </li>
+    <li class="toctree-l2"><a class="reference internal" href="#5-admission-control">5. Admission control</a>
+    </li>
+    <li class="toctree-l2"><a class="reference internal" href="#6-the-demonstrator-workloads">6. The demonstrator workloads</a>
+    </li>
+    <li class="toctree-l2"><a class="reference internal" href="#7-the-trust-boundary-between-the-zones">7. The trust boundary between the zones</a>
+    </li>
+    <li class="toctree-l2"><a class="reference internal" href="#teardown">Teardown</a>
+    </li>
+    <li class="toctree-l2"><a class="reference internal" href="#operations">Operations</a>
+    </li>
+    </ul>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../ionos/">IONOS Cloud</a>
+                  </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../../packaging/">Packaging and containers</a>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../../flows/">Orchestrated flows</a>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../../keycloak/">Keycloak integration</a>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../../oauth2-provider/">Connector OAuth2 provider</a>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../../api-docs/">API documentation</a>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../../contracts/">Interface contracts</a>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../../tspa-publish-api/">TRAIN trust-list publishing</a>
+                </li>
+              </ul>
+              <p class="caption"><span class="caption-text">BDD acceptance</span></p>
+              <ul>
+                  <li class="toctree-l1"><a class="reference internal" href="../../bdd/">Harness and pack</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../bdd-catalogue/">Catalogue</a>
+                  </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../../ci-cd/">CI/CD</a>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../../troubleshooting/">Troubleshooting</a>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../../dependencies/">OSS dependencies</a>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../../licenses/">Licenses</a>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../../specifications/">Specification changes</a>
+                </li>
+              </ul>
+              <p class="caption"><span class="caption-text">Architecture decisions</span></p>
+              <ul>
+                  <li class="toctree-l1"><a class="reference internal" href="../../adr/">Overview</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../adr/tdr-decisions/">TDR decisions ADR 001–006</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../adr/0001-service-mesh-mode-istio-ambient-with-cilium/">0001 Service mesh mode</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../adr/0002-gatekeeper-external-data-provider-for-cosign-verification/">0002 Gatekeeper external data provider</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../adr/0003-oauth2-authorisation-surface-in-the-go-connector/">0003 OAuth2 surface in the Go connector</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../adr/0004-openbao-as-x509-key-value-store/">0004 OpenBao as X.509 key-value store</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../adr/0005-three-cluster-reading-of-the-target-environment/">0005 Three-cluster target environment</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../adr/0011-mock-tee-evidence-format-and-provisioning/">0011 Mock TEE evidence</a>
+                  </li>
+              </ul>
+      </div>
+    </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap">
+      <nav class="wy-nav-top" role="navigation" aria-label="Mobile navigation menu">
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="../..">FACIS Zero Trust Demonstrator</a>
+        
+      </nav>
+      <div class="wy-nav-content">
+        <div class="rst-content"><div role="navigation" aria-label="breadcrumbs navigation">
+  <ul class="wy-breadcrumbs">
+    <li><a href="../.." class="icon icon-home" aria-label="Docs"></a></li>
+          <li class="breadcrumb-item">Environments</li>
+      <li class="breadcrumb-item active">T-Systems OSC</li>
+    <li class="wy-breadcrumbs-aside">
+          <a href="https://github.com/eclipse-xfsc/facis-zero-trust-demonstrator/edit/main/docs/environments/osc.md" class="icon icon-github"> Edit on GitHub</a>
+    </li>
+  </ul>
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+            <div class="section" itemprop="articleBody">
+              
+                <h1 id="t-systems-open-sovereign-cloud-zone-a-and-zone-b">T-Systems Open Sovereign Cloud — zone A and zone B<a class="headerlink" href="#t-systems-open-sovereign-cloud-zone-a-and-zone-b" title="Permanent link">&para;</a></h1>
+<p>The two demonstration zones. Zone A holds the participant backend that makes the call; zone B holds
+the protected resource it calls. Each is a separate cluster with its own workload identity,
+admission control and policy enforcement, and the interesting part of the demonstrator is what
+happens between them.</p>
+<div class="admonition warning">
+<p class="admonition-title">Cluster not yet provided</p>
+<p>The two OSC clusters have not been provided yet (status of 23 September 2026). This page is
+written from the platform baseline and the decisions that govern it; nothing on it has been run
+against a real OSC cluster. Every step says how it will be verified, and the page is confirmed
+against the clusters on first stand-up, as the <a href="../ionos/">IONOS guide</a> already is.</p>
+</div>
+<h2 id="before-you-start">Before you start<a class="headerlink" href="#before-you-start" title="Permanent link">&para;</a></h2>
+<p>You need:</p>
+<ul>
+<li>a kubeconfig for each of the two OSC clusters, with rights to create namespaces and
+  cluster-scoped resources;</li>
+<li>credentials for the container registry the images are pulled from, and network reachability to it
+  from both clusters;</li>
+<li>the DNS zone delegation for the trust framework in place, or the trust-list steps will not
+  resolve;</li>
+<li>Helm v4.3.0, the version the pipeline pins, and kubectl;</li>
+<li>this repository checked out, and the values file for the zone you are installing.</li>
+</ul>
+<p>Check the version first — everything below assumes 1.29 or later:</p>
+<pre><code class="language-bash">kubectl version -o json | jq -r '.serverVersion.gitVersion'
+</code></pre>
+<h2 id="1-cni">1. CNI<a class="headerlink" href="#1-cni" title="Permanent link">&para;</a></h2>
+<p>Cilium is installed first and must not claim exclusive ownership of the CNI configuration
+directory, or the Istio CNI plugin cannot chain behind it:</p>
+<pre><code class="language-bash">helm upgrade --install cilium cilium/cilium -n kube-system \
+  --set cni.exclusive=false
+</code></pre>
+<p><strong>Verify:</strong> every Cilium pod is <code>Running</code>, and <code>cilium status</code> reports the cluster healthy.</p>
+<h2 id="2-the-zone-layout">2. The zone layout<a class="headerlink" href="#2-the-zone-layout" title="Permanent link">&para;</a></h2>
+<p>The umbrella chart lays the zone down before any component is installed: the management and
+data-plane namespaces, default-deny network policies in both directions, the allow-matrix lanes
+from the data plane into the management plane, and the hook-weight bands the jobs of the
+components plug into. It installs into its own release namespace, which is not a plane namespace,
+from the zone's values file:</p>
+<pre><code class="language-bash">helm upgrade --install ztd deployment/helm/ztd -n ztd-system --create-namespace \
+  -f deployment/helm/ztd/zones/&lt;zone&gt;.yaml --wait
+</code></pre>
+<p><strong>Verify:</strong> <code>ztd-mgmt</code> and <code>ztd-data</code> exist with their <code>ztd.facis.io/plane</code> label and the mesh
+label for the zone's mode, each holds a <code>default-deny</code> NetworkPolicy, and the release's
+post-install verification job completed; the release fails on its own if the layout is not what
+the chart declared. The design, the bands and the evidence script are in
+<a href="../../umbrella-chart/">Umbrella chart</a>.</p>
+<h2 id="3-workload-identity">3. Workload identity<a class="headerlink" href="#3-workload-identity" title="Permanent link">&para;</a></h2>
+<p>SPIRE is installed into the management plane laid down in step 2, with its controller-manager and
+the SPIFFE CSI driver, so that SVIDs reach workloads through a mounted volume rather than through a
+secret. Registrations are regular resources that the controller-manager reconciles into entries,
+never hook jobs; the jobs that check the server, the trust bundle and the entries sit in the
+<code>identity</code> band of the hook-weight scheme.</p>
+<p><strong>Verify:</strong> the SPIRE server has an entry for each registered workload selector, and a test pod
+receives an SVID whose SPIFFE ID matches its service account.</p>
+<h2 id="4-mesh">4. Mesh<a class="headerlink" href="#4-mesh" title="Permanent link">&para;</a></h2>
+<p>Istio is installed in the mode the zone's values file names (<code>mesh.mode</code>: ambient under
+ADR-0001, sidecar if a superseding decision flips it); the plane namespaces already carry the matching
+label. Exactly one component enforces L7 policy on any given traffic path — where a waypoint proxy
+does it, Cilium is held to L3/L4 for that path, and the assignment is recorded in the mesh
+configuration.</p>
+<p><strong>Verify:</strong> the ztunnel daemonset is ready on every node, and a request between two meshed workloads
+carries an identity the waypoint can name.</p>
+<h2 id="5-admission-control">5. Admission control<a class="headerlink" href="#5-admission-control" title="Permanent link">&para;</a></h2>
+<p>OPA Gatekeeper is installed together with the signature-verification external-data provider. From
+this point an image whose Cosign signature does not verify against the client key material cannot
+start.</p>
+<p><strong>Verify:</strong> deploy an unsigned image and confirm it is refused, and that the refusal names the
+reason code rather than a generic admission error. A cluster where that image starts is not
+configured.</p>
+<h2 id="6-the-demonstrator-workloads">6. The demonstrator workloads<a class="headerlink" href="#6-the-demonstrator-workloads" title="Permanent link">&para;</a></h2>
+<p>The demonstrator services install into the data plane as regular resources; the jobs they bring
+sit in the <code>workloads</code> band of the hook-weight scheme. A workload cannot become READY before its
+identity exists: its container does not start until the SPIFFE CSI driver has mounted the socket
+directory, and it holds no SVID until the agent answers on that socket with a matching
+registration.</p>
+<p><strong>Verify:</strong> the management and data-plane namespaces both reconcile, no pod is in <code>CrashLoopBackOff</code>,
+and the demonstrator UI answers.</p>
+<h2 id="7-the-trust-boundary-between-the-zones">7. The trust boundary between the zones<a class="headerlink" href="#7-the-trust-boundary-between-the-zones" title="Permanent link">&para;</a></h2>
+<p>With both zones up, the attested channel between them is exercised. Both ends present evidence of
+the software they are running, and that evidence is bound to the TLS connection it was presented on.</p>
+<p><strong>Verify:</strong> run the successful journey end to end from zone A, then the tampered-measurement
+journey, and confirm the second one aborts the handshake before any application traffic flows.</p>
+<h2 id="teardown">Teardown<a class="headerlink" href="#teardown" title="Permanent link">&para;</a></h2>
+<p>Components uninstall in the reverse order of their installation; the layout goes last:</p>
+<pre><code class="language-bash">helm uninstall ztd -n ztd-system
+</code></pre>
+<p><strong>Verify:</strong> no namespace, CRD or secret belonging to the demonstrator survives. This is asserted by
+an acceptance scenario, not by eye.</p>
+<h2 id="operations">Operations<a class="headerlink" href="#operations" title="Permanent link">&para;</a></h2>
+<ul>
+<li><strong>Logs and traces</strong> are collected by the OpenTelemetry Collector and read through the Prometheus
+  and Jaeger interfaces; there is no Grafana in this deployment, and
+  <a href="../../specifications/#readings-and-additions">why</a> is recorded.</li>
+<li><strong>A refusal is diagnosed by its reason code</strong>, not by grepping for stack traces — see
+  <a href="../../troubleshooting/">Troubleshooting</a>.</li>
+<li><strong>Certificate and key material</strong> lives in OpenBao and is never written into a chart value or a
+  container image.</li>
+</ul>
+              
+            </div>
+          </div><footer>
+    <div class="rst-footer-buttons" role="navigation" aria-label="Footer Navigation">
+        <a href="../" class="btn btn-neutral float-left" title="Overview"><span class="icon icon-circle-arrow-left"></span> Previous</a>
+        <a href="../ionos/" class="btn btn-neutral float-right" title="IONOS Cloud">Next <span class="icon icon-circle-arrow-right"></span></a>
+    </div>
+
+  <hr/>
+
+  <div role="contentinfo">
+    <!-- Copyright etc -->
+      <p>Apache-2.0</p>
+  </div>
+
+  Built with <a href="https://www.mkdocs.org/">MkDocs</a> using a <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a> provided by <a href="https://readthedocs.org">Read the Docs</a>.
+</footer>
+          
+        </div>
+      </div>
+
+    </section>
+
+  </div>
+
+  <div class="rst-versions" role="note" aria-label="Versions">
+  <span class="rst-current-version" data-toggle="rst-current-version">
+    
+        <span>
+          <a href="https://github.com/eclipse-xfsc/facis-zero-trust-demonstrator" class="fa fa-github" style="color: #fcfcfc"> GitHub</a>
+        </span>
+    
+    
+      <span><a href="../" style="color: #fcfcfc">&laquo; Previous</a></span>
+    
+    
+      <span><a href="../ionos/" style="color: #fcfcfc">Next &raquo;</a></span>
+    
+  </span>
+</div>
+    <script src="../../js/jquery-3.6.0.min.js"></script>
+    <script>var base_url = "../..";</script>
+    <script src="../../js/theme_extra.js"></script>
+    <script src="../../js/theme.js"></script>
+      <script src="../../search/main.js"></script>
+    <script>
+        jQuery(function () {
+            SphinxRtdTheme.Navigation.enable(true);
+        });
+    </script>
+
+</body>
+</html>

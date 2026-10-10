@@ -1,0 +1,469 @@
+<!DOCTYPE html>
+<html class="writer-html5" lang="en" >
+<head>
+    <meta charset="utf-8" />
+    <meta http-equiv="X-UA-Compatible" content="IE=edge" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+      <link rel="shortcut icon" href="../img/favicon.ico" />
+    <title>OSS dependencies - FACIS Zero Trust Demonstrator</title>
+    <link rel="stylesheet" href="../css/theme.css" />
+    <link rel="stylesheet" href="../css/theme_extra.css" />
+        <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.8.0/styles/github.min.css" />
+    
+      <script>
+        // Current page data
+        var mkdocs_page_name = "OSS dependencies";
+        var mkdocs_page_input_path = "dependencies.md";
+        var mkdocs_page_url = null;
+      </script>
+    
+    <!--[if lt IE 9]>
+      <script src="../js/html5shiv.min.js"></script>
+    <![endif]-->
+      <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.8.0/highlight.min.js"></script>
+      <script>hljs.highlightAll();</script> 
+</head>
+
+<body class="wy-body-for-nav" role="document">
+
+  <div class="wy-grid-for-nav">
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side stickynav">
+    <div class="wy-side-scroll">
+      <div class="wy-side-nav-search">
+          <a href=".." class="icon icon-home"> FACIS Zero Trust Demonstrator
+        </a><div role="search">
+  <form id ="rtd-search-form" class="wy-form" action="../search.html" method="get">
+      <input type="text" name="q" placeholder="Search docs" aria-label="Search docs" title="Type search term here" />
+  </form>
+</div>
+      </div>
+
+      <div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="..">Home</a>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../features/">Features and journeys</a>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../architecture/">Architecture</a>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../usage/">Using the demonstrator</a>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../deployment/">Deployment</a>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../umbrella-chart/">Umbrella chart</a>
+                </li>
+              </ul>
+              <p class="caption"><span class="caption-text">Environments</span></p>
+              <ul>
+                  <li class="toctree-l1"><a class="reference internal" href="../environments/">Overview</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../environments/osc/">T-Systems OSC</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../environments/ionos/">IONOS Cloud</a>
+                  </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../packaging/">Packaging and containers</a>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../flows/">Orchestrated flows</a>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../keycloak/">Keycloak integration</a>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../oauth2-provider/">Connector OAuth2 provider</a>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../api-docs/">API documentation</a>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../contracts/">Interface contracts</a>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../tspa-publish-api/">TRAIN trust-list publishing</a>
+                </li>
+              </ul>
+              <p class="caption"><span class="caption-text">BDD acceptance</span></p>
+              <ul>
+                  <li class="toctree-l1"><a class="reference internal" href="../bdd/">Harness and pack</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../bdd-catalogue/">Catalogue</a>
+                  </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../ci-cd/">CI/CD</a>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../troubleshooting/">Troubleshooting</a>
+                </li>
+              </ul>
+              <ul class="current">
+                <li class="toctree-l1 current"><a class="reference internal current" href="#">OSS dependencies</a>
+    <ul class="current">
+    <li class="toctree-l2"><a class="reference internal" href="#licence-compliance">Licence compliance</a>
+    </li>
+    <li class="toctree-l2"><a class="reference internal" href="#licence-exceptions">Licence exceptions</a>
+        <ul>
+    <li class="toctree-l3"><a class="reference internal" href="#worked-example-openbao">Worked example — OpenBao</a>
+    </li>
+        </ul>
+    </li>
+    <li class="toctree-l2"><a class="reference internal" href="#external-xfsc-components">External XFSC components</a>
+    </li>
+    <li class="toctree-l2"><a class="reference internal" href="#go-dependencies">Go dependencies</a>
+    </li>
+    <li class="toctree-l2"><a class="reference internal" href="#javascript-development-dependencies">JavaScript development dependencies</a>
+    </li>
+    <li class="toctree-l2"><a class="reference internal" href="#supply-chain-policy-and-test-tooling">Supply-chain, policy and test tooling</a>
+    </li>
+    <li class="toctree-l2"><a class="reference internal" href="#go-dependencies-being-added">Go dependencies being added</a>
+    </li>
+    </ul>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../licenses/">Licenses</a>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../specifications/">Specification changes</a>
+                </li>
+              </ul>
+              <p class="caption"><span class="caption-text">Architecture decisions</span></p>
+              <ul>
+                  <li class="toctree-l1"><a class="reference internal" href="../adr/">Overview</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../adr/tdr-decisions/">TDR decisions ADR 001–006</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../adr/0001-service-mesh-mode-istio-ambient-with-cilium/">0001 Service mesh mode</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../adr/0002-gatekeeper-external-data-provider-for-cosign-verification/">0002 Gatekeeper external data provider</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../adr/0003-oauth2-authorisation-surface-in-the-go-connector/">0003 OAuth2 surface in the Go connector</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../adr/0004-openbao-as-x509-key-value-store/">0004 OpenBao as X.509 key-value store</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../adr/0005-three-cluster-reading-of-the-target-environment/">0005 Three-cluster target environment</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../adr/0011-mock-tee-evidence-format-and-provisioning/">0011 Mock TEE evidence</a>
+                  </li>
+              </ul>
+      </div>
+    </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap">
+      <nav class="wy-nav-top" role="navigation" aria-label="Mobile navigation menu">
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="..">FACIS Zero Trust Demonstrator</a>
+        
+      </nav>
+      <div class="wy-nav-content">
+        <div class="rst-content"><div role="navigation" aria-label="breadcrumbs navigation">
+  <ul class="wy-breadcrumbs">
+    <li><a href=".." class="icon icon-home" aria-label="Docs"></a></li>
+      <li class="breadcrumb-item active">OSS dependencies</li>
+    <li class="wy-breadcrumbs-aside">
+          <a href="https://github.com/eclipse-xfsc/facis-zero-trust-demonstrator/edit/main/docs/dependencies.md" class="icon icon-github"> Edit on GitHub</a>
+    </li>
+  </ul>
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+            <div class="section" itemprop="articleBody">
+              
+                <h1 id="oss-dependencies-and-external-references">OSS dependencies and external references<a class="headerlink" href="#oss-dependencies-and-external-references" title="Permanent link">&para;</a></h1>
+<p>Third-party components the demonstrator depends on, and the upstream projects it integrates with
+but does not own.</p>
+<h2 id="licence-compliance">Licence compliance<a class="headerlink" href="#licence-compliance" title="Permanent link">&para;</a></h2>
+<p>Every dependency clears Eclipse Dash before it ships. The scan runs on every pull request and a
+dependency Dash marks <code>restricted</code> blocks the merge; anything Dash cannot clear automatically goes
+to the Eclipse IP team for review. See <a href="../ci-cd/">CI/CD</a>.</p>
+<p>A dependency under a licence the project cannot accept is replaced, not waived. The exception below
+is the only other route, and it is not a way to waive the rule.</p>
+<p>Generated inventories — the CycloneDX SBOM and the Dash summary — are published with each release
+and are the authoritative list. This page records the components chosen and why.</p>
+<h2 id="licence-exceptions">Licence exceptions<a class="headerlink" href="#licence-exceptions" title="Permanent link">&para;</a></h2>
+<p>When a component under a non-Apache-2.0-compatible licence is <strong>prescribed by the requirements</strong> and
+therefore cannot be replaced, the Technical Development Requirements oblige us to inform the client
+in writing <em>before</em> it is included. The merge stays blocked until the client's written decision
+arrives.</p>
+<p>A licence exception notice states:</p>
+<ul>
+<li>the component, its version and its licence;</li>
+<li>the requirement that prescribes it, and why no compliant alternative satisfies that requirement;</li>
+<li>how the component is consumed — a deployed service called through its API, or code linked into a
+  deliverable — since that is what decides whether its obligations reach project code;</li>
+<li>the effect on the Apache-2.0 outbound licence of the demonstrator;</li>
+<li>the decision requested, and what happens if it is declined.</li>
+</ul>
+<h3 id="worked-example-openbao">Worked example — OpenBao<a class="headerlink" href="#worked-example-openbao" title="Permanent link">&para;</a></h3>
+<p><strong>Licence Exception Notice v1.0</strong> (8 September 2026, submitted with Project Plan v1.7) covers
+OpenBao, MPL-2.0, prescribed by ZT-11, and Grafana, AGPL-3.0, for optional internal use. OpenBao is
+deployed as a cluster-internal service and consumed unmodified through its API, so its file-level
+copyleft does not reach newly developed components, which stay Apache-2.0. The FACIS decision is
+open and tracked as follow-up requirement F-07.</p>
+<p>The reasoning, the consequences if the exception is declined, and the references are recorded in
+<a href="../adr/0004-openbao-as-x509-key-value-store/">ADR-0004</a>.</p>
+<h2 id="external-xfsc-components">External XFSC components<a class="headerlink" href="#external-xfsc-components" title="Permanent link">&para;</a></h2>
+<p>The demonstrator integrates XFSC components rather than reimplementing them: the Trust Services API
+for policy evaluation, the Organisation Credential Manager for wallets, TRAIN for trust anchoring,
+and ORCE for orchestration. Versions are pinned at deployment and recorded with the release.</p>
+<h2 id="go-dependencies">Go dependencies<a class="headerlink" href="#go-dependencies" title="Permanent link">&para;</a></h2>
+<p>Direct dependencies of the Go module. Transitive dependencies are listed in the SBOM.</p>
+<table>
+<thead>
+<tr>
+<th>Dependency</th>
+<th>Version</th>
+<th>Licence</th>
+<th>Purpose</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>authelia.com/provider/oauth2</code></td>
+<td>v0.3.2</td>
+<td>Apache-2.0</td>
+<td>OAuth 2.0 framework behind the connector's provider adapter: RFC 7591 client registration and RFC 9449 DPoP. Requires Go 1.27.x.</td>
+</tr>
+<tr>
+<td><code>golang.org/x/crypto</code></td>
+<td>v0.57.0</td>
+<td>BSD-3-Clause</td>
+<td>bcrypt hashing of client secrets</td>
+</tr>
+<tr>
+<td><code>github.com/cucumber/godog</code></td>
+<td>v0.16.0</td>
+<td>MIT</td>
+<td>runs the Go acceptance scenarios (<code>internal/bdd</code>)</td>
+</tr>
+<tr>
+<td><code>github.com/cucumber/gherkin/go/v42</code></td>
+<td>v42.0.0</td>
+<td>MIT</td>
+<td>parses the feature files for the Annex verbatim check (<code>cmd/bddpack</code>)</td>
+</tr>
+<tr>
+<td><code>github.com/cucumber/messages/go/v34</code></td>
+<td>v34.2.0</td>
+<td>MIT</td>
+<td>the Gherkin document model used with it</td>
+</tr>
+<tr>
+<td><code>github.com/santhosh-tekuri/jsonschema/v6</code></td>
+<td>v6.0.3</td>
+<td>Apache-2.0</td>
+<td>validates SBOMs and mock attestations against their JSON Schemas at admission</td>
+</tr>
+</tbody>
+</table>
+<p>The admission check validates SBOMs against the official CycloneDX 1.5, 1.6 and 1.7 JSON Schemas and
+the schemas they reference (CycloneDX specification tag 1.7.2, Apache-2.0), vendored in
+<code>internal/cosignverify/schemas/</code> and pinned by SHA-256. CycloneDX 1.7 is accepted because it is what
+the pinned Syft and Grype write by default.</p>
+<h2 id="javascript-development-dependencies">JavaScript development dependencies<a class="headerlink" href="#javascript-development-dependencies" title="Permanent link">&para;</a></h2>
+<p>Used by the acceptance harness only; never shipped in an image.</p>
+<table>
+<thead>
+<tr>
+<th>Dependency</th>
+<th>Version</th>
+<th>Licence</th>
+<th>Purpose</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>@cucumber/cucumber</code></td>
+<td>13.2.1</td>
+<td>MIT</td>
+<td>runs the JavaScript acceptance scenarios</td>
+</tr>
+<tr>
+<td><code>ajv</code></td>
+<td>8.20.0</td>
+<td>MIT</td>
+<td>validates the interface contracts (JSON Schema and OpenAPI documents) against their fixtures</td>
+</tr>
+<tr>
+<td><code>ajv-formats</code></td>
+<td>3.0.1</td>
+<td>MIT</td>
+<td>the string formats (date-time, uri, …) Ajv checks</td>
+</tr>
+<tr>
+<td><code>yaml</code></td>
+<td>2.9.1</td>
+<td>ISC</td>
+<td>reads the OpenAPI documents for validation (already present as a dependency of <code>@cucumber/cucumber</code>)</td>
+</tr>
+</tbody>
+</table>
+<p>The contract check also uses the official OpenAPI 3.1 JSON Schema (<code>schema/2025-09-15</code>, Apache-2.0,
+from the OpenAPI Initiative), vendored in <code>docs/contracts/tooling/oas-3.1/</code> and pinned by SHA-256.</p>
+<h2 id="supply-chain-policy-and-test-tooling">Supply-chain, policy and test tooling<a class="headerlink" href="#supply-chain-policy-and-test-tooling" title="Permanent link">&para;</a></h2>
+<p>Used by CI and the release workflow; never shipped inside a demonstrator image. Everything is pinned in
+<code>scripts/tools/pins.env</code>:</p>
+<ul>
+<li>the executables (cosign, Syft, Grype, gator) and the Gatekeeper chart archive by SHA-256 — installed
+  by <code>scripts/tools/install.sh</code>, which refuses a download whose checksum does not match;</li>
+<li>the container images (Gatekeeper, PostgreSQL, OpenBao, the test registry) by digest — pulled by
+  digest where they are used.</li>
+</ul>
+<p>The JavaScript packages above are pinned by exact version with integrity hashes in <code>package-lock.json</code>.</p>
+<table>
+<thead>
+<tr>
+<th>Tool</th>
+<th>Version</th>
+<th>Licence</th>
+<th>Purpose</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>cosign (Sigstore)</td>
+<td>v2.6.2</td>
+<td>Apache-2.0</td>
+<td>signs images by digest and attaches attestations (classic <code>.sig</code>/<code>.att</code> layout, key-based)</td>
+</tr>
+<tr>
+<td>Syft (Anchore)</td>
+<td>1.52.0</td>
+<td>Apache-2.0</td>
+<td>CycloneDX SBOM of each image and of the repository</td>
+</tr>
+<tr>
+<td>Grype (Anchore)</td>
+<td>0.119.0</td>
+<td>Apache-2.0</td>
+<td>adds the known-vulnerability references to the SBOM before it is signed</td>
+</tr>
+<tr>
+<td>gator (OPA Gatekeeper)</td>
+<td>v3.23.1</td>
+<td>Apache-2.0</td>
+<td>offline tests of the admission constraints</td>
+</tr>
+<tr>
+<td>OPA Gatekeeper (Helm chart)</td>
+<td>3.23.1</td>
+<td>Apache-2.0</td>
+<td>admission control with the first-party external-data provider</td>
+</tr>
+<tr>
+<td>PostgreSQL</td>
+<td>16.10 (test service)</td>
+<td>PostgreSQL License</td>
+<td>token-store integration tests</td>
+</tr>
+<tr>
+<td>OpenBao</td>
+<td>2.7.0 (test service)</td>
+<td>MPL-2.0</td>
+<td>token-store integration tests only; its use in the demonstrator is the declared licence exception</td>
+</tr>
+<tr>
+<td>Docker Distribution registry</td>
+<td>2.8.3 (test service)</td>
+<td>Apache-2.0</td>
+<td>a local registry for signing and verification tests in CI</td>
+</tr>
+</tbody>
+</table>
+<h2 id="go-dependencies-being-added">Go dependencies being added<a class="headerlink" href="#go-dependencies-being-added" title="Permanent link">&para;</a></h2>
+<p>Added to the Go module together with the code that uses them; each goes through the licence gate like any
+other dependency.</p>
+<table>
+<thead>
+<tr>
+<th>Dependency</th>
+<th>Version</th>
+<th>Licence</th>
+<th>Purpose</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>github.com/jackc/pgx/v5</code></td>
+<td>v5.11.0</td>
+<td>MIT</td>
+<td>PostgreSQL driver of the token store</td>
+</tr>
+</tbody>
+</table>
+<p>The admission provider talks to OCI registries through a small first-party client built on the Go
+standard library rather than a general-purpose registry library, to keep its dependency set minimal.</p>
+              
+            </div>
+          </div><footer>
+    <div class="rst-footer-buttons" role="navigation" aria-label="Footer Navigation">
+        <a href="../troubleshooting/" class="btn btn-neutral float-left" title="Troubleshooting"><span class="icon icon-circle-arrow-left"></span> Previous</a>
+        <a href="../licenses/" class="btn btn-neutral float-right" title="Licenses">Next <span class="icon icon-circle-arrow-right"></span></a>
+    </div>
+
+  <hr/>
+
+  <div role="contentinfo">
+    <!-- Copyright etc -->
+      <p>Apache-2.0</p>
+  </div>
+
+  Built with <a href="https://www.mkdocs.org/">MkDocs</a> using a <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a> provided by <a href="https://readthedocs.org">Read the Docs</a>.
+</footer>
+          
+        </div>
+      </div>
+
+    </section>
+
+  </div>
+
+  <div class="rst-versions" role="note" aria-label="Versions">
+  <span class="rst-current-version" data-toggle="rst-current-version">
+    
+        <span>
+          <a href="https://github.com/eclipse-xfsc/facis-zero-trust-demonstrator" class="fa fa-github" style="color: #fcfcfc"> GitHub</a>
+        </span>
+    
+    
+      <span><a href="../troubleshooting/" style="color: #fcfcfc">&laquo; Previous</a></span>
+    
+    
+      <span><a href="../licenses/" style="color: #fcfcfc">Next &raquo;</a></span>
+    
+  </span>
+</div>
+    <script src="../js/jquery-3.6.0.min.js"></script>
+    <script>var base_url = "..";</script>
+    <script src="../js/theme_extra.js"></script>
+    <script src="../js/theme.js"></script>
+      <script src="../search/main.js"></script>
+    <script>
+        jQuery(function () {
+            SphinxRtdTheme.Navigation.enable(true);
+        });
+    </script>
+
+</body>
+</html>

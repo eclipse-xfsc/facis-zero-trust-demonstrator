@@ -1,0 +1,96 @@
+openapi: 3.0.3
+info:
+  title: FACIS ZTD deployment lifecycle (IF-08 scenario driver hook)
+  version: 1.0.0
+  description: >-
+    The ORCE lifecycle endpoint. A command is validated and acknowledged at once; an accepted
+    command runs in the background and its progress and final result are kept in the ORCE flow
+    context (see lifecycle-result.schema.json). The endpoint is served by ORCE behind HTTP node
+    authentication, over TLS 1.3, and is reachable from the management plane only.
+  license:
+    name: Apache-2.0
+    url: https://www.apache.org/licenses/LICENSE-2.0
+paths:
+  /lifecycle:
+    post:
+      summary: Deploy or uninstall one Helm release in a provisioned namespace
+      operationId: lifecycleCommand
+      security:
+        - httpNodeAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Command'
+            examples:
+              deploy:
+                value:
+                  type: command
+                  action: deploy
+                  requestId: ztd-bdd-ci-1234-01-9f2c1a7b
+                  payload:
+                    release: ztd-bdd-ci-1234-01
+                    namespace: ztd-bdd-tdr-001
+                    chart: /opt/ztd/charts/lifecycle-fixture
+                    values: { message: lifecycle fixture, replicas: 1, image: { repository: registry.k8s.io/pause, digest: 'sha256:ee6521f290b2168b6e0935a181d4cff9be1ac3f505666ef0e3c98fae8199917a' } }
+              uninstall:
+                value:
+                  type: command
+                  action: uninstall
+                  requestId: ztd-bdd-ci-1234-04-1d0e4c22
+                  payload: { release: ztd-bdd-ci-1234-04, namespace: ztd-bdd-tdr-004 }
+      responses:
+        '202':
+          description: Accepted. The final result follows in the ORCE flow context under lifecycle.jobs[requestId].
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Result' }
+              example: { type: result, ok: true, action: deploy, requestId: ztd-bdd-ci-1234-01-9f2c1a7b, data: { accepted: true }, ui: { toast: { kind: success, message: Request accepted. } }, errors: null }
+        '400':
+          description: Refused before anything ran. errors.fields names each invalid parameter; the same result is kept in the context.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Result' }
+              example: { type: result, ok: false, action: deploy, requestId: r-2, data: null, ui: { toast: { kind: error, message: Please correct the highlighted fields. } }, errors: { fields: { release: 'is required: a DNS-1123 label of at most 53 characters' } } }
+        '401':
+          description: Missing or wrong HTTP node credentials.
+components:
+  securitySchemes:
+    httpNodeAuth:
+      type: http
+      scheme: basic
+  schemas:
+    Command:
+      type: object
+      required: [type, action, requestId, payload]
+      properties:
+        type: { type: string, enum: [command] }
+        action: { type: string, enum: [deploy, uninstall] }
+        requestId: { type: string, minLength: 1, maxLength: 128 }
+        payload:
+          type: object
+          additionalProperties: false
+          required: [release, namespace]
+          properties:
+            release: { type: string, pattern: '^[a-z0-9]([-a-z0-9]{0,51}[a-z0-9])?$' }
+            namespace: { type: string, pattern: '^[a-z0-9]([-a-z0-9]{0,61}[a-z0-9])?$' }
+            chart: { type: string, description: 'Required for deploy: a chart path in the ORCE image, or an oci:// reference pinned by digest.' }
+            values: { type: object, description: 'Required for deploy. Validated by the chart schema; never logged.' }
+        meta: { type: object }
+    Result:
+      type: object
+      required: [type, ok, action, requestId, errors]
+      properties:
+        type: { type: string, enum: [result] }
+        ok: { type: boolean }
+        action: { type: string, nullable: true }
+        requestId: { type: string, nullable: true }
+        data: { type: object, nullable: true }
+        ui: { type: object }
+        errors:
+          type: object
+          nullable: true
+          properties:
+            fields: { type: object, additionalProperties: { type: string } }
+            action: { type: string }

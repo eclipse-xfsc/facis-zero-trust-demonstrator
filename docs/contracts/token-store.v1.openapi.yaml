@@ -1,0 +1,199 @@
+openapi: 3.1.0
+info:
+  title: FACIS ZTD token store, internal API
+  version: 1.0.0
+  description: >-
+    Internal to the zone. Every call requires mutual TLS with a client certificate whose URI SAN is
+    on the store's allow-list (the shape of an X.509 SVID). The store holds the upstream tokens
+    minted to it, substitutes them for the guard, and offers DPoP proof replay detection to the
+    connector and the guard. It exposes no endpoint that accepts a caller's proof as a credential.
+    Statuses here are the store's own; the component that refuses the end caller maps them to the
+    reason-code registry.
+  license:
+    name: Apache-2.0
+    identifier: Apache-2.0
+security:
+  - mtls: []
+paths:
+  /internal/substitute:
+    post:
+      summary: Upstream Authorization value and a fresh DPoP proof for one configured route
+      operationId: substitute
+      description: >-
+        The guard calls this to fulfil the substitute_upstream_token obligation. The proof is minted
+        with the store's outbound key for exactly this method and target URI; the caller's own proof
+        is never forwarded. peer_zone, audience and target_uri must match a configured route. When
+        the upstream resource answers with a DPoP nonce challenge (401 with DPoP-Nonce), the guard
+        calls again once with that nonce in upstream_nonce and retries the upstream request with the
+        new proof; a second challenge is a refusal. The nonce is never relayed to the caller.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              required: [peer_zone, audience, method, target_uri, correlation_id]
+              properties:
+                peer_zone:
+                  type: string
+                  minLength: 1
+                audience:
+                  type: string
+                  minLength: 1
+                tenant:
+                  type: [string, 'null']
+                method:
+                  enum: [GET, HEAD, POST, PUT, PATCH, DELETE]
+                target_uri:
+                  type: string
+                  format: uri
+                correlation_id:
+                  type: string
+                  minLength: 1
+                  maxLength: 128
+                upstream_nonce:
+                  type: string
+                  minLength: 1
+                  maxLength: 256
+                  description: The DPoP-Nonce of the upstream's challenge, to be placed in the new proof.
+      responses:
+        '200':
+          description: The values to set on the upstream request.
+          headers:
+            Cache-Control:
+              schema:
+                const: no-store
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: false
+                required: [authorization, dpop, expires_at]
+                properties:
+                  authorization:
+                    type: string
+                    pattern: '^DPoP [A-Za-z0-9._~+/-]+=*$'
+                  dpop:
+                    type: string
+                  expires_at:
+                    type: string
+                    format: date-time
+        '403':
+          description: TOK-CALLER-DENIED or TOK-ROUTE-DENIED.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/refusal'
+        '409':
+          description: TOK-NO-UPSTREAM - no valid upstream token for the route.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/refusal'
+        '503':
+          $ref: '#/components/responses/unavailable'
+  /internal/replay-check:
+    post:
+      summary: Record a DPoP proof's jti, or report that it was seen before
+      operationId: replayCheck
+      description: >-
+        Atomic: of concurrent calls with the same key exactly one is fresh. The key is (jkt, htm,
+        htu, jti). A proof is accepted when now - 60 s <= iat <= now + 30 s, and its jti is kept until
+        iat + 90 s. After a store crash the table is empty, so a proof can be replayed at most once
+        inside its own acceptance interval.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              required: [jkt, htm, htu, jti, iat]
+              properties:
+                jkt:
+                  type: string
+                  pattern: '^[A-Za-z0-9_-]{43}$'
+                  description: RFC 7638 SHA-256 thumbprint of the proof key, base64url.
+                htm:
+                  type: string
+                  minLength: 1
+                htu:
+                  type: string
+                  format: uri
+                jti:
+                  type: string
+                  minLength: 1
+                  maxLength: 256
+                iat:
+                  type: integer
+      responses:
+        '200':
+          description: Fresh - recorded now.
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: false
+                required: [fresh]
+                properties:
+                  fresh:
+                    const: true
+        '409':
+          description: TOK-REPLAY - this proof was seen before.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/refusal'
+        '422':
+          description: TOK-PROOF-INVALID - iat outside the acceptance window.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/refusal'
+        '503':
+          $ref: '#/components/responses/unavailable'
+  /healthz:
+    get:
+      summary: Liveness
+      operationId: healthz
+      security: []
+      responses:
+        '200':
+          description: The process is alive.
+  /readyz:
+    get:
+      summary: Readiness
+      operationId: readyz
+      security: []
+      responses:
+        '200':
+          description: PostgreSQL is reachable, migrations are current and every active key reference resolves.
+        '503':
+          description: Not ready.
+components:
+  securitySchemes:
+    mtls:
+      type: mutualTLS
+      description: Client certificate with a URI SAN on the store's allow-list.
+  schemas:
+    refusal:
+      type: object
+      additionalProperties: false
+      required: [reason_code]
+      properties:
+        reason_code:
+          type: string
+          pattern: '^TOK(-[A-Z0-9]+)+$'
+        detail:
+          type: string
+          maxLength: 512
+        correlation_id:
+          type: string
+  responses:
+    unavailable:
+      description: TOK-STORE-UNAVAILABLE - the database cannot be read or written; fail closed.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/refusal'

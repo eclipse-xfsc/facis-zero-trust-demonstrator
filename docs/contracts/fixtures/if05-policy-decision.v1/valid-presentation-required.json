@@ -1,0 +1,1 @@
+{"allow":false,"reason_code":"POL-PRESENTATION-REQUIRED","bundle_revision":"v0.3.1","deny_body":{"error":"presentation_required","oid4vp_link":"https://zone-a.example/present?challenge=fx"}}

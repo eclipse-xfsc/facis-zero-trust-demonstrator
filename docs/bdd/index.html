@@ -1,0 +1,671 @@
+<!DOCTYPE html>
+<html class="writer-html5" lang="en" >
+<head>
+    <meta charset="utf-8" />
+    <meta http-equiv="X-UA-Compatible" content="IE=edge" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+      <link rel="shortcut icon" href="../img/favicon.ico" />
+    <title>Harness and pack - FACIS Zero Trust Demonstrator</title>
+    <link rel="stylesheet" href="../css/theme.css" />
+    <link rel="stylesheet" href="../css/theme_extra.css" />
+        <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.8.0/styles/github.min.css" />
+    
+      <script>
+        // Current page data
+        var mkdocs_page_name = "Harness and pack";
+        var mkdocs_page_input_path = "bdd.md";
+        var mkdocs_page_url = null;
+      </script>
+    
+    <!--[if lt IE 9]>
+      <script src="../js/html5shiv.min.js"></script>
+    <![endif]-->
+      <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.8.0/highlight.min.js"></script>
+      <script>hljs.highlightAll();</script> 
+</head>
+
+<body class="wy-body-for-nav" role="document">
+
+  <div class="wy-grid-for-nav">
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side stickynav">
+    <div class="wy-side-scroll">
+      <div class="wy-side-nav-search">
+          <a href=".." class="icon icon-home"> FACIS Zero Trust Demonstrator
+        </a><div role="search">
+  <form id ="rtd-search-form" class="wy-form" action="../search.html" method="get">
+      <input type="text" name="q" placeholder="Search docs" aria-label="Search docs" title="Type search term here" />
+  </form>
+</div>
+      </div>
+
+      <div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="..">Home</a>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../features/">Features and journeys</a>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../architecture/">Architecture</a>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../usage/">Using the demonstrator</a>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../deployment/">Deployment</a>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../umbrella-chart/">Umbrella chart</a>
+                </li>
+              </ul>
+              <p class="caption"><span class="caption-text">Environments</span></p>
+              <ul>
+                  <li class="toctree-l1"><a class="reference internal" href="../environments/">Overview</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../environments/osc/">T-Systems OSC</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../environments/ionos/">IONOS Cloud</a>
+                  </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../packaging/">Packaging and containers</a>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../flows/">Orchestrated flows</a>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../keycloak/">Keycloak integration</a>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../oauth2-provider/">Connector OAuth2 provider</a>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../api-docs/">API documentation</a>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../contracts/">Interface contracts</a>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../tspa-publish-api/">TRAIN trust-list publishing</a>
+                </li>
+              </ul>
+              <p class="caption"><span class="caption-text">BDD acceptance</span></p>
+              <ul class="current">
+                  <li class="toctree-l1 current"><a class="reference internal current" href="#">Harness and pack</a>
+    <ul class="current">
+    <li class="toctree-l2"><a class="reference internal" href="#conventions">Conventions</a>
+    </li>
+    <li class="toctree-l2"><a class="reference internal" href="#the-harness">The harness</a>
+        <ul>
+    <li class="toctree-l3"><a class="reference internal" href="#the-pack">The pack</a>
+    </li>
+    <li class="toctree-l3"><a class="reference internal" href="#tags">Tags</a>
+    </li>
+    <li class="toctree-l3"><a class="reference internal" href="#running-one-annex-row">Running one Annex row</a>
+    </li>
+    <li class="toctree-l3"><a class="reference internal" href="#the-traceability-sheet">The traceability sheet</a>
+    </li>
+        </ul>
+    </li>
+    <li class="toctree-l2"><a class="reference internal" href="#scenario-inventory">Scenario inventory</a>
+    </li>
+    <li class="toctree-l2"><a class="reference internal" href="#the-deployment-lifecycle-pack">The deployment-lifecycle pack</a>
+        <ul>
+    <li class="toctree-l3"><a class="reference internal" href="#how-the-cluster-decides">How the cluster decides</a>
+    </li>
+    <li class="toctree-l3"><a class="reference internal" href="#running-it">Running it</a>
+    </li>
+    <li class="toctree-l3"><a class="reference internal" href="#the-release-under-test">The release under test</a>
+    </li>
+    <li class="toctree-l3"><a class="reference internal" href="#evidence">Evidence</a>
+    </li>
+        </ul>
+    </li>
+    <li class="toctree-l2"><a class="reference internal" href="#traceability">Traceability</a>
+    </li>
+    <li class="toctree-l2"><a class="reference internal" href="#evidence_1">Evidence</a>
+    </li>
+    </ul>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../bdd-catalogue/">Catalogue</a>
+                  </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../ci-cd/">CI/CD</a>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../troubleshooting/">Troubleshooting</a>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../dependencies/">OSS dependencies</a>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../licenses/">Licenses</a>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../specifications/">Specification changes</a>
+                </li>
+              </ul>
+              <p class="caption"><span class="caption-text">Architecture decisions</span></p>
+              <ul>
+                  <li class="toctree-l1"><a class="reference internal" href="../adr/">Overview</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../adr/tdr-decisions/">TDR decisions ADR 001–006</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../adr/0001-service-mesh-mode-istio-ambient-with-cilium/">0001 Service mesh mode</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../adr/0002-gatekeeper-external-data-provider-for-cosign-verification/">0002 Gatekeeper external data provider</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../adr/0003-oauth2-authorisation-surface-in-the-go-connector/">0003 OAuth2 surface in the Go connector</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../adr/0004-openbao-as-x509-key-value-store/">0004 OpenBao as X.509 key-value store</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../adr/0005-three-cluster-reading-of-the-target-environment/">0005 Three-cluster target environment</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../adr/0011-mock-tee-evidence-format-and-provisioning/">0011 Mock TEE evidence</a>
+                  </li>
+              </ul>
+      </div>
+    </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap">
+      <nav class="wy-nav-top" role="navigation" aria-label="Mobile navigation menu">
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="..">FACIS Zero Trust Demonstrator</a>
+        
+      </nav>
+      <div class="wy-nav-content">
+        <div class="rst-content"><div role="navigation" aria-label="breadcrumbs navigation">
+  <ul class="wy-breadcrumbs">
+    <li><a href=".." class="icon icon-home" aria-label="Docs"></a></li>
+          <li class="breadcrumb-item">BDD acceptance</li>
+      <li class="breadcrumb-item active">Harness and pack</li>
+    <li class="wy-breadcrumbs-aside">
+          <a href="https://github.com/eclipse-xfsc/facis-zero-trust-demonstrator/edit/main/docs/bdd.md" class="icon icon-github"> Edit on GitHub</a>
+    </li>
+  </ul>
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+            <div class="section" itemprop="articleBody">
+              
+                <h1 id="bdd-acceptance-specifications">BDD acceptance specifications<a class="headerlink" href="#bdd-acceptance-specifications" title="Permanent link">&para;</a></h1>
+<p>Every acceptance requirement is expressed as an executable scenario, tagged with the requirement it
+covers, so that traceability from requirement to test is generated rather than maintained by hand.</p>
+<h2 id="conventions">Conventions<a class="headerlink" href="#conventions" title="Permanent link">&para;</a></h2>
+<ul>
+<li>Every Annex A row has exactly one scenario, and its Given, When and Then are the Annex wording
+  byte for byte (see <a href="#the-pack">The pack</a>). The <a href="../bdd-catalogue/">BDD catalogue</a> lists them all.</li>
+<li>Each scenario carries a tag naming its requirement.</li>
+<li>Scenarios run both in CI and against live clusters.</li>
+<li>Negative cases assert against the audit entry that recorded the refusal, not merely against a
+  failed response.</li>
+</ul>
+<h2 id="the-harness">The harness<a class="headerlink" href="#the-harness" title="Permanent link">&para;</a></h2>
+<p>Two runners, one report. Go scenarios run under <a href="https://github.com/cucumber/godog">godog</a> and
+JavaScript scenarios under <a href="https://github.com/cucumber/cucumber-js">Cucumber.js</a>; both emit the
+same legacy cucumber-JSON, so their results merge by concatenation and produce a single
+traceability sheet.</p>
+<table>
+<thead>
+<tr>
+<th></th>
+<th>Runner</th>
+<th>Scenarios</th>
+<th>Steps</th>
+<th>Report</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Go</td>
+<td>godog</td>
+<td><code>features/go/</code></td>
+<td><code>internal/bdd/</code></td>
+<td><code>bundles/bdd/go-report.json</code></td>
+</tr>
+<tr>
+<td>JavaScript</td>
+<td>Cucumber.js</td>
+<td><code>features/js/</code></td>
+<td><code>features/js/steps/</code></td>
+<td><code>bundles/bdd/js-report.json</code></td>
+</tr>
+</tbody>
+</table>
+<p><strong>Each runner owns its own directory, and a scenario belongs to exactly one.</strong> A runner that
+loads the other's scenarios cannot execute their steps; it would report them as undefined and —
+unless the run is strict — still pass, marking those Annex rows covered by scenarios that never
+ran.</p>
+<p>Each runner runs three ways, and one sheet merges them:</p>
+<table>
+<thead>
+<tr>
+<th>Run</th>
+<th>Scenarios</th>
+<th>Strict</th>
+<th>Go</th>
+<th>JavaScript</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>strict</strong></td>
+<td>implemented, not <code>@cluster</code></td>
+<td>yes: an undefined or pending step fails</td>
+<td><code>go test ./internal/bdd</code></td>
+<td><code>npm run bdd</code></td>
+</tr>
+<tr>
+<td><strong>catalogue</strong></td>
+<td><code>@pending</code></td>
+<td>no: pending steps are expected</td>
+<td><code>BDD_MODE=catalogue go test ./internal/bdd</code></td>
+<td><code>npm run bdd:catalogue</code></td>
+</tr>
+<tr>
+<td><strong>cluster</strong></td>
+<td><code>@cluster</code></td>
+<td>yes</td>
+<td>—</td>
+<td><code>npm run bdd:cluster</code> (needs a cluster, see below)</td>
+</tr>
+</tbody>
+</table>
+<p>In a pull request the cluster scenarios cannot run, so <code>npm run bdd:cluster-dryrun</code> lists them
+instead. <code>BDD_MODE</code> is read inside the Go test binary: unset means strict (the shared <code>go test ./...</code>
+job sets nothing), and any other value than <code>strict</code> or <code>catalogue</code> fails.</p>
+<pre><code class="language-bash">go run ./cmd/bddpack -check                                            # the pack matches the Annex
+GODOG_CUCUMBER_OUT=bundles/bdd/go-report.json go test ./internal/bdd   # Go, strict
+BDD_MODE=catalogue GODOG_CUCUMBER_OUT=bundles/bdd/go-catalogue-report.json go test ./internal/bdd
+npm ci &amp;&amp; npm run bdd &amp;&amp; npm run bdd:catalogue &amp;&amp; npm run bdd:cluster-dryrun
+go run ./cmd/bddreport --require-complete --rows features/annex-rows.txt --out bundles/bdd \
+  bundles/bdd/go-report.json bundles/bdd/js-report.json bundles/bdd/go-catalogue-report.json \
+  bundles/bdd/js-catalogue-report.json bundles/bdd/js-cluster-dryrun.json
+</code></pre>
+<h3 id="the-pack">The pack<a class="headerlink" href="#the-pack" title="Permanent link">&para;</a></h3>
+<p><code>features/annex/annex-a.json</code> is the one source: the 94 rows of Annex A v1.7, exported once from
+the client's workbook (its SHA-256 is recorded), each with its statement split into Given, When and
+Then, its family, runner, status (<code>implemented</code> or <code>pending</code>) and whether it runs on a cluster.
+<code>go run ./cmd/bddpack</code> renders from it every feature file except the hand-written
+<code>features/js/lifecycle.feature</code>, the pending step definitions of both runners
+(<code>internal/bdd/pending_gen_test.go</code>, <code>features/js/steps/pending.gen.mjs</code>), <code>features/annex-rows.txt</code>
+and the <a href="../bdd-catalogue/">catalogue</a>. <code>-check</code> fails when a generated file is stale or when any
+feature file, hand-written or generated, departs from the Annex: a row with no scenario or two, a
+step that differs by one character, or a row, test-id or <code>@pending</code> tag above the scenario.</p>
+<p>A <strong>pending</strong> row has its Annex scenario and the tag <code>@pending</code>; its steps are registered as
+pending (exact-text patterns, never Cucumber expressions, because many clauses contain <code>/</code> or
+<code>( )</code>), so the row is reported as <em>not run</em>. Implementing a row means setting its status to
+<code>implemented</code>, writing real steps and regenerating. A clause shared by two rows stays pending until
+both are implemented, and the generator refuses the source otherwise. The Annex marks ZT-42/ZT-79
+and ZT-46/ZT-81 as one shared execution each; each pair is one scenario carrying both rows' tags.</p>
+<p>Checks that exist but prove only part of a row — the usage manual in the site navigation (behind
+ZT-17), pinned and scoped workflows (behind ZT-56) — stay as untagged <code>@regression</code> scenarios. They
+run strict and do not cover a row.</p>
+<p>Cucumber.js describes its <code>json</code> formatter as being in maintenance mode; it is the interchange
+format both runners share today, and the documented upgrade path when that changes is the
+<code>message</code> format. Nothing else in the harness depends on the choice.</p>
+<h3 id="tags">Tags<a class="headerlink" href="#tags" title="Permanent link">&para;</a></h3>
+<p>A scenario carries two tags: the <strong>requirement row</strong> it covers and the <strong>test identifier</strong> from
+Annex A, plus <code>@pending</code> while the row is not implemented and <code>@cluster</code> when it needs a cluster.</p>
+<pre><code class="language-gherkin">@TDR-BDD-01 @BDD-TDR-001
+Scenario: Successful deployment [fixture release]
+</code></pre>
+<p>Only the row tag drives coverage. A tag shaped like a row id that matches no row in
+<code>features/annex-rows.txt</code> <strong>fails the run</strong> — a typo would otherwise leave the scenario passing
+while proving nothing about the row it was meant to cover.</p>
+<h3 id="running-one-annex-row">Running one Annex row<a class="headerlink" href="#running-one-annex-row" title="Permanent link">&para;</a></h3>
+<pre><code class="language-bash">BDD_MODE=catalogue go test ./internal/bdd -godog.tags=@ZT-56   # a pending Go row
+npm run bdd:row -- @ZT-17                                      # a JavaScript row, strict:
+                                                               # fails while ZT-17 is pending
+</code></pre>
+<p><code>-godog.tags</code> narrows the mode's own filter; it cannot widen a strict run to pending rows.</p>
+<h3 id="the-traceability-sheet">The traceability sheet<a class="headerlink" href="#the-traceability-sheet" title="Permanent link">&para;</a></h3>
+<p><code>features/annex-rows.txt</code> holds the 94 Annex A row ids in Annex order and is the denominator: the
+sheet reports every row, covered or not, so a gap is visible rather than absent. <code>cmd/bddreport</code>
+generates <code>traceability.md</code> and <code>traceability.csv</code> from the tags in the merged report — the sheet
+is never edited by hand.</p>
+<p>Covered is not proven. Each row also carries a <strong>result</strong> taken from the step and hook results of
+every execution that covers it: <code>passed</code> only when every execution passed, on every target and for
+every Outline example; <code>failed</code> when any one failed; <code>not run</code> when any was skipped or had no steps.
+A pending step counts as <code>not run</code> only in a scenario tagged <code>@pending</code>; anywhere else it fails the
+row, so a stray pending step in an implemented scenario cannot hide.</p>
+<p>With <code>--require-complete</code> the sheet is written first, then the run fails if any row is uncovered or
+failed; a missing report therefore cannot pass. <code>not run</code> rows are complete: they are covered, and
+their result says they prove nothing yet.</p>
+<p>The pipeline runs all of this on every pull request, writes the sheet into the job summary, and
+publishes <code>bundles/bdd</code> as the <code>bdd-evidence</code> artefact, which is the per-gate evidence bundle.</p>
+<h2 id="scenario-inventory">Scenario inventory<a class="headerlink" href="#scenario-inventory" title="Permanent link">&para;</a></h2>
+<p>The scenarios are grouped by the part of the architecture they exercise. Each family carries the
+requirements it proves and the negative case it must include — a family with no negative case is
+incomplete, because the demonstrator's claim is about what it refuses.</p>
+<table>
+<thead>
+<tr>
+<th>Family</th>
+<th>Requirements</th>
+<th>Positive case</th>
+<th>Negative case it must include</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Workload identity</td>
+<td>ZT-24, ZT-57, ZT-59, ZT-60</td>
+<td>A workload attests and receives an SVID whose SPIFFE ID matches its service account</td>
+<td>Failed attestation yields no identity <strong>and</strong> no mesh connectivity</td>
+</tr>
+<tr>
+<td>Mesh enrolment and segmentation</td>
+<td>ZT-01, ZT-23, ZT-25, ZT-26, ZT-27, ZT-58, ZT-61, ZT-62</td>
+<td>All service traffic is routed through the mesh; only configured identities may talk</td>
+<td>An unaffiliated workload is refused, and the refusal is not IP-based</td>
+</tr>
+<tr>
+<td>Management/data plane separation</td>
+<td>ZT-49, ZT-53, ZT-55</td>
+<td>The management plane is unreachable from the data plane</td>
+<td>A data-plane workload attempting a management-plane call is denied at the network layer</td>
+</tr>
+<tr>
+<td>Admission control</td>
+<td>ZT-02, ZT-11, ZT-12, ZT-36, ZT-37, ZT-72</td>
+<td>A correctly signed image is admitted</td>
+<td>An unsigned or wrongly signed image is refused, with the reason code in the admission log</td>
+</tr>
+<tr>
+<td>Supply chain</td>
+<td>ZT-10, ZT-13, ZT-38, ZT-54, ZT-56, ZT-71</td>
+<td>Images build on the runner, are signed by digest, and ship an SBOM and a mock attestation</td>
+<td>A non-Linux image, or one missing its signature, fails the pipeline</td>
+</tr>
+<tr>
+<td>Attested channel</td>
+<td>ZT-04, ZT-19, ZT-28…ZT-34, ZT-63, ZT-65…ZT-70</td>
+<td>Both ends attest, the verdict is machine-readable, and application traffic follows</td>
+<td>A tampered measurement aborts the handshake — and it is <strong>proven</strong> no application traffic passed (ZT-70)</td>
+</tr>
+<tr>
+<td>Expected measurements and trust lists</td>
+<td>ZT-03, ZT-18, ZT-35, ZT-64</td>
+<td>Peer digests resolve through TRAIN and match</td>
+<td>A stale or absent trust-list entry refuses the peer</td>
+</tr>
+<tr>
+<td>Authorization surface</td>
+<td>ZT-07, ZT-20, ZT-21, ZT-22, ZT-39, ZT-48, ZT-73, ZT-74, ZT-76, ZT-77, TDR-BDD-05</td>
+<td>Dynamic registration, a token derived from a verified presentation, DPoP-bound and substituted upstream</td>
+<td>A replayed or unbound DPoP proof is rejected; a wrong scope is denied with an OID4VP link</td>
+</tr>
+<tr>
+<td>Credential lifecycle</td>
+<td>ZT-40, ZT-51</td>
+<td>A credential is issued to the wallet and unlocks the protected resource</td>
+<td>A revoked credential flips verification negative and the token store fails closed</td>
+</tr>
+<tr>
+<td>Policy decision</td>
+<td>ZT-06, ZT-41, ZT-75</td>
+<td>The guard permits on a matching policy and returns the resource</td>
+<td>No matching policy denies, with the rule and reason recorded</td>
+</tr>
+<tr>
+<td>Fail-secure behaviour</td>
+<td>ZT-47, ZT-52</td>
+<td>Each request is authorised on its own merits</td>
+<td>Control-plane unavailability denies rather than admits, and raises an alert</td>
+</tr>
+<tr>
+<td>Security baseline</td>
+<td>ZT-50, TDR-BDD-07, TDR-BDD-08</td>
+<td>TLS 1.3 and BSI TR-02102 algorithms only; credentials held in Kubernetes Secrets</td>
+<td>An older TLS version or a deprecated algorithm is rejected; no plaintext secret appears in a log</td>
+</tr>
+<tr>
+<td>Target environments</td>
+<td>ZT-14, ZT-15, TDR-BDD-10</td>
+<td>The stack runs on each target and its Keycloak and trust endpoints respond</td>
+<td>An unsigned image is blocked on the target</td>
+</tr>
+<tr>
+<td>Release quality</td>
+<td>TDR-BDD-09, TDR-BDD-11</td>
+<td>The release's required objects exist and are ready; helm lint and dry-run pass</td>
+<td>A chart that fails lint or dry-run cannot be promoted</td>
+</tr>
+<tr>
+<td>Visualization and journey</td>
+<td>ZT-05, ZT-08, ZT-09, ZT-43, ZT-44, ZT-45, ZT-46/ZT-81, ZT-78, ZT-80</td>
+<td>The ORCE journey runs end to end and each step is visible</td>
+<td>Every refusal above is visible in the UI, not only in a log</td>
+</tr>
+<tr>
+<td>Documentation and reproduction</td>
+<td>ZT-16, ZT-17, ZT-42/ZT-79</td>
+<td>Each cluster is reproduced from the <a href="../environments/">environment guides</a> alone</td>
+<td>A step that cannot be reproduced from the documentation fails the check</td>
+</tr>
+<tr>
+<td>Deployment lifecycle</td>
+<td>TDR-BDD-01…TDR-BDD-04</td>
+<td>A release deploys, redeploys idempotently and uninstalls through ORCE</td>
+<td>Invalid parameters are refused with a machine-readable error and leave nothing behind</td>
+</tr>
+<tr>
+<td>ORCE automation QA</td>
+<td>TDR-BDD-06</td>
+<td>—</td>
+<td>A controlled error logs a JSON record and exposes its machine-readable error in the ORCE context</td>
+</tr>
+<tr>
+<td>Final acceptance</td>
+<td>M7-01, M7-02</td>
+<td>The approved journey is demonstrated and the final report accepted</td>
+<td>No open Critical/High release blocker at the final validation</td>
+</tr>
+</tbody>
+</table>
+<p>A pair written <code>ZT-46/ZT-81</code> is one shared execution (one scenario, both rows).</p>
+<h2 id="the-deployment-lifecycle-pack">The deployment-lifecycle pack<a class="headerlink" href="#the-deployment-lifecycle-pack" title="Permanent link">&para;</a></h2>
+<p><code>features/js/lifecycle.feature</code> covers TDR-BDD-01..04: deploy, invalid parameters (three
+examples), idempotent redeploy and uninstall. <code>features/js/orce-qa.feature</code> covers TDR-BDD-06: a
+controlled error (values the chart's schema rejects) whose log record must be whole-line JSON
+(<a href="../flows/#orce-logging">ORCE logging</a>), carry the refusal, and contain neither the ORCE HTTP
+credentials nor the read token, while its machine-readable error is read from the ORCE context. Each scenario sends a command to the ORCE lifecycle
+workflow (<a href="../api-docs/">IF-08</a>), reads the final result back from the ORCE context, and decides the
+outcome from the cluster with <code>scripts/bdd/cluster-state.sh</code> under a read-only identity.</p>
+<p>The scenarios are tagged <code>@cluster</code>: they need a cluster with ORCE and never run in a pull
+request. There a dry run lists them, so the traceability sheet shows their rows as covered but
+not run rather than as gaps.</p>
+<h3 id="how-the-cluster-decides">How the cluster decides<a class="headerlink" href="#how-the-cluster-decides" title="Permanent link">&para;</a></h3>
+<p>Each row has its own namespace from the BDD pool (<code>ztd-bdd-tdr-001</code>..<code>004</code> and <code>006</code>), provisioned with ORCE
+by the <code>deployment/helm/bdd-pool</code> chart. Before a scenario the namespace must hold only its
+documented baseline; afterwards it is restored through the same workflow. Every object in it is
+classified:</p>
+<table>
+<thead>
+<tr>
+<th>Class</th>
+<th>What</th>
+<th>Rule</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Baseline</td>
+<td>the pool's own ServiceAccount, root-CA ConfigMap, Roles and RoleBindings</td>
+<td>same set, same UIDs, throughout</td>
+</tr>
+<tr>
+<td>Helm metadata</td>
+<td>the release's <code>helm.sh/release.v1</code> Secrets</td>
+<td>one per history revision, exactly one deployed</td>
+</tr>
+<tr>
+<td>Expected</td>
+<td>every top-level object the release rendered</td>
+<td>all present, ready, same UIDs across a redeploy</td>
+</tr>
+<tr>
+<td>Descendants</td>
+<td>ReplicaSets and Pods of an expected Deployment; EndpointSlices and the legacy Endpoints of an expected Service</td>
+<td>allow-list only; one active ReplicaSet, the desired Pods, endpoints that match the ready Pods and the resolved ports</td>
+</tr>
+<tr>
+<td>Events</td>
+<td>Event objects</td>
+<td>ignored</td>
+</tr>
+<tr>
+<td>Unexplained</td>
+<td>anything else</td>
+<td>must be empty — an orphan or duplicate fails the row</td>
+</tr>
+</tbody>
+</table>
+<p>Readiness means the rollout is complete, not that some pods are up. Every check is polled until it
+holds or a deadline passes (120 s by default), so asynchronous controllers are waited for; an API
+or authorization error fails at once and is never retried into a pass. ORCE and the observer must
+report the same <code>kube-system</code> UID, so a result can never come from another cluster.</p>
+<h3 id="running-it">Running it<a class="headerlink" href="#running-it" title="Permanent link">&para;</a></h3>
+<p>Client targets run it <strong>only through CI</strong> (<code>bdd-cluster</code> job, one run at a time per target; see
+<a href="../ci-cd/">CI/CD</a>). Against a developer's local cluster — never evidence:</p>
+<pre><code class="language-bash">scripts/dev/kind-up.sh      # kind (Kubernetes 1.35) + BDD pool + identity kubeconfigs in .dev/kind/
+scripts/dev/orce-up.sh      # the ORCE image on kind's network, deploying as the pool's deployer;
+                            # writes the runner inputs below to .dev/kind/orce.env
+set -a &amp;&amp; . .dev/kind/orce.env &amp;&amp; set +a
+npm run bdd:cluster         # about 40 s; evidence in bundles/bdd/evidence/
+scripts/dev/orce-down.sh &amp;&amp; scripts/dev/kind-down.sh
+</code></pre>
+<p>The ORCE image is amd64 only; on an arm64 machine Docker runs it emulated.</p>
+<table>
+<thead>
+<tr>
+<th>Input</th>
+<th>Meaning</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>KUBECONFIG</code></td>
+<td>the read-only observer identity</td>
+</tr>
+<tr>
+<td><code>BDD_ORCE_URL</code></td>
+<td>ORCE base URL</td>
+</tr>
+<tr>
+<td><code>BDD_ORCE_ADMIN_TOKEN</code></td>
+<td>read-only ORCE admin API bearer token</td>
+</tr>
+<tr>
+<td><code>BDD_ORCE_HTTP_USER</code>, <code>BDD_ORCE_HTTP_PASS</code></td>
+<td>credentials of the ORCE HTTP endpoints</td>
+</tr>
+<tr>
+<td><code>BDD_ORCE_LOGS_CMD</code></td>
+<td>a command printing the ORCE log (rows 02 and 06 assert the JSON refusal record)</td>
+</tr>
+<tr>
+<td><code>BDD_RELEASE_CHART</code></td>
+<td>the release under test, a chart path in the ORCE image; default the lifecycle fixture</td>
+</tr>
+<tr>
+<td><code>BDD_RELEASE_VALUES</code></td>
+<td>its valid baseline values; default the fixture's <code>ci/values.yaml</code></td>
+</tr>
+<tr>
+<td><code>BDD_TARGET</code>, <code>BDD_RUN_ID</code></td>
+<td>names the target and the run in the evidence</td>
+</tr>
+</tbody>
+</table>
+<p>A missing input stops the run and is named.</p>
+<h3 id="the-release-under-test">The release under test<a class="headerlink" href="#the-release-under-test" title="Permanent link">&para;</a></h3>
+<p>The pack deploys <code>features/fixtures/charts/lifecycle-fixture</code>, a namespaced chart with no CRDs,
+and every evidence directory records that it is fixture evidence. A fixture pass is <strong>not</strong>
+acceptance of the umbrella release. The umbrella chart (<code>deployment/helm/ztd</code>) is cluster-scoped: it
+creates the plane namespaces and a cluster role, which the pool-confined deployer cannot do. Before
+it may replace the fixture, those cluster-scoped deploy rights must be designed
+(<a href="../umbrella-chart/#release-namespace-and-teardown">Umbrella chart</a>); it then needs its own run.</p>
+<h3 id="evidence">Evidence<a class="headerlink" href="#evidence" title="Permanent link">&para;</a></h3>
+<p>Per row, target and example: <code>bundles/bdd/evidence/bdd-tdr-00n/&lt;target&gt;/&lt;example&gt;/</code> holds the
+commands and acknowledgements, the ORCE context entry of each command (with the masked Helm output,
+release revision, chart digest and values hash), every classified inventory, the recorded baseline,
+for row 02 the refusal log record, and for row 06 the log record and a sample of the ORCE log.</p>
+<h2 id="traceability">Traceability<a class="headerlink" href="#traceability" title="Permanent link">&para;</a></h2>
+<p>Each scenario's tag is its requirement id, so the requirement-to-test matrix is generated from the
+feature files rather than maintained beside them. A requirement with no tagged scenario shows up as
+a gap in that matrix; that is the point of generating it.</p>
+<h2 id="evidence_1">Evidence<a class="headerlink" href="#evidence_1" title="Permanent link">&para;</a></h2>
+<p>Each gate produces one indexed evidence bundle, assembled by a single command, with a directory per
+requirement row. Bundles are versioned and immutable once a gate has consumed them.</p>
+              
+            </div>
+          </div><footer>
+    <div class="rst-footer-buttons" role="navigation" aria-label="Footer Navigation">
+        <a href="../tspa-publish-api/" class="btn btn-neutral float-left" title="TRAIN trust-list publishing"><span class="icon icon-circle-arrow-left"></span> Previous</a>
+        <a href="../bdd-catalogue/" class="btn btn-neutral float-right" title="Catalogue">Next <span class="icon icon-circle-arrow-right"></span></a>
+    </div>
+
+  <hr/>
+
+  <div role="contentinfo">
+    <!-- Copyright etc -->
+      <p>Apache-2.0</p>
+  </div>
+
+  Built with <a href="https://www.mkdocs.org/">MkDocs</a> using a <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a> provided by <a href="https://readthedocs.org">Read the Docs</a>.
+</footer>
+          
+        </div>
+      </div>
+
+    </section>
+
+  </div>
+
+  <div class="rst-versions" role="note" aria-label="Versions">
+  <span class="rst-current-version" data-toggle="rst-current-version">
+    
+        <span>
+          <a href="https://github.com/eclipse-xfsc/facis-zero-trust-demonstrator" class="fa fa-github" style="color: #fcfcfc"> GitHub</a>
+        </span>
+    
+    
+      <span><a href="../tspa-publish-api/" style="color: #fcfcfc">&laquo; Previous</a></span>
+    
+    
+      <span><a href="../bdd-catalogue/" style="color: #fcfcfc">Next &raquo;</a></span>
+    
+  </span>
+</div>
+    <script src="../js/jquery-3.6.0.min.js"></script>
+    <script>var base_url = "..";</script>
+    <script src="../js/theme_extra.js"></script>
+    <script src="../js/theme.js"></script>
+      <script src="../search/main.js"></script>
+    <script>
+        jQuery(function () {
+            SphinxRtdTheme.Navigation.enable(true);
+        });
+    </script>
+
+</body>
+</html>

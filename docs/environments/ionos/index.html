@@ -1,0 +1,438 @@
+<!DOCTYPE html>
+<html class="writer-html5" lang="en" >
+<head>
+    <meta charset="utf-8" />
+    <meta http-equiv="X-UA-Compatible" content="IE=edge" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+      <link rel="shortcut icon" href="../../img/favicon.ico" />
+    <title>IONOS Cloud - FACIS Zero Trust Demonstrator</title>
+    <link rel="stylesheet" href="../../css/theme.css" />
+    <link rel="stylesheet" href="../../css/theme_extra.css" />
+        <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.8.0/styles/github.min.css" />
+    
+      <script>
+        // Current page data
+        var mkdocs_page_name = "IONOS Cloud";
+        var mkdocs_page_input_path = "environments/ionos.md";
+        var mkdocs_page_url = null;
+      </script>
+    
+    <!--[if lt IE 9]>
+      <script src="../../js/html5shiv.min.js"></script>
+    <![endif]-->
+      <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.8.0/highlight.min.js"></script>
+      <script>hljs.highlightAll();</script> 
+</head>
+
+<body class="wy-body-for-nav" role="document">
+
+  <div class="wy-grid-for-nav">
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side stickynav">
+    <div class="wy-side-scroll">
+      <div class="wy-side-nav-search">
+          <a href="../.." class="icon icon-home"> FACIS Zero Trust Demonstrator
+        </a><div role="search">
+  <form id ="rtd-search-form" class="wy-form" action="../../search.html" method="get">
+      <input type="text" name="q" placeholder="Search docs" aria-label="Search docs" title="Type search term here" />
+  </form>
+</div>
+      </div>
+
+      <div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../..">Home</a>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../../features/">Features and journeys</a>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../../architecture/">Architecture</a>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../../usage/">Using the demonstrator</a>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../../deployment/">Deployment</a>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../../umbrella-chart/">Umbrella chart</a>
+                </li>
+              </ul>
+              <p class="caption"><span class="caption-text">Environments</span></p>
+              <ul class="current">
+                  <li class="toctree-l1"><a class="reference internal" href="../">Overview</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../osc/">T-Systems OSC</a>
+                  </li>
+                  <li class="toctree-l1 current"><a class="reference internal current" href="#">IONOS Cloud</a>
+    <ul class="current">
+    <li class="toctree-l2"><a class="reference internal" href="#before-you-start">Before you start</a>
+    </li>
+    <li class="toctree-l2"><a class="reference internal" href="#1-the-cluster-as-provided">1. The cluster as provided</a>
+    </li>
+    <li class="toctree-l2"><a class="reference internal" href="#2-the-orce-image">2. The ORCE image</a>
+    </li>
+    <li class="toctree-l2"><a class="reference internal" href="#3-orce">3. ORCE</a>
+    </li>
+    <li class="toctree-l2"><a class="reference internal" href="#4-the-bdd-pool">4. The BDD pool</a>
+    </li>
+    <li class="toctree-l2"><a class="reference internal" href="#5-the-acceptance-run">5. The acceptance run</a>
+    </li>
+    <li class="toctree-l2"><a class="reference internal" href="#6-admission-proof-non-target">6. Admission proof (non-target)</a>
+    </li>
+    <li class="toctree-l2"><a class="reference internal" href="#planned-runner-registry-access-and-visualization">Planned: runner, registry access and visualization</a>
+    </li>
+    <li class="toctree-l2"><a class="reference internal" href="#teardown">Teardown</a>
+    </li>
+    <li class="toctree-l2"><a class="reference internal" href="#operations">Operations</a>
+    </li>
+    </ul>
+                  </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../../packaging/">Packaging and containers</a>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../../flows/">Orchestrated flows</a>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../../keycloak/">Keycloak integration</a>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../../oauth2-provider/">Connector OAuth2 provider</a>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../../api-docs/">API documentation</a>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../../contracts/">Interface contracts</a>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../../tspa-publish-api/">TRAIN trust-list publishing</a>
+                </li>
+              </ul>
+              <p class="caption"><span class="caption-text">BDD acceptance</span></p>
+              <ul>
+                  <li class="toctree-l1"><a class="reference internal" href="../../bdd/">Harness and pack</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../bdd-catalogue/">Catalogue</a>
+                  </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../../ci-cd/">CI/CD</a>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../../troubleshooting/">Troubleshooting</a>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../../dependencies/">OSS dependencies</a>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../../licenses/">Licenses</a>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../../specifications/">Specification changes</a>
+                </li>
+              </ul>
+              <p class="caption"><span class="caption-text">Architecture decisions</span></p>
+              <ul>
+                  <li class="toctree-l1"><a class="reference internal" href="../../adr/">Overview</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../adr/tdr-decisions/">TDR decisions ADR 001–006</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../adr/0001-service-mesh-mode-istio-ambient-with-cilium/">0001 Service mesh mode</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../adr/0002-gatekeeper-external-data-provider-for-cosign-verification/">0002 Gatekeeper external data provider</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../adr/0003-oauth2-authorisation-surface-in-the-go-connector/">0003 OAuth2 surface in the Go connector</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../adr/0004-openbao-as-x509-key-value-store/">0004 OpenBao as X.509 key-value store</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../adr/0005-three-cluster-reading-of-the-target-environment/">0005 Three-cluster target environment</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../adr/0011-mock-tee-evidence-format-and-provisioning/">0011 Mock TEE evidence</a>
+                  </li>
+              </ul>
+      </div>
+    </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap">
+      <nav class="wy-nav-top" role="navigation" aria-label="Mobile navigation menu">
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="../..">FACIS Zero Trust Demonstrator</a>
+        
+      </nav>
+      <div class="wy-nav-content">
+        <div class="rst-content"><div role="navigation" aria-label="breadcrumbs navigation">
+  <ul class="wy-breadcrumbs">
+    <li><a href="../.." class="icon icon-home" aria-label="Docs"></a></li>
+          <li class="breadcrumb-item">Environments</li>
+      <li class="breadcrumb-item active">IONOS Cloud</li>
+    <li class="wy-breadcrumbs-aside">
+          <a href="https://github.com/eclipse-xfsc/facis-zero-trust-demonstrator/edit/main/docs/environments/ionos.md" class="icon icon-github"> Edit on GitHub</a>
+    </li>
+  </ul>
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+            <div class="section" itemprop="articleBody">
+              
+                <h1 id="ionos-cloud-cicd-and-visualization">IONOS Cloud — CI/CD and visualization<a class="headerlink" href="#ionos-cloud-cicd-and-visualization" title="Permanent link">&para;</a></h1>
+<p>The third cluster. It is meant to run the delivery machinery and the visualization surface, and
+holds no demonstration workload: nothing that participates in a zone-to-zone call runs here, so a
+failure in the pipeline cannot be mistaken for a failure in the demonstrator.</p>
+<div class="admonition note">
+<p class="admonition-title">Status</p>
+<p>The cluster was provided on 23 September 2026. What is installed today is ORCE, the BDD pool and
+nothing else; stages 1 to 5 below describe that state and were checked against the cluster,
+except where a stage says otherwise. The runner, registry access and visualization stages are
+planned and marked so.</p>
+</div>
+<h2 id="before-you-start">Before you start<a class="headerlink" href="#before-you-start" title="Permanent link">&para;</a></h2>
+<p>You need:</p>
+<ul>
+<li>a kubeconfig for the IONOS cluster with rights to create namespaces, cluster roles and bindings
+  (kept outside the repository, never committed);</li>
+<li>Docker with <code>linux/amd64</code> support, Helm v4.3.0 and kubectl;</li>
+<li>Node.js 22 and <code>npm ci</code> in this repository, for the acceptance run;</li>
+<li>this repository checked out.</li>
+</ul>
+<pre><code class="language-bash">export KUBECONFIG=/path/to/ionos-admin.kubeconfig
+kubectl version -o json | jq -r '.serverVersion.gitVersion'
+</code></pre>
+<p><strong>Verify:</strong> the server reports v1.29 or later (v1.35.6 at the time of writing).</p>
+<h2 id="1-the-cluster-as-provided">1. The cluster as provided<a class="headerlink" href="#1-the-cluster-as-provided" title="Permanent link">&para;</a></h2>
+<p>IONOS Managed Kubernetes, one node pool. The provider installs and operates the CNI (Calico), the
+IONOS CSI driver with its storage classes, CoreDNS and its own policy validator; none of them is
+replaced.</p>
+<pre><code class="language-bash">kubectl get nodes -o wide
+kubectl -n kube-system get daemonset calico-node csi-ionoscloud
+kubectl get storageclass
+</code></pre>
+<p><strong>Verify:</strong> every node is <code>Ready</code>, and both daemonsets report as many ready pods as desired.</p>
+<p>The common baseline (<a href="../">Environments</a>) names Cilium with <code>cni.exclusive=false</code>, for the
+service mesh (<a href="../../adr/0001-service-mesh-mode-istio-ambient-with-cilium/">ADR-0001</a>). This cluster
+runs no mesh and no demonstration workload, so its provider CNI is kept; whether the visualization
+stage needs the mesh here is decided with that stage.</p>
+<h2 id="2-the-orce-image">2. The ORCE image<a class="headerlink" href="#2-the-orce-image" title="Permanent link">&para;</a></h2>
+<p>ORCE runs the first-party image built from <code>deployment/docker/orce</code> (see
+<a href="../../packaging/">Packaging</a>): upstream ORCE with Helm and kubectl pinned, the lifecycle Builder
+Node and flow, credentials from the environment, JSON logging, non-root. It is <code>linux/amd64</code> only.
+The pipeline builds and scans it on every pull request; to build it by hand:</p>
+<pre><code class="language-bash">docker build --platform linux/amd64 -f deployment/docker/orce/Dockerfile -t &quot;$REGISTRY/facis-ztd-orce:$(git rev-parse --short HEAD)&quot; .
+docker push &quot;$REGISTRY/facis-ztd-orce:$(git rev-parse --short HEAD)&quot;
+</code></pre>
+<p><strong>Verify:</strong> the push prints the image digest. Everything below references the image by that
+digest (<code>IMAGE=&lt;registry&gt;/facis-ztd-orce@sha256:…</code>), never by tag.</p>
+<h2 id="3-orce">3. ORCE<a class="headerlink" href="#3-orce" title="Permanent link">&para;</a></h2>
+<p>Installed from the interim manifests in <code>deployment/orce-minimal/</code> (see its README) until the ORCE
+chart exists.</p>
+<pre><code class="language-bash">kubectl apply -f deployment/orce-minimal/base.yaml
+
+# Credentials: generate them, store only bcrypt hashes (and the read token) in the cluster, and
+# keep the plaintext in the team's password manager (see below).
+hash() { docker run --rm --platform linux/amd64 --entrypoint node &quot;$IMAGE&quot; \
+  -e &quot;console.log(require('/opt/maestro/MBE/node_modules/bcryptjs').hashSync(process.argv[1], 10))&quot; &quot;$1&quot;; }
+admin_pass=$(openssl rand -hex 16); http_pass=$(openssl rand -hex 16); read_token=$(openssl rand -hex 32)
+kubectl -n ztd-orce create secret generic orce-credentials \
+  --from-literal=ORCE_ADMIN_USER=admin --from-literal=ORCE_ADMIN_PASSWORD_HASH=&quot;$(hash &quot;$admin_pass&quot;)&quot; \
+  --from-literal=ORCE_HTTP_USER=bdd --from-literal=ORCE_HTTP_PASSWORD_HASH=&quot;$(hash &quot;$http_pass&quot;)&quot; \
+  --from-literal=ORCE_READ_TOKEN=&quot;$read_token&quot;
+
+sed &quot;s|__IMAGE__|$IMAGE|&quot; deployment/orce-minimal/orce.yaml | kubectl apply -f -
+</code></pre>
+<p>Before closing the shell, copy <code>$admin_pass</code>, <code>$http_pass</code> and <code>$read_token</code> into the password
+manager one at a time through the clipboard (for example <code>printf %s "$admin_pass" | pbcopy</code> on
+macOS), rather than echoing them to the terminal; they exist nowhere else.</p>
+<p><strong>Verify:</strong></p>
+<pre><code class="language-bash">kubectl -n ztd-orce rollout status deployment/orce --timeout=5m
+kubectl -n ztd-orce get deployment orce -o jsonpath='{.spec.template.spec.containers[0].image}'   # the digest
+kubectl -n ztd-orce logs deployment/orce --tail=5          # one JSON object per line
+kubectl -n ztd-orce get networkpolicy orce-ingress
+</code></pre>
+<p>The rollout completes, the image is the digest you pushed, and the log lines are JSON objects with
+<code>time</code>, <code>level</code>, <code>type</code>, <code>name</code>, <code>id</code> and <code>msg</code> (<a href="../../flows/#orce-logging">ORCE logging</a>); an
+image built before JSON logging was added prints prefixed lines instead, and must be replaced. There is
+no ingress: ORCE is reached with <code>kubectl port-forward</code> until the ORCE chart exposes it over TLS 1.3.</p>
+<h2 id="4-the-bdd-pool">4. The BDD pool<a class="headerlink" href="#4-the-bdd-pool" title="Permanent link">&para;</a></h2>
+<p>The namespaces and least-privilege identities of the cluster acceptance scenarios, bound to ORCE's
+ServiceAccount as deployer (the chart's README, <code>deployment/helm/bdd-pool/README.md</code>, lists what it
+installs):</p>
+<pre><code class="language-bash">helm upgrade --install bdd-pool deployment/helm/bdd-pool --namespace ztd-orce \
+  --set deployer.serviceAccount.create=false --set deployer.serviceAccount.name=orce \
+  --set observer.serviceAccount.create=false --wait
+</code></pre>
+<p><strong>Verify:</strong></p>
+<pre><code class="language-bash">kubectl get namespaces -l app.kubernetes.io/name=bdd-pool
+kubectl auth can-i create namespaces --as=system:serviceaccount:ztd-orce:orce                          # no
+kubectl auth can-i create deployments -n ztd-bdd-tdr-001 --as=system:serviceaccount:ztd-orce:orce      # yes
+kubectl auth can-i create deployments -n default --as=system:serviceaccount:ztd-orce:orce              # no
+kubectl auth can-i get secrets -n ztd-orce --as=system:serviceaccount:ztd-orce:ztd-bdd-observer        # no
+kubectl auth can-i delete pods -n ztd-bdd-tdr-001 --as=system:serviceaccount:ztd-orce:ztd-bdd-observer # no
+</code></pre>
+<p>The pool namespaces are listed: <code>ztd-bdd-tdr-001</code> … <code>004</code>, and <code>006</code> for TDR-BDD-06 once the
+pool runs this chart version. Each answer is the one in the comment: ORCE deploys only inside the pool, and the observer can neither read ORCE's credentials
+nor change anything.</p>
+<h2 id="5-the-acceptance-run">5. The acceptance run<a class="headerlink" href="#5-the-acceptance-run" title="Permanent link">&para;</a></h2>
+<p>The cluster rows (TDR-BDD-01..04 and TDR-BDD-06) run against this cluster with the read-only
+observer identity; ORCE does the deploying. In CI this is the <code>bdd-cluster</code> job, once
+<code>BDD_CLUSTER_ENABLED</code> is set and ORCE is reachable from the pipeline (<a href="../../ci-cd/">CI/CD</a>). By
+hand, from an administrator's machine, with the credentials from stage 3:</p>
+<pre><code class="language-bash"># A short-lived observer kubeconfig.
+umask 077
+kubectl config view --minify --raw -o jsonpath='{.clusters[0].cluster.certificate-authority-data}' | base64 -d &gt; ca.crt
+kubectl config set-cluster ionos --server=&quot;$(kubectl config view --minify -o jsonpath='{.clusters[0].cluster.server}')&quot; \
+  --certificate-authority=ca.crt --embed-certs --kubeconfig=observer.kubeconfig
+kubectl config set-credentials observer --kubeconfig=observer.kubeconfig \
+  --token=&quot;$(kubectl -n ztd-orce create token ztd-bdd-observer --duration=12h)&quot;
+kubectl config set-context observer --cluster=ionos --user=observer --kubeconfig=observer.kubeconfig
+kubectl config use-context observer --kubeconfig=observer.kubeconfig
+
+kubectl -n ztd-orce port-forward service/orce 18801:1880 &amp;
+
+KUBECONFIG=$PWD/observer.kubeconfig BDD_ORCE_URL=http://127.0.0.1:18801 BDD_TARGET=ionos \
+BDD_ORCE_ADMIN_TOKEN=&quot;$read_token&quot; BDD_ORCE_HTTP_USER=bdd BDD_ORCE_HTTP_PASS=&quot;$http_pass&quot; \
+BDD_ORCE_LOGS_CMD=&quot;kubectl --kubeconfig=$PWD/observer.kubeconfig -n ztd-orce logs deployment/orce --tail=-1&quot; \
+npm run bdd:cluster
+</code></pre>
+<p><strong>Verify:</strong> the run reports every scenario passed; every <code>scenario.json</code> under
+<code>bundles/bdd/evidence/</code> carries the cluster's <code>kube-system</code> UID
+(<code>kubectl get namespace kube-system -o jsonpath='{.metadata.uid}'</code>); and every pool namespace is
+back to its baseline (<code>kubectl -n ztd-bdd-tdr-001 get all</code> shows nothing). Stop the port-forward and
+delete <code>observer.kubeconfig</code> and <code>ca.crt</code> afterwards; the token expires on its own.</p>
+<h2 id="6-admission-proof-non-target">6. Admission proof (non-target)<a class="headerlink" href="#6-admission-proof-non-target" title="Permanent link">&para;</a></h2>
+<p>An early admission proof on this cluster: Gatekeeper and the image-verification provider, with the
+constraints in <a href="../../deployment/admission">deployment/admission</a>, enforcing only in the namespaces
+labelled <code>facis.ztd/admission-proof=true</code> (<code>ztd-adm-001</code>, <code>ztd-adm-002</code>). The images it verifies are
+signed with the <strong>interim key</strong> (<a href="../../contracts/keys/interim-cosign.pub">docs/contracts/keys/interim-cosign.pub</a>),
+not the client trust chain; this cluster is not a target environment. Everything it records says so.</p>
+<pre><code class="language-bash"># Gatekeeper, the provider (by digest, from the release candidate job), the policy and the pool.
+BIN=&lt;dir with the pinned Gatekeeper chart, scripts/tools/install.sh gatekeeper-chart&gt; \
+PROVIDER_IMAGE=ghcr.io/&lt;owner&gt;/facis-zero-trust-demonstrator/admission-provider@sha256:&lt;digest&gt; \
+TRUST_REPOSITORY=ghcr.io/&lt;owner&gt;/facis-zero-trust-demonstrator \
+TRUST_KEY=docs/contracts/keys/interim-cosign.pub \
+scripts/admission/install.sh
+</code></pre>
+<p><strong>Verify:</strong> the script ends with the two admission namespaces; it has already checked that both
+webhooks select only the admission label, that Gatekeeper's response cache is off, and that every
+constraint is enforced by every webhook replica.</p>
+<p>The acceptance run uses the namespaced tester identity (a kubeconfig built as in stage 5, with
+<code>kubectl -n ztd-adm-001 create token ztd-adm-tester</code>) and the fixture list the <code>admission-fixtures</code>
+workflow publishes:</p>
+<pre><code class="language-bash">KUBECONFIG=$PWD/tester.kubeconfig BDD_ADM_FIXTURES=fixtures.txt BDD_TARGET=ionos \
+BDD_MODE=cluster GODOG_CUCUMBER_OUT=bundles/bdd/go-cluster-report-ionos.json go test ./internal/bdd
+</code></pre>
+<p><strong>Verify:</strong> ZT-72 passes: the signed pod runs, and the unsigned, untrusted-key, mutable-tag,
+missing-SBOM and missing-mock-attestation pods are refused with their reason codes before any pod
+exists; <code>bundles/bdd/evidence/bdd-zt-072/</code> holds the record.</p>
+<p>The fault cases are run by the administrator, with the tester for every admission attempt:</p>
+<pre><code class="language-bash">ADMIN_KUBECONFIG=&lt;administrator&gt; TESTER_KUBECONFIG=$PWD/tester.kubeconfig FIXTURES=fixtures.txt \
+EVIDENCE=&lt;dir&gt; BIN=... PROVIDER_IMAGE=... TRUST_REPOSITORY=... TRUST_KEY=... \
+scripts/admission/fault-injection.sh
+</code></pre>
+<p>It proves, and restores after each step: a non-Linux and an image-index fixture refused (ZT-13
+mechanism only; that row stays pending); the provider down and Gatekeeper down each deny in the
+admission namespaces while <code>ztd-orce</code>, <code>kube-system</code> and the lifecycle pool admit; a trusted key
+removed while the provider cache is warm denies the next admission once every replica has loaded
+the change; break-glass (the webhook removed, then restored by <code>install.sh</code>); and the admission
+latency from Gatekeeper's own request histogram (p99 below 1.5 s).</p>
+<p><strong>Break-glass:</strong> <code>kubectl delete validatingwebhookconfiguration gatekeeper-validating-webhook-configuration</code>,
+then <code>helm uninstall gatekeeper -n gatekeeper-system</code>. <strong>Teardown:</strong> <code>kubectl delete -f
+deployment/admission/constraints/ -f deployment/admission/templates/</code>, then <code>helm uninstall
+admission-pool admission gatekeeper -n gatekeeper-system</code>.</p>
+<h2 id="planned-runner-registry-access-and-visualization">Planned: runner, registry access and visualization<a class="headerlink" href="#planned-runner-registry-access-and-visualization" title="Permanent link">&para;</a></h2>
+<p>Not installed on this cluster yet. Each gets its stage and its check when it is.</p>
+<ul>
+<li><strong>Build and signing runner.</strong> The AMD64 Linux runner that builds and signs project images by
+  digest, with the key restricted to protected workflows.</li>
+<li><strong>Registry access.</strong> Pushing images and signatures to the client's registry, and pulling from it
+  on the OSC clusters, with a robot account rather than a personal one.</li>
+<li><strong>Visualization.</strong> The demonstrator UI and the observability interfaces — Prometheus and Jaeger.
+  There is no Grafana; the reason is recorded in
+  <a href="../../specifications/#readings-and-additions">specification changes</a>.</li>
+</ul>
+<h2 id="teardown">Teardown<a class="headerlink" href="#teardown" title="Permanent link">&para;</a></h2>
+<pre><code class="language-bash">kubectl delete -f deployment/orce-minimal/orce.yaml --ignore-not-found
+helm uninstall bdd-pool --namespace ztd-orce
+kubectl delete -f deployment/orce-minimal/base.yaml --ignore-not-found
+</code></pre>
+<p><strong>Verify:</strong> <code>kubectl get namespaces | grep ztd-</code> prints nothing, and
+<code>kubectl get clusterrole,clusterrolebinding | grep ztd-</code> prints nothing.</p>
+<h2 id="operations">Operations<a class="headerlink" href="#operations" title="Permanent link">&para;</a></h2>
+<ul>
+<li><strong>The pipeline is the record.</strong> Every image that reaches a cluster was built by the pipeline and
+  is referenced by digest.</li>
+<li><strong>Credentials never enter the repository.</strong> The administrator kubeconfig, the ORCE credentials
+  and the observer tokens live outside it; the cluster stores only hashes and the read token.</li>
+<li><strong>Key material never leaves the runner</strong>, is never printed into a log, and is never baked into an
+  image layer.</li>
+</ul>
+              
+            </div>
+          </div><footer>
+    <div class="rst-footer-buttons" role="navigation" aria-label="Footer Navigation">
+        <a href="../osc/" class="btn btn-neutral float-left" title="T-Systems OSC"><span class="icon icon-circle-arrow-left"></span> Previous</a>
+        <a href="../../packaging/" class="btn btn-neutral float-right" title="Packaging and containers">Next <span class="icon icon-circle-arrow-right"></span></a>
+    </div>
+
+  <hr/>
+
+  <div role="contentinfo">
+    <!-- Copyright etc -->
+      <p>Apache-2.0</p>
+  </div>
+
+  Built with <a href="https://www.mkdocs.org/">MkDocs</a> using a <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a> provided by <a href="https://readthedocs.org">Read the Docs</a>.
+</footer>
+          
+        </div>
+      </div>
+
+    </section>
+
+  </div>
+
+  <div class="rst-versions" role="note" aria-label="Versions">
+  <span class="rst-current-version" data-toggle="rst-current-version">
+    
+        <span>
+          <a href="https://github.com/eclipse-xfsc/facis-zero-trust-demonstrator" class="fa fa-github" style="color: #fcfcfc"> GitHub</a>
+        </span>
+    
+    
+      <span><a href="../osc/" style="color: #fcfcfc">&laquo; Previous</a></span>
+    
+    
+      <span><a href="../../packaging/" style="color: #fcfcfc">Next &raquo;</a></span>
+    
+  </span>
+</div>
+    <script src="../../js/jquery-3.6.0.min.js"></script>
+    <script>var base_url = "../..";</script>
+    <script src="../../js/theme_extra.js"></script>
+    <script src="../../js/theme.js"></script>
+      <script src="../../search/main.js"></script>
+    <script>
+        jQuery(function () {
+            SphinxRtdTheme.Navigation.enable(true);
+        });
+    </script>
+
+</body>
+</html>

@@ -1,0 +1,125 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/eclipse-xfsc/facis-zero-trust-demonstrator/docs/contracts/if05-policy-input.v1.schema.json",
+  "title": "IF-05 policy decision input (contracts v1)",
+  "description": "What the guard's policy adapter sends to the policy engine for one request. The token has already been authenticated by the guard; proof_valid records that result, it is never computed by policy.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "correlation_id",
+    "source",
+    "request",
+    "token",
+    "tenant"
+  ],
+  "properties": {
+    "correlation_id": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 128
+    },
+    "source": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "spiffe_id"
+      ],
+      "properties": {
+        "spiffe_id": {
+          "type": "string",
+          "maxLength": 2048,
+          "description": "A SPIFFE ID: lower-case trust domain, then one or more path segments of letters, digits, '.', '-', '_'; no '.' or '..' segment, no query or fragment.",
+          "pattern": "^spiffe://[a-z0-9._-]+(/(?!\\.\\.?(/|$))[A-Za-z0-9._-]+)+$"
+        },
+        "namespace": {
+          "type": "string",
+          "minLength": 1
+        }
+      }
+    },
+    "request": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "method",
+        "path",
+        "host"
+      ],
+      "properties": {
+        "method": {
+          "enum": [
+            "GET",
+            "HEAD",
+            "POST",
+            "PUT",
+            "PATCH",
+            "DELETE"
+          ]
+        },
+        "path": {
+          "type": "string",
+          "pattern": "^/"
+        },
+        "host": {
+          "type": "string",
+          "minLength": 1
+        },
+        "grpc_service": {
+          "type": "string"
+        }
+      }
+    },
+    "token": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "present"
+      ],
+      "properties": {
+        "present": {
+          "type": "boolean"
+        },
+        "sub": {
+          "type": "string"
+        },
+        "client_id": {
+          "type": "string"
+        },
+        "jkt": {
+          "type": "string"
+        },
+        "scope": {
+          "type": "string"
+        },
+        "aud": {
+          "type": "string"
+        },
+        "proof_valid": {
+          "type": "boolean"
+        }
+      },
+      "if": {
+        "properties": {
+          "present": {
+            "const": true
+          }
+        }
+      },
+      "then": {
+        "required": [
+          "client_id",
+          "jkt",
+          "scope",
+          "aud",
+          "proof_valid"
+        ]
+      }
+    },
+    "tenant": {
+      "type": [
+        "string",
+        "null"
+      ]
+    }
+  }
+}

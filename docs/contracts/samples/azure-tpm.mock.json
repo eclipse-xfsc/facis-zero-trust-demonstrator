@@ -1,0 +1,32 @@
+{
+  "mock": true,
+  "profile": "azure-tpm",
+  "evidence": {
+    "type": "azure vTPM Evidence",
+    "evidence": "HQ1C+XESZxmI1u5CuBuH0RGZEIDj/eTyO59iGe+4C74okFcKBzGbXDuy+cwvWhVphxS6iFh9Kt8e42FZhwAw0Rbcl4FDe7Mbe+6HvUj/7XzcuqEno2TpJMQl1oZ404BpRQxDufbs9kF1gut7JjDrs2Wnx8q1ZbSXlVVYnKFp5QDO3Pu1DqB+1mcvvh4mZ9OvHM5yA2TOz1PkPwDbQZon6qV76w7MC6i8lqdL+TH9LEHMcS35Z4nDNOsi7wp6piy9xHeifk5qrMi/XGianBwOwz6Ne+YMNFcKZrTzOYc3mZdm0jI7hjPU/OJ6dCEpYOAZ8jVzRXcOGPTFF2gnewdatH0q0JgeV4OhAEkzMVcoPsihoBriOFsrU1N47sEiP8JAGBlVs08O+4NLqbBuGxzbg+vr/7bPFhKxfn8d8C/GQEg1rTyyZMpQ5KYt5SJtRh9qModY8f81jt+Z1Lzk+REf4Th8XnnwHMSXmMhJEMUBCiFos9Hg+Cvd6fvlInknyz9LLA4hx7b3o+cqYodFsM85hQ6Inxc6/nUm6mi54wRO2/jj0oLcqPHQZOcCbUEpwzDfCTOOuxMp8JTQvrJL9E7yzVTjrRsnvHIP3WaTplAaJ5TP45IYW7Pr9p8wBKaup73bnzogfKvCVuyVYni5Y5Ev1ZVS+T5On76eCxrgMcZkYpCd57p3Q6HEp8JMmWU3oHgDW9edqgj51sBK6fVLm6lNop3iC4OqL62k3t47+WR1fajGlx+OsCpALw0iyZybvl7QFVYMkx5lX4EByprEwZRNlbauyqK3OSvtBm2Jl0gBPQDX5yLVBI/Yn2ssekmgdGgBgQdcFpxwoHXz80cpkbrQybdBrJ823F15ynbQ8a/w9bpi7ZMOQg10IAB54J1Z59rYyCCQS4Q29z/T7V8Twffrr+9B207hwAOVtpQd0ecKJEWud4xPXt97jgabxiT96AhDQVDpKnkBm3VY9K/yUImfAa65ncF+/BZIxiSFR8+WMQM8gutYqE3pG2d3WrJlBNFBMyMxGhmpg+TGgBKb5gP1iVM38yqrUGcdQePbj+SNt1O9jN56/2lK5U9GjFj0kZq6bfXrt8WikQKqomYX3ZAagQVkTz0C3pq7b2x1nWDG3eUFGIKa3U4wIlg4WsEfOCpHv0HHALpvB6mw5mME3ArXvym6JQ+sxsRCTZkP9WD6Yyo3PD9IO5HQfcMF2km/2DF44NASgf7SwWVXikJZbZzLW/q8ID5grl6dr0w/IxxhGJpqeXnGbrMVe4NU9T8zDiWJ+sNlFQMYPte1s9Me/kymT2qnxi88gRXRieW4fnOFcyBuypCfDFiHz/0PFaTtcP/SyRuMTCOpg2ZYZbuIyvJ9fKUg44U0U3SlAl0Qst02vaXzRcB3921OTL+ERZLTyvBbdH5a0cQSzrZXEWf9crRWttw+N+UKRxlKPzTHk1+N/lwe+zyj5g6qrhCNNvwTBERFK14jX6XLKxb+CLUUSn2y3eNPMWcvOhpCiqh+Nj+yG8ELFkDRbGyEbNRaojFUuo3VrC2Jc//8r9brWJh3WCtfZRLuKfwhA/AZo1fpHseEypE="
+  },
+  "collateral": {
+    "type": "azure vTPM Evidence",
+    "certs": [
+      "54cBeqiM9KNq+V8IRghKNVH1u08M/hvFhHJ7O7bcyppB092oaonF9VTBNjdEvY2HahSNeZ2dKWD6ahobBLDhzoN2qu8OPYJC6PZQXHGqfSo+U+uGLUEcFu91NWYmco3tYffulMyB3Mc//HlRjfc58BegtF2TKpn4vnURZaRLHEz3gehG4uerx7fudu/VCP4DShdxjRqv7PxVCZieRT6ws+JnHu86c3JuaW47U3P8UkPiL6DR/ZZWWbhmW/Ypo2rnLB14gtHmMHNSQxZEZyT2QfNEYgz8yfRdbtP/tGKdEDW2SJJrb9/sePRaUv7fcmdyTRlLzTBC8RTFsBPlZ7o4rbI8B5Dq7VG4aKZr6+e9YeYhP9XlERtRJ9KgYl2AsO69/JkqO9+JI4gLuyfKNBdQxtOD0RoJQB1H6VlXuBY1FJGPYQsHU1SsfAUjRGDVL12wqISqZZyr9K0CGZkUao1X3sZeDP+Lc8Bhx/RMR0PMyrH2DEEAtHMv4hTpYCfndUEW+MEi28GL5yAxABc6fGAFBY8FjqIsX3MdZC8CJtYGOkq/7VbiM4oKMnqW8OnuqcMSNm41hJo5OBSyD2aIWukJRhD79/xp/KIdyIMGl9wu3X1k7qvL6JsFG2EYVey/h0bMFm4XNAmHMUb2eaAfoOQdVYC/Zzj7MeUEipekqY2Dehg="
+    ],
+    "artifacts": [
+      {
+        "type": "PCR Eventlog",
+        "index": 0,
+        "events": [
+          {
+            "type": "firmware",
+            "name": "mock firmware event",
+            "hashes": [
+              {
+                "alg": "SHA-256",
+                "content": "639e0ef472f7b9460cd476ce91e38ec2529687b6b7f9d6f923d2e3c77829fe4d"
+              }
+            ]
+          }
+        ]
+      }
+    ]
+  }
+}
