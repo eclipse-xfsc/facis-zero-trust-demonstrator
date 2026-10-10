@@ -138,6 +138,26 @@ jobs:
       - name: Test the enforcement check
         run: scripts/admission/enforced_test.sh
 
+  # The trust-framework DNS inspector against local NSD servers that each break one thing it must
+  # catch (a wrong DS digest, an unsigned server, a diverging NS set, a resolver without the URI),
+  # and through a signed parent zone and a validating Unbound for the delegation path. The servers
+  # listen on loopback port 53, so the job runs as root in a container.
+  train-dns:
+    name: TRAIN DNS inspector
+    runs-on: ubuntu-latest
+    container: ubuntu:24.04
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+
+      - name: Install NSD, Unbound, ldns and dig
+        env:
+          DEBIAN_FRONTEND: noninteractive
+        run: apt-get -qq update && apt-get -qq install -y --no-install-recommends nsd ldnsutils unbound dnsutils python3 >/dev/null
+
+      - name: Run the inspector cases
+        run: bash scripts/verify-train-dns/verify_test.sh
+
   # The whole admission catalogue in a real Gatekeeper: a kind cluster with Gatekeeper (pinned chart,
   # cache off), the provider and a local registry of test images signed with the release script and
   # an ephemeral key. Includes provider-down, Gatekeeper-down and trust-removal cases.

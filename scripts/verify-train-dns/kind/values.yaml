@@ -1,0 +1,26 @@
+# Values for the upstream zone-manager chart (eclipse-xfsc/train-dns-trust-zone-manager,
+# deployment/helm/nsd) on the local kind cluster. The zone sits under .test, which never resolves on
+# the internet, and every address is the fixed ClusterIP of the DNS service, set by
+# zone-manager-up.sh: without a delegation the server is reached directly.
+image:
+  repository: ztd/train-dns-zone-manager   # built from the upstream Dockerfile by zone-manager-up.sh
+  pullPolicy: IfNotPresent
+ingress:
+  enabled: false
+service:
+  dns:
+    type: ClusterIP   # a LoadBalancer upstream; the fixed clusterIP is added after rendering
+application:
+  properties:
+    zoneConfig:
+      TF_DOMAIN_NAME: trust.ztd.test
+      PRIMARY_SERVER_NSD: ns1.trust.ztd.test
+      SECONDARY_SERVER_1_NSD: ns2.trust.ztd.test
+      SECONDARY_SERVER_2_NSD: ns3.trust.ztd.test
+    # auth.conf is executed as Python by the zone manager (zonedb/api.py: exec), so every value must
+    # carry its own quotes; the chart's template writes them verbatim. The authenticated API routes
+    # are not exercised here, so the issuer is a placeholder.
+    authConfigFileContent:
+      ISSUER_URL: '"https://issuer.invalid"'
+      CLIENT_ID: '"none"'
+      ALLOW_UNSAFE_SSL: '"false"'
