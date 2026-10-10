@@ -83,6 +83,8 @@
                   </li>
                   <li class="toctree-l1"><a class="reference internal" href="../environments/ionos/">IONOS Cloud</a>
                   </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../environments/application-workloads/">Application workloads</a>
+                  </li>
               </ul>
               <ul>
                 <li class="toctree-l1"><a class="reference internal" href="../packaging/">Packaging and containers</a>
@@ -93,7 +95,15 @@
                 </li>
               </ul>
               <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../scenarios/">Scenario decisions</a>
+                </li>
+              </ul>
+              <ul>
                 <li class="toctree-l1"><a class="reference internal" href="../keycloak/">Keycloak integration</a>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../identity-model/">Identity model</a>
                 </li>
               </ul>
               <ul>
@@ -226,11 +236,6 @@ permitted paths:</p>
 <td>workloads → DNS</td>
 <td>ALLOW (declared bypass)</td>
 <td>NetworkPolicy port 53</td>
-</tr>
-<tr>
-<td>backend → Keycloak token endpoint / verification service</td>
-<td>ALLOW (named pairs)</td>
-<td>mesh policy</td>
 </tr>
 <tr>
 <td>anything else data → management (SPIRE server, ArgoCD, OpenBao, TSPA, Harbor, estserver, admin APIs)</td>

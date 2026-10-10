@@ -1,0 +1,399 @@
+<!DOCTYPE html>
+<html class="writer-html5" lang="en" >
+<head>
+    <meta charset="utf-8" />
+    <meta http-equiv="X-UA-Compatible" content="IE=edge" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+      <link rel="shortcut icon" href="../../img/favicon.ico" />
+    <title>Application workloads - FACIS Zero Trust Demonstrator</title>
+    <link rel="stylesheet" href="../../css/theme.css" />
+    <link rel="stylesheet" href="../../css/theme_extra.css" />
+        <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.8.0/styles/github.min.css" />
+    
+      <script>
+        // Current page data
+        var mkdocs_page_name = "Application workloads";
+        var mkdocs_page_input_path = "environments/application-workloads.md";
+        var mkdocs_page_url = null;
+      </script>
+    
+    <!--[if lt IE 9]>
+      <script src="../../js/html5shiv.min.js"></script>
+    <![endif]-->
+      <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.8.0/highlight.min.js"></script>
+      <script>hljs.highlightAll();</script> 
+</head>
+
+<body class="wy-body-for-nav" role="document">
+
+  <div class="wy-grid-for-nav">
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side stickynav">
+    <div class="wy-side-scroll">
+      <div class="wy-side-nav-search">
+          <a href="../.." class="icon icon-home"> FACIS Zero Trust Demonstrator
+        </a><div role="search">
+  <form id ="rtd-search-form" class="wy-form" action="../../search.html" method="get">
+      <input type="text" name="q" placeholder="Search docs" aria-label="Search docs" title="Type search term here" />
+  </form>
+</div>
+      </div>
+
+      <div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../..">Home</a>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../../features/">Features and journeys</a>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../../architecture/">Architecture</a>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../../usage/">Using the demonstrator</a>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../../deployment/">Deployment</a>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../../umbrella-chart/">Umbrella chart</a>
+                </li>
+              </ul>
+              <p class="caption"><span class="caption-text">Environments</span></p>
+              <ul class="current">
+                  <li class="toctree-l1"><a class="reference internal" href="../">Overview</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../osc/">T-Systems OSC</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../ionos/">IONOS Cloud</a>
+                  </li>
+                  <li class="toctree-l1 current"><a class="reference internal current" href="#">Application workloads</a>
+    <ul class="current">
+    <li class="toctree-l2"><a class="reference internal" href="#placement">Placement</a>
+    </li>
+    <li class="toctree-l2"><a class="reference internal" href="#installing-application-charts">Installing application charts</a>
+    </li>
+    <li class="toctree-l2"><a class="reference internal" href="#the-osc-shared-namespace-as-found">The OSC shared namespace as found</a>
+    </li>
+    <li class="toctree-l2"><a class="reference internal" href="#routes-tls-and-dns">Routes, TLS and DNS</a>
+    </li>
+    <li class="toctree-l2"><a class="reference internal" href="#secrets">Secrets</a>
+    </li>
+    <li class="toctree-l2"><a class="reference internal" href="#logs">Logs</a>
+    </li>
+    <li class="toctree-l2"><a class="reference internal" href="#runtimes">Runtimes</a>
+    </li>
+    </ul>
+                  </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../../packaging/">Packaging and containers</a>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../../flows/">Orchestrated flows</a>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../../scenarios/">Scenario decisions</a>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../../keycloak/">Keycloak integration</a>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../../identity-model/">Identity model</a>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../../oauth2-provider/">Connector OAuth2 provider</a>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../../api-docs/">API documentation</a>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../../contracts/">Interface contracts</a>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../../tspa-publish-api/">TRAIN trust-list publishing</a>
+                </li>
+              </ul>
+              <p class="caption"><span class="caption-text">BDD acceptance</span></p>
+              <ul>
+                  <li class="toctree-l1"><a class="reference internal" href="../../bdd/">Harness and pack</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../bdd-catalogue/">Catalogue</a>
+                  </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../../ci-cd/">CI/CD</a>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../../secrets/">Secrets</a>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../../troubleshooting/">Troubleshooting</a>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../../dependencies/">OSS dependencies</a>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../../licenses/">Licenses</a>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../../specifications/">Specification changes</a>
+                </li>
+              </ul>
+              <p class="caption"><span class="caption-text">Architecture decisions</span></p>
+              <ul>
+                  <li class="toctree-l1"><a class="reference internal" href="../../adr/">Overview</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../adr/tdr-decisions/">TDR decisions ADR 001–006</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../adr/0001-service-mesh-mode-istio-ambient-with-cilium/">0001 Service mesh mode</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../adr/0002-gatekeeper-external-data-provider-for-cosign-verification/">0002 Gatekeeper external data provider</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../adr/0003-oauth2-authorisation-surface-in-the-go-connector/">0003 OAuth2 surface in the Go connector</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../adr/0004-openbao-as-x509-key-value-store/">0004 OpenBao as X.509 key-value store</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../adr/0005-three-cluster-reading-of-the-target-environment/">0005 Three-cluster target environment</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../adr/0011-mock-tee-evidence-format-and-provisioning/">0011 Mock TEE evidence</a>
+                  </li>
+              </ul>
+      </div>
+    </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap">
+      <nav class="wy-nav-top" role="navigation" aria-label="Mobile navigation menu">
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="../..">FACIS Zero Trust Demonstrator</a>
+        
+      </nav>
+      <div class="wy-nav-content">
+        <div class="rst-content"><div role="navigation" aria-label="breadcrumbs navigation">
+  <ul class="wy-breadcrumbs">
+    <li><a href="../.." class="icon icon-home" aria-label="Docs"></a></li>
+          <li class="breadcrumb-item">Environments</li>
+      <li class="breadcrumb-item active">Application workloads</li>
+    <li class="wy-breadcrumbs-aside">
+          <a href="https://github.com/eclipse-xfsc/facis-zero-trust-demonstrator/edit/main/docs/environments/application-workloads.md" class="icon icon-github"> Edit on GitHub</a>
+    </li>
+  </ul>
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+            <div class="section" itemprop="articleBody">
+              
+                <h1 id="application-workloads">Application workloads<a class="headerlink" href="#application-workloads" title="Permanent link">&para;</a></h1>
+<p>Where the demonstrator's application services run while the platform clusters are being provided,
+how they are installed, and what the current access allows. The platform itself — mesh, identity,
+admission — is installed by the umbrella chart on clusters with cluster rights (<a href="../osc/">OSC</a>,
+<a href="../ionos/">IONOS</a>); this page covers what runs on top of it, and what can run before it exists.</p>
+<h2 id="placement">Placement<a class="headerlink" href="#placement" title="Permanent link">&para;</a></h2>
+<table>
+<thead>
+<tr>
+<th>Cluster</th>
+<th>Runs</th>
+<th>Access</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>IONOS</td>
+<td>ORCE, the demonstrator UI, Keycloak (<a href="../../identity-model/">Identity model</a>)</td>
+<td>Cluster rights (<a href="../ionos/">IONOS</a>)</td>
+</tr>
+<tr>
+<td>OSC, shared cluster, namespace <code>zero-trust</code></td>
+<td>Application services for interim integration: participant backend, protected-resource mock, their adapters</td>
+<td>Namespace-scoped service account</td>
+</tr>
+<tr>
+<td>OSC zone A and zone B (dedicated, requested)</td>
+<td>The full zones: platform plus application services</td>
+<td>Cluster rights once provided</td>
+</tr>
+</tbody>
+</table>
+<p>The shared-cluster namespace is an interim test route. It carries no mesh, no workload identity and
+no admission control, so nothing run there is evidence for a zero-trust requirement; it shows that
+the application services deploy, start and answer.</p>
+<h2 id="installing-application-charts">Installing application charts<a class="headerlink" href="#installing-application-charts" title="Permanent link">&para;</a></h2>
+<p>Application services are installed as their own Helm releases, <strong>outside the umbrella chart</strong>. The
+umbrella creates namespaces and, with verification on, cluster roles; a namespace-scoped identity
+cannot install it, and an application release must not need to.</p>
+<ul>
+<li>One release per service, values-only: the image by digest, the hostname, the secret names.</li>
+<li>No cluster-scoped objects: no namespaces, CRDs, cluster roles or webhooks.</li>
+<li>Each release brings its own default-deny <code>NetworkPolicy</code> and the allow rules it needs. The shared
+  namespace ships with allow-all policies, which are not relied on.</li>
+</ul>
+<h2 id="the-osc-shared-namespace-as-found">The OSC shared namespace as found<a class="headerlink" href="#the-osc-shared-namespace-as-found" title="Permanent link">&para;</a></h2>
+<p>Recorded on 7–8 October 2026 with the namespace's service account.</p>
+<table>
+<thead>
+<tr>
+<th>Item</th>
+<th>Value</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Kubernetes</td>
+<td>v1.32.9</td>
+</tr>
+<tr>
+<td>May create</td>
+<td>Deployments, services, secrets, ingresses, network policies, roles and role bindings, <code>pods/exec</code>, in the namespace</td>
+</tr>
+<tr>
+<td>May not create</td>
+<td>Namespaces, CRDs, cluster roles and bindings, admission webhooks, CSI drivers; nodes are not visible</td>
+</tr>
+<tr>
+<td>Quota</td>
+<td>2.5 CPU and 10 GiB requests and limits, 30 pods, 20 services, 40 secrets, 10 PVCs, 50 GiB storage</td>
+</tr>
+<tr>
+<td>Per-container limits</td>
+<td>Minimum request 100m CPU and 128 Mi; default request 250m and 256 Mi; default limit 1 CPU and 1 Gi; maximum 4 CPU and 8 Gi</td>
+</tr>
+<tr>
+<td>CNI</td>
+<td>Cilium</td>
+</tr>
+<tr>
+<td>Ingress</td>
+<td>Class <code>nginx</code>, one public address shared by the cluster</td>
+</tr>
+<tr>
+<td>Storage</td>
+<td>Class <code>default</code> (CSI), <code>WaitForFirstConsumer</code></td>
+</tr>
+<tr>
+<td>Images</td>
+<td>Public registries reachable (a Docker Hub image pulled)</td>
+</tr>
+</tbody>
+</table>
+<p><strong>Smoke test, 8 October 2026.</strong> An unprivileged nginx deployment with a service and an ingress was
+created with the namespace's service account, rolled out, answered <code>200</code> over HTTP and HTTPS from
+outside the cluster through the ingress, and was deleted. A container requesting less than the
+LimitRange minimum is refused at pod creation, not at apply.</p>
+<h2 id="routes-tls-and-dns">Routes, TLS and DNS<a class="headerlink" href="#routes-tls-and-dns" title="Permanent link">&para;</a></h2>
+<p>Services are reached through the shared ingress controller. Two things are not in place yet:</p>
+<ul>
+<li><strong>Certificates.</strong> The cluster has no certificate manager; HTTPS is served with the controller's
+  default self-signed certificate. A release that is reached from outside brings its certificate as
+  a <code>kubernetes.io/tls</code> secret, for a hostname that resolves to the ingress address.</li>
+<li><strong>TLS 1.3 only.</strong> The shared controller accepts TLS 1.2 as well as 1.3. Enforcing 1.3 is a
+  controller setting the cluster's operator owns; until it is set, a route through it does not meet
+  the TLS 1.3 requirement and is not used as evidence for it.</li>
+</ul>
+<p>Hostnames are requested per service; none is assigned yet.</p>
+<h2 id="secrets">Secrets<a class="headerlink" href="#secrets" title="Permanent link">&para;</a></h2>
+<p>Values never enter Git. On the shared namespace, the deploying identity creates each secret as a
+Kubernetes <code>Secret</code> with the name the chart's values reference; the chart reads it by name. On the
+dedicated clusters the same names are filled from OpenBao. Each chart lists the secret names it
+expects in its values file.</p>
+<h2 id="logs">Logs<a class="headerlink" href="#logs" title="Permanent link">&para;</a></h2>
+<p><code>kubectl logs</code> with the namespace's service account. Components log structured JSON
+(<a href="../../adr/tdr-decisions/">TDR decisions</a>); tokens and passwords are never logged.</p>
+<h2 id="runtimes">Runtimes<a class="headerlink" href="#runtimes" title="Permanent link">&para;</a></h2>
+<table>
+<thead>
+<tr>
+<th>Runtime</th>
+<th>Version</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Kubernetes, IONOS</td>
+<td>v1.35.6</td>
+</tr>
+<tr>
+<td>Kubernetes, OSC shared cluster</td>
+<td>v1.32.9</td>
+</tr>
+<tr>
+<td>Helm</td>
+<td>v4.3.0, as the pipeline pins it</td>
+</tr>
+<tr>
+<td>Images</td>
+<td><code>linux/amd64</code>, referenced by digest</td>
+</tr>
+</tbody>
+</table>
+              
+            </div>
+          </div><footer>
+    <div class="rst-footer-buttons" role="navigation" aria-label="Footer Navigation">
+        <a href="../ionos/" class="btn btn-neutral float-left" title="IONOS Cloud"><span class="icon icon-circle-arrow-left"></span> Previous</a>
+        <a href="../../packaging/" class="btn btn-neutral float-right" title="Packaging and containers">Next <span class="icon icon-circle-arrow-right"></span></a>
+    </div>
+
+  <hr/>
+
+  <div role="contentinfo">
+    <!-- Copyright etc -->
+      <p>Apache-2.0</p>
+  </div>
+
+  Built with <a href="https://www.mkdocs.org/">MkDocs</a> using a <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a> provided by <a href="https://readthedocs.org">Read the Docs</a>.
+</footer>
+          
+        </div>
+      </div>
+
+    </section>
+
+  </div>
+
+  <div class="rst-versions" role="note" aria-label="Versions">
+  <span class="rst-current-version" data-toggle="rst-current-version">
+    
+        <span>
+          <a href="https://github.com/eclipse-xfsc/facis-zero-trust-demonstrator" class="fa fa-github" style="color: #fcfcfc"> GitHub</a>
+        </span>
+    
+    
+      <span><a href="../ionos/" style="color: #fcfcfc">&laquo; Previous</a></span>
+    
+    
+      <span><a href="../../packaging/" style="color: #fcfcfc">Next &raquo;</a></span>
+    
+  </span>
+</div>
+    <script src="../../js/jquery-3.6.0.min.js"></script>
+    <script>var base_url = "../..";</script>
+    <script src="../../js/theme_extra.js"></script>
+    <script src="../../js/theme.js"></script>
+      <script src="../../search/main.js"></script>
+    <script>
+        jQuery(function () {
+            SphinxRtdTheme.Navigation.enable(true);
+        });
+    </script>
+
+</body>
+</html>

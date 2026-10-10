@@ -1,0 +1,503 @@
+<!DOCTYPE html>
+<html class="writer-html5" lang="en" >
+<head>
+    <meta charset="utf-8" />
+    <meta http-equiv="X-UA-Compatible" content="IE=edge" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+      <link rel="shortcut icon" href="../img/favicon.ico" />
+    <title>Identity model - FACIS Zero Trust Demonstrator</title>
+    <link rel="stylesheet" href="../css/theme.css" />
+    <link rel="stylesheet" href="../css/theme_extra.css" />
+        <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.8.0/styles/github.min.css" />
+    
+      <script>
+        // Current page data
+        var mkdocs_page_name = "Identity model";
+        var mkdocs_page_input_path = "identity-model.md";
+        var mkdocs_page_url = null;
+      </script>
+    
+    <!--[if lt IE 9]>
+      <script src="../js/html5shiv.min.js"></script>
+    <![endif]-->
+      <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.8.0/highlight.min.js"></script>
+      <script>hljs.highlightAll();</script> 
+</head>
+
+<body class="wy-body-for-nav" role="document">
+
+  <div class="wy-grid-for-nav">
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side stickynav">
+    <div class="wy-side-scroll">
+      <div class="wy-side-nav-search">
+          <a href=".." class="icon icon-home"> FACIS Zero Trust Demonstrator
+        </a><div role="search">
+  <form id ="rtd-search-form" class="wy-form" action="../search.html" method="get">
+      <input type="text" name="q" placeholder="Search docs" aria-label="Search docs" title="Type search term here" />
+  </form>
+</div>
+      </div>
+
+      <div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="..">Home</a>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../features/">Features and journeys</a>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../architecture/">Architecture</a>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../usage/">Using the demonstrator</a>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../deployment/">Deployment</a>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../umbrella-chart/">Umbrella chart</a>
+                </li>
+              </ul>
+              <p class="caption"><span class="caption-text">Environments</span></p>
+              <ul>
+                  <li class="toctree-l1"><a class="reference internal" href="../environments/">Overview</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../environments/osc/">T-Systems OSC</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../environments/ionos/">IONOS Cloud</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../environments/application-workloads/">Application workloads</a>
+                  </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../packaging/">Packaging and containers</a>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../flows/">Orchestrated flows</a>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../scenarios/">Scenario decisions</a>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../keycloak/">Keycloak integration</a>
+                </li>
+              </ul>
+              <ul class="current">
+                <li class="toctree-l1 current"><a class="reference internal current" href="#">Identity model</a>
+    <ul class="current">
+    <li class="toctree-l2"><a class="reference internal" href="#what-keycloak-is-for">What Keycloak is for</a>
+    </li>
+    <li class="toctree-l2"><a class="reference internal" href="#realm-and-client">Realm and client</a>
+    </li>
+    <li class="toctree-l2"><a class="reference internal" href="#roles">Roles</a>
+    </li>
+    <li class="toctree-l2"><a class="reference internal" href="#tokens-and-claims">Tokens and claims</a>
+    </li>
+    <li class="toctree-l2"><a class="reference internal" href="#lifetimes-and-session-states">Lifetimes and session states</a>
+    </li>
+    <li class="toctree-l2"><a class="reference internal" href="#personas">Personas</a>
+    </li>
+    <li class="toctree-l2"><a class="reference internal" href="#secrets">Secrets</a>
+    </li>
+    <li class="toctree-l2"><a class="reference internal" href="#service-access-unchanged">Service access (unchanged)</a>
+    </li>
+    <li class="toctree-l2"><a class="reference internal" href="#verification">Verification</a>
+    </li>
+    </ul>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../oauth2-provider/">Connector OAuth2 provider</a>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../api-docs/">API documentation</a>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../contracts/">Interface contracts</a>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../tspa-publish-api/">TRAIN trust-list publishing</a>
+                </li>
+              </ul>
+              <p class="caption"><span class="caption-text">BDD acceptance</span></p>
+              <ul>
+                  <li class="toctree-l1"><a class="reference internal" href="../bdd/">Harness and pack</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../bdd-catalogue/">Catalogue</a>
+                  </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../ci-cd/">CI/CD</a>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../secrets/">Secrets</a>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../troubleshooting/">Troubleshooting</a>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../dependencies/">OSS dependencies</a>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../licenses/">Licenses</a>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../specifications/">Specification changes</a>
+                </li>
+              </ul>
+              <p class="caption"><span class="caption-text">Architecture decisions</span></p>
+              <ul>
+                  <li class="toctree-l1"><a class="reference internal" href="../adr/">Overview</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../adr/tdr-decisions/">TDR decisions ADR 001–006</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../adr/0001-service-mesh-mode-istio-ambient-with-cilium/">0001 Service mesh mode</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../adr/0002-gatekeeper-external-data-provider-for-cosign-verification/">0002 Gatekeeper external data provider</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../adr/0003-oauth2-authorisation-surface-in-the-go-connector/">0003 OAuth2 surface in the Go connector</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../adr/0004-openbao-as-x509-key-value-store/">0004 OpenBao as X.509 key-value store</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../adr/0005-three-cluster-reading-of-the-target-environment/">0005 Three-cluster target environment</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../adr/0011-mock-tee-evidence-format-and-provisioning/">0011 Mock TEE evidence</a>
+                  </li>
+              </ul>
+      </div>
+    </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap">
+      <nav class="wy-nav-top" role="navigation" aria-label="Mobile navigation menu">
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="..">FACIS Zero Trust Demonstrator</a>
+        
+      </nav>
+      <div class="wy-nav-content">
+        <div class="rst-content"><div role="navigation" aria-label="breadcrumbs navigation">
+  <ul class="wy-breadcrumbs">
+    <li><a href=".." class="icon icon-home" aria-label="Docs"></a></li>
+      <li class="breadcrumb-item active">Identity model</li>
+    <li class="wy-breadcrumbs-aside">
+          <a href="https://github.com/eclipse-xfsc/facis-zero-trust-demonstrator/edit/main/docs/identity-model.md" class="icon icon-github"> Edit on GitHub</a>
+    </li>
+  </ul>
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+            <div class="section" itemprop="articleBody">
+              
+                <h1 id="identity-model">Identity model<a class="headerlink" href="#identity-model" title="Permanent link">&para;</a></h1>
+<p>This page fixes the identity model the demonstrator realm is built against: the realm, its client,
+roles, scopes and claims, token and session lifetimes, logout, personas and secret handling. The
+realm export in Git (<a href="../keycloak/">Keycloak integration</a>) implements this page; where the two
+disagree, this page is changed first, through review.</p>
+<h2 id="what-keycloak-is-for">What Keycloak is for<a class="headerlink" href="#what-keycloak-is-for" title="Permanent link">&para;</a></h2>
+<p>Keycloak authenticates <strong>people</strong>: the viewer who drives the demonstrator UI. It does not authorize
+machines. A participant backend calling a protected resource is authorized by the Go connector and
+the guard, with tokens derived from a verified credential presentation and bound to a key
+(<a href="../adr/0003-oauth2-authorisation-surface-in-the-go-connector/">ADR-0003</a>). Nothing in this model
+reaches that path, and no Keycloak token is accepted by the guard.</p>
+<p>Keycloak runs on the IONOS cluster, next to ORCE and the UI it serves, as a stock product with no
+custom providers or extensions.</p>
+<h2 id="realm-and-client">Realm and client<a class="headerlink" href="#realm-and-client" title="Permanent link">&para;</a></h2>
+<table>
+<thead>
+<tr>
+<th>Item</th>
+<th>Value</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Realm</td>
+<td><code>facis-ztd</code></td>
+</tr>
+<tr>
+<td>Client</td>
+<td><code>ztd-ui</code>, public (no client secret)</td>
+</tr>
+<tr>
+<td>Flow</td>
+<td>Authorization code with PKCE, method <code>S256</code> required</td>
+</tr>
+<tr>
+<td>Disabled</td>
+<td>Implicit flow, direct access grants (password grant), service account, device flow</td>
+</tr>
+<tr>
+<td>Redirect URIs</td>
+<td>The UI's callback on its own hostname, listed exactly; no wildcards</td>
+</tr>
+<tr>
+<td>Web origins</td>
+<td>The UI's origin only</td>
+</tr>
+<tr>
+<td>Consent</td>
+<td>Off: the realm has one first-party client</td>
+</tr>
+<tr>
+<td>Front-channel logout</td>
+<td>On, with the UI's logout URL</td>
+</tr>
+<tr>
+<td>Back-channel logout</td>
+<td>On, to the UI backend, so a server-side session ends with the Keycloak session</td>
+</tr>
+</tbody>
+</table>
+<h2 id="roles">Roles<a class="headerlink" href="#roles" title="Permanent link">&para;</a></h2>
+<p>Two realm roles. A viewer holds exactly one; a user with neither is authenticated but can do nothing.</p>
+<table>
+<thead>
+<tr>
+<th>Role</th>
+<th>May</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>ztd-observer</code></td>
+<td>Watch journeys, read panels, decisions and evidence, open the scenario catalogue</td>
+</tr>
+<tr>
+<td><code>ztd-operator</code></td>
+<td>Everything an observer may, plus start and reset a journey, choose its inputs, and preview, validate and apply a configuration change</td>
+</tr>
+</tbody>
+</table>
+<p>The action-by-action mapping, including which configuration changes an operator may make, is in
+<a href="../scenarios/">Scenario decisions</a>. An observer who attempts an operator action is shown the
+<code>denied</code> state; a configuration change attempted without the role is rejected with
+<code>CFG-NOT-AUTHORISED</code>.</p>
+<h2 id="tokens-and-claims">Tokens and claims<a class="headerlink" href="#tokens-and-claims" title="Permanent link">&para;</a></h2>
+<p>The UI backend validates every access token before it acts: signature against the realm's JWKS,
+issuer <code>https://&lt;keycloak-host&gt;/realms/facis-ztd</code>, audience <code>ztd-ui</code>, expiry. It reads only these
+claims:</p>
+<table>
+<thead>
+<tr>
+<th>Claim</th>
+<th>Use</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>sub</code></td>
+<td>Session key</td>
+</tr>
+<tr>
+<td><code>preferred_username</code></td>
+<td>Shown in the UI; written as <code>requested_by</code> in a configuration change</td>
+</tr>
+<tr>
+<td><code>realm_access.roles</code></td>
+<td>Gates the actions in the table above</td>
+</tr>
+<tr>
+<td><code>aud</code></td>
+<td>Must contain <code>ztd-ui</code> (audience mapper on the client)</td>
+</tr>
+</tbody>
+</table>
+<p>Client scopes: <code>openid</code>, <code>profile</code> and <code>roles</code> as defaults, nothing optional. No other claim is
+mapped, and no claim carries a credential, a measurement or anything from the connector path.</p>
+<h2 id="lifetimes-and-session-states">Lifetimes and session states<a class="headerlink" href="#lifetimes-and-session-states" title="Permanent link">&para;</a></h2>
+<table>
+<thead>
+<tr>
+<th>Setting</th>
+<th>Value</th>
+<th>Why</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Access token</td>
+<td>5 minutes</td>
+<td>A removed role stops working within five minutes</td>
+</tr>
+<tr>
+<td>SSO session idle</td>
+<td>30 minutes</td>
+<td>A presenter pausing does not lose the session</td>
+</tr>
+<tr>
+<td>SSO session max</td>
+<td>8 hours</td>
+<td>One demonstration day</td>
+</tr>
+<tr>
+<td>Refresh token</td>
+<td>Rotated on use; reuse revokes the session</td>
+<td>A copied refresh token is detected</td>
+</tr>
+</tbody>
+</table>
+<p>The UI renders three states of its own rather than letting them look like faults: <strong>expired</strong> (the
+session ended; re-authenticate), <strong>denied</strong> (authenticated, but the role does not allow the action)
+and <strong>logged out</strong> (cleared at both ends through the logout flow, not only in the browser).</p>
+<h2 id="personas">Personas<a class="headerlink" href="#personas" title="Permanent link">&para;</a></h2>
+<table>
+<thead>
+<tr>
+<th>Persona</th>
+<th>Role</th>
+<th>Use</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>demo-operator</code></td>
+<td><code>ztd-operator</code></td>
+<td>Drives a demonstration</td>
+</tr>
+<tr>
+<td><code>demo-observer</code></td>
+<td><code>ztd-observer</code></td>
+<td>Shows that a watcher cannot change anything</td>
+</tr>
+<tr>
+<td><code>bdd-operator</code></td>
+<td><code>ztd-operator</code></td>
+<td>Acceptance runs</td>
+</tr>
+<tr>
+<td><code>bdd-observer</code></td>
+<td><code>ztd-observer</code></td>
+<td>Acceptance runs, negative cases</td>
+</tr>
+</tbody>
+</table>
+<p>Personas are in the realm export without credentials. Passwords are set at apply time.</p>
+<h2 id="secrets">Secrets<a class="headerlink" href="#secrets" title="Permanent link">&para;</a></h2>
+<p>The export contains no secret (<a href="../keycloak/">Keycloak integration</a>). The apply job reads from
+OpenBao's KV v2 mount <code>secret</code>:</p>
+<table>
+<thead>
+<tr>
+<th>Path</th>
+<th>Holds</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>secret/data/keycloak/admin</code></td>
+<td>The admin credential the apply job uses</td>
+</tr>
+<tr>
+<td><code>secret/data/keycloak/personas/&lt;persona&gt;</code></td>
+<td>Each persona's password</td>
+</tr>
+</tbody>
+</table>
+<p>The public client has no secret. Tokens and passwords never appear in logs or evidence.</p>
+<h2 id="service-access-unchanged">Service access (unchanged)<a class="headerlink" href="#service-access-unchanged" title="Permanent link">&para;</a></h2>
+<p>This model changes nothing on the service-to-service paths; their contracts stay as pinned:</p>
+<table>
+<thead>
+<tr>
+<th>Path</th>
+<th>Authentication</th>
+<th>Contract</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>ORCE lifecycle API</td>
+<td>HTTP Basic on ORCE HTTP nodes</td>
+<td><a href="../api-docs/">IF-08</a></td>
+</tr>
+<tr>
+<td>Security-state feed</td>
+<td>Inside the mesh only, from the UI's workload identity</td>
+<td><a href="../api-docs/">IF-01</a></td>
+</tr>
+<tr>
+<td>Participant backend to protected resource</td>
+<td>Connector and guard, DPoP-bound tokens</td>
+<td><a href="../api-docs/">IF-02</a>, ADR-0003</td>
+</tr>
+</tbody>
+</table>
+<p>Moving the lifecycle API and the feed to Keycloak-issued service credentials, which the TDR's
+"service credential management" would allow, is a proposed contract change. It would change IF-01
+and IF-08, the ORCE configuration, the clients and the acceptance scenarios together, through a
+versioned contract review; until then it is not part of this model.</p>
+<h2 id="verification">Verification<a class="headerlink" href="#verification" title="Permanent link">&para;</a></h2>
+<p>The model is met when, on an empty Keycloak, the realm imported from Git lets both <code>demo-</code> personas
+log in through the UI; an observer's attempt to start a journey renders <code>denied</code>; an expired access
+token renders <code>expired</code>; and logout ends the session in the UI backend and in Keycloak. These are the
+identity steps of the Keycloak, policy and token integration scenario in the
+<a href="../bdd-catalogue/">BDD catalogue</a>.</p>
+              
+            </div>
+          </div><footer>
+    <div class="rst-footer-buttons" role="navigation" aria-label="Footer Navigation">
+        <a href="../keycloak/" class="btn btn-neutral float-left" title="Keycloak integration"><span class="icon icon-circle-arrow-left"></span> Previous</a>
+        <a href="../oauth2-provider/" class="btn btn-neutral float-right" title="Connector OAuth2 provider">Next <span class="icon icon-circle-arrow-right"></span></a>
+    </div>
+
+  <hr/>
+
+  <div role="contentinfo">
+    <!-- Copyright etc -->
+      <p>Apache-2.0</p>
+  </div>
+
+  Built with <a href="https://www.mkdocs.org/">MkDocs</a> using a <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a> provided by <a href="https://readthedocs.org">Read the Docs</a>.
+</footer>
+          
+        </div>
+      </div>
+
+    </section>
+
+  </div>
+
+  <div class="rst-versions" role="note" aria-label="Versions">
+  <span class="rst-current-version" data-toggle="rst-current-version">
+    
+        <span>
+          <a href="https://github.com/eclipse-xfsc/facis-zero-trust-demonstrator" class="fa fa-github" style="color: #fcfcfc"> GitHub</a>
+        </span>
+    
+    
+      <span><a href="../keycloak/" style="color: #fcfcfc">&laquo; Previous</a></span>
+    
+    
+      <span><a href="../oauth2-provider/" style="color: #fcfcfc">Next &raquo;</a></span>
+    
+  </span>
+</div>
+    <script src="../js/jquery-3.6.0.min.js"></script>
+    <script>var base_url = "..";</script>
+    <script src="../js/theme_extra.js"></script>
+    <script src="../js/theme.js"></script>
+      <script src="../search/main.js"></script>
+    <script>
+        jQuery(function () {
+            SphinxRtdTheme.Navigation.enable(true);
+        });
+    </script>
+
+</body>
+</html>

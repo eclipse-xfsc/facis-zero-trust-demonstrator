@@ -71,6 +71,8 @@
                   </li>
                   <li class="toctree-l1"><a class="reference internal" href="../environments/ionos/">IONOS Cloud</a>
                   </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../environments/application-workloads/">Application workloads</a>
+                  </li>
               </ul>
               <ul>
                 <li class="toctree-l1"><a class="reference internal" href="../packaging/">Packaging and containers</a>
@@ -78,6 +80,10 @@
               </ul>
               <ul>
                 <li class="toctree-l1"><a class="reference internal" href="../flows/">Orchestrated flows</a>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../scenarios/">Scenario decisions</a>
                 </li>
               </ul>
               <ul class="current">
@@ -90,6 +96,10 @@
     <li class="toctree-l2"><a class="reference internal" href="#connector-boundary">Connector boundary</a>
     </li>
     </ul>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../identity-model/">Identity model</a>
                 </li>
               </ul>
               <ul>
@@ -183,6 +193,7 @@
             <div class="section" itemprop="articleBody">
               
                 <h1 id="keycloak-integration">Keycloak integration<a class="headerlink" href="#keycloak-integration" title="Permanent link">&para;</a></h1>
+<p>The realm, client, roles, claims and lifetimes are fixed in the <a href="../identity-model/">Identity model</a>.</p>
 <p>Keycloak is the demonstrator's identity provider and is used as a <strong>stock product</strong> — the custom
 OAuth2 surface lives in the Go connector instead, precisely so that Keycloak is never forked. See
 <a href="../adr/0003-oauth2-authorisation-surface-in-the-go-connector/">ADR-0003</a>.</p>
@@ -257,8 +268,8 @@ reasoning, including why Keycloak's own DPoP and OID4VCI support is not depended
             </div>
           </div><footer>
     <div class="rst-footer-buttons" role="navigation" aria-label="Footer Navigation">
-        <a href="../flows/" class="btn btn-neutral float-left" title="Orchestrated flows"><span class="icon icon-circle-arrow-left"></span> Previous</a>
-        <a href="../oauth2-provider/" class="btn btn-neutral float-right" title="Connector OAuth2 provider">Next <span class="icon icon-circle-arrow-right"></span></a>
+        <a href="../scenarios/" class="btn btn-neutral float-left" title="Scenario decisions"><span class="icon icon-circle-arrow-left"></span> Previous</a>
+        <a href="../identity-model/" class="btn btn-neutral float-right" title="Identity model">Next <span class="icon icon-circle-arrow-right"></span></a>
     </div>
 
   <hr/>
@@ -286,10 +297,10 @@ reasoning, including why Keycloak's own DPoP and OID4VCI support is not depended
         </span>
     
     
-      <span><a href="../flows/" style="color: #fcfcfc">&laquo; Previous</a></span>
+      <span><a href="../scenarios/" style="color: #fcfcfc">&laquo; Previous</a></span>
     
     
-      <span><a href="../oauth2-provider/" style="color: #fcfcfc">Next &raquo;</a></span>
+      <span><a href="../identity-model/" style="color: #fcfcfc">Next &raquo;</a></span>
     
   </span>
 </div>

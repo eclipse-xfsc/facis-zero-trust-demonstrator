@@ -1,0 +1,736 @@
+<!DOCTYPE html>
+<html class="writer-html5" lang="en" >
+<head>
+    <meta charset="utf-8" />
+    <meta http-equiv="X-UA-Compatible" content="IE=edge" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+      <link rel="shortcut icon" href="../img/favicon.ico" />
+    <title>Scenario decisions - FACIS Zero Trust Demonstrator</title>
+    <link rel="stylesheet" href="../css/theme.css" />
+    <link rel="stylesheet" href="../css/theme_extra.css" />
+        <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.8.0/styles/github.min.css" />
+    
+      <script>
+        // Current page data
+        var mkdocs_page_name = "Scenario decisions";
+        var mkdocs_page_input_path = "scenarios.md";
+        var mkdocs_page_url = null;
+      </script>
+    
+    <!--[if lt IE 9]>
+      <script src="../js/html5shiv.min.js"></script>
+    <![endif]-->
+      <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.8.0/highlight.min.js"></script>
+      <script>hljs.highlightAll();</script> 
+</head>
+
+<body class="wy-body-for-nav" role="document">
+
+  <div class="wy-grid-for-nav">
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side stickynav">
+    <div class="wy-side-scroll">
+      <div class="wy-side-nav-search">
+          <a href=".." class="icon icon-home"> FACIS Zero Trust Demonstrator
+        </a><div role="search">
+  <form id ="rtd-search-form" class="wy-form" action="../search.html" method="get">
+      <input type="text" name="q" placeholder="Search docs" aria-label="Search docs" title="Type search term here" />
+  </form>
+</div>
+      </div>
+
+      <div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="..">Home</a>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../features/">Features and journeys</a>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../architecture/">Architecture</a>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../usage/">Using the demonstrator</a>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../deployment/">Deployment</a>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../umbrella-chart/">Umbrella chart</a>
+                </li>
+              </ul>
+              <p class="caption"><span class="caption-text">Environments</span></p>
+              <ul>
+                  <li class="toctree-l1"><a class="reference internal" href="../environments/">Overview</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../environments/osc/">T-Systems OSC</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../environments/ionos/">IONOS Cloud</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../environments/application-workloads/">Application workloads</a>
+                  </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../packaging/">Packaging and containers</a>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../flows/">Orchestrated flows</a>
+                </li>
+              </ul>
+              <ul class="current">
+                <li class="toctree-l1 current"><a class="reference internal current" href="#">Scenario decisions</a>
+    <ul class="current">
+    <li class="toctree-l2"><a class="reference internal" href="#conventions">Conventions</a>
+    </li>
+    <li class="toctree-l2"><a class="reference internal" href="#participant-profiles">Participant profiles</a>
+    </li>
+    <li class="toctree-l2"><a class="reference internal" href="#journeys">Journeys</a>
+        <ul>
+    <li class="toctree-l3"><a class="reference internal" href="#successful-call">Successful call</a>
+    </li>
+    <li class="toctree-l3"><a class="reference internal" href="#revoked-credential">Revoked credential</a>
+    </li>
+    <li class="toctree-l3"><a class="reference internal" href="#wrong-scope">Wrong scope</a>
+    </li>
+    <li class="toctree-l3"><a class="reference internal" href="#tampered-measurement">Tampered measurement</a>
+    </li>
+    <li class="toctree-l3"><a class="reference internal" href="#configuration-change">Configuration change</a>
+    </li>
+    <li class="toctree-l3"><a class="reference internal" href="#credential-issuance-provisional">Credential issuance (provisional)</a>
+    </li>
+        </ul>
+    </li>
+    <li class="toctree-l2"><a class="reference internal" href="#configuration-boundary">Configuration boundary</a>
+    </li>
+    </ul>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../keycloak/">Keycloak integration</a>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../identity-model/">Identity model</a>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../oauth2-provider/">Connector OAuth2 provider</a>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../api-docs/">API documentation</a>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../contracts/">Interface contracts</a>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../tspa-publish-api/">TRAIN trust-list publishing</a>
+                </li>
+              </ul>
+              <p class="caption"><span class="caption-text">BDD acceptance</span></p>
+              <ul>
+                  <li class="toctree-l1"><a class="reference internal" href="../bdd/">Harness and pack</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../bdd-catalogue/">Catalogue</a>
+                  </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../ci-cd/">CI/CD</a>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../secrets/">Secrets</a>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../troubleshooting/">Troubleshooting</a>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../dependencies/">OSS dependencies</a>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../licenses/">Licenses</a>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../specifications/">Specification changes</a>
+                </li>
+              </ul>
+              <p class="caption"><span class="caption-text">Architecture decisions</span></p>
+              <ul>
+                  <li class="toctree-l1"><a class="reference internal" href="../adr/">Overview</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../adr/tdr-decisions/">TDR decisions ADR 001–006</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../adr/0001-service-mesh-mode-istio-ambient-with-cilium/">0001 Service mesh mode</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../adr/0002-gatekeeper-external-data-provider-for-cosign-verification/">0002 Gatekeeper external data provider</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../adr/0003-oauth2-authorisation-surface-in-the-go-connector/">0003 OAuth2 surface in the Go connector</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../adr/0004-openbao-as-x509-key-value-store/">0004 OpenBao as X.509 key-value store</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../adr/0005-three-cluster-reading-of-the-target-environment/">0005 Three-cluster target environment</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../adr/0011-mock-tee-evidence-format-and-provisioning/">0011 Mock TEE evidence</a>
+                  </li>
+              </ul>
+      </div>
+    </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap">
+      <nav class="wy-nav-top" role="navigation" aria-label="Mobile navigation menu">
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="..">FACIS Zero Trust Demonstrator</a>
+        
+      </nav>
+      <div class="wy-nav-content">
+        <div class="rst-content"><div role="navigation" aria-label="breadcrumbs navigation">
+  <ul class="wy-breadcrumbs">
+    <li><a href=".." class="icon icon-home" aria-label="Docs"></a></li>
+      <li class="breadcrumb-item active">Scenario decisions</li>
+    <li class="wy-breadcrumbs-aside">
+          <a href="https://github.com/eclipse-xfsc/facis-zero-trust-demonstrator/edit/main/docs/scenarios.md" class="icon icon-github"> Edit on GitHub</a>
+    </li>
+  </ul>
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+            <div class="section" itemprop="articleBody">
+              
+                <h1 id="scenario-decisions">Scenario decisions<a class="headerlink" href="#scenario-decisions" title="Permanent link">&para;</a></h1>
+<p>This page fixes, for every journey in <a href="../flows/">Orchestrated flows</a>, the inputs a viewer may choose,
+the values they may take, what each step emits on the security-state feed (<a href="../api-docs/">IF-01</a>),
+how each journey ends, and which role may run it. It also fixes the configuration boundary: which
+governed changes (<a href="../api-docs/">IF-06</a>) the UI may offer. The UI, the flows and the acceptance
+scenarios are built against this page; a change to it goes through review like a contract change.</p>
+<h2 id="conventions">Conventions<a class="headerlink" href="#conventions" title="Permanent link">&para;</a></h2>
+<ul>
+<li><strong>Zones.</strong> The participant backend is in zone A; the protected resource is in zone B. The
+  connector that registers clients and issues tokens for zone B's resources is <code>connector-b</code>; the
+  token store holding upstream tokens for the backend is <code>token-store-a</code>; <code>gateway-a</code> opens the
+  attested channel and <code>gateway-b</code> terminates it; <code>guard-b</code> decides at the resource.</li>
+<li><strong>Runs.</strong> Every start of a journey is one <code>run_id</code>. Every request inside a run carries one
+  <code>correlation_id</code>. The UI groups and orders by them as IF-01 prescribes.</li>
+<li><strong>Unknown, not stale.</strong> On a sequence gap or a stale feed a panel shows <code>UNKNOWN</code>
+  (<code>VIS-STALE</code>, <code>VIS-DISCONNECTED</code>), never its last value.</li>
+<li><strong>Reset.</strong> Every journey starts from the seeded state; the reset hook restores it, including any
+  revoked credential or altered measurement from the previous run.</li>
+<li><strong>Fixture-only.</strong> Until the services in "Live from" exist, a run is driven from the fixture
+  package in <code>features/fixtures/xfsc/</code> and the contract fixtures in <code>docs/contracts/fixtures/</code>, and
+  its result is reported as fixture-only, never as live evidence.</li>
+</ul>
+<h2 id="participant-profiles">Participant profiles<a class="headerlink" href="#participant-profiles" title="Permanent link">&para;</a></h2>
+<p>The machine identities a journey runs with. They are not viewer accounts; viewers are in the
+<a href="../identity-model/">Identity model</a>.</p>
+<table>
+<thead>
+<tr>
+<th>Profile</th>
+<th>Credential</th>
+<th>Presented</th>
+<th>Token scope</th>
+<th>Used by</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>participant-reader</code></td>
+<td>role <code>participant</code>, entitlement <code>read</code></td>
+<td>yes</td>
+<td><code>read</code></td>
+<td>Successful call, revoked credential</td>
+</tr>
+<tr>
+<td><code>participant-no-entitlement</code></td>
+<td>role <code>participant</code>, no entitlement</td>
+<td>yes</td>
+<td><code>read</code></td>
+<td>Wrong scope</td>
+</tr>
+<tr>
+<td><code>participant-unpresented</code></td>
+<td>none yet</td>
+<td>no</td>
+<td>none</td>
+<td>Credential issuance (start), presentation-required variant</td>
+</tr>
+</tbody>
+</table>
+<h2 id="journeys">Journeys<a class="headerlink" href="#journeys" title="Permanent link">&para;</a></h2>
+<p>Priority sets the order of delivery and of the demonstration: P1 first.</p>
+<table>
+<thead>
+<tr>
+<th>Journey</th>
+<th>Priority</th>
+<th>Role to start</th>
+<th>Inputs (allowed values, default first)</th>
+<th>Live from</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Successful call</td>
+<td>P1</td>
+<td>operator</td>
+<td>profile: <code>participant-reader</code></td>
+<td>connector and guard; attested channel</td>
+</tr>
+<tr>
+<td>Revoked credential</td>
+<td>P1</td>
+<td>operator</td>
+<td>profile: <code>participant-reader</code>; credential to revoke: the profile's own</td>
+<td>as above, plus the verification service</td>
+</tr>
+<tr>
+<td>Wrong scope</td>
+<td>P1</td>
+<td>operator</td>
+<td>profile: <code>participant-no-entitlement</code>; variant: <code>rule-deny</code> (default) or <code>presentation-required</code> (profile <code>participant-unpresented</code>)</td>
+<td>connector and guard</td>
+</tr>
+<tr>
+<td>Tampered measurement</td>
+<td>P2</td>
+<td>operator</td>
+<td>gateway: <code>gateway-b</code> (default) or <code>gateway-a</code>; measurement: a digest that differs from the published one (the UI offers one generated value)</td>
+<td>attested channel</td>
+</tr>
+<tr>
+<td>Configuration change</td>
+<td>P2</td>
+<td>operator</td>
+<td>see <a href="#configuration-boundary">Configuration boundary</a></td>
+<td>governed pipeline</td>
+</tr>
+<tr>
+<td>Credential issuance</td>
+<td>P3, provisional</td>
+<td>operator</td>
+<td>profile: <code>participant-unpresented</code></td>
+<td>OCM W-Stack; the scenario is still to be aligned with the client</td>
+</tr>
+<tr>
+<td>Deployment lifecycle</td>
+<td>—</td>
+<td>operator</td>
+<td>IF-08 command</td>
+<td>available</td>
+</tr>
+</tbody>
+</table>
+<p>An observer may open any journey and watch a run started by an operator; every start, reset or input
+control is disabled for the observer and returns <code>denied</code> if called.</p>
+<h3 id="successful-call">Successful call<a class="headerlink" href="#successful-call" title="Permanent link">&para;</a></h3>
+<table>
+<thead>
+<tr>
+<th>#</th>
+<th>Step</th>
+<th>Source</th>
+<th>Kind</th>
+<th>State</th>
+<th>Reason</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>1</td>
+<td>Backend registers</td>
+<td><code>connector-b</code></td>
+<td><code>token_event</code></td>
+<td><code>registered</code></td>
+<td></td>
+</tr>
+<tr>
+<td>2</td>
+<td>Credential presented and verified</td>
+<td><code>verification</code></td>
+<td><code>credential_event</code></td>
+<td><code>verified</code></td>
+<td></td>
+</tr>
+<tr>
+<td>3</td>
+<td>Token issued and key-bound</td>
+<td><code>connector-b</code></td>
+<td><code>token_event</code></td>
+<td><code>issued</code></td>
+<td></td>
+</tr>
+<tr>
+<td>4</td>
+<td>Attested channel up</td>
+<td><code>gateway-a</code></td>
+<td><code>channel_state</code></td>
+<td><code>connecting</code> → <code>handshake</code> → <code>attested</code></td>
+<td></td>
+</tr>
+<tr>
+<td>5</td>
+<td>Guard decides</td>
+<td><code>guard-b</code></td>
+<td><code>decision</code></td>
+<td><code>allowed</code></td>
+<td></td>
+</tr>
+<tr>
+<td>6</td>
+<td>Resource responds</td>
+<td><code>guard-b</code></td>
+<td><code>step</code></td>
+<td><code>responded</code></td>
+<td></td>
+</tr>
+</tbody>
+</table>
+<p>Ends in: the resource payload, every step green.</p>
+<h3 id="revoked-credential">Revoked credential<a class="headerlink" href="#revoked-credential" title="Permanent link">&para;</a></h3>
+<p>The operator revokes the profile's credential (its status-list bit is set), then starts the run.</p>
+<table>
+<thead>
+<tr>
+<th>#</th>
+<th>Step</th>
+<th>Source</th>
+<th>Kind</th>
+<th>State</th>
+<th>Reason</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>1</td>
+<td>Presentation checked against the status list</td>
+<td><code>verification</code></td>
+<td><code>credential_event</code></td>
+<td><code>revoked</code></td>
+<td><code>CRED-REVOKED</code></td>
+</tr>
+<tr>
+<td>2</td>
+<td>Grant refused</td>
+<td><code>connector-b</code></td>
+<td><code>token_event</code></td>
+<td><code>refused</code></td>
+<td><code>CRED-OUTCOME-NOT-VERIFIED</code></td>
+</tr>
+<tr>
+<td>3</td>
+<td>Token store fails closed</td>
+<td><code>token-store-a</code></td>
+<td><code>token_event</code></td>
+<td><code>refused</code></td>
+<td><code>TOK-NO-UPSTREAM</code></td>
+</tr>
+</tbody>
+</table>
+<p>Ends in: a refusal showing <code>CRED-REVOKED</code> as the cause. No channel is opened and no decision is
+asked of the guard.</p>
+<h3 id="wrong-scope">Wrong scope<a class="headerlink" href="#wrong-scope" title="Permanent link">&para;</a></h3>
+<table>
+<thead>
+<tr>
+<th>#</th>
+<th>Step</th>
+<th>Source</th>
+<th>Kind</th>
+<th>State</th>
+<th>Reason</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>1</td>
+<td>Credential verified</td>
+<td><code>verification</code></td>
+<td><code>credential_event</code></td>
+<td><code>verified</code></td>
+<td></td>
+</tr>
+<tr>
+<td>2</td>
+<td>Token issued</td>
+<td><code>connector-b</code></td>
+<td><code>token_event</code></td>
+<td><code>issued</code></td>
+<td></td>
+</tr>
+<tr>
+<td>3</td>
+<td>Attested channel up</td>
+<td><code>gateway-a</code></td>
+<td><code>channel_state</code></td>
+<td><code>attested</code></td>
+<td></td>
+</tr>
+<tr>
+<td>4</td>
+<td>Guard denies</td>
+<td><code>guard-b</code></td>
+<td><code>decision</code></td>
+<td><code>denied</code></td>
+<td><code>POL-RULE-DENY</code>, <code>rule_id</code> <code>data.facis.guard.deny_no_entitlement</code></td>
+</tr>
+</tbody>
+</table>
+<p>Ends in: a denial naming the rule and the reason code. In the <code>presentation-required</code> variant, step 4
+is <code>denied</code> with <code>POL-PRESENTATION-REQUIRED</code> and the denial carries the OID4VP link to present a
+credential; steps 1–3 do not occur.</p>
+<h3 id="tampered-measurement">Tampered measurement<a class="headerlink" href="#tampered-measurement" title="Permanent link">&para;</a></h3>
+<p>The operator replaces the expected measurement of the chosen gateway through the scenario hook. This
+is a scenario input, reset after the run; the governed change of a measurement is the configuration
+change journey.</p>
+<table>
+<thead>
+<tr>
+<th>#</th>
+<th>Step</th>
+<th>Source</th>
+<th>Kind</th>
+<th>State</th>
+<th>Reason</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>1</td>
+<td>Handshake starts</td>
+<td><code>gateway-a</code></td>
+<td><code>channel_state</code></td>
+<td><code>connecting</code> → <code>handshake</code></td>
+<td></td>
+</tr>
+<tr>
+<td>2</td>
+<td>Report compared and refused</td>
+<td><code>gateway-a</code></td>
+<td><code>channel_state</code></td>
+<td><code>refused</code></td>
+<td><code>CHAN-MEASUREMENT-MISMATCH</code></td>
+</tr>
+</tbody>
+</table>
+<p>Ends in: the handshake aborted. The proof that no application traffic passed is the absence of any
+<code>guard-b</code> decision event for the run's <code>correlation_id</code>.</p>
+<h3 id="configuration-change">Configuration change<a class="headerlink" href="#configuration-change" title="Permanent link">&para;</a></h3>
+<p>The operator chooses a change from the <a href="#configuration-boundary">Configuration boundary</a>. It moves
+through the IF-06 phases; the UI shows each record as it changes.</p>
+<table>
+<thead>
+<tr>
+<th>#</th>
+<th>Step</th>
+<th>Record</th>
+<th>Phase</th>
+<th>Reason</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>1</td>
+<td>Previewed</td>
+<td>IF-06 change</td>
+<td><code>preview</code></td>
+<td></td>
+</tr>
+<tr>
+<td>2</td>
+<td>Validated (JSON Schema, and SHACL for domain data)</td>
+<td>IF-06 change</td>
+<td><code>validated</code> or <code>rejected</code></td>
+<td><code>CFG-SCHEMA-INVALID</code>, <code>CFG-SHAPE-INVALID</code></td>
+</tr>
+<tr>
+<td>3</td>
+<td>Applied as a pull request</td>
+<td>IF-06 change</td>
+<td><code>applied</code>, with <code>pr_url</code></td>
+<td></td>
+</tr>
+<tr>
+<td>4</td>
+<td>Next run of the affected journey</td>
+<td>IF-01 events</td>
+<td>as that journey</td>
+<td></td>
+</tr>
+</tbody>
+</table>
+<p>Ends in: the affected journey's outcome changed, traceable to the pull request. <code>requested_by</code> is the
+operator's <code>preferred_username</code>. A change requested without the operator role is <code>rejected</code> with
+<code>CFG-NOT-AUTHORISED</code>.</p>
+<h3 id="credential-issuance-provisional">Credential issuance (provisional)<a class="headerlink" href="#credential-issuance-provisional" title="Permanent link">&para;</a></h3>
+<table>
+<thead>
+<tr>
+<th>#</th>
+<th>Step</th>
+<th>Source</th>
+<th>Kind</th>
+<th>State</th>
+<th>Reason</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>1</td>
+<td>First call refused</td>
+<td><code>guard-b</code></td>
+<td><code>decision</code></td>
+<td><code>denied</code></td>
+<td><code>POL-PRESENTATION-REQUIRED</code></td>
+</tr>
+<tr>
+<td>2</td>
+<td>Credential issued to the wallet</td>
+<td>open: IF-01 has no issuer source yet</td>
+<td></td>
+<td></td>
+<td></td>
+</tr>
+<tr>
+<td>3</td>
+<td>Next call</td>
+<td>as Successful call</td>
+<td></td>
+<td></td>
+<td></td>
+</tr>
+</tbody>
+</table>
+<p>Ends in: the previously refused call permitted. The issuer's events need an IF-01 source, which is a
+contract change; the journey's details follow its alignment with the client.</p>
+<h2 id="configuration-boundary">Configuration boundary<a class="headerlink" href="#configuration-boundary" title="Permanent link">&para;</a></h2>
+<p>What the UI may offer as an IF-06 change in this phase. Every change needs the operator role, is
+validated before it is applied, and is applied only as a pull request; the UI never applies anything
+to a cluster directly.</p>
+<table>
+<thead>
+<tr>
+<th>Kind</th>
+<th>Offered</th>
+<th>Target</th>
+<th>Payload</th>
+<th>Validation</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>trust-zone</code></td>
+<td>yes</td>
+<td><code>zone-a</code> or <code>zone-b</code></td>
+<td><code>{"zone": "&lt;target&gt;"}</code></td>
+<td>target is a known zone</td>
+</tr>
+<tr>
+<td><code>policy-ref</code></td>
+<td>yes</td>
+<td><code>guard-a</code> or <code>guard-b</code></td>
+<td><code>{"bundle": "&lt;name&gt;", "revision": "&lt;revision&gt;"}</code></td>
+<td>bundle and revision exist in the registry</td>
+</tr>
+<tr>
+<td><code>measurement</code></td>
+<td>yes</td>
+<td><code>zone-a-gateway</code> or <code>zone-b-gateway</code></td>
+<td><code>{"digest": "sha256:&lt;64 hex&gt;"}</code></td>
+<td>digest present and well-formed</td>
+</tr>
+<tr>
+<td><code>mock-replacement</code></td>
+<td>yes</td>
+<td><code>participant-backend</code> or <code>protected-resource</code></td>
+<td><code>{"adapter": "mock"}</code> or <code>{"adapter": "real"}</code></td>
+<td><code>real</code> only once the client has chosen the API</td>
+</tr>
+<tr>
+<td><code>protected-resource</code></td>
+<td>no — read-only in this phase</td>
+<td></td>
+<td></td>
+<td></td>
+</tr>
+<tr>
+<td><code>participant-backend</code></td>
+<td>no — read-only in this phase</td>
+<td></td>
+<td></td>
+<td></td>
+</tr>
+<tr>
+<td><code>dns-record</code></td>
+<td>no — read-only in this phase</td>
+<td></td>
+<td></td>
+<td></td>
+</tr>
+</tbody>
+</table>
+<p>The payload shapes above are fixed here for the UI and the pipeline; they become part of the IF-06
+contract when per-kind payload schemas are added to it.</p>
+              
+            </div>
+          </div><footer>
+    <div class="rst-footer-buttons" role="navigation" aria-label="Footer Navigation">
+        <a href="../flows/" class="btn btn-neutral float-left" title="Orchestrated flows"><span class="icon icon-circle-arrow-left"></span> Previous</a>
+        <a href="../keycloak/" class="btn btn-neutral float-right" title="Keycloak integration">Next <span class="icon icon-circle-arrow-right"></span></a>
+    </div>
+
+  <hr/>
+
+  <div role="contentinfo">
+    <!-- Copyright etc -->
+      <p>Apache-2.0</p>
+  </div>
+
+  Built with <a href="https://www.mkdocs.org/">MkDocs</a> using a <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a> provided by <a href="https://readthedocs.org">Read the Docs</a>.
+</footer>
+          
+        </div>
+      </div>
+
+    </section>
+
+  </div>
+
+  <div class="rst-versions" role="note" aria-label="Versions">
+  <span class="rst-current-version" data-toggle="rst-current-version">
+    
+        <span>
+          <a href="https://github.com/eclipse-xfsc/facis-zero-trust-demonstrator" class="fa fa-github" style="color: #fcfcfc"> GitHub</a>
+        </span>
+    
+    
+      <span><a href="../flows/" style="color: #fcfcfc">&laquo; Previous</a></span>
+    
+    
+      <span><a href="../keycloak/" style="color: #fcfcfc">Next &raquo;</a></span>
+    
+  </span>
+</div>
+    <script src="../js/jquery-3.6.0.min.js"></script>
+    <script>var base_url = "..";</script>
+    <script src="../js/theme_extra.js"></script>
+    <script src="../js/theme.js"></script>
+      <script src="../search/main.js"></script>
+    <script>
+        jQuery(function () {
+            SphinxRtdTheme.Navigation.enable(true);
+        });
+    </script>
+
+</body>
+</html>
