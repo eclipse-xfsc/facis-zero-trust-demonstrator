@@ -50,6 +50,7 @@ nav:
       - 0004 OpenBao as X.509 key-value store: adr/0004-openbao-as-x509-key-value-store.md
       - 0005 Three-cluster target environment: adr/0005-three-cluster-reading-of-the-target-environment.md
       - 0011 Mock TEE evidence: adr/0011-mock-tee-evidence-format-and-provisioning.md
+      - 0016 OAuth2 library: adr/0016-oauth2-library-behind-the-connector-provider-contract.md
 
 markdown_extensions:
   - admonition

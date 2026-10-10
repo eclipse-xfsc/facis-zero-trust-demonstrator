@@ -20,6 +20,7 @@ import (
 type storeAdapter struct {
 	stores   oauth2provider.Stores
 	strategy oauth2.ClientRegistrationStrategy
+	config   *oauth2.Config
 }
 
 var (
@@ -153,23 +154,26 @@ func (s *storeAdapter) getToken(ctx context.Context, store oauth2provider.TokenS
 	}, nil
 }
 
-// CheckAndSetDPoPProofUsed derives the replay key and delegates the atomic
-// check to the replay store.
+// CheckAndSetDPoPProofUsed hands the proof's identity to the replay store,
+// which performs the atomic check.
 //
-// The key is the proof's jti in the context of the URI and method it was
-// made for (RFC 9449 sections 4.2 and 11.1), widened by the proof key's
-// thumbprint and the nonce. A replayed proof is presented verbatim, so every
-// one of these fields is unchanged and widening cannot let a replay through.
-// The thumbprint keeps one client's jti values from colliding with
-// another's; the nonce lets a client answer a nonce challenge by re-signing
-// with the same jti.
+// The library passes the instant the proof stops being acceptable, which it
+// computes as iat + proof lifespan + clock skew, and not the iat itself. The
+// iat is recovered here from the same two settings, so a store that applies
+// a window of its own has the claim to work from. A conformance test pins
+// the derivation.
 func (s *storeAdapter) CheckAndSetDPoPProofUsed(ctx context.Context, jti, jkt, nonce, htm, htu string, exp time.Time) (bool, error) {
-	key, err := json.Marshal([]string{jkt, jti, htm, htu, nonce})
-	if err != nil {
-		return false, err
-	}
+	window := s.config.GetDPoPProofLifespan(ctx) + s.config.GetDPoPClockSkew(ctx)
 
-	used, err := s.stores.DPoPReplay.MarkUsed(ctx, string(key), exp)
+	used, err := s.stores.DPoPReplay.MarkUsed(ctx, oauth2provider.DPoPProofUse{
+		Thumbprint: jkt,
+		Method:     htm,
+		URI:        htu,
+		ID:         jti,
+		Nonce:      nonce,
+		IssuedAt:   exp.Add(-window),
+		NotAfter:   exp,
+	})
 	if err == nil && used {
 		noteReplay(ctx)
 	}

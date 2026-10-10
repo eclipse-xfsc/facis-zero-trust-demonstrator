@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: FACIS ZTD token store, internal API
-  version: 1.0.0
+  version: 1.1.0
   description: >-
     Internal to the zone. Every call requires mutual TLS with a client certificate whose URI SAN is
     on the store's allow-list (the shape of an X.509 SVID). The store holds the upstream tokens
@@ -99,9 +99,14 @@ paths:
       operationId: replayCheck
       description: >-
         Atomic: of concurrent calls with the same key exactly one is fresh. The key is (jkt, htm,
-        htu, jti). A proof is accepted when now - 60 s <= iat <= now + 30 s, and its jti is kept until
-        iat + 90 s. After a store crash the table is empty, so a proof can be replayed at most once
-        inside its own acceptance interval.
+        htu, jti). A caller that has validated the proof's freshness itself sends not_after, the
+        instant the proof stops being acceptable under the caller's own window; the store then keeps
+        the jti until not_after and does not judge iat, so the caller's configuration is the single
+        source of the window. not_after may be at most 90 s after iat; a later value is refused, so
+        no caller can make the store keep a record longer than its default does. Without not_after the store applies its default: a proof is accepted
+        when now - 60 s <= iat <= now + 30 s, and its jti is kept until iat + 90 s. After a store
+        crash the table is empty, so a proof can be replayed at most once inside its own acceptance
+        interval.
       requestBody:
         required: true
         content:
@@ -127,6 +132,14 @@ paths:
                   maxLength: 256
                 iat:
                   type: integer
+                  description: The proof's iat claim, in seconds since the epoch.
+                not_after:
+                  type: integer
+                  description: >-
+                    Seconds since the epoch. The instant the proof stops being acceptable to the
+                    caller, which has already checked iat against its own window. When present the
+                    record is kept until then and the default window is not applied. At most
+                    iat + 90.
       responses:
         '200':
           description: Fresh - recorded now.
@@ -146,7 +159,9 @@ paths:
               schema:
                 $ref: '#/components/schemas/refusal'
         '422':
-          description: TOK-PROOF-INVALID - iat outside the acceptance window.
+          description: >-
+            TOK-PROOF-INVALID - without not_after, iat outside the default window; with it,
+            not_after already in the past or more than 90 s after iat.
           content:
             application/json:
               schema:
