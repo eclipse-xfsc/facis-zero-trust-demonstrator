@@ -1,0 +1,32 @@
+# Name of the Deployment and Service; other services reach it as <name>.<namespace>.svc.
+name: ""
+image:
+  repository: ""
+  # sha256:<64 hex>; the service is deployed by digest only.
+  digest: ""
+# Container and Service port.
+port: 8080
+# Path of the HTTP readiness and liveness probes.
+healthPath: /health
+# Environment of the process, as name: value. No secret values here.
+env: {}
+resources:
+  requests:
+    cpu: 100m
+    memory: 128Mi
+  limits:
+    cpu: 250m
+    memory: 128Mi
+networkPolicy:
+  # NetworkPolicyPeers allowed to reach the port. Empty denies all inbound traffic.
+  ingressFrom: []
+  # NetworkPolicyEgressRules besides DNS, which is always allowed. Empty denies all other egress.
+  egress: []
+ingress:
+  enabled: false
+  className: nginx
+  host: ""
+  # kubernetes.io/tls Secret for the host; empty serves the controller's default certificate.
+  tlsSecret: ""
+  # Secret with an htpasswd `auth` key; the route then requires HTTP basic authentication.
+  basicAuthSecret: ""

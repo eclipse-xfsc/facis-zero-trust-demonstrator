@@ -1,0 +1,15 @@
+# Renders the chart in CI with a placeholder digest; never deployed.
+name: sample
+image:
+  repository: ghcr.io/eclipse-xfsc/facis-zero-trust-demonstrator/sample
+  digest: sha256:0000000000000000000000000000000000000000000000000000000000000000
+port: 8080
+env:
+  SAMPLE_ADDRESS: ":8080"
+networkPolicy:
+  ingressFrom:
+    - podSelector: {}
+ingress:
+  enabled: true
+  host: sample.example.org
+  basicAuthSecret: sample-basic-auth

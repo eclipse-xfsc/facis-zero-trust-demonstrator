@@ -24,6 +24,8 @@ nav:
       - IONOS Cloud: environments/ionos.md
       - Application workloads: environments/application-workloads.md
   - Packaging and containers: packaging.md
+  - Application services: application-services.md
+  - Application service verification: application-services-verification.md
   - Orchestrated flows: flows.md
   - Scenario decisions: scenarios.md
   - Keycloak integration: keycloak.md
