@@ -1,0 +1,52 @@
+# Values for upstream's TSPA chart (deployment/helm/tspa-service in train-trust-framework-manager) on
+# the local kind cluster. Only what differs from upstream's defaults for a local round trip.
+image:
+  repository: tspa-service      # built from upstream's Dockerfile and loaded into kind by kind-up.sh
+  tag: local
+  pullPolicy: IfNotPresent
+
+ingress:
+  enabled: false                # reached through kubectl port-forward
+
+# /actuator/health answers 503 while the Zone Manager is unreachable (docs/tspa-publish-api.md §8), and
+# upstream uses it for liveness too, so locally the pod would be restarted forever. The API docs path
+# answers once the application is up.
+probes:
+  path: /tspa-service/api/docs
+
+# hostPath volumes in upstream's defaults; local runs keep nothing between pods.
+volumes:
+  - {name: vc-volume, mountPath: /tmp/train-tspa/store/VC, spec: {emptyDir: {}}}
+  - {name: well-known-volume, mountPath: /tmp/train-tspa/well-known, spec: {emptyDir: {}}}
+  - {name: scheme-volume, mountPath: /tmp/train-tspa/store/schemes, spec: {emptyDir: {}}}
+  - {name: did-volume, mountPath: /tmp/train-tspa/store/DID_URI, spec: {emptyDir: {}}}
+  - {name: trustlist-volume, mountPath: /tmp/train-tspa/store/trust-lists, spec: {emptyDir: {}}}
+
+application:
+  properties:
+    spring:
+      cloud:
+        kubernetes:
+          config: {enabled: false}    # configuration comes from the chart's SPRING_APPLICATION_JSON only
+          reload: {enabled: false}
+      security:
+        oauth2:
+          resourceserver:
+            jwt:
+              # The local Keycloak (keycloak.yaml), by the name pods in the namespace use; the token is
+              # requested under the same name, so its iss matches.
+              issuer-uri: http://keycloak:8080/realms/gxfs-dev-test
+    zonemanager:
+      query:
+        status: false
+    trustlist:
+      vc:
+        signer:
+          type: INTERNAL                # sign with the classpath key instead of an external TSA signer
+    well-known:
+      signer:
+        type: INTERNAL                # the chart sets TSA, which fails startup without a TSA; the image's
+        key: owner                    # own default (and the earlier run's) is INTERNAL with key owner
+    storage:
+      type:
+        trustlist: INTERNAL             # upstream's chart sets IPFS; the image's own default is INTERNAL

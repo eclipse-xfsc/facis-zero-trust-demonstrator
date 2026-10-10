@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Round-trip against a local TSPA. Every step appends to evidence.md.
+# Round-trip against the local TSPA that kind-up.sh deploys. Every step appends to evidence.md.
 set -u
 cd "$(dirname "$0")"
 BASE=http://localhost:16003/tspa-service
@@ -9,20 +9,40 @@ OUT=evidence.md
 # Where things live. Defaults match this folder; TSPA_REPO must point at a clone of
 # eclipse-xfsc/train-trust-framework-manager (the Keycloak realm export with the test client secret is read from it).
 PAYLOADS=${PAYLOADS:-payloads}
-TSPA_REPO=${TSPA_REPO:-../tspa}
+TSPA_REPO=${TSPA_REPO:?set TSPA_REPO to a clone of train-trust-framework-manager outside this repository}
+# The kind cluster from kind-up.sh: TSPA is reached through a port-forward, and tokens are requested from a
+# pod inside the namespace, under the Keycloak name TSPA validates (http://keycloak:8080), so iss matches.
+kc=(kubectl --kubeconfig "${TSPA_KUBECONFIG:-../../.dev/tspa/kubeconfig}" -n tspa)
 mkdir -p bodies
+# Never write to whatever else might be listening on the port.
+if curl -s --max-time 3 -o /dev/null "$BASE/api/docs"; then echo "port 16003 is already in use; stop that first" >&2; exit 1; fi
+"${kc[@]}" port-forward svc/tspa-service 16003:16003 >/dev/null 2>bodies/port-forward.log &
+forward=$!
+trap 'kill $forward 2>/dev/null; wait $forward 2>/dev/null' EXIT
+for _ in $(seq 30); do
+  kill -0 $forward 2>/dev/null || { echo "port-forward exited: $(cat bodies/port-forward.log)" >&2; exit 1; }
+  curl -s --max-time 3 -o /dev/null "$BASE/api/docs" && break
+  sleep 1
+done
+curl -s --max-time 3 -o /dev/null "$BASE/api/docs" || { echo "TSPA not reachable through the port-forward" >&2; exit 1; }
+token() {  # token <curl -d arguments...>: an access token from the in-cluster Keycloak
+  "${kc[@]}" run "token-$RANDOM" --rm -i --restart=Never --quiet --image curlimages/curl:8.10.1 --command -- \
+    curl -s --max-time 30 "$@" http://keycloak:8080/realms/gxfs-dev-test/protocol/openid-connect/token \
+    | python3 -c 'import sys,json;print(json.load(sys.stdin).get("access_token",""))'
+}
 : > "$OUT"
-echo "# TSPA local round-trip evidence ($(date -Is))" >> "$OUT"
+echo "# TSPA local round-trip evidence ($(date -u +%Y-%m-%dT%H:%M:%SZ))" >> "$OUT"
 TOKEN=""
 
 # call <label> <method> <url-path> [json-file|-] [auth|noauth] [expect]
 call() {
   local label=$1 method=$2 path=$3 data=${4:--} auth=${5:-noauth} expect=${6:-}
   local url="$BASE$path" file="bodies/$(printf '%s' "$label" | tr -c 'A-Za-z0-9' '_').txt"
-  local args=(-s -o "$file" -w '%{http_code}' -X "$method" "$url")
+  local args=(-s --max-time 300 -o "$file" -w '%{http_code}' -X "$method" "$url")
   [ "$data" != "-" ] && args+=(-H 'Content-Type: application/json' --data-binary @"$PAYLOADS/$data")
   [ "$auth" = "auth" ] && args+=(-H "Authorization: Bearer $TOKEN")
-  local code; code=$(curl "${args[@]}")
+  # Any curl failure (no connection, cut-off body, timeout) ends the run: a partial body must not pass a check.
+  local code; code=$(curl "${args[@]}") || { echo "transport failure (curl exit $?) on: $label" >&2; exit 1; }
   {
     echo; echo "### $label"; echo
     echo "- Request: \`$method $url\`  (auth: $auth${data:+, body: $data})"
@@ -35,11 +55,9 @@ call() {
 echo "## 0. Health" >> "$OUT"
 call "health" GET /actuator/health
 
-echo; echo "## 1. Token (client_credentials on the compose Keycloak, requested from inside the docker network so iss matches)" >> "$OUT"
+echo; echo "## 1. Token (client_credentials on the local Keycloak, requested from inside the cluster so iss matches)" >> "$OUT"
 SECRET=$(python3 -c "import json;print([c for c in json.load(open('$TSPA_REPO/keycloak/realm-export.json'))['clients'] if c['clientId']=='xfsctest'][0]['secret'])")
-TOKEN=$(docker run --rm --network train-network curlimages/curl:8.10.1 -s \
-  -d client_id=xfsctest -d "client_secret=$SECRET" -d grant_type=client_credentials \
-  http://keycloak:8080/realms/gxfs-dev-test/protocol/openid-connect/token | python3 -c 'import sys,json;print(json.load(sys.stdin).get("access_token",""))')
+TOKEN=$(token -d client_id=xfsctest -d "client_secret=$SECRET" -d grant_type=client_credentials)
 if [ -z "$TOKEN" ]; then echo "no token obtained" | tee -a "$OUT"; exit 1; fi
 python3 - "$TOKEN" >> "$OUT" <<'PY'
 import sys,json,base64
@@ -87,11 +105,13 @@ except Exception as e: print("\n(VC body is not JSON:",e,")")
 PY
 
 echo; echo "## 6b. Auth matrix on the write endpoint (list must stay unchanged)" >> "$OUT"
-before=$(curl -s "$BASE/tspa/v1/$FW/trust-list" | grep -c "$UUID")
+list=$(curl -s --max-time 60 "$BASE/tspa/v1/$FW/trust-list") || { echo "transport failure reading the trust list" >&2; exit 1; }
+before=$(grep -c "$UUID" <<<"$list")
 SAVE=$TOKEN; TOKEN="not.a.jwt"
 call "6b-1 PUT tsp with a malformed bearer token (Authorization: Bearer not.a.jwt)" PUT "/tspa/v1/$FW/trust-list/tsp" tsp-v1.json auth 401
 TOKEN=$SAVE
-T2=$(docker run --rm --network train-network curlimages/curl:8.10.1 -s -d client_id=xfsctest -d "client_secret=$SECRET" -d grant_type=password -d username=testuser -d password=testuser http://keycloak:8080/realms/gxfs-dev-test/protocol/openid-connect/token | python3 -c 'import sys,json;print(json.load(sys.stdin).get("access_token",""))')
+T2=$(token -d client_id=xfsctest -d "client_secret=$SECRET" -d grant_type=password -d username=testuser -d password=testuser)
+if [ -z "$T2" ]; then echo "no testuser token obtained" | tee -a "$OUT"; exit 1; fi
 SAVE=$TOKEN; TOKEN=$T2
 call "6b-2 PUT tsp with a VALID token whose realm roles lack enrolltf (testuser: enrolltf only as client role)" PUT "/tspa/v1/$FW/trust-list/tsp" tsp-v1.json auth 403
 TOKEN=$SAVE
@@ -100,7 +120,8 @@ import sys,json,base64
 p=sys.argv[1].split('.')[1]; p+='='*(-len(p)%4); c=json.loads(base64.urlsafe_b64decode(p))
 print("- testuser token claims: `realm_access.roles` = %s ; `resource_access.xfsctest.roles` = %s" % (c.get('realm_access',{}).get('roles'), (c.get('resource_access',{}).get('xfsctest') or {}).get('roles')))
 PY
-after=$(curl -s "$BASE/tspa/v1/$FW/trust-list" | grep -c "$UUID")
+list=$(curl -s --max-time 60 "$BASE/tspa/v1/$FW/trust-list") || { echo "transport failure reading the trust list" >&2; exit 1; }
+after=$(grep -c "$UUID" <<<"$list")
 echo "- Check: TSP entries with our UUID before/after the three rejected writes: **$before / $after**" >> "$OUT"
 
 echo; echo "## 7. Delete path (auth + cleanup)" >> "$OUT"
