@@ -79,6 +79,8 @@
     </li>
     <li class="toctree-l2"><a class="reference internal" href="#the-osc-shared-namespace-as-found">The OSC shared namespace as found</a>
     </li>
+    <li class="toctree-l2"><a class="reference internal" href="#local-two-zone-setup">Local two-zone setup</a>
+    </li>
     <li class="toctree-l2"><a class="reference internal" href="#routes-tls-and-dns">Routes, TLS and DNS</a>
     </li>
     <li class="toctree-l2"><a class="reference internal" href="#secrets">Secrets</a>
@@ -298,6 +300,43 @@ cannot install it, and an application release must not need to.</p>
 created with the namespace's service account, rolled out, answered <code>200</code> over HTTP and HTTPS from
 outside the cluster through the ingress, and was deleted. A container requesting less than the
 LimitRange minimum is refused at pod creation, not at apply.</p>
+<h2 id="local-two-zone-setup">Local two-zone setup<a class="headerlink" href="#local-two-zone-setup" title="Permanent link">&para;</a></h2>
+<p>For cross-zone integration until the OSC zone clusters exist. <strong>Integration only:</strong> nothing run on
+it is acceptance evidence.</p>
+<pre><code class="language-bash">scripts/dev/zones-up.sh     # about 10 minutes; safe to re-run
+scripts/dev/zones-down.sh   # removes both zones and the files below
+</code></pre>
+<p>It builds two kind clusters, <code>ztd-zone-a</code> and <code>ztd-zone-b</code>, each with
+<code>scripts/dev/kind-cilium-up.sh</code> (Cilium with <code>cni.exclusive=false</code>,
+Kubernetes 1.35), on kind's Docker network. A workload in one zone reaches the other zone at the
+peer's worker-node address and a <code>NodePort</code>. The script ends by checking exactly that: a pod in
+zone A opens a TCP connection to a service in zone B, and the run fails if it cannot. Your default
+kubeconfig is not touched; each zone has its own.</p>
+<p>It writes to <code>.dev/zones/</code> (not in Git):</p>
+<table>
+<thead>
+<tr>
+<th>File</th>
+<th>Holds</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>kubeconfig-zone-a</code>, <code>kubeconfig-zone-b</code></td>
+<td>Cluster-admin on the local zone</td>
+</tr>
+<tr>
+<td><code>zone-a.yaml</code>, <code>zone-b.yaml</code></td>
+<td>The zone values file for the umbrella chart: <code>kubernetesVersion</code> read from the cluster, the rest the fixed defaults of a kind zone</td>
+</tr>
+<tr>
+<td><code>zone-a.peer.env</code>, <code>zone-b.peer.env</code></td>
+<td><code>PEER_ZONE</code> and <code>PEER_ADDRESS</code>: where the other zone is reached</td>
+</tr>
+</tbody>
+</table>
+<p>Needs <code>kind</code>, <code>kubectl</code>, <code>helm</code>, <code>cilium</code>, <code>python3</code> and Docker. The four nodes used 3.5 GB of memory
+in a run with 8 GB given to Docker.</p>
 <h2 id="routes-tls-and-dns">Routes, TLS and DNS<a class="headerlink" href="#routes-tls-and-dns" title="Permanent link">&para;</a></h2>
 <p>Services are reached through the shared ingress controller. Two things are not in place yet:</p>
 <ul>
