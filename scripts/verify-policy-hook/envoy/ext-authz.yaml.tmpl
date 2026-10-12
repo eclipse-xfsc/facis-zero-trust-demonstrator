@@ -1,0 +1,94 @@
+# Envoy bootstrap of the guard policy-hook verification, rendered by cmd/policy-hook-probe, which
+# fills the addresses and the timeout per run. The filter block between the two markers is the only
+# part that differs between baseline.yaml.tmpl (no hook), ext-authz.yaml.tmpl and ext-proc.yaml.tmpl;
+# everything outside it — listener, routes, the local reply for a hook failure, clusters — is shared.
+admin:
+  address:
+    socket_address: { address: {{.BindAddress}}, port_value: {{.AdminPort}} }
+
+static_resources:
+  listeners:
+    - name: guard
+      address:
+        socket_address: { address: {{.BindAddress}}, port_value: {{.ListenPort}} }
+      filter_chains:
+        - filters:
+            - name: envoy.filters.network.http_connection_manager
+              typed_config:
+                "@type": type.googleapis.com/envoy.extensions.filters.network.http_connection_manager.v3.HttpConnectionManager
+                stat_prefix: guard
+                codec_type: AUTO
+                generate_request_id: true
+                route_config:
+                  name: protected
+                  virtual_hosts:
+                    - name: protected
+                      domains: ["*"]
+                      routes:
+                        - match: { prefix: "/" }
+                          route: { cluster: upstream, timeout: 5s }
+                # When the hook itself cannot answer — unreachable, reset, or past its timeout —
+                # the filter refuses the request (failure_mode_allow is false). Envoy answers that
+                # refusal itself, so the reason code is set here, not by the hook.
+                local_reply_config:
+                  mappers:
+                    - filter:
+                        extension_filter:
+                          name: envoy.access_loggers.extension_filters.cel
+                          typed_config:
+                            "@type": type.googleapis.com/envoy.extensions.access_loggers.filters.cel.v3.ExpressionFilter
+                            expression: 'response.code_details.startsWith("ext_authz_error") || response.code_details.startsWith("ext_proc_error")'
+                      status_code: 503
+                      headers_to_add:
+                        - header: { key: x-facis-reason-code, value: POL-PDP-UNAVAILABLE }
+                          append_action: OVERWRITE_IF_EXISTS_OR_ADD
+                      body_format_override:
+                        json_format:
+                          error: policy_unavailable
+                          reason_code: POL-PDP-UNAVAILABLE
+                        content_type: application/json
+                http_filters:
+                  # policy-hook-filter: begin
+                  - name: envoy.filters.http.ext_authz
+                    typed_config:
+                      "@type": type.googleapis.com/envoy.extensions.filters.http.ext_authz.v3.ExtAuthz
+                      transport_api_version: V3
+                      failure_mode_allow: false
+                      status_on_error: { code: ServiceUnavailable }
+                      include_peer_certificate: false
+                      grpc_service:
+                        envoy_grpc: { cluster_name: policy-hook }
+                        timeout: {{.Timeout}}
+                  # policy-hook-filter: end
+                  - name: envoy.filters.http.router
+                    typed_config:
+                      "@type": type.googleapis.com/envoy.extensions.filters.http.router.v3.Router
+
+  clusters:
+    - name: upstream
+      type: STRICT_DNS
+      dns_lookup_family: V4_ONLY
+      connect_timeout: 1s
+      load_assignment:
+        cluster_name: upstream
+        endpoints:
+          - lb_endpoints:
+              - endpoint:
+                  address:
+                    socket_address: { address: {{.UpstreamHost}}, port_value: {{.UpstreamPort}} }
+    - name: policy-hook
+      type: STRICT_DNS
+      dns_lookup_family: V4_ONLY
+      connect_timeout: 1s
+      typed_extension_protocol_options:
+        envoy.extensions.upstreams.http.v3.HttpProtocolOptions:
+          "@type": type.googleapis.com/envoy.extensions.upstreams.http.v3.HttpProtocolOptions
+          explicit_http_config:
+            http2_protocol_options: {}
+      load_assignment:
+        cluster_name: policy-hook
+        endpoints:
+          - lb_endpoints:
+              - endpoint:
+                  address:
+                    socket_address: { address: {{.HookHost}}, port_value: {{.HookPort}} }
