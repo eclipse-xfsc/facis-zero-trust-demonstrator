@@ -127,6 +127,43 @@ jobs:
             bundles/bdd/evidence/regression/train-zone-manager/
             bundles/bdd/go-image-report.json
 
+  # The TRAIN DNS zone manager chart (deployment/helm/train-zone-manager) on a throwaway kind cluster
+  # laid out like a zone: Cilium, the umbrella with its default deny and API lane, a registry for the
+  # image by digest. Install, reinstall on kept volumes, restore from backup, re-sign, ports and
+  # planes, the chart gate - each with its negative half. The scenarios are the @chart regression
+  # feature; the cases run in scripts/train-zone-manager/chart_test.sh.
+  zone-manager-chart:
+    name: TRAIN zone manager chart (kind)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+
+      - name: Set up Go
+        uses: actions/setup-go@40f1582b2485089dde7abd97c1529aa768e1baff # v5.6.0
+        with:
+          go-version-file: go.mod
+
+      - name: Install the pinned kind and kubectl, and dig
+        run: |
+          scripts/tools/install.sh .tools/bin kind kubectl
+          echo "$PWD/.tools/bin" >> "$GITHUB_PATH"
+          sudo apt-get -qq update && sudo apt-get -qq install -y --no-install-recommends dnsutils >/dev/null
+
+      - name: Run the chart scenarios
+        env:
+          ZTD_CHART_TEST: "1"
+        run: GODOG_CUCUMBER_OUT=bundles/bdd/go-chart-report.json go test -timeout 40m ./internal/bdd -godog.tags=@chart
+
+      - name: Publish the evidence
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: zone-manager-chart-evidence
+          path: |
+            bundles/bdd/evidence/regression/train-zone-manager/
+            bundles/bdd/go-chart-report.json
+
   # The signing profile end to end: the release signing script signs and attests throwaway images
   # with the pinned cosign and an ephemeral key, in a registry:2 on the runner, and the admission
   # provider verifies them. No secret and no external push.

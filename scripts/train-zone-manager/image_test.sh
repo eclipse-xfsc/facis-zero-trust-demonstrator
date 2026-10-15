@@ -197,12 +197,11 @@ if [ -n "$serial_before" ] && [ "$serial_after" -gt "$serial_before" ]; then
   pass "4c the SOA serial increased: $serial_before -> $serial_after"
 else fail "4c the SOA serial did not increase ($serial_before -> $serial_after)"; fi
 # Negative: a resign pointed at a database that does not exist must fail, not quietly do nothing.
-if docker exec "$name" dns-zone-manager-server --database sqlite:////var/lib/zonemgr/missing.db resign >"$work/missing.log" 2>&1; then
+if docker exec "$name" dns-zone-manager-server --database sqlite:////tmp/missing.db resign >"$work/missing.log" 2>&1; then
   fail "4d a resign against a missing database exited 0"
 else
-  pass "4d a resign against a missing database fails (exit $(docker exec "$name" sh -c 'dns-zone-manager-server --database sqlite:////var/lib/zonemgr/missing.db resign >/dev/null 2>&1; echo $?'))"
+  pass "4d a resign against a missing database fails (exit $(docker exec "$name" sh -c 'dns-zone-manager-server --database sqlite:////tmp/missing.db resign >/dev/null 2>&1; echo $?'))"
 fi
-docker exec "$name" rm -f /var/lib/zonemgr/missing.db
 
 # ---------------------------------------------------------------- 5 gates
 platform=$(docker image inspect --format '{{.Os}}/{{.Architecture}}' "$IMAGE")

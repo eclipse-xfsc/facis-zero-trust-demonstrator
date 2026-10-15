@@ -1,0 +1,39 @@
+{{- /*
+Both claims outlive the release (helm.sh/resource-policy: keep): the keys live on the state volume,
+and a reinstall must find them, or every reinstall is a new DS at the parent. A zone is removed for
+good by deleting the claims by hand, after the parent's DS record is gone.
+*/ -}}
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: {{ include "tzm.name" . }}-data
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "tzm.labels" . | nindent 4 }}
+  annotations:
+    helm.sh/resource-policy: keep
+spec:
+  accessModes: [ReadWriteOnce]
+  storageClassName: {{ .Values.storage.className | quote }}
+  resources:
+    requests:
+      storage: {{ .Values.storage.size }}
+{{- if .Values.storage.backup.enabled }}
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: {{ include "tzm.name" . }}-backup
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "tzm.labels" . | nindent 4 }}
+  annotations:
+    helm.sh/resource-policy: keep
+spec:
+  accessModes: [ReadWriteOnce]
+  storageClassName: {{ .Values.storage.className | quote }}
+  resources:
+    requests:
+      storage: {{ .Values.storage.backup.size }}
+{{- end }}

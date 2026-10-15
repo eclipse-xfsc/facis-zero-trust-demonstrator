@@ -1,0 +1,88 @@
+# The zone manager image (deployment/docker/train-zone-manager), by digest only - the chart refuses a tag.
+image:
+  repository: ghcr.io/eclipse-xfsc/facis-zero-trust-demonstrator/train-zone-manager
+  digest: ""
+
+# The trust framework's zone. `name` is the delegated zone; `address` the public address the zone's
+# own records carry (the apex A record and the glue of its name servers), i.e. the address of the DNS
+# Service once it has one. The three server names are labels under the zone, as the upstream expects
+# exactly three; a secondary with an address of its own is listed in `serverAddresses`.
+zone:
+  name: ""
+  address: ""
+  servers:
+    primary: ns1
+    secondary1: ns2
+    secondary2: ns3
+  serverAddresses: {}   # e.g. {ns2: "203.0.113.2"}; a name not listed here uses `address`
+
+# The API's OIDC settings (auth.conf): the issuer of the tokens the trust-framework manager presents
+# and the audience (client id) they must carry. The chart quotes the values itself; the upstream
+# executes this file as Python, so a value is never passed unquoted.
+api:
+  issuerUrl: ""
+  clientId: ""
+  allowUnsafeSsl: false
+  port: 16001
+
+# How the zone reaches the world. DNS: one Service with UDP and TCP 53 on one address, LoadBalancer
+# where the zone has one (zone.loadBalancer.type of the umbrella), NodePort on kind. The API Service
+# is cluster-internal: the trust-framework manager, in the same plane, is its only caller.
+service:
+  dns:
+    type: LoadBalancer
+    nodePort: null
+    loadBalancerIP: ""
+    externalTrafficPolicy: Cluster
+    annotations: {}
+  api:
+    type: ClusterIP
+
+# The state volume (database with the keys, zone file, NSD zone list) and the backup volume. Both
+# claims carry helm.sh/resource-policy=keep: a helm uninstall leaves them, a reinstall binds them
+# again, and the keys survive. Both are ReadWriteOnce; the single pod mounts both.
+storage:
+  className: ""
+  size: 1Gi
+  backup:
+    enabled: true
+    size: 1Gi
+    keep: 14
+
+# The keeper sidecar: at `resignAt` (UTC) every day it re-signs the zone, requires the served
+# signature to move, and takes a backup (deployment/docker/train-zone-manager/zone-keeper.sh).
+keeper:
+  resignAt: "00:05"
+
+# After install and upgrade a hook Job reads the DS of the served key-signing key and writes it into
+# this ConfigMap, so the record the parent operator receives, and the inspector compares against, is
+# never only a log line. Needs the management plane's egress lane to the Kubernetes API.
+dsRecord:
+  enabled: true
+  configMap: train-zone-manager-ds
+
+# The pod stays out of the mesh: it serves DNS to the world, where no client speaks mTLS, and its
+# API is reached inside the plane. Sets the sidecar opt-out annotation and the ambient opt-out label.
+mesh:
+  optOut: true
+
+# Network layer. The umbrella's default deny covers the namespace; this chart opens exactly the DNS
+# ingress: port 53, UDP and TCP, from anywhere (a NetworkPolicy ipBlock), and - with Cilium - also from
+# the node entities, because Cilium does not match cluster nodes by address and a LoadBalancer's
+# traffic arrives source-translated to a node address when it lands on another node. The API port is
+# opened by nothing here: the intra-plane lane admits the trust-framework manager, the default deny
+# refuses the data plane. Egress to the OIDC issuer is needed only when it lives outside the plane.
+networkPolicy:
+  enabled: true
+  cilium: true
+  issuerEgress:
+    cidrs: []
+    port: 443
+
+resources:
+  zoneManager:
+    requests: { cpu: 50m, memory: 128Mi }
+    limits: { memory: 512Mi }
+  keeper:
+    requests: { cpu: 10m, memory: 64Mi }
+    limits: { memory: 256Mi }

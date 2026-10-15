@@ -1,0 +1,138 @@
+{{- /*
+One pod, Recreate: both volumes are ReadWriteOnce and NSD is one authoritative server, so two pods
+never overlap. Three containers in order: `restore` fills an empty state volume from the last
+backup before the zone manager can create new keys; `zone-manager` is the upstream, started by its
+own script.sh; `keeper` re-signs and backs up next to it, in the same network namespace.
+*/ -}}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "tzm.name" . }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "tzm.labels" . | nindent 4 }}
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      {{- include "tzm.selector" . | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "tzm.labels" . | nindent 8 }}
+        {{- if .Values.mesh.optOut }}
+        istio.io/dataplane-mode: none
+        {{- end }}
+      annotations:
+        checksum/config: {{ include (print $.Template.BasePath "/config.yaml") . | sha256sum }}
+        {{- if .Values.mesh.optOut }}
+        sidecar.istio.io/inject: "false"
+        {{- end }}
+    spec:
+      automountServiceAccountToken: false
+      securityContext:
+        seccompProfile:
+          type: RuntimeDefault
+      initContainers:
+        {{- if .Values.storage.backup.enabled }}
+        - name: restore
+          image: {{ include "tzm.image" . | quote }}
+          imagePullPolicy: IfNotPresent
+          command: ["zone-keeper", "restore-if-empty"]
+          env:
+            - name: TF_DOMAIN_NAME
+              value: {{ .Values.zone.name | quote }}
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: [ALL]
+              add: [CHOWN, FOWNER, DAC_OVERRIDE]
+          volumeMounts:
+            - name: data
+              mountPath: /var/lib/zonemgr
+            - name: backup
+              mountPath: /var/lib/zonemgr-backup
+        {{- end }}
+      containers:
+        - name: zone-manager
+          image: {{ include "tzm.image" . | quote }}
+          imagePullPolicy: IfNotPresent
+          envFrom:
+            - configMapRef:
+                name: {{ include "tzm.name" . }}-zone
+          ports:
+            - name: dns-udp
+              containerPort: 53
+              protocol: UDP
+            - name: dns-tcp
+              containerPort: 53
+              protocol: TCP
+            - name: api
+              containerPort: {{ .Values.api.port }}
+              protocol: TCP
+          # Ready only while NSD answers authoritatively for the zone (deployment/docker/train-zone-manager/zone-ready.sh).
+          readinessProbe:
+            exec:
+              command: ["zone-ready"]
+            initialDelaySeconds: 3
+            periodSeconds: 5
+            failureThreshold: 3
+          resources:
+            {{- toYaml .Values.resources.zoneManager | nindent 12 }}
+          # The upstream starts NSD through its init script and drops it to the nsd user itself; the
+          # zone manager process stays root. Running the pod as a non-root user is upstream work.
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: [ALL]
+              add: [NET_BIND_SERVICE, SETUID, SETGID, CHOWN, FOWNER, DAC_OVERRIDE, KILL]
+          volumeMounts:
+            - name: data
+              mountPath: /var/lib/zonemgr
+            - name: auth
+              mountPath: /usr/lib/zonemgr/auth.conf
+              subPath: auth.conf
+              readOnly: true
+        - name: keeper
+          image: {{ include "tzm.image" . | quote }}
+          imagePullPolicy: IfNotPresent
+          command: ["zone-keeper", "daily"]
+          env:
+            - name: TF_DOMAIN_NAME
+              value: {{ .Values.zone.name | quote }}
+            - name: RESIGN_AT
+              value: {{ .Values.keeper.resignAt | quote }}
+            - name: BACKUP_KEEP
+              value: {{ .Values.storage.backup.keep | quote }}
+          resources:
+            {{- toYaml .Values.resources.keeper | nindent 12 }}
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: [ALL]
+              add: [CHOWN, FOWNER, DAC_OVERRIDE]
+          volumeMounts:
+            - name: data
+              mountPath: /var/lib/zonemgr
+            {{- if .Values.storage.backup.enabled }}
+            - name: backup
+              mountPath: /var/lib/zonemgr-backup
+            {{- end }}
+            - name: auth
+              mountPath: /usr/lib/zonemgr/auth.conf
+              subPath: auth.conf
+              readOnly: true
+      volumes:
+        - name: data
+          persistentVolumeClaim:
+            claimName: {{ include "tzm.name" . }}-data
+        {{- if .Values.storage.backup.enabled }}
+        - name: backup
+          persistentVolumeClaim:
+            claimName: {{ include "tzm.name" . }}-backup
+        {{- end }}
+        - name: auth
+          secret:
+            secretName: {{ include "tzm.name" . }}-auth

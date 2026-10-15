@@ -39,6 +39,7 @@ WORKDIR /usr/lib/zonemgr
 COPY --from=source /src/zonedb/ zonedb/
 COPY --from=source /src/pyproject.toml /src/setup.cfg /src/reload-nsd.sh /src/script.sh ./
 COPY deployment/docker/train-zone-manager/zone-ready.sh /usr/local/bin/zone-ready
+COPY deployment/docker/train-zone-manager/zone-keeper.sh /usr/local/bin/zone-keeper
 # ZM_PATH and VAR_PATH are the upstream names: the source tree, and the volume with the database, the
 # zone file and the NSD zone list. PYTHONPATH reaches the Debian-packaged ldns binding.
 ENV ZM_PATH=/usr/lib/zonemgr/ \
@@ -52,7 +53,7 @@ ENV ZM_PATH=/usr/lib/zonemgr/ \
 # their own. The self-check runs after that removal, on what actually ships.
 # auth.conf is the API's OIDC settings; the deployment mounts it, the image ships none. The CLI
 # imports the API module, so even `resign` needs the file present: the self-check uses a throwaway.
-RUN chmod 0755 script.sh reload-nsd.sh /usr/local/bin/zone-ready \
+RUN chmod 0755 script.sh reload-nsd.sh /usr/local/bin/zone-ready /usr/local/bin/zone-keeper \
  && mkdir -p "$VAR_PATH" \
  && pip3 install --no-cache-dir -q -U pip setuptools wheel \
  && pip3 install --no-cache-dir -q -e . \

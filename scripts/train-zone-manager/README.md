@@ -1,17 +1,23 @@
-# TRAIN DNS zone manager: image cases
+# TRAIN DNS zone manager: image and chart cases
 
-`image_test.sh` exercises the image in `deployment/docker/train-zone-manager` in Docker, with no
-cluster: five cases, each with its positive and its negative half, one per defect the upstream image
-ships with (upstream issues #39, #40 and #41). The `@image` regression feature in
-`features/go/train-zone-manager.feature` reads its PASS/FAIL lines; CI runs it in the
-"TRAIN zone manager image" job.
+Two scripts prove the zone manager's image and its chart, each case with its positive and its
+negative half. Their PASS/FAIL lines are read by the `@image` and `@chart` regression features in
+`features/go/`, and CI runs them in the "TRAIN zone manager image" and "TRAIN zone manager chart
+(kind)" jobs.
+
+| Script | What it proves | Where it runs |
+|---|---|---|
+| `image_test.sh` | The image in `deployment/docker/train-zone-manager`: built from the pinned upstream commit with its patches, starts and serves its zone over UDP and TCP, serves it again after a restart with the same keys, renews its signatures on command, refuses to be built unpatched (upstream issues #39, #40, #41) | Docker, no cluster |
+| `chart_test.sh` | The chart in `deployment/helm/train-zone-manager`: installs into a zone laid out by the umbrella and serves the zone from outside the cluster, is pulled from the Service when NSD stops, keeps its keys across `helm uninstall` and reinstall, restores them from the keeper's backup onto a fresh volume, re-signs on command and on schedule, keeps the API inside the management plane, passes the chart gate | A throwaway kind cluster with Cilium, the umbrella and a local registry, created by the script |
 
 ```bash
-scripts/train-zone-manager/image_test.sh                 # builds the image, runs every case
-EVIDENCE=evidence.md scripts/train-zone-manager/image_test.sh
-IMAGE=ztd/train-zone-manager:dev scripts/train-zone-manager/image_test.sh   # an image already built
+scripts/train-zone-manager/image_test.sh                       # builds the image, runs the 16 image checks
+scripts/train-zone-manager/chart_test.sh                       # builds the image, creates the cluster, runs the chart cases
+IMAGE=ztd/train-zone-manager:dev EVIDENCE=out.md scripts/train-zone-manager/chart_test.sh
 ```
 
-Needs docker and dig; the queries use port 15353 on 127.0.0.1 (`PORT=` changes it). `KEEP=1` leaves
-the container and its volume behind for inspection. `evidence-2026-10-15.md` is the record of the
-first passing run on a developer machine.
+Both take `IMAGE=` for an image already built and `EVIDENCE=` for a file to write the lines to;
+`KEEP=1` leaves the container (image cases) or the cluster and registry (chart cases) behind for
+inspection. The image cases need docker and dig; the chart cases also kind, kubectl, helm and curl,
+and pull the kind node image and Cilium's chart. `evidence-image-2026-10-15.md` and
+`evidence-chart-2026-10-15.md` are the records of the first passing runs on a developer machine.
