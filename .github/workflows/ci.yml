@@ -93,6 +93,40 @@ jobs:
               aquasec/trivy:0.74.0 image --exit-code 1 --severity HIGH,CRITICAL "${skips[@]}" "$image"
           done
 
+  # The TRAIN DNS zone manager image (deployment/docker/train-zone-manager): built from the pinned
+  # upstream commit with its patches and driven in Docker through its cases - pin and patches, first
+  # start, restart, resign, platform - each with its negative half. The scenarios are the @image
+  # regression feature; the cases run in scripts/train-zone-manager/image_test.sh, which the Go tests
+  # job skips because it needs docker, dig and a few minutes.
+  zone-manager-image:
+    name: TRAIN zone manager image
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+
+      - name: Set up Go
+        uses: actions/setup-go@40f1582b2485089dde7abd97c1529aa768e1baff # v5.6.0
+        with:
+          go-version-file: go.mod
+
+      - name: Install dig
+        run: sudo apt-get -qq update && sudo apt-get -qq install -y --no-install-recommends dnsutils >/dev/null
+
+      - name: Run the image scenarios
+        env:
+          ZTD_IMAGE_TEST: "1"
+        run: GODOG_CUCUMBER_OUT=bundles/bdd/go-image-report.json go test -timeout 30m ./internal/bdd -godog.tags=@image
+
+      - name: Publish the evidence
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: zone-manager-image-evidence
+          path: |
+            bundles/bdd/evidence/regression/train-zone-manager/
+            bundles/bdd/go-image-report.json
+
   # The signing profile end to end: the release signing script signs and attests throwaway images
   # with the pinned cosign and an ephemeral key, in a registry:2 on the runner, and the admission
   # provider verifies them. No secret and no external push.

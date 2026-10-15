@@ -34,6 +34,7 @@ and nobody hand-rolls their own:
 | `Go lint` | `golangci-lint run ./...`, with a pinned golangci-lint built by the Go version `go.mod` names | yes |
 | `Image build and scan` | Builds each context under `deployment/docker/` for `linux/amd64`, asserts the built image's OS, then scans it with Trivy for HIGH and CRITICAL vulnerabilities | yes |
 | `Chart lint and render` | `scripts/ci/check-charts.sh`: `helm lint` and a `helm template` render of every chart under `deployment/helm/` and `features/fixtures/charts/`, dependencies built from `Chart.lock` | yes |
+| `TRAIN zone manager image` | `scripts/train-zone-manager/image_test.sh`, through the `@image` regression feature: the zone manager image is built from its pinned upstream commit with its patches and driven in Docker through first start, restart and re-sign, each case with its negative half (see `deployment/docker/train-zone-manager/`) | yes |
 
 ZT-13 requires Linux images. The pipeline reads the OS back off the built image with
 `docker image inspect` and fails if it is anything but `linux/amd64`, rather than trusting the

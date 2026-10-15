@@ -1,0 +1,15 @@
+diff --git a/script.sh b/script.sh
+index c70d79f..66465db 100644
+--- a/script.sh
++++ b/script.sh
+@@ -146,6 +146,10 @@ include: /var/lib/zonemgr/nsd.zones.conf
+ EOF
+ mv /tmp/zonemgr.conf /etc/nsd/nsd.conf.d/zonemgr.conf
+ 
++# NSD is already running, so the second 'service nsd start' below is a no-op and the zone list
++# written above would only be read at the next write. Load it now (upstream issue #40).
++nsd-control reconfig && nsd-control reload
++
+ service nsd start
+ echo
+ service nsd status
