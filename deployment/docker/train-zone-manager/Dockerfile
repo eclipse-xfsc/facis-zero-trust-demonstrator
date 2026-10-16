@@ -68,4 +68,6 @@ LABEL org.opencontainers.image.title="train-dns-trust-zone-manager" \
       org.opencontainers.image.revision="${UPSTREAM_COMMIT}" \
       org.opencontainers.image.licenses="Apache-2.0"
 EXPOSE 53/udp 53/tcp 16001/tcp
-CMD ["/bin/bash", "-c", "exec ./script.sh \"$PORT_ENV\""]
+# address.env is written by `zone-keeper address` before the first start when the zone's public
+# address is discovered from the LoadBalancer Service rather than given; absent, nothing changes.
+CMD ["/bin/bash", "-c", "[ -f \"$VAR_PATH/address.env\" ] && . \"$VAR_PATH/address.env\"; exec ./script.sh \"$PORT_ENV\""]

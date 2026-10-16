@@ -4,12 +4,17 @@ image:
   digest: ""
 
 # The trust framework's zone. `name` is the delegated zone; `address` the public address the zone's
-# own records carry (the apex A record and the glue of its name servers), i.e. the address of the DNS
-# Service once it has one. The three server names are labels under the zone, as the upstream expects
-# exactly three; a secondary with an address of its own is listed in `serverAddresses`.
+# own records carry (the apex A record and the glue of its name servers). The upstream writes those
+# records at the zone's first start and cannot change them afterwards, so the address has to be right
+# then: give it here when it is known in advance, or leave it empty with a LoadBalancer Service and
+# the pod's first init step waits (up to `addressTimeoutSeconds`) for the address the Service is
+# given and fixes it before the zone manager starts. The three server names are labels under the
+# zone, as the upstream expects exactly three; a secondary with an address of its own is listed in
+# `serverAddresses`.
 zone:
   name: ""
   address: ""
+  addressTimeoutSeconds: 600
   servers:
     primary: ns1
     secondary1: ns2

@@ -21,7 +21,8 @@ plane's egress lane to the Kubernetes API (`networkPolicy.kubeApi` of the umbrel
 
 | Object | Purpose |
 |---|---|
-| `Deployment` `train-zone-manager` | one pod, `Recreate`: the `restore` init container, the `zone-manager` container (NSD and the API, started by the upstream's own `script.sh`), the `keeper` sidecar |
+| `Deployment` `train-zone-manager` | one pod, `Recreate`: the `restore` and `address` init containers, the `zone-manager` container (NSD and the API, started by the upstream's own `script.sh`), the `keeper` sidecar |
+| `ServiceAccount`, `Role`, `RoleBinding` `train-zone-manager` | read access to the DNS Service, for the `address` step only (projected token, mounted in that container alone) |
 | `Service` `train-zone-manager-dns` | UDP and TCP 53 on one address: `LoadBalancer` where the zone has one, `NodePort` on kind |
 | `Service` `train-zone-manager-api` | the API on 16001, cluster-internal |
 | `PersistentVolumeClaim` `train-zone-manager-data` | the state: database with the keys, zone file, NSD zone list; kept across `helm uninstall` |
@@ -36,7 +37,8 @@ plane's egress lane to the Kubernetes API (`networkPolicy.kubeApi` of the umbrel
 |---|---|---|
 | `image.repository`, `image.digest` | the project image, no digest | The image by digest; the chart refuses a tag |
 | `zone.name` | none, required | The delegated zone, e.g. `trust.example` |
-| `zone.address` | none, required | The public address the zone's own records carry (apex A record and glue) |
+| `zone.address` | `""` | The public address the zone's own records carry (apex A record and glue). Required unless the DNS Service is a `LoadBalancer`, where an empty value means: discover it from the Service before the first start |
+| `zone.addressTimeoutSeconds` | `600` | How long the `address` init step waits for the Service's address |
 | `zone.servers.{primary,secondary1,secondary2}` | `ns1`, `ns2`, `ns3` | The three name-server labels under the zone the upstream expects |
 | `zone.serverAddresses` | `{}` | A secondary's own address when it has one; otherwise `zone.address` |
 | `api.issuerUrl`, `api.clientId` | none, required | The OIDC issuer of the trust-framework manager's tokens and the audience they carry |
@@ -52,6 +54,13 @@ plane's egress lane to the Kubernetes API (`networkPolicy.kubeApi` of the umbrel
 | `networkPolicy.issuerEgress.cidrs`, `.port` | `[]`, `443` | Egress to the OIDC issuer when it is outside the plane |
 
 ## How it behaves
+
+**The address, once.** The upstream writes the zone's own A records (the apex and the glue of its
+name servers) into its database at the first start and has no command to change them afterwards. So
+the address has to be right before that start. Given in `zone.address` it is used as it is; left
+empty with a LoadBalancer Service, the `address` init step waits for the address the Service is
+given and fixes it, and the zone manager does not start until it has one. An address that changes
+later means a new zone (delete the volumes) and new keys.
 
 **Keys and the DS.** The zone manager creates the zone's key-signing and zone-signing keys at its
 first start on an empty state volume and keeps them in its database there. Both claims carry
@@ -110,8 +119,8 @@ ns2.<zone>.    IN A   A
 ```
 
 and, once key persistence and the daily re-sign are proven on the deployed instance, the DS from the
-ConfigMap. `zone.address` must carry the same address, so the zone's own apex and glue records agree
-with the parent's.
+ConfigMap. The zone's own apex and glue records carry the same address: the one the `address` step
+discovered, or `zone.address` when it was given.
 
 ### Removing a zone for good
 

@@ -1,8 +1,11 @@
 {{- /*
 One pod, Recreate: both volumes are ReadWriteOnce and NSD is one authoritative server, so two pods
-never overlap. Three containers in order: `restore` fills an empty state volume from the last
-backup before the zone manager can create new keys; `zone-manager` is the upstream, started by its
-own script.sh; `keeper` re-signs and backs up next to it, in the same network namespace.
+never overlap. Four containers in order: `restore` fills an empty state volume from the last backup
+before the zone manager can create new keys; `address` fixes the zone's public address before the
+first start, from the values or from the LoadBalancer Service, since the upstream writes it into the
+zone once and for all; `zone-manager` is the upstream, started by its own script.sh; `keeper`
+re-signs and backs up next to it, in the same network namespace. Only `address` sees the service
+account token, through a projected volume; nothing else in the pod talks to the API.
 */ -}}
 apiVersion: apps/v1
 kind: Deployment
@@ -31,6 +34,7 @@ spec:
         sidecar.istio.io/inject: "false"
         {{- end }}
     spec:
+      serviceAccountName: {{ include "tzm.name" . }}
       automountServiceAccountToken: false
       securityContext:
         seccompProfile:
@@ -55,6 +59,31 @@ spec:
             - name: backup
               mountPath: /var/lib/zonemgr-backup
         {{- end }}
+        - name: address
+          image: {{ include "tzm.image" . | quote }}
+          imagePullPolicy: IfNotPresent
+          command: ["zone-keeper", "address"]
+          envFrom:
+            - configMapRef:
+                name: {{ include "tzm.name" . }}-zone
+          env:
+            - name: ZONE_ADDRESS
+              value: {{ .Values.zone.address | quote }}
+            - name: DNS_SERVICE
+              value: {{ printf "%s-dns" (include "tzm.name" .) | quote }}
+            - name: ADDRESS_TIMEOUT
+              value: {{ .Values.zone.addressTimeoutSeconds | quote }}
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: [ALL]
+              add: [DAC_OVERRIDE]
+          volumeMounts:
+            - name: data
+              mountPath: /var/lib/zonemgr
+            - name: api-access
+              mountPath: /var/run/secrets/kubernetes.io/serviceaccount
+              readOnly: true
       containers:
         - name: zone-manager
           image: {{ include "tzm.image" . | quote }}
@@ -136,3 +165,20 @@ spec:
         - name: auth
           secret:
             secretName: {{ include "tzm.name" . }}-auth
+        - name: api-access
+          projected:
+            defaultMode: 0444
+            sources:
+              - serviceAccountToken:
+                  path: token
+                  expirationSeconds: 3600
+              - configMap:
+                  name: kube-root-ca.crt
+                  items:
+                    - key: ca.crt
+                      path: ca.crt
+              - downwardAPI:
+                  items:
+                    - path: namespace
+                      fieldRef:
+                        fieldPath: metadata.namespace

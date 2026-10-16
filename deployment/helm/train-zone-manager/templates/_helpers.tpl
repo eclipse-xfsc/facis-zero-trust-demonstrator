@@ -41,8 +41,8 @@ helm.sh/hook-delete-policy: "before-hook-creation,hook-succeeded"
 {{- if not (regexMatch "^([a-z0-9-]+\\.)+[a-z0-9-]+$" (.Values.zone.name | toString)) -}}
 {{- fail (printf "zone.name must be the delegated zone as a dotted name (got %q)" (.Values.zone.name | toString)) -}}
 {{- end -}}
-{{- if not .Values.zone.address -}}
-{{- fail "zone.address must be the public address the zone's records carry" -}}
+{{- if and (not .Values.zone.address) (ne .Values.service.dns.type "LoadBalancer") -}}
+{{- fail "zone.address must be given unless service.dns.type is LoadBalancer, where it is discovered from the Service before the first start" -}}
 {{- end -}}
 {{- if not .Values.api.issuerUrl -}}
 {{- fail "api.issuerUrl must be the OIDC issuer of the trust-framework manager's tokens" -}}

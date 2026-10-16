@@ -10,10 +10,13 @@
 #   zone-keeper restore-if-empty       init step: an empty volume is filled from BACKUP_DIR/latest.tgz
 #   zone-keeper ds [server]            the DS of the served key-signing key (ldns-key2ds, SHA-256)
 #   zone-keeper record-ds              hook step: wait for the zone, write its DS into a ConfigMap
+#   zone-keeper address                init step: fix the zone's public address before the first start
 #
 # Environment: TF_DOMAIN_NAME (the zone), VAR_PATH (/var/lib/zonemgr/), BACKUP_DIR
 # (/var/lib/zonemgr-backup), RESIGN_AT (00:05), BACKUP_KEEP (14), NSD_HOST (127.0.0.1);
-# record-ds: DNS_SERVICE (host to query), DS_CONFIGMAP (name), and the pod's service-account token.
+# record-ds: DNS_SERVICE (host to query), DS_CONFIGMAP (name), and the pod's service-account token;
+# address: ZONE_ADDRESS (given) or DNS_SERVICE (the LoadBalancer Service to read it from), the
+# *_IP variables of the zone configuration, and the service-account token.
 set -eu
 
 zone="${TF_DOMAIN_NAME:?TF_DOMAIN_NAME is not set}"
@@ -135,6 +138,51 @@ print(f"ConfigMap {ns}/{name}: {ds}")
 PY
 }
 
+# The upstream writes the zone's A records - the apex and the glue of its name servers - into its
+# database at the first start, from TF_DOMAIN_IP and the *_SERVER_IP variables, and has no command
+# to change them afterwards. So the address has to be right before that start. This step runs as an
+# init container: once the zone exists it does nothing; otherwise it takes the address from the
+# values, or waits for the one the LoadBalancer Service was given, and writes the variables that are
+# still empty into address.env on the state volume, which the image's entry point sources.
+address() {
+  env_file="${var%/}/address.env"
+  if [ -f "${var%/}/zones.db" ]; then
+    log "address: the zone exists; its records are in the database"
+    return 0
+  fi
+  if [ -n "${ZONE_ADDRESS:-}" ]; then
+    addr="$ZONE_ADDRESS"; source="the values"
+  else
+    svc="${DNS_SERVICE:?neither ZONE_ADDRESS nor DNS_SERVICE is set}"
+    log "address: waiting for the address of Service $svc"
+    addr="$(python3 - "$svc" <<'PY'
+import os, sys, time, requests
+svc = sys.argv[1]
+sa = "/var/run/secrets/kubernetes.io/serviceaccount"
+ns = open(f"{sa}/namespace").read().strip()
+api = f"https://{os.environ['KUBERNETES_SERVICE_HOST']}:{os.environ.get('KUBERNETES_SERVICE_PORT', '443')}"
+headers = {"Authorization": "Bearer " + open(f"{sa}/token").read().strip()}
+deadline = time.time() + int(os.environ.get("ADDRESS_TIMEOUT", "600"))
+while time.time() < deadline:
+    r = requests.get(f"{api}/api/v1/namespaces/{ns}/services/{svc}", headers=headers, verify=f"{sa}/ca.crt", timeout=10)
+    r.raise_for_status()
+    for ingress in (r.json().get("status", {}).get("loadBalancer", {}).get("ingress") or []):
+        if ingress.get("ip"):
+            print(ingress["ip"]); sys.exit(0)
+    time.sleep(5)
+sys.exit(1)
+PY
+)" || { log "address FAILED: Service $svc received no address; the zone manager must not start on a guess"; return 1; }
+    source="Service $svc"
+  fi
+  : > "$env_file"
+  for name in TF_DOMAIN_IP PRIMARY_SERVER_IP SECONDARY_SERVER_1_IP SECONDARY_SERVER_2_IP; do
+    eval "current=\${$name:-}"
+    [ -n "$current" ] || printf 'export %s=%s\n' "$name" "$addr" >> "$env_file"
+  done
+  log "address: $addr from $source; $(grep -c . "$env_file") variable(s) written to $env_file"
+}
+
 daily() {
   ensure_control
   at="${RESIGN_AT:-00:05}"
@@ -157,5 +205,6 @@ case "${1:-}" in
   restore-if-empty) restore_if_empty ;;
   ds) ds_of "${2:-$nsd_host}" ;;
   record-ds) record_ds ;;
-  *) echo "usage: zone-keeper daily|resign-now [db-url]|backup-now|restore-if-empty|ds [server]|record-ds" >&2; exit 2 ;;
+  address) address ;;
+  *) echo "usage: zone-keeper daily|resign-now [db-url]|backup-now|restore-if-empty|ds [server]|record-ds|address" >&2; exit 2 ;;
 esac

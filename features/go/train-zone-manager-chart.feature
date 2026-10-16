@@ -12,7 +12,9 @@ Feature: TRAIN DNS zone manager chart
     Then the release installs and the pod is ready
     And the zone answers from outside the cluster over UDP and TCP
     And the DS is recorded and matches the served key
+    And the zone's own records carry the address the Service was given
     And a server that stops serving the zone is pulled from the Service
+    And without an address the zone manager does not start
 
   Scenario: The keys survive a reinstall
     Given the zone manager chart cases have run

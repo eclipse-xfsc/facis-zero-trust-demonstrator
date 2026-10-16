@@ -5,8 +5,9 @@
 # negative half:
 #
 #   1 install        from an empty namespace the pod is ready, the zone answers from outside the cluster
-#                    over UDP and TCP, the DS is recorded; a server that stops serving the zone is
-#                    pulled from the Service
+#                    over UDP and TCP, the DS is recorded, the zone's own records carry the address
+#                    the LoadBalancer Service was given; a server that stops serving the zone is
+#                    pulled from the Service; without an address the zone manager does not start
 #   2 reinstall      uninstall and install again keep the volumes and the key; with the volumes gone
 #                    the key changes and the recorded DS no longer matches
 #   3 backup         a backup taken by the keeper restores the same key onto a fresh state volume
@@ -103,6 +104,21 @@ scripts/secrets/kind-api-lane.sh > "$work/api-lane.yaml"
 helm upgrade --install ztd "$umbrella" -n ztd-system --create-namespace -f "$umbrella/ci/values.yaml" \
   -f "$work/api-lane.yaml" --set openbao.enabled=false --wait --wait-for-jobs --timeout 5m >/dev/null
 note "umbrella installed: $(kubectl get ns "$mgmt" -o jsonpath='{.metadata.labels.ztd\.facis\.io/plane}') plane $mgmt, $(kubectl get ns "$data" -o jsonpath='{.metadata.labels.ztd\.facis\.io/plane}') plane $data"
+# Cilium's LoadBalancer IPAM stands in for the cloud's load balancer: it assigns an address to the
+# release's DNS Service (selected by its instance label, so a release under another name gets none).
+# The block is a documentation range; nothing routes it, and the queries from outside use the node port.
+kubectl apply -f - >/dev/null <<POOL
+apiVersion: cilium.io/v2
+kind: CiliumLoadBalancerIPPool
+metadata:
+  name: zone-manager-test
+spec:
+  blocks:
+    - cidr: 198.51.100.0/24
+  serviceSelector:
+    matchLabels:
+      app.kubernetes.io/instance: $release
+POOL
 
 step "Image: built, pushed to the registry, referenced by digest"
 if [ -z "$IMAGE" ]; then
@@ -116,9 +132,11 @@ digest=$(curl -fsSI -H "Accept: application/vnd.oci.image.manifest.v1+json, appl
 note "image $reg/ztd/train-zone-manager@$digest"
 worker_ip=$(kubectl get node "$cluster-worker" -o jsonpath='{.status.addresses[?(@.type=="InternalIP")].address}')
 cp_ip=$(kubectl get node "$cluster-control-plane" -o jsonpath='{.status.addresses[?(@.type=="InternalIP")].address}')
+# No zone.address: the chart discovers it from the LoadBalancer Service, as on a real zone. The node
+# port is fixed so the queries from outside the cluster have a known port.
 values=(--set image.repository="$reg/ztd/train-zone-manager" --set image.digest="$digest"
-  --set zone.name="$zone" --set zone.address="$worker_ip" --set storage.className=standard
-  --set service.dns.type=NodePort --set service.dns.nodePort="$node_port"
+  --set zone.name="$zone" --set storage.className=standard
+  --set service.dns.type=LoadBalancer --set service.dns.nodePort="$node_port"
   --set api.issuerUrl=https://issuer.invalid/realms/trust --set api.clientId=trust-framework-manager)
 
 install() { helm upgrade --install "$release" "$chart" -n "$mgmt" "${values[@]}" --wait --wait-for-jobs --timeout 5m; }
@@ -157,6 +175,31 @@ if [ -n "$ds_recorded" ] && [ "$ds_recorded" = "$ds_served" ]; then
 else
   fail "1c DS record: recorded '$ds_recorded', served '$ds_served'"
 fi
+lb_ip=$(kubectl -n "$mgmt" get svc train-zone-manager-dns -o jsonpath='{.status.loadBalancer.ingress[0].ip}')
+apex_a=$(dig @"$worker_ip" -p "$node_port" +norecurse +time=3 +tries=1 +short "$zone" A | head -1)
+glue_a=$(dig @"$worker_ip" -p "$node_port" +norecurse +time=3 +tries=1 +short "ns1.$zone" A | head -1)
+address_log=$(kubectl -n "$mgmt" logs "$(pod)" -c address 2>/dev/null | tail -1)
+if [ -n "$lb_ip" ] && [ "$apex_a" = "$lb_ip" ] && [ "$glue_a" = "$lb_ip" ]; then
+  pass "1e the zone's apex and glue records carry the address the Service was given, $lb_ip ($(printf '%s' "$address_log" | sed 's/.*zone-keeper //'))"
+else
+  fail "1e Service address '$lb_ip', apex A '$apex_a', glue A '$glue_a'; address step said: $address_log"
+fi
+# Negative: a release whose Service gets no address never starts the zone manager, so no key is
+# created on a guessed address. The pool selects the main release only, so this one waits in vain.
+kubectl create namespace tzm-noaddr >/dev/null
+if helm install tzm-noaddr "$chart" -n tzm-noaddr "${values[@]}" --set service.dns.nodePort=null --set zone.addressTimeoutSeconds=45 --wait --timeout 75s >"$work/noaddr.log" 2>&1; then
+  fail "1f a release with no address installed anyway"
+else
+  zm_state=$(kubectl -n tzm-noaddr get pod -l app.kubernetes.io/name=train-zone-manager -o jsonpath='{.items[0].status.containerStatuses[?(@.name=="zone-manager")].state}' 2>/dev/null)
+  addr_log=$(kubectl -n tzm-noaddr logs -l app.kubernetes.io/name=train-zone-manager -c address --tail=3 2>/dev/null | grep -m1 -E "waiting for the address|received no address" || true)
+  if printf '%s' "$zm_state" | grep -q PodInitializing && [ -n "$addr_log" ]; then
+    pass "1f without an address the zone manager never starts: zone-manager stays PodInitializing; address step: $(printf '%s' "$addr_log" | sed 's/.*zone-keeper //')"
+  else
+    fail "1f zone-manager state '$zm_state'; address step log: '$addr_log'"
+  fi
+fi
+helm uninstall tzm-noaddr -n tzm-noaddr --wait --timeout 2m >/dev/null 2>&1 || true
+kubectl delete namespace tzm-noaddr --wait=false >/dev/null 2>&1 || true
 # Negative: a server that stops serving the zone is pulled from the Service. NSD is stopped inside
 # the container (the zone manager process keeps running, so the pod does not restart); the probe
 # must turn the pod NotReady and the Service must lose its endpoint, then NSD is started again.
