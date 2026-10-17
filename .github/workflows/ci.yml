@@ -422,3 +422,40 @@ jobs:
         with:
           name: bdd-traceability
           path: bundles/bdd
+
+  # Reachability of every client cluster from the pipeline: the API server answers and the
+  # identity authenticates. Read-only identity, never on pull requests; a target whose kubeconfig secret
+  # is not set yet is reported as skipped, not as reachable.
+  cluster-reachability:
+    name: Reachability of ${{ matrix.target }}
+    if: github.event_name != 'pull_request'
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - target: ionos
+            key: IONOS
+          - target: zone-a
+            key: ZONE_A
+          - target: zone-b
+            key: ZONE_B
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+
+      - name: Check the cluster answers
+        env:
+          OBSERVER_KUBECONFIG: ${{ secrets[format('BDD_{0}_OBSERVER_KUBECONFIG', matrix.key)] }}
+        run: |
+          if [ -z "$OBSERVER_KUBECONFIG" ]; then
+            echo "::notice::No observer kubeconfig for ${{ matrix.target }} - reachability not checked."
+            exit 0
+          fi
+          scripts/tools/install.sh "$RUNNER_TEMP/bin" kubectl
+          umask 077
+          printf '%s' "$OBSERVER_KUBECONFIG" > "$RUNNER_TEMP/observer.kubeconfig"
+          export KUBECONFIG="$RUNNER_TEMP/observer.kubeconfig"
+          "$RUNNER_TEMP/bin/kubectl" version --request-timeout=20s
+          "$RUNNER_TEMP/bin/kubectl" auth whoami --request-timeout=20s
+          echo "${{ matrix.target }}: reachable from GitHub Actions" >> "$GITHUB_STEP_SUMMARY"
