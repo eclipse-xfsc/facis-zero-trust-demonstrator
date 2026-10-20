@@ -19,6 +19,6 @@ IMAGE=ztd/train-zone-manager:dev EVIDENCE=out.md scripts/train-zone-manager/char
 Both take `IMAGE=` for an image already built and `EVIDENCE=` for a file to write the lines to;
 `KEEP=1` leaves the container (image cases) or the cluster and registry (chart cases) behind for
 inspection. The image cases need docker and dig; the chart cases also kind, kubectl, helm and curl,
-and pull the kind node image and Cilium's chart. `evidence-image-2026-10-16.md` and
+and pull the kind node image, Cilium's chart and the umbrella's dependency (OpenBao's chart). `evidence-image-2026-10-16.md` and
 `evidence-chart-2026-10-16.md` are the records of the first passing runs on a developer machine; the
 `2026-10-20` pair records the runs after NSD's control moved to a local socket (image cases 1c and 2f).

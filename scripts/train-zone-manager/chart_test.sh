@@ -100,6 +100,13 @@ server=$(kubectl version -o json | python3 -c 'import sys,json;print(json.load(s
 note "cluster $cluster: Kubernetes $server, Cilium $CILIUM_VERSION, cni.exclusive=false"
 
 step "Umbrella: the zone layout with its default deny and the API lane"
+# The umbrella's dependency (OpenBao's chart) is not in the tree: build it from Chart.lock, as the
+# chart gate does, so a fresh checkout installs like a developer's. Helm resolves a dependency's
+# repository by URL only once the repository is known to it.
+sed -n 's/^ *repository: *"\{0,1\}\(https:[^"]*\)"\{0,1\}$/\1/p' "$umbrella/Chart.yaml" | sort -u | while read -r url; do
+  helm repo add "dep-$(printf '%s' "$url" | sha256sum | cut -c1-8)" "$url" >/dev/null 2>&1 || true
+done
+helm dependency build "$umbrella" >/dev/null
 scripts/secrets/kind-api-lane.sh > "$work/api-lane.yaml"
 helm upgrade --install ztd "$umbrella" -n ztd-system --create-namespace -f "$umbrella/ci/values.yaml" \
   -f "$work/api-lane.yaml" --set openbao.enabled=false --wait --wait-for-jobs --timeout 5m >/dev/null
