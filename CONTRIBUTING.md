@@ -35,8 +35,9 @@ issue.
 
 ## Releases
 
-Releases are cut from `main` and tagged. Published releases trigger the SBOM and Eclipse Dash
-licence workflows; see [docs/ci-cd.md](docs/ci-cd.md).
+Releases are cut from `main` and tagged `vX.Y.Z`. Publishing the release packages the Helm charts at
+that version and attaches them — only once every CI gate has passed — and triggers the SBOM and
+Eclipse Dash licence workflows; see [docs/ci-cd.md](docs/ci-cd.md).
 
 ## Eclipse Project Handbook
 
