@@ -32,6 +32,7 @@ nav:
   - API documentation: api-docs.md
   - Interface contracts: contracts/index.md
   - TRAIN trust-list publishing: tspa-publish-api.md
+  - TRAIN DNS zone: train-dns.md
   - BDD acceptance:
       - Harness and pack: bdd.md
       - Catalogue: bdd-catalogue.md

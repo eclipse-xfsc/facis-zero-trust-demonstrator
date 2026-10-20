@@ -19,8 +19,8 @@ You need:
   cluster-scoped resources;
 - credentials for the container registry the images are pulled from, and network reachability to it
   from both clusters;
-- the DNS zone delegation for the trust framework in place, or the trust-list steps will not
-  resolve;
+- the DNS zone delegation for the trust framework in place ([TRAIN DNS zone](../train-dns.md)), or
+  the trust-list steps will not resolve;
 - Helm v4.3.0, the version the pipeline pins, and kubectl;
 - this repository checked out, and the values file for the zone you are installing.
 
