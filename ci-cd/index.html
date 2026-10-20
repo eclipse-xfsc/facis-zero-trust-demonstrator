@@ -134,6 +134,8 @@
     </li>
     <li class="toctree-l2"><a class="reference internal" href="#image-signing">Image signing</a>
     </li>
+    <li class="toctree-l2"><a class="reference internal" href="#chart-release">Chart release</a>
+    </li>
     <li class="toctree-l2"><a class="reference internal" href="#lifecycle-scenarios-on-the-client-targets">Lifecycle scenarios on the client targets</a>
     </li>
     <li class="toctree-l2"><a class="reference internal" href="#image-scan-exceptions">Image scan exceptions</a>
@@ -262,8 +264,8 @@ and is declared as such in <a href="../specifications/#readings-and-additions">S
 </tr>
 <tr>
 <td><code>.github/workflows/ci.yml</code></td>
-<td>every pull request, push to <code>main</code>, manual</td>
-<td>Go lint and tests, image build with the Linux assertion and a Trivy scan, chart lint and dry-run render</td>
+<td>every pull request, push to <code>main</code>, published release, manual</td>
+<td>Go lint and tests, image build with the Linux assertion and a Trivy scan, chart lint and dry-run render; on a published release, the chart gate once more and the chart packaging and publication (see <a href="#chart-release">Chart release</a>)</td>
 </tr>
 <tr>
 <td><code>.github/workflows/release.yml</code></td>
@@ -306,8 +308,13 @@ and nobody hand-rolls their own:</p>
 </tr>
 <tr>
 <td><code>Chart lint and render</code></td>
-<td><code>scripts/ci/check-charts.sh</code>: <code>helm lint</code> and a <code>helm template</code> render of every chart under <code>deployment/helm/</code> and <code>features/fixtures/charts/</code>, dependencies built from <code>Chart.lock</code></td>
+<td><code>scripts/ci/check-charts.sh</code>: <code>helm lint</code> and a <code>helm template</code> render of every chart under <code>deployment/helm/</code> and <code>features/fixtures/charts/</code>, dependencies built from <code>Chart.lock</code>; then <code>scripts/ci/check-charts_test.sh</code>, the cases that hold the script to refusing a package when a chart fails</td>
 <td>yes</td>
+</tr>
+<tr>
+<td><code>Release charts</code></td>
+<td>On a published release only, once every other gate job of the workflow has passed: runs the chart gate with its server dry-run on a disposable cluster, packages the charts under <code>deployment/helm/</code> at the release version, attaches them to the release with their checksums and, when a registry is configured, pushes them as OCI chart artefacts — see <a href="#chart-release">Chart release</a></td>
+<td>yes — a release whose gates fail ships no chart</td>
 </tr>
 </tbody>
 </table>
@@ -380,7 +387,10 @@ dry-runs every chart against that API server, and two deliberately broken charts
 <code>features/fixtures/broken-charts/</code> must be refused by the check each targets — one by <code>helm lint</code>,
 one only by the server dry-run (it ships a resource whose API the cluster does not serve). The step
 also checks that the <code>candidate</code> job needs the gate. The <code>candidate</code> job has <code>needs: [chart-gate]</code>;
-any later job that publishes charts or promotes a release must need it too.</p>
+any later job that publishes charts or promotes a release must need it too, or run it again: the
+<code>Release charts</code> job of <code>ci.yml</code> runs on a published release, which no candidate run is tied to, so
+it creates the same disposable cluster and runs the same script with <code>--server-dry-run</code> before it
+packages anything (see <a href="#chart-release">Chart release</a>).</p>
 <p>A server dry-run renders the chart, discovers the API and its schemas and checks existing resources.
 It does not run admission webhooks or hooks, and proves nothing about the release at runtime: that is
 what the lifecycle scenarios and the secrets baseline install for real. Without <code>--server-dry-run</code>,
@@ -412,6 +422,41 @@ the committed public key, so a missing environment, secret or key file stops the
 is pushed. GHCR creates new packages as private; the job verifies them with its own token, but a
 cluster pulls and verifies anonymously, so the candidate packages must be made public in the package
 settings (once per package) before a cluster can admit them.</p>
+<h2 id="chart-release">Chart release<a class="headerlink" href="#chart-release" title="Permanent link">&para;</a></h2>
+<p>The Technical Development Requirements deliver the Helm charts with each release. The candidate
+stage above creates no tag and no release; the charts are delivered when a release is published, by
+the <code>Release charts</code> job of <code>ci.yml</code>, and only after every gate job of that workflow has passed —
+the lifecycle jobs included, which may be skipped while the repository variable is off but not
+failed or cancelled. The job then runs the <a href="#chart-gate">chart gate</a> once more, on a disposable kind
+cluster of its own with the same CRDs: <code>release.yml</code> runs on candidate branches and <code>ci.yml</code> on the
+published release, no candidate run is tied to the tag, and a published chart must not skip the
+server dry-run. Lint, render and the server dry-run are the gate in front of the package, so a chart
+that fails any of them is never released, which is the rule of Annex A row TDR-BDD-11. The
+pull-request job, the release gate and the release job run the same <code>scripts/ci/check-charts.sh</code>,
+which checks every chart first and packages only when all of them pass, so the gate a pull request
+clears is the gate the release is held to. Each package is then checked again as its source was,
+with the chart's own values: the version now differs from <code>Chart.yaml</code>, and a template that reads
+it renders differently. One failing package leaves no package at all.
+<code>scripts/ci/check-charts_test.sh</code> holds the script to that in the chart job, against charts it
+writes itself: a set that passes is packaged at the version with matching checksums, and one failing
+chart leaves no package, at the source or once packaged.</p>
+<p>A release is tagged <code>vX.Y.Z</code>, or <code>vX.Y.Z-prerelease</code>. The charts are packaged at that version — the
+tag drives <code>--version</code> and <code>--app-version</code>, over the development version in each <code>Chart.yaml</code> — so
+the release and every chart in it carry one version, and the documentation of a release describes
+the charts it ships. A tag that is not semantic versioning stops the job before it names a package,
+and so does build metadata (<code>+</code>): the charts put their version into the <code>helm.sh/chart</code> label, and
+<code>+</code> is not allowed in a label value. The packages and a <code>SHA256SUMS</code> file are attached to the
+release as assets.</p>
+<p>Publication to a registry stays off until one exists. When the repository variable <code>CHART_REGISTRY</code>
+names the OCI path for charts (for example <code>harbor.example.org/facis/charts</code>) and the secrets
+<code>CHART_REGISTRY_USER</code> and <code>CHART_REGISTRY_PASSWORD</code> hold a robot account allowed to push there, the
+job also pushes every package with <code>helm push</code> and prints the digest of each into the run summary.
+That digest is what a zone file pins: the lifecycle workflow accepts a chart only as a local path or
+as an <code>oci://</code> reference pinned by digest.</p>
+<p>Locally, <code>scripts/ci/check-charts.sh</code> runs the same check, and
+<code>scripts/ci/check-charts.sh --package dist --version 0.0.0-local</code> the same packaging, for a look at
+what a release would ship; with a cluster in the current kube context, <code>--server-dry-run</code> adds the
+gate's dry-run to both.</p>
 <h2 id="lifecycle-scenarios-on-the-client-targets">Lifecycle scenarios on the client targets<a class="headerlink" href="#lifecycle-scenarios-on-the-client-targets" title="Permanent link">&para;</a></h2>
 <p>The <code>bdd</code> job runs on every pull request: <code>bddpack -check</code>, the strict and catalogue runs of both
 runners and the cluster dry run, then <code>bddreport --require-complete</code> over the five reports, so a
@@ -481,7 +526,9 @@ organisation setting and cannot be declared from this repository's tree. The req
 ruleset above. Every workflow then declares its own top-level <code>permissions:</code> block rather than
 relying on that default, and a job that needs more than read access grants it at the job level with
 a comment naming the reason: <code>docs.yml</code> writes to <code>gh-pages</code>, <code>sbom.yml</code> uploads the SBOM onto a
-release, the release candidate job pushes images and signatures to GHCR (<code>packages: write</code>). Wildcard scopes (<code>write-all</code>) are never used.</p>
+release, the release candidate job pushes images and signatures to GHCR (<code>packages: write</code>), and the
+<code>Release charts</code> job attaches the packaged charts to a release. Wildcard scopes (<code>write-all</code>) are
+never used.</p>
 <h3 id="action-pinning">Action pinning<a class="headerlink" href="#action-pinning" title="Permanent link">&para;</a></h3>
 <p>Third-party actions are referenced by full commit SHA with the version in a trailing comment, so a
 moved tag cannot change what runs in the pipeline:</p>
