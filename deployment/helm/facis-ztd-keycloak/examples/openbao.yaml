@@ -1,0 +1,12 @@
+# Requires installed ESO and an existing OpenBao SecretStore/ClusterSecretStore.
+# Keep the same namespace and existing/adopt mode. Provision KV v2 secrets first.
+externalSecrets:
+  enabled: true
+  storeRef: {name: openbao, kind: ClusterSecretStore}
+  adminPath: keycloak/admin
+  personaPathPrefix: keycloak/personas
+admin:
+  usernameKey: KC_BOOTSTRAP_ADMIN_USERNAME
+personas:
+  credentialsJSON: ""
+  existingSecret: ""

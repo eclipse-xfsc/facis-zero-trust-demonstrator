@@ -1,0 +1,11 @@
+# Keycloak 26.7.4; supply the approved Debian PostgreSQL digest and storage class.
+deployment:
+  mode: new
+keycloak:
+  publicUrl: https://keycloak.example.org
+  image: quay.io/keycloak/keycloak:26.7.4@sha256:82a77884f3af238beab1e7afd63b5f530e1b5c0590bd7aa60b40a40463e29b2c
+postgresql:
+  image: docker.io/library/postgres@sha256:REPLACE_WITH_APPROVED_DIGEST
+  storageClass: YOUR_STORAGE_CLASS
+ui:
+  origin: https://orce.example.org

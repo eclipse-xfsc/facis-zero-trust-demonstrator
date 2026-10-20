@@ -1,0 +1,104 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: {{ include "ztd.fullname" . }}-apply
+  labels:
+    {{- include "ztd.labels" . | nindent 4 }}
+  annotations:
+    helm.sh/hook: post-install,post-upgrade
+    helm.sh/hook-weight: "10"
+    helm.sh/hook-delete-policy: before-hook-creation
+spec:
+  backoffLimit: {{ .Values.configCli.backoffLimit }}
+  activeDeadlineSeconds: {{ .Values.configCli.activeDeadlineSeconds }}
+  template:
+    metadata:
+      labels:
+        {{- include "ztd.labels" . | nindent 8 }}
+    spec:
+      restartPolicy: Never
+      automountServiceAccountToken: false
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+        runAsGroup: 1000
+        fsGroup: 1000
+      containers:
+        - name: apply
+          image: {{ .Values.configCli.image | quote }}
+          imagePullPolicy: IfNotPresent
+          args:
+            - --import.managed.client=no-delete
+            - --import.managed.role=no-delete
+            - --import.managed.client-scope=no-delete
+            - --import.managed.required-action=no-delete
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities: {drop: [ALL]}
+          resources:
+            {{- toYaml .Values.configCli.resources | nindent 12 }}
+          env:
+            - name: KEYCLOAK_URL
+              value: {{ trimSuffix "/" .Values.keycloak.publicUrl | quote }}
+            - name: KEYCLOAK_USER
+              {{- if .Values.admin.usernameKey }}
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "ztd.adminSecret" . }}
+                  key: {{ .Values.admin.usernameKey }}
+              {{- else }}
+              value: {{ .Values.admin.username | quote }}
+              {{- end }}
+            - name: KEYCLOAK_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "ztd.adminSecret" . }}
+                  key: {{ .Values.admin.passwordKey }}
+            - name: KEYCLOAK_AVAILABILITYCHECK_ENABLED
+              value: "true"
+            - name: KEYCLOAK_AVAILABILITYCHECK_TIMEOUT
+              value: {{ .Values.configCli.availabilityTimeout | quote }}
+            - name: KEYCLOAK_SSLVERIFY
+              value: "true"
+            - name: IMPORT_FILES_LOCATIONS
+              value: /config/facis-ztd.json
+            - name: IMPORT_CACHE_ENABLED
+              value: "false"
+            - name: IMPORT_REMOTESTATE_ENABLED
+              value: "true"
+            - name: IMPORT_REMOTESTATE_ENCRYPTIONKEY
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "ztd.fullname" . }}-state
+                  key: encryption-key
+            - name: IMPORT_VARSUBSTITUTION_ENABLED
+              value: "true"
+            - name: IMPORT_VARSUBSTITUTION_NESTED
+              value: "false"
+            - name: IMPORT_USERS_MERGEROLES
+              value: "false"
+            - name: IMPORT_USERS_MERGEGROUPS
+              value: "false"
+            - name: LOGGING_LEVEL_ROOT
+              value: INFO
+            - name: LOGGING_LEVEL_HTTP
+              value: WARN
+            - name: LOGGING_LEVEL_REALMCONFIG
+              value: OFF
+          {{- range $index, $persona := list "demo-operator" "demo-observer" "bdd-operator" "bdd-observer" }}
+            - name: {{ $persona | upper | replace "-" "_" }}_PASSWORD_JSON
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "ztd.personaSecret" $ }}
+                  key: {{ $persona }}-json
+          {{- end }}
+          volumeMounts:
+            - {name: realm, mountPath: /config, readOnly: true}
+            - {name: tmp, mountPath: /tmp}
+      volumes:
+        - name: realm
+          configMap:
+            name: {{ include "ztd.fullname" . }}-realm
+        - name: tmp
+          emptyDir: {}

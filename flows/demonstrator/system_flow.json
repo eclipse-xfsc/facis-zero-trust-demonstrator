@@ -1,0 +1,51 @@
+[
+  {
+    "id": "module-system",
+    "label": "System",
+    "type": "tab"
+  },
+  {
+    "id": "system-entry",
+    "links": [
+      "interface-system"
+    ],
+    "name": "System input",
+    "type": "link in",
+    "wires": [
+      [
+        "system-status"
+      ]
+    ],
+    "x": 120,
+    "y": 100,
+    "z": "module-system"
+  },
+  {
+    "id": "system-response",
+    "links": [
+      "facis-module-responses"
+    ],
+    "mode": "link",
+    "name": "System response",
+    "type": "link out",
+    "wires": [],
+    "x": 620,
+    "y": 100,
+    "z": "module-system"
+  },
+  {
+    "func": "msg.payload = {ok:true, data:{architecture:\"facis.modules/v1\"}}; return msg;",
+    "id": "system-status",
+    "name": "Report module contract",
+    "outputs": 1,
+    "type": "function",
+    "wires": [
+      [
+        "system-response"
+      ]
+    ],
+    "x": 370,
+    "y": 100,
+    "z": "module-system"
+  }
+]
