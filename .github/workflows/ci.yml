@@ -72,8 +72,9 @@ jobs:
               exit 1
             fi
 
-            # A time-boxed, documented exception may exclude named upstream paths from the gate;
-            # an expired exception fails the build. Everything else stays under the gate.
+            # A time-boxed, documented exception may exclude named upstream paths from the gate, or,
+            # for a distribution base, the findings the distribution records no fix for; an expired
+            # exception fails the build. Everything else stays under the gate.
             skips=()
             exception="$(dirname "$dockerfile")/scan-exception.json"
             if [ -f "$exception" ]; then
@@ -82,10 +83,10 @@ jobs:
                 echo "::error::$exception expired on $expires - renew it or remove the upstream findings"
                 exit 1
               fi
-              mapfile -t skips < <(jq -r '(.skipDirs[] | "--skip-dirs", .), (.skipFiles[] | "--skip-files", .)' "$exception")
+              mapfile -t skips < <(jq -r '(.skipDirs[] | "--skip-dirs", .), (.skipFiles[] | "--skip-files", .), (if .ignoreUnfixed then "--ignore-unfixed" else empty end)' "$exception")
               {
                 echo "### Scan exception for $image (expires $expires)"
-                jq -r '.reason, "", .tracking, "", "Excluded: " + ((.skipDirs + .skipFiles) | join(", "))' "$exception"
+                jq -r '.reason, "", .tracking, "", "Excluded: " + ((.skipDirs + .skipFiles + (if .ignoreUnfixed then ["findings the distribution has no fix for"] else [] end)) | join(", "))' "$exception"
               } >> "$GITHUB_STEP_SUMMARY"
             fi
 

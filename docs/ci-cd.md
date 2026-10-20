@@ -194,10 +194,12 @@ repository variable `BDD_<KEY>_ORCE_LOGS_CMD`, plus its entry in the job's matri
 
 Every image is scanned and a HIGH or CRITICAL finding fails the build. When a finding sits in an
 upstream component that this project cannot fix in its own layer, a `scan-exception.json` next to
-the image's Dockerfile may exclude named paths from the gate. It must carry an expiry date, the
-reason and the tracking of the upstream fix; the job prints it into the run summary and fails the
-build once it has expired. The ORCE image carries one for the upstream ORCE runtime, kubectl and the bundled Helm,
-expiring 13 November 2026.
+the image's Dockerfile may exclude named paths from the gate, or, with `ignoreUnfixed`, the
+findings a distribution base records no fix for (Trivy's `--ignore-unfixed`). It must carry an
+expiry date, the reason and the tracking of the upstream fix; the job prints it into the run summary
+and fails the build once it has expired. The ORCE image carries one for the upstream ORCE runtime,
+kubectl and the bundled Helm, expiring 13 November 2026; the TRAIN zone manager image carries one
+for the Debian packages of its base that Debian has no fix for, expiring 18 December 2026.
 
 ## Repository protection and least privilege
 
