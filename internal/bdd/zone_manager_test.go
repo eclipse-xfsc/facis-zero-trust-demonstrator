@@ -115,10 +115,12 @@ func registerZoneManager(ctx *godog.ScenarioContext) {
 	zoneManagerImage.register(ctx, `^the zone manager image cases have run$`, map[string][]string{
 		`^the image records the pinned upstream commit$`:              {"1a"},
 		`^a patch that no longer applies fails the build$`:            {"1b"},
+		`^the image ships no NSD control key pair$`:                   {"1c"},
 		`^the container is ready after its first start$`:              {"2a"},
 		`^the DS is printed once$`:                                    {"2b"},
 		`^the SOA is answered authoritatively over UDP and over TCP$`: {"2c", "2d"},
 		`^the upstream base fails at import ldns$`:                    {"2e"},
+		`^NSD takes control over a local socket only$`:                {"2f"},
 		`^the container is ready again after a restart$`:              {"3a"},
 		`^the zone is served with the same DNSKEY set$`:               {"3b", "3c"},
 		`^the readiness command refuses a server with no zone$`:       {"3d"},

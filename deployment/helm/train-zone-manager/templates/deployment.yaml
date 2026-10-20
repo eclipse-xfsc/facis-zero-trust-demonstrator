@@ -120,6 +120,8 @@ spec:
           volumeMounts:
             - name: data
               mountPath: /var/lib/zonemgr
+            - name: control
+              mountPath: /run/nsd
             - name: auth
               mountPath: /usr/lib/zonemgr/auth.conf
               subPath: auth.conf
@@ -145,6 +147,8 @@ spec:
           volumeMounts:
             - name: data
               mountPath: /var/lib/zonemgr
+            - name: control
+              mountPath: /run/nsd
             {{- if .Values.storage.backup.enabled }}
             - name: backup
               mountPath: /var/lib/zonemgr-backup
@@ -162,6 +166,9 @@ spec:
           persistentVolumeClaim:
             claimName: {{ include "tzm.name" . }}-backup
         {{- end }}
+        # NSD's control socket and pidfile: the keeper's nsd-control reaches NSD through it.
+        - name: control
+          emptyDir: {}
         - name: auth
           secret:
             secretName: {{ include "tzm.name" . }}-auth

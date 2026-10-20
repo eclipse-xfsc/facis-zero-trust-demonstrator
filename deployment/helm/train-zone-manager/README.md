@@ -81,7 +81,9 @@ with both gone, the zone manager creates new keys and says so in the init contai
 `resign` rewrites the zone file and tells NSD to reload through `nsd-control`, whose failure the
 upstream ignores: from another pod the job would report success while the served signatures stayed
 old. The keeper requires the served SOA signature to move and logs a failure otherwise; the
-inspector's `MIN_SIG_DAYS` catches a keeper that stopped.
+inspector's `MIN_SIG_DAYS` catches a keeper that stopped. NSD takes control over a local socket in
+`/run/nsd`, a volume the two containers share: nothing listens on a control port, and the image
+ships no control key pair.
 
 **Readiness.** The pod is ready only while NSD answers authoritatively for the zone (`zone-ready`),
 so a server that serves nothing, which is what the unpatched upstream does after every start, receives

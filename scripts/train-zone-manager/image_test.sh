@@ -86,6 +86,14 @@ else
     fail "1b the build failed, but not at git apply:"; tail -5 "$work/badbuild.log" | sed 's/^/      /'
   fi
 fi
+# The nsd package generates a control key pair as it installs; the image removes it and NSD takes
+# control over a local socket (patch 0004), so no copy of the image carries a shared secret.
+material=$(docker run --rm --entrypoint sh "$IMAGE" -c 'ls /etc/nsd/*.key /etc/nsd/*.pem 2>/dev/null' || true)
+if [ -z "$material" ]; then
+  pass "1c the image ships no NSD control key pair"
+else
+  fail "1c the image ships NSD control material: $(printf '%s' "$material" | tr '\n' ' ')"
+fi
 
 # ---------------------------------------------------------------- 2 first start
 printf 'ISSUER_URL = "https://issuer.invalid"\nCLIENT_ID = "none"\nALLOW_UNSAFE_SSL = "false"\n' > "$work/auth.conf"
@@ -138,6 +146,15 @@ if [ "$(printf '%s' "$tcp" | status_of)" = NOERROR ] && [ "$(printf '%s' "$tcp" 
 else fail "2d no authoritative SOA over TCP: $(printf '%s' "$tcp" | grep -E 'status|flags' | tr '\n' ' ')"; fi
 serial_first=$(printf '%s' "$udp" | awk '$4=="SOA"{print $7}')
 note "SOA serial at first start: $serial_first"
+# NSD is controlled over the local socket only: nothing listens on the upstream's control port 8952
+# (0x22F8), which the upstream opened on every interface with the key pair baked into the image.
+iface=$(docker exec "$name" nsd-checkconf -o control-interface /etc/nsd/nsd.conf 2>/dev/null || true)
+on_8952=$(docker exec "$name" sh -c 'cat /proc/net/tcp /proc/net/tcp6' | awk '$1!="sl" && $4=="0A"{print $2}' | grep -c -i ':22F8$' || true)
+if [ "$iface" = /run/nsd/nsd.ctl ] && [ "$on_8952" = 0 ] && docker exec "$name" nsd-control status >/dev/null 2>&1; then
+  pass "2f NSD takes control over $iface only; nothing listens on 8952"
+else
+  fail "2f control interface '$iface', listeners on 8952: $on_8952, nsd-control status exit $(docker exec "$name" nsd-control status >/dev/null 2>&1; echo $?)"
+fi
 # Negative: the upstream base cannot import the ldns binding (issue #39).
 if docker run --rm --platform linux/amd64 "$upstream_base" bash -c \
   'apt-get update -qq >/dev/null 2>&1 && apt-get install -y -qq --no-install-recommends python3-ldns >/dev/null 2>&1 && PYTHONPATH=/usr/lib/python3/dist-packages python3 -c "import ldns"' >"$work/upstream.log" 2>&1; then

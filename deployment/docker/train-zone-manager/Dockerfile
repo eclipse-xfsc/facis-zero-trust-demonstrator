@@ -31,10 +31,13 @@ FROM ${BASE}
 ARG UPSTREAM_COMMIT
 # NSD is the name server; python3-ldns is the DNSSEC signing binding the zone manager needs and
 # pip cannot provide; ldnsutils brings drill for the readiness probe and ldns-key2ds for the DS.
-# No cron and no systemd: the deployment schedules the re-sign itself.
+# No cron and no systemd: the deployment schedules the re-sign itself. The nsd package generates a
+# control key pair as it installs; it would ship baked into every copy of the image, and NSD takes
+# control over a local socket here (patch 0004), so the pair is removed in the same layer.
 RUN apt-get update -qq \
  && apt-get install -y -qq --no-install-recommends nsd python3-ldns ldnsutils >/dev/null \
- && rm -rf /var/lib/apt/lists/*
+ && rm -rf /var/lib/apt/lists/* \
+ && rm -f /etc/nsd/nsd_control.key /etc/nsd/nsd_control.pem /etc/nsd/nsd_server.key /etc/nsd/nsd_server.pem
 WORKDIR /usr/lib/zonemgr
 COPY --from=source /src/zonedb/ zonedb/
 COPY --from=source /src/pyproject.toml /src/setup.cfg /src/reload-nsd.sh /src/script.sh ./

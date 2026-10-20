@@ -1,6 +1,6 @@
 #!/bin/sh
 # The zone manager's keeper: the operations the upstream image leaves to nobody, run next to NSD in the
-# same pod (same network namespace, same volume), because `resign` rewrites the zone file and tells NSD
+# same pod (same volume, NSD's control socket), because `resign` rewrites the zone file and tells NSD
 # to reload through nsd-control, and the upstream ignores that reload's exit status - a resign from
 # another pod would report success while the served signatures stay old.
 #
@@ -28,18 +28,14 @@ db="sqlite:///${var%/}/zones.db"
 log() { printf '%s zone-keeper %s\n' "$(date -u +%FT%TZ)" "$*"; }
 
 # nsd-control reads its client settings from the server configuration; this container never ran
-# script.sh, so it writes the remote-control section itself, pointing at the NSD of the pod.
+# script.sh, so it writes the remote-control section itself: the local socket NSD listens on (patch
+# 0004), reached through the /run/nsd volume the pod shares between its two containers.
 ensure_control() {
   [ -f /etc/nsd/nsd.conf.d/remote.conf ] && return 0
   cat > /etc/nsd/nsd.conf.d/remote.conf <<CONF
 remote-control:
     control-enable: yes
-    control-interface: $nsd_host
-    control-port: 8952
-    server-key-file: "/etc/nsd/nsd_server.key"
-    server-cert-file: "/etc/nsd/nsd_server.pem"
-    control-key-file: "/etc/nsd/nsd_control.key"
-    control-cert-file: "/etc/nsd/nsd_control.pem"
+    control-interface: /run/nsd/nsd.ctl
 CONF
 }
 
