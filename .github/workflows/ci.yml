@@ -118,6 +118,11 @@ jobs:
           ZTD_IMAGE_TEST: "1"
         run: GODOG_CUCUMBER_OUT=bundles/bdd/go-image-report.json go test -timeout 30m ./internal/bdd -godog.tags=@image
 
+      # The scenarios write the cucumber report, not the console; the case lines say what failed.
+      - name: Show the evidence on failure
+        if: failure()
+        run: cat bundles/bdd/evidence/regression/train-zone-manager/*.md
+
       - name: Publish the evidence
         if: always()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
@@ -154,6 +159,11 @@ jobs:
         env:
           ZTD_CHART_TEST: "1"
         run: GODOG_CUCUMBER_OUT=bundles/bdd/go-chart-report.json go test -timeout 40m ./internal/bdd -godog.tags=@chart
+
+      # The scenarios write the cucumber report, not the console; the case lines say what failed.
+      - name: Show the evidence on failure
+        if: failure()
+        run: cat bundles/bdd/evidence/regression/train-zone-manager/*.md
 
       - name: Publish the evidence
         if: always()
