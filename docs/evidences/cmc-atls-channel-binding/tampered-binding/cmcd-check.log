@@ -1,0 +1,8 @@
+=== RUN   TestCmcdReports
+    cmcd_smoke_test.go:90: cmcd 127.0.0.1:51568: report with 2 metadata items and 1 evidence(s), verified by cmcd 127.0.0.1:51568: success
+    cmcd_smoke_test.go:90: cmcd 127.0.0.1:51568: report with 2 metadata items and 1 evidence(s), verified by cmcd 127.0.0.1:58052: success
+    cmcd_smoke_test.go:90: cmcd 127.0.0.1:58052: report with 2 metadata items and 1 evidence(s), verified by cmcd 127.0.0.1:51568: success
+    cmcd_smoke_test.go:90: cmcd 127.0.0.1:58052: report with 2 metadata items and 1 evidence(s), verified by cmcd 127.0.0.1:58052: success
+--- PASS: TestCmcdReports (0.15s)
+PASS
+ok  	github.com/eclipse-xfsc/facis-zero-trust-demonstrator/internal/atls/atlstest	0.168s

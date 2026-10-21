@@ -15,7 +15,7 @@ compatible addition; anything else is a v2.
 | IF-04 | Observability and evidence | The IF-01 event schema, as a JSON log line; [rules](#if-04-observability-and-evidence) | v1 |
 | IF-05 | Policy decision input and output | [input](contracts/if05-policy-input.v1.schema.json), [decision](contracts/if05-policy-decision.v1.schema.json), [header rules](#header-propagation-guard-to-gateway) | v1 |
 | IF-06 | Governed configuration change | [change](contracts/if06-config-change.v1.schema.json) | v1 |
-| IF-07 | Attested channel control | [States and rules](#if-07-attested-channel-control) | v0, not frozen |
+| IF-07 | Attested channel control — v1: [Go interface of `internal/atls`](attested-channel.md); partner sign-off pending | [States and rules](#if-07-attested-channel-control) | v1, partner sign-off pending |
 | IF-08 | Scenario driver hooks | [lifecycle command](lifecycle.openapi.yaml), [lifecycle result](lifecycle-result.schema.json) | v1 (delivered with the BDD pack) |
 
 Internal to a zone, and not a numbered interface: the token store's API,

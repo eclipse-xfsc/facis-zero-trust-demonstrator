@@ -1,0 +1,21 @@
+time="2026-10-21T09:17:13Z" level=info msg="Running cmc from working directory <work>" service=cmcd
+time="2026-10-21T09:17:13Z" level=info msg="Running cmc v0.9.15" service=cmcd
+time="2026-10-21T09:17:13Z" level=info msg="SW Provisioning REQUIRED" service=swdriver
+time="2026-10-21T09:17:13Z" level=info msg="Performing SW provisioning" service=swdriver
+time="2026-10-21T09:17:13Z" level=info msg="Starting CMC gRPC Server on 127.0.0.1:51560" service=cmcd
+time="2026-10-21T09:17:13Z" level=info msg="Waiting for grpc requests on 127.0.0.1:51560" service=cmcd
+time="2026-10-21T09:17:59Z" level=info msg="Received grpc request type 'Verify'" service=cmcd
+time="2026-10-21T09:17:59Z" level=info msg="SUCCESS: Verification for Prover <host> (2026-10-21T09:17:59.286038941Z)" service=ar
+time="2026-10-21T09:17:59Z" level=info msg="Served grpc request type 'Verify'" service=cmcd
+time="2026-10-21T09:17:59Z" level=info msg="Received grpc request type 'Attest'" service=cmcd
+time="2026-10-21T09:17:59Z" level=info msg="Served grpc request type 'Attest'" service=cmcd
+time="2026-10-21T09:17:59Z" level=info msg="Received grpc request type 'Verify'" service=cmcd
+time="2026-10-21T09:17:59Z" level=info msg="SUCCESS: Verification for Prover <host> (2026-10-21T09:17:59.376767333Z)" service=ar
+time="2026-10-21T09:17:59Z" level=info msg="Served grpc request type 'Verify'" service=cmcd
+time="2026-10-21T09:18:01Z" level=info msg="Received grpc request type 'PeerCache'" service=cmcd
+time="2026-10-21T09:18:01Z" level=info msg="Served grpc request type 'PeerCache'" service=cmcd
+time="2026-10-21T09:18:01Z" level=info msg="Received grpc request type 'Attest'" service=cmcd
+time="2026-10-21T09:18:01Z" level=info msg="Served grpc request type 'Attest'" service=cmcd
+time="2026-10-21T09:18:01Z" level=info msg="Received grpc request type 'Verify'" service=cmcd
+time="2026-10-21T09:18:01Z" level=info msg="SUCCESS: Verification for Prover <host> (2026-10-21T09:18:01.115206767Z)" service=ar
+time="2026-10-21T09:18:01Z" level=info msg="Served grpc request type 'Verify'" service=cmcd

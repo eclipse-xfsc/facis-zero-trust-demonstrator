@@ -1,0 +1,2 @@
+2026-10-21T09:19:39.608Z atls-probe: dialing 127.0.0.1:53162 through cmcd 127.0.0.1:51437, expecting spiffe://a/gateway
+2026-10-21T09:19:39.609Z atls-probe: session 0 refused (ErrPeerUnreachable): atls: peer unreachable: no TCP connection to the peer: failed to establish tls connection: dial tcp 127.0.0.1:53162: connect: connection refused. 1 certificate chain(s) provided: CN=spiffe://b/gateway with DNSNames [localhost], IPAddresses [127.0.0.1]; 

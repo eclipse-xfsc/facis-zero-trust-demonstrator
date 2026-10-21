@@ -1,0 +1,62 @@
+{
+  "schema": "atls-probe-record/v1",
+  "mode": "client",
+  "role": "dialer",
+  "identities": [
+    "spiffe://b/gateway",
+    "localhost"
+  ],
+  "cert_fingerprint": "dd29d3b5091215ac49913e5cf2de7487e2f37e4aa13f07c74ffd11257c7ca62e",
+  "expected_peer_identity": "spiffe://a/gateway",
+  "cmcd_addr": "127.0.0.1:51437",
+  "connect_addr": "127.0.0.1:53162",
+  "hold_ms": 600000,
+  "interval_ms": 1000,
+  "started_at": "2026-10-21T09:19:35.208497103Z",
+  "started_at_unix_ms": 1792574375208,
+  "finished_at": "2026-10-21T09:19:39.21783311Z",
+  "exit_code": 0,
+  "outcome": "established",
+  "local_addr": "127.0.0.1:58390",
+  "peer_addr": "127.0.0.1:53162",
+  "handshake_started_at": "2026-10-21T09:19:35.208878571Z",
+  "handshake_ms": 1743,
+  "established_at": "2026-10-21T09:19:36.95221629Z",
+  "established_at_unix_ms": 1792574376952,
+  "binding": "717325b270afdf936dd4ba7a51ef43bfe7efa714b32034027c0eeb9784321a9d",
+  "binding_bytes": 32,
+  "peer_fingerprint": "4a5d6da81da89565a68aa67d7338cb1f106088f22153c6a865e0eb2c619106bb",
+  "verdict": "success",
+  "attested_at": "2026-10-21T09:19:36.934271411Z",
+  "evidence_not_after": "2026-10-21T10:19:24Z",
+  "valid_until": "2026-10-21T09:34:36.934271411Z",
+  "ended_at": "2026-10-21T09:19:39.217689747Z",
+  "ended_at_unix_ms": 1792574379217,
+  "ended": "peer-closed",
+  "error": {
+    "op": "read",
+    "message": "EOF",
+    "kind": "transport",
+    "transport": "eof",
+    "detected_at": "2026-10-21T09:19:39.217669786Z",
+    "detected_at_unix_ms": 1792574379217,
+    "since_established_ms": 2260,
+    "since_last_peer_heartbeat_ms": 124
+  },
+  "heartbeats": {
+    "sent": 3,
+    "received": 3,
+    "last_received_at": "2026-10-21T09:19:39.092958689Z",
+    "last_received_at_unix_ms": 1792574379092,
+    "max_gap_ms": 1131
+  },
+  "application_bytes_sent": 78,
+  "application_bytes_received": 78,
+  "environment": {
+    "commit": "09ebea1cef549aca72a2c60ad7f6517e997e1267",
+    "dirty": false,
+    "go_version": "go1.27.0",
+    "cmc_version": "v0.9.15",
+    "platform": "linux/amd64"
+  }
+}

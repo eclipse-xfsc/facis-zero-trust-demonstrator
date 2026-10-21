@@ -9,9 +9,8 @@
   (2026-09-22). What "one sample artefact per vendor profile" means was confirmed with the
   project's technical reviewer on 2026-09-18.
 - **Requirement basis:** ZT-71, ZT-31; ZT-35 and SRS § 5.2 (expected launch digests in TRAIN)
-- **Related:** ADR-0010 — session attestation through `cmcd`. That number is allocated and the
-  record is not yet written, so the references to it below name the decision's owner rather than a
-  document that can be read today.
+- **Related:** [ADR-0010](0010-session-attestation-through-cmcd.md) — session attestation through
+  `cmcd`, the owner of the class 2 artefact below.
 - **Supersedes:** the spike's working note of 2026-09-09, which is kept with the delivery team's
   spike material outside this repository and is now only the evidence log
 
@@ -34,7 +33,7 @@ Three artefact classes are in play and are never conflated:
 | Class | What it is | Produced by |
 |---|---|---|
 | 1 — release | Mock-attestation JSON, per image and per TEE vendor profile, attached to the release next to the signature and the SBOM | The signing workflow on the custom runner, post-build |
-| 2 — session | Attestation reports produced live, bound to a TLS session | `cmcd`, on peer connection (ADR-0010, allocated) |
+| 2 — session | Attestation reports produced live, bound to a TLS session | `cmcd`, on peer connection ([ADR-0010](0010-session-attestation-through-cmcd.md)) |
 | 3 — reference measurements | Launch digests as Git-versioned metadata, pipeline-signed, served per zone by a CMC `estserver`, with expected values published into TRAIN's trust content | The pipeline and the provisioning chain |
 
 Classes 1 and 2 run the same driver and verifier code. Only the trigger and the context available at

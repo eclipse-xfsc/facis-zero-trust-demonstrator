@@ -1,0 +1,49 @@
+{
+  "schema": "atls-probe-record/v1",
+  "mode": "relay",
+  "role": "man-in-the-middle",
+  "identities": [
+    "spiffe://b/gateway",
+    "localhost"
+  ],
+  "cert_fingerprint": "877b746e560baf401ee5bf7c1dfc715bfa7a49a52dd8c7eedc12db98a5a1a5c2",
+  "listen_addr": "127.0.0.1:46102",
+  "hold_ms": 0,
+  "interval_ms": 0,
+  "started_at": "2026-10-21T09:18:52.906458988Z",
+  "started_at_unix_ms": 1792574332906,
+  "finished_at": "2026-10-21T09:18:53.023293652Z",
+  "exit_code": 2,
+  "outcome": "not-relayed",
+  "heartbeats": {
+    "sent": 0,
+    "received": 0,
+    "max_gap_ms": 0
+  },
+  "application_bytes_sent": 0,
+  "application_bytes_received": 0,
+  "relay": {
+    "upstream_addr": "127.0.0.1:56670",
+    "downstream": {
+      "local_addr": "127.0.0.1:46102",
+      "peer_addr": "127.0.0.1:35604",
+      "presented_fingerprint": "877b746e560baf401ee5bf7c1dfc715bfa7a49a52dd8c7eedc12db98a5a1a5c2",
+      "presented_identities": [
+        "spiffe://b/gateway",
+        "localhost"
+      ],
+      "error": "remote error: tls: bad certificate"
+    },
+    "upstream": {},
+    "bindings_differ": false,
+    "bytes_dialer_to_listener": 0,
+    "bytes_listener_to_dialer": 0
+  },
+  "environment": {
+    "commit": "09ebea1cef549aca72a2c60ad7f6517e997e1267",
+    "dirty": false,
+    "go_version": "go1.27.0",
+    "cmc_version": "v0.9.15",
+    "platform": "linux/amd64"
+  }
+}

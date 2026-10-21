@@ -1,0 +1,31 @@
+version: "2"
+
+linters:
+  # The standard set (errcheck, govet, ineffassign, staticcheck, unused) that CI ran before this
+  # file existed, plus the import guards below.
+  default: standard
+  enable:
+    - depguard
+  settings:
+    depguard:
+      rules:
+        # The CMC attested-TLS library is wrapped by internal/atls; nothing else may import it,
+        # so its types and version stay behind one interface.
+        cmc-only-in-atls:
+          list-mode: lax
+          files:
+            - "$all"
+            - "!**/internal/atls/**"
+          deny:
+            - pkg: github.com/Fraunhofer-AISEC/cmc
+              desc: only internal/atls may import CMC; use the internal/atls interface
+        # The in-process attester and fixtures are for tests only.
+        atlstest-only-in-tests:
+          list-mode: lax
+          files:
+            - "$all"
+            - "!$test"
+            - "!**/internal/atls/atlstest/**"
+          deny:
+            - pkg: github.com/eclipse-xfsc/facis-zero-trust-demonstrator/internal/atls/atlstest
+              desc: atlstest is test-only; production code attests through a cmcd (Config.CmcdAddr)

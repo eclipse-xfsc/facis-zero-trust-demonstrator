@@ -1,0 +1,22 @@
+time="2026-10-21T09:18:43Z" level=info msg="Running cmc from working directory <work>" service=cmcd
+time="2026-10-21T09:18:43Z" level=info msg="Running cmc v0.9.15" service=cmcd
+time="2026-10-21T09:18:43Z" level=info msg="SW Provisioning REQUIRED" service=swdriver
+time="2026-10-21T09:18:43Z" level=info msg="Performing SW provisioning" service=swdriver
+time="2026-10-21T09:18:43Z" level=info msg="Starting CMC gRPC Server on 127.0.0.1:51568" service=cmcd
+time="2026-10-21T09:18:43Z" level=info msg="Waiting for grpc requests on 127.0.0.1:51568" service=cmcd
+time="2026-10-21T09:18:51Z" level=info msg="Received grpc request type 'Attest'" service=cmcd
+time="2026-10-21T09:18:51Z" level=info msg="Served grpc request type 'Attest'" service=cmcd
+time="2026-10-21T09:18:51Z" level=info msg="Received grpc request type 'Verify'" service=cmcd
+time="2026-10-21T09:18:51Z" level=info msg="SUCCESS: Verification for Prover <host> (2026-10-21T09:18:51.035170308Z)" service=ar
+time="2026-10-21T09:18:51Z" level=info msg="Served grpc request type 'Verify'" service=cmcd
+time="2026-10-21T09:18:51Z" level=info msg="Received grpc request type 'Verify'" service=cmcd
+time="2026-10-21T09:18:51Z" level=info msg="SUCCESS: Verification for Prover <host> (2026-10-21T09:18:51.154158307Z)" service=ar
+time="2026-10-21T09:18:51Z" level=info msg="Served grpc request type 'Verify'" service=cmcd
+time="2026-10-21T09:18:52Z" level=info msg="Received grpc request type 'PeerCache'" service=cmcd
+time="2026-10-21T09:18:52Z" level=info msg="Served grpc request type 'PeerCache'" service=cmcd
+time="2026-10-21T09:18:52Z" level=info msg="Received grpc request type 'Attest'" service=cmcd
+time="2026-10-21T09:18:52Z" level=info msg="Served grpc request type 'Attest'" service=cmcd
+time="2026-10-21T09:18:52Z" level=info msg="Received grpc request type 'Verify'" service=cmcd
+time="2026-10-21T09:18:52Z" level=warning msg="Verification failed with error code 83 (Freshness)" service=ar
+time="2026-10-21T09:18:52Z" level=info msg="FAILED: Verification for Prover <host> (2026-10-21T09:18:52.203297683Z)" service=ar
+time="2026-10-21T09:18:52Z" level=info msg="Served grpc request type 'Verify'" service=cmcd

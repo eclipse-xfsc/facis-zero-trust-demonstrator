@@ -1,0 +1,52 @@
+{
+  "schema": "atls-probe-record/v1",
+  "mode": "client",
+  "role": "dialer",
+  "identities": [
+    "spiffe://b/gateway",
+    "localhost"
+  ],
+  "cert_fingerprint": "dd29d3b5091215ac49913e5cf2de7487e2f37e4aa13f07c74ffd11257c7ca62e",
+  "expected_peer_identity": "spiffe://a/gateway",
+  "cmcd_addr": "127.0.0.1:51437",
+  "connect_addr": "127.0.0.1:36910",
+  "hold_ms": 600000,
+  "interval_ms": 1000,
+  "started_at": "2026-10-21T09:20:20.468800134Z",
+  "started_at_unix_ms": 1792574420468,
+  "finished_at": "2026-10-21T09:20:48.354463229Z",
+  "exit_code": 0,
+  "outcome": "established",
+  "local_addr": "127.0.0.1:51326",
+  "peer_addr": "127.0.0.1:36910",
+  "handshake_started_at": "2026-10-21T09:20:20.469247771Z",
+  "handshake_ms": 350,
+  "established_at": "2026-10-21T09:20:20.819501507Z",
+  "established_at_unix_ms": 1792574420819,
+  "binding": "8d5817fa89068869888b82aa9878d6b73c31d3aa4cf3ea665a28616f257c7170",
+  "binding_bytes": 32,
+  "peer_fingerprint": "4a5d6da81da89565a68aa67d7338cb1f106088f22153c6a865e0eb2c619106bb",
+  "verdict": "success",
+  "attested_at": "2026-10-21T09:20:20.819109003Z",
+  "evidence_not_after": "2026-10-21T10:19:24Z",
+  "valid_until": "2026-10-21T09:35:20.819109003Z",
+  "ended_at": "2026-10-21T09:20:48.354015542Z",
+  "ended_at_unix_ms": 1792574448354,
+  "ended": "signal",
+  "heartbeats": {
+    "sent": 28,
+    "received": 9,
+    "last_received_at": "2026-10-21T09:20:47.837756189Z",
+    "last_received_at_unix_ms": 1792574447837,
+    "max_gap_ms": 20583
+  },
+  "application_bytes_sent": 747,
+  "application_bytes_received": 234,
+  "environment": {
+    "commit": "09ebea1cef549aca72a2c60ad7f6517e997e1267",
+    "dirty": false,
+    "go_version": "go1.27.0",
+    "cmc_version": "v0.9.15",
+    "platform": "linux/amd64"
+  }
+}

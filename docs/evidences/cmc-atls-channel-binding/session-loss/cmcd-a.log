@@ -1,0 +1,112 @@
+time="2026-10-21T09:19:24Z" level=info msg="Running cmc from working directory <work>" service=cmcd
+time="2026-10-21T09:19:24Z" level=info msg="Running cmc v0.9.15" service=cmcd
+time="2026-10-21T09:19:24Z" level=info msg="SW Provisioning REQUIRED" service=swdriver
+time="2026-10-21T09:19:24Z" level=info msg="Performing SW provisioning" service=swdriver
+time="2026-10-21T09:19:24Z" level=info msg="Starting CMC gRPC Server on 127.0.0.1:53234" service=cmcd
+time="2026-10-21T09:19:24Z" level=info msg="Waiting for grpc requests on 127.0.0.1:53234" service=cmcd
+time="2026-10-21T09:19:34Z" level=info msg="Received grpc request type 'Attest'" service=cmcd
+time="2026-10-21T09:19:34Z" level=info msg="Served grpc request type 'Attest'" service=cmcd
+time="2026-10-21T09:19:34Z" level=info msg="Received grpc request type 'Verify'" service=cmcd
+time="2026-10-21T09:19:34Z" level=info msg="SUCCESS: Verification for Prover <host> (2026-10-21T09:19:34.482109531Z)" service=ar
+time="2026-10-21T09:19:34Z" level=info msg="Served grpc request type 'Verify'" service=cmcd
+time="2026-10-21T09:19:34Z" level=info msg="Received grpc request type 'Verify'" service=cmcd
+time="2026-10-21T09:19:34Z" level=info msg="SUCCESS: Verification for Prover <host> (2026-10-21T09:19:34.565859084Z)" service=ar
+time="2026-10-21T09:19:34Z" level=info msg="Served grpc request type 'Verify'" service=cmcd
+time="2026-10-21T09:19:35Z" level=info msg="Received grpc request type 'PeerCache'" service=cmcd
+time="2026-10-21T09:19:35Z" level=info msg="Served grpc request type 'PeerCache'" service=cmcd
+time="2026-10-21T09:19:36Z" level=info msg="Received grpc request type 'Attest'" service=cmcd
+time="2026-10-21T09:19:36Z" level=info msg="Served grpc request type 'Attest'" service=cmcd
+time="2026-10-21T09:19:36Z" level=info msg="Received grpc request type 'Verify'" service=cmcd
+time="2026-10-21T09:19:36Z" level=info msg="SUCCESS: Verification for Prover <host> (2026-10-21T09:19:36.808872504Z)" service=ar
+time="2026-10-21T09:19:36Z" level=info msg="Served grpc request type 'Verify'" service=cmcd
+time="2026-10-21T09:19:40Z" level=info msg="Received grpc request type 'PeerCache'" service=cmcd
+time="2026-10-21T09:19:40Z" level=info msg="Served grpc request type 'PeerCache'" service=cmcd
+time="2026-10-21T09:19:40Z" level=info msg="Received grpc request type 'Attest'" service=cmcd
+time="2026-10-21T09:19:40Z" level=info msg="Served grpc request type 'Attest'" service=cmcd
+time="2026-10-21T09:19:40Z" level=info msg="Received grpc request type 'Verify'" service=cmcd
+time="2026-10-21T09:19:40Z" level=info msg="SUCCESS: Verification for Prover <host> (2026-10-21T09:19:40.225637835Z)" service=ar
+time="2026-10-21T09:19:40Z" level=info msg="Served grpc request type 'Verify'" service=cmcd
+time="2026-10-21T09:19:41Z" level=info msg="Received grpc request type 'PeerCache'" service=cmcd
+time="2026-10-21T09:19:41Z" level=info msg="Served grpc request type 'PeerCache'" service=cmcd
+time="2026-10-21T09:19:41Z" level=info msg="Received grpc request type 'Attest'" service=cmcd
+time="2026-10-21T09:19:41Z" level=info msg="Served grpc request type 'Attest'" service=cmcd
+time="2026-10-21T09:19:41Z" level=info msg="Received grpc request type 'Verify'" service=cmcd
+time="2026-10-21T09:19:41Z" level=info msg="SUCCESS: Verification for Prover <host> (2026-10-21T09:19:41.801419948Z)" service=ar
+time="2026-10-21T09:19:41Z" level=info msg="Served grpc request type 'Verify'" service=cmcd
+time="2026-10-21T09:19:44Z" level=info msg="Received grpc request type 'PeerCache'" service=cmcd
+time="2026-10-21T09:19:44Z" level=info msg="Served grpc request type 'PeerCache'" service=cmcd
+time="2026-10-21T09:19:44Z" level=info msg="Received grpc request type 'Attest'" service=cmcd
+time="2026-10-21T09:19:44Z" level=info msg="Served grpc request type 'Attest'" service=cmcd
+time="2026-10-21T09:19:44Z" level=info msg="Received grpc request type 'Verify'" service=cmcd
+time="2026-10-21T09:19:44Z" level=info msg="SUCCESS: Verification for Prover <host> (2026-10-21T09:19:44.260208611Z)" service=ar
+time="2026-10-21T09:19:44Z" level=info msg="Served grpc request type 'Verify'" service=cmcd
+time="2026-10-21T09:19:45Z" level=info msg="Received grpc request type 'PeerCache'" service=cmcd
+time="2026-10-21T09:19:45Z" level=info msg="Served grpc request type 'PeerCache'" service=cmcd
+time="2026-10-21T09:19:45Z" level=info msg="Received grpc request type 'Attest'" service=cmcd
+time="2026-10-21T09:19:45Z" level=info msg="Served grpc request type 'Attest'" service=cmcd
+time="2026-10-21T09:19:45Z" level=info msg="Received grpc request type 'Verify'" service=cmcd
+time="2026-10-21T09:19:45Z" level=info msg="SUCCESS: Verification for Prover <host> (2026-10-21T09:19:45.352699966Z)" service=ar
+time="2026-10-21T09:19:45Z" level=info msg="Served grpc request type 'Verify'" service=cmcd
+time="2026-10-21T09:19:56Z" level=info msg="Running cmc from working directory <work>" service=cmcd
+time="2026-10-21T09:19:56Z" level=info msg="Running cmc v0.9.15" service=cmcd
+time="2026-10-21T09:19:56Z" level=info msg="SW Provisioning NOT REQUIRED" service=swdriver
+time="2026-10-21T09:19:56Z" level=info msg="Starting CMC gRPC Server on 127.0.0.1:53234" service=cmcd
+time="2026-10-21T09:19:56Z" level=info msg="Waiting for grpc requests on 127.0.0.1:53234" service=cmcd
+time="2026-10-21T09:19:56Z" level=info msg="Received grpc request type 'PeerCache'" service=cmcd
+time="2026-10-21T09:19:56Z" level=info msg="Served grpc request type 'PeerCache'" service=cmcd
+time="2026-10-21T09:19:56Z" level=info msg="Received grpc request type 'Attest'" service=cmcd
+time="2026-10-21T09:19:56Z" level=info msg="Served grpc request type 'Attest'" service=cmcd
+time="2026-10-21T09:19:56Z" level=info msg="Received grpc request type 'Verify'" service=cmcd
+time="2026-10-21T09:19:56Z" level=info msg="SUCCESS: Verification for Prover <host> (2026-10-21T09:19:56.963927467Z)" service=ar
+time="2026-10-21T09:19:56Z" level=info msg="Served grpc request type 'Verify'" service=cmcd
+time="2026-10-21T09:19:58Z" level=info msg="Received grpc request type 'PeerCache'" service=cmcd
+time="2026-10-21T09:19:58Z" level=info msg="Served grpc request type 'PeerCache'" service=cmcd
+time="2026-10-21T09:19:58Z" level=info msg="Received grpc request type 'Attest'" service=cmcd
+time="2026-10-21T09:19:58Z" level=info msg="Served grpc request type 'Attest'" service=cmcd
+time="2026-10-21T09:19:58Z" level=info msg="Received grpc request type 'Verify'" service=cmcd
+time="2026-10-21T09:19:58Z" level=info msg="SUCCESS: Verification for Prover <host> (2026-10-21T09:19:58.094202897Z)" service=ar
+time="2026-10-21T09:19:58Z" level=info msg="Served grpc request type 'Verify'" service=cmcd
+time="2026-10-21T09:20:03Z" level=info msg="Running cmc from working directory <work>" service=cmcd
+time="2026-10-21T09:20:03Z" level=info msg="Running cmc v0.9.15" service=cmcd
+time="2026-10-21T09:20:03Z" level=info msg="SW Provisioning NOT REQUIRED" service=swdriver
+time="2026-10-21T09:20:03Z" level=info msg="Starting CMC gRPC Server on 127.0.0.1:53234" service=cmcd
+time="2026-10-21T09:20:03Z" level=info msg="Waiting for grpc requests on 127.0.0.1:53234" service=cmcd
+time="2026-10-21T09:20:03Z" level=info msg="Received grpc request type 'PeerCache'" service=cmcd
+time="2026-10-21T09:20:03Z" level=info msg="Served grpc request type 'PeerCache'" service=cmcd
+time="2026-10-21T09:20:03Z" level=info msg="Received grpc request type 'Attest'" service=cmcd
+time="2026-10-21T09:20:03Z" level=info msg="Served grpc request type 'Attest'" service=cmcd
+time="2026-10-21T09:20:03Z" level=info msg="Received grpc request type 'Verify'" service=cmcd
+time="2026-10-21T09:20:03Z" level=info msg="SUCCESS: Verification for Prover <host> (2026-10-21T09:20:03.890278132Z)" service=ar
+time="2026-10-21T09:20:03Z" level=info msg="Served grpc request type 'Verify'" service=cmcd
+time="2026-10-21T09:20:09Z" level=info msg="Received grpc request type 'PeerCache'" service=cmcd
+time="2026-10-21T09:20:09Z" level=info msg="Served grpc request type 'PeerCache'" service=cmcd
+time="2026-10-21T09:20:10Z" level=info msg="Received grpc request type 'Attest'" service=cmcd
+time="2026-10-21T09:20:10Z" level=info msg="Served grpc request type 'Attest'" service=cmcd
+time="2026-10-21T09:20:10Z" level=info msg="Received grpc request type 'Verify'" service=cmcd
+time="2026-10-21T09:20:10Z" level=info msg="SUCCESS: Verification for Prover <host> (2026-10-21T09:20:10.600504948Z)" service=ar
+time="2026-10-21T09:20:10Z" level=info msg="Served grpc request type 'Verify'" service=cmcd
+time="2026-10-21T09:20:13Z" level=info msg="Received grpc request type 'PeerCache'" service=cmcd
+time="2026-10-21T09:20:13Z" level=info msg="Served grpc request type 'PeerCache'" service=cmcd
+time="2026-10-21T09:20:15Z" level=info msg="Received grpc request type 'Attest'" service=cmcd
+time="2026-10-21T09:20:15Z" level=info msg="Served grpc request type 'Attest'" service=cmcd
+time="2026-10-21T09:20:16Z" level=info msg="Received grpc request type 'PeerCache'" service=cmcd
+time="2026-10-21T09:20:16Z" level=info msg="Served grpc request type 'PeerCache'" service=cmcd
+time="2026-10-21T09:20:16Z" level=info msg="Received grpc request type 'Attest'" service=cmcd
+time="2026-10-21T09:20:16Z" level=info msg="Served grpc request type 'Attest'" service=cmcd
+time="2026-10-21T09:20:16Z" level=info msg="Received grpc request type 'Verify'" service=cmcd
+time="2026-10-21T09:20:16Z" level=info msg="SUCCESS: Verification for Prover <host> (2026-10-21T09:20:16.172202229Z)" service=ar
+time="2026-10-21T09:20:16Z" level=info msg="Served grpc request type 'Verify'" service=cmcd
+time="2026-10-21T09:20:20Z" level=info msg="Received grpc request type 'PeerCache'" service=cmcd
+time="2026-10-21T09:20:20Z" level=info msg="Served grpc request type 'PeerCache'" service=cmcd
+time="2026-10-21T09:20:20Z" level=info msg="Received grpc request type 'Attest'" service=cmcd
+time="2026-10-21T09:20:20Z" level=info msg="Served grpc request type 'Attest'" service=cmcd
+time="2026-10-21T09:20:20Z" level=info msg="Received grpc request type 'Verify'" service=cmcd
+time="2026-10-21T09:20:20Z" level=info msg="SUCCESS: Verification for Prover <host> (2026-10-21T09:20:20.805959951Z)" service=ar
+time="2026-10-21T09:20:20Z" level=info msg="Served grpc request type 'Verify'" service=cmcd
+time="2026-10-21T09:20:47Z" level=info msg="Received grpc request type 'PeerCache'" service=cmcd
+time="2026-10-21T09:20:47Z" level=info msg="Served grpc request type 'PeerCache'" service=cmcd
+time="2026-10-21T09:20:47Z" level=info msg="Received grpc request type 'Attest'" service=cmcd
+time="2026-10-21T09:20:47Z" level=info msg="Served grpc request type 'Attest'" service=cmcd
+time="2026-10-21T09:20:47Z" level=info msg="Received grpc request type 'Verify'" service=cmcd
+time="2026-10-21T09:20:47Z" level=info msg="SUCCESS: Verification for Prover <host> (2026-10-21T09:20:47.957754005Z)" service=ar
+time="2026-10-21T09:20:47Z" level=info msg="Served grpc request type 'Verify'" service=cmcd

@@ -1,0 +1,4 @@
+2026-10-21T09:19:56.877Z atls-probe: dialing 127.0.0.1:46857 through cmcd 127.0.0.1:51437, expecting spiffe://a/gateway
+time="2026-10-21T09:19:56Z" level=info msg="Client-side aTLS connection complete" service=atls
+2026-10-21T09:19:56.994Z atls-probe: session 0 established with 127.0.0.1:46857: binding 6016f5aad1414385ee26bd276addf1714340a21bd0bc2704ceb7e8e9fecfe455, peer 4a5d6da81da89565a68aa67d7338cb1f106088f22153c6a865e0eb2c619106bb, verdict success, valid until 2026-10-21T09:34:56Z
+2026-10-21T09:19:57.005Z atls-probe: session 0 ended (exchange-complete) after 10ms

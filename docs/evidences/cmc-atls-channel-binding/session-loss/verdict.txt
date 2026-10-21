@@ -1,0 +1,22 @@
+Session loss is recorded per scenario
+
+PASS  findings.json and reconnect-findings.md were written
+PASS  server-killed: ran from an established channel and left findings with a reconnect outcome
+PASS  server-killed: listed in reconnect-findings.md
+PASS  client-killed: ran from an established channel and left findings with a reconnect outcome
+PASS  client-killed: listed in reconnect-findings.md
+PASS  cmcd-killed-channel-open: ran from an established channel and left findings with a reconnect outcome
+PASS  cmcd-killed-channel-open: listed in reconnect-findings.md
+PASS  cmcd-killed-during-handshake: ran from an established channel and left findings with a reconnect outcome
+PASS  cmcd-killed-during-handshake: listed in reconnect-findings.md
+PASS  cmcd-killed-during-handshake-dialer-zone: ran from an established channel and left findings with a reconnect outcome
+PASS  cmcd-killed-during-handshake-dialer-zone: listed in reconnect-findings.md
+PASS  server-frozen: ran from an established channel and left findings with a reconnect outcome
+PASS  server-frozen: listed in reconnect-findings.md
+PASS  cmcd-killed-channel-open: states whether the open channel kept working
+PASS  cmcd-killed-channel-open: the new handshake is refused with ErrAttesterUnavailable by the end without cmcd
+PASS  cmcd-killed-during-handshake: the end whose cmcd died refuses with ErrAttesterUnavailable
+PASS  server-frozen: states how long, if at all, the client took to observe an error
+NOTE  timings are recorded, not judged
+
+verdict: PASS

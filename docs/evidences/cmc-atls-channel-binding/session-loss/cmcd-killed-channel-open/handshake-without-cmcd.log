@@ -1,0 +1,3 @@
+2026-10-21T09:19:56.591Z atls-probe: dialing 127.0.0.1:46857 through cmcd 127.0.0.1:51437, expecting spiffe://a/gateway
+time="2026-10-21T09:19:56Z" level=warning msg="atls handshake failed: verifier: failed to receive atls handshake response from 127.0.0.1:46857: failed to read response: failed to receive message: no length: EOF" service=atls
+2026-10-21T09:19:56.608Z atls-probe: session 0 refused (ErrPeerAborted): atls: peer left before the attestation exchange completed: the peer left without completing the attestation exchange: atls handshake failed: 127.0.0.1:56732: failed to send handshake complete to 127.0.0.1:46857: failed to send: failed to write length to 127.0.0.1:46857: write tcp 127.0.0.1:56732->127.0.0.1:46857: write: broken pipe
