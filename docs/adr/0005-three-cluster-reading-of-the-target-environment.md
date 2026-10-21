@@ -33,6 +33,12 @@ and the XFSC stack deployed.
   than two, which is reflected in the WP02 and WP12 effort. If FACIS confirms a two-cluster reading instead,
   the reduction is handled as a plan change under the written-agreement rule.
 
+## Refinement
+
+[ADR-0012](0012-central-observability-backends.md) refines the observability part of the per-cluster
+installation: the collectors are installed in every participant cluster, the backends (Prometheus,
+Alertmanager, Jaeger) once, on the IONOS cluster.
+
 ## References
 
 - SRS 2.4.1, SRS 2.7

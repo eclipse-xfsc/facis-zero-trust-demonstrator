@@ -11,6 +11,20 @@ zone:
   storageClass: ""       # storage class the zone provides to persistent components
   loadBalancer:
     type: ""             # how the zone exposes services: cloud | metallb | none
+  # The zone's SPIFFE trust domain: a name under the DNS zone delegated to the trust framework, one
+  # per zone, never resolved (kind: kind.facis-ztd.local). Shared by SPIRE
+  # (global.spire.trustDomain) and the mesh (meshConfig.trustDomain), both read from this key by
+  # scripts/install-zone. Required whenever mesh.mode is not none. It is baked into the SPIRE
+  # server's root CA at first start: changing it later means reinstalling SPIRE and reissuing every
+  # identity (docs/workload-identity.md).
+  trustDomain: ""
+  # What the cluster is for (scripts/install-zone/install.sh reads it to choose the releases):
+  #   participant   a participant zone (zone A, zone B, kind): the plane namespaces, the allow matrix,
+  #                 the identity path, the mesh and the zone's telemetry collectors (telemetryExport)
+  #   demonstrator  the demonstrator cluster (IONOS): no planes and no mesh, only the namespace of the
+  #                 central observability backends and its entry (observabilityBackends); the cluster
+  #                 sits outside both trust domains (docs/adr/0012-central-observability-backends.md)
+  role: participant
 
 # --------------------------------------------------------------------------------------------
 # Planes. Management components (SPIRE server, ArgoCD, OpenBao, Harbor, TSPA, estserver, admin
@@ -23,27 +37,47 @@ planes:
     namespace: ztd-mgmt
   data:
     namespace: ztd-data
-  # Further plane namespaces that component tasks add, for example a dedicated SPIRE namespace.
+  # Further plane namespaces: the control planes of the identity path and of the mesh, and any
+  # namespace a component task adds. Each entry gets the plane label, the default deny and the
+  # baseline lanes. `mesh: false` leaves out the mesh label (default true): the SPIRE server, the
+  # controller-manager, istiod and the Istio CNI agent must never receive a sidecar.
   extra: []
   # - name: spire-system
   #   plane: management
+  #   mesh: false
+  # - name: istio-system
+  #   plane: management
+  #   mesh: false
+  # Labels the cluster's provider asks of the namespaces it should leave alone, set on every
+  # namespace the umbrella creates (plane and control-plane namespaces), a zone fact. On the Gardener
+  # clusters of zone A and zone B: apiserver-proxy.networking.gardener.cloud/inject: disable, which
+  # keeps the provider's webhook from pointing the pods at the API server's public name, so that they
+  # reach it through the kubernetes Service and the kubeApi lane. Never the plane or the mesh label.
+  namespaceLabels: {}
 
 # --------------------------------------------------------------------------------------------
-# Mesh mode. ADR-0001 baselines ambient and foresees a superseding decision for sidecar. Only the
-# namespace label changes between the modes, so the chart is the same either way:
-#   ambient -> istio.io/dataplane-mode=ambient     sidecar -> istio-injection=enabled
+# Mesh mode. ADR-0009 baselines Istio sidecar mode with Cilium as the CNI, superseding the ambient
+# baseline of ADR-0001 (the mesh cannot take SPIRE-issued identities under ambient). Ambient is
+# parked, not abandoned: the value stays accepted and the Cilium host-probe exception below still
+# renders in that mode, so returning is a zone value, not a chart change. Only the namespace label
+# changes between the modes, so the chart is the same either way:
+#   sidecar -> istio-injection=enabled             ambient -> istio.io/dataplane-mode=ambient
 #   none    -> no mesh label (a cluster without Istio, such as a plain kind cluster)
 # Istio itself is installed by the mesh task after this chart; until then the label is inert.
 # --------------------------------------------------------------------------------------------
 mesh:
-  mode: ambient
+  mode: sidecar
   revision: ""  # sidecar mode may pin an Istio revision (istio.io/rev) instead of the default injector
 
 # --------------------------------------------------------------------------------------------
-# CNI-specific pieces. Under Istio ambient with Cilium, a default-deny NetworkPolicy blocks the
-# kubelet health probes, which Istio SNATs to 169.254.7.127; the documented remedy is a
-# cluster-wide Cilium policy admitting that address. Rendered only with cilium enabled AND mode
-# ambient. See https://istio.io/latest/docs/ambient/install/platform-prerequisites/ (istio/istio#49277).
+# CNI-specific pieces. The openings whose source is an entity (the API server, the
+# host-networked SPIRE agents) and the API lane (networkPolicy, below) are Cilium policies; with a
+# mesh and without Cilium the chart refuses to render, because another CNI needs a declared
+# derogation (docs/workload-identity.md). Under Istio ambient (the parked mode) with Cilium, a
+# default-deny NetworkPolicy blocks the kubelet health probes, which Istio SNATs to 169.254.7.127;
+# the documented remedy is a cluster-wide Cilium policy admitting that address. Rendered only with
+# cilium enabled AND mode ambient; nothing is rendered in sidecar mode.
+# See https://istio.io/latest/docs/ambient/install/platform-prerequisites/ (istio/istio#49277).
 # --------------------------------------------------------------------------------------------
 cni:
   cilium:
@@ -56,25 +90,99 @@ cni:
 # --------------------------------------------------------------------------------------------
 networkPolicy:
   defaultDeny: true
-  # Declared bypass, workloads -> DNS (docs/architecture.md, section 6): port 53 to the resolver only.
+  # Declared bypass, workloads -> DNS (docs/architecture.md, section 6): the resolver's port only.
   dns:
     enabled: true
     namespace: kube-system
     podSelector:
       k8s-app: kube-dns
+    # The port the resolver pods listen on (the targetPort of the kube-dns Service; a network policy
+    # matches the pod's port, not the Service's), UDP and TCP. 53 on kind; 8053 on Gardener.
+    ports: [53]
   # Pods inside one plane namespace may reach each other at the network layer; whether they may
   # actually talk is decided on identity by the mesh layer, not on IP.
   intraPlane: true
   # Egress from management-plane namespaces to the Kubernetes API, for controllers such as the
-  # SPIRE controller-manager. Off here: the API endpoint is a per-zone fact that the baseline
-  # records, so it is set in the zone values file. With Cilium the lane is a CiliumNetworkPolicy to
-  # the kube-apiserver entity on these ports and the Service port 443, and `cidrs` are optional
-  # (Cilium does not match an API server on a node by address); without Cilium it is a NetworkPolicy
-  # to `cidrs`, which are required.
+  # SPIRE server and controller-manager and istiod. Off here: the API endpoint is a per-zone fact
+  # that the baseline records, so it is set in the zone values file. Required wherever mesh.mode is
+  # not none (values.schema.json). With Cilium (cni.cilium.enabled) the lane is a CiliumNetworkPolicy
+  # to the kube-apiserver entity on the kubernetes Service port 443 and on `ports`, and `cidrs` is
+  # not used: a Kubernetes ipBlock does not match the API server's identity under Cilium. Without
+  # Cilium the lane is an ipBlock egress to `cidrs` (required) on `ports`. `ports` is the port the
+  # API server listens on behind the kubernetes Service.
   kubeApi:
     enabled: false
-    cidrs: []     # e.g. ["10.0.0.1/32"]
+    cidrs: []     # e.g. ["10.0.0.1/32"]; used only without Cilium
     ports: [6443]
+
+  # ------------------------------------------------------------------------------------------
+  # Declared openings of the control planes (docs/architecture.md, section 6, beside the DNS
+  # bypass): entries of the cluster-administration class, not rows of the allow matrix. Each is
+  # rendered only when the zone enables it. Nothing else opens toward spire-system or istio-system.
+  # ------------------------------------------------------------------------------------------
+  # Sidecars of every plane namespace that carries the mesh label -> istiod on the xDS port: an
+  # egress policy in each meshed plane namespace and the matching ingress in the mesh control-plane
+  # namespace (Kubernetes NetworkPolicy; the source is a pod).
+  meshControlPlane:
+    enabled: false
+    namespace: istio-system
+    podSelector:
+      app: istiod
+    port: 15012
+  # The API server -> the admission webhooks of the two control planes, as a CiliumNetworkPolicy
+  # by entity in each namespace (a Kubernetes policy cannot name the API server). A self-hosted API
+  # server runs on the host network of a control-plane node, and Cilium sees its calls to a pod on
+  # another node with the identity of that node (remote-node), on its own node as host: the
+  # kube-apiserver entity matches only the API server's own address. A run of the mesh identity
+  # proof shows it (scripts/verify-mesh-identity/README.md), so the lane names the three entities, on
+  # the webhook port of the webhook pod only.
+  controlPlaneWebhooks:
+    enabled: false
+    fromEntities: [kube-apiserver, host, remote-node]
+    # A provider whose API server runs outside the cluster may reach the webhooks through a pod of
+    # its own (Gardener: the vpn-shoot pod in kube-system), which Cilium sees as that pod, not as an
+    # entity, when it runs on the webhook pod's node. Its Cilium endpoint selectors go here, a zone
+    # fact (k8s:io.kubernetes.pod.namespace and at least one pod label); the lane stays on the
+    # webhook port of the webhook pod. Empty by default; never an address.
+    fromEndpoints: []
+    targets:
+      - name: istiod
+        namespace: istio-system
+        podSelector:
+          app: istiod
+        port: 15017
+      - name: spire-controller-manager   # a container of the SPIRE server pod
+        namespace: spire-system
+        podSelector:
+          app.kubernetes.io/name: server
+        port: 9443
+  # The host-networked SPIRE agents -> the SPIRE server, as a CiliumNetworkPolicy fromEntities host
+  # and remote-node (the agents run on the host network; no pod selector or ipBlock names them).
+  # The sidecar reaches its agent over the CSI-mounted socket and the agent reaches the kubelet over
+  # the host's loopback, so neither needs an opening.
+  identityServer:
+    enabled: false
+    namespace: spire-system
+    podSelector:
+      app.kubernetes.io/name: server
+    port: 8081
+    fromEntities: [host, remote-node]
+
+  # The zone gateway -> the SPIRE server's metrics (9988) and the controller-manager's (8082), a
+  # NetworkPolicy pair (the source is a pod): egress from the gateway's pods in the management
+  # namespace, ingress to the server pod in spire-system, on those two ports only. A ClusterIP Service
+  # gives the scrape a stable address on the two ports (the chart's own Services expose neither). The
+  # path starts in the management plane, so it is outside the allow matrix
+  # (docs/architecture.md, section 6). Rendered for a participant zone that enables it.
+  observabilityScrape:
+    enabled: false
+    namespace: spire-system
+    podSelector:
+      app.kubernetes.io/name: server
+    service: spire-server-metrics
+    ports:
+      - { name: tcp-srv-metrics, port: 9988 }
+      - { name: tcp-cm-metrics, port: 8082 }
 
 # --------------------------------------------------------------------------------------------
 # The ZT-55 allow matrix, data plane -> management plane (docs/architecture.md, section 6), as
@@ -126,45 +234,95 @@ verification:
   image: docker.io/curlimages/curl:8.10.1@sha256:d9b4541e214bcd85196d6e92e2753ac6d0ea699f0af5741f8c6cccbfcf00ef4b
 
 # --------------------------------------------------------------------------------------------
-# OpenBao (ZT-11, ADR-0004; docs/secrets.md). Off by default: a zone turns it on. Everything under
-# `openbao` except `enabled` goes to the upstream chart (0.28.3, OpenBao v2.5.4), which installs one
-# standalone server with file storage on a volume in the management plane. Two values must repeat
-# facts the umbrella already has, because Helm does not template a subchart's values: the namespace
-# (= planes.management.namespace) and the storage class (= zone.storageClass); the chart refuses to
-# render when they differ. The server listens without TLS inside the management plane; transport
-# protection between workloads is the mesh layer's (ADR-0001).
+# OpenBao (ZT-11, ADR-0004; docs/secrets.md) is not part of this chart: it is the release
+# `ztd-openbao` (deployment/helm/ztd-openbao), the last of a zone, installed after zone-policy so its
+# pods hold a mesh identity from their first start. The schema refuses the values this chart once
+# took for it (openbao.enabled and the rest of openbao.*, openbaoBootstrap, openbaoExternal). The
+# one key a zone file may set under `openbao` is read by scripts/install-zone/install.sh, not here:
+#   openbao.pinToMeshNode: true   pin ztd-openbao to istiod's node (temporary; participant zones on
+#                                 a provider-masqueraded pod network, docs/environments/osc.md)
 # --------------------------------------------------------------------------------------------
-openbao:
-  enabled: false
-  global:
-    namespace: ztd-mgmt
-  injector:
-    enabled: false
-  server:
-    image:
-      tag: "2.5.4@sha256:436eaf9778cad75507ff70ea26ace30dcbe15606e619ac3823495663d7f7c115"
-    # The Kubernetes auth method is not used yet (deferred with the ZT-11 signing flow), so the
-    # cluster-wide auth-delegator binding is not created.
-    authDelegator:
-      enabled: false
-    standalone:
-      enabled: true
-    dataStorage:
-      size: 1Gi
-      storageClass: null
 
-# Bootstrap of the bundled OpenBao: a regular Job (not a hook - a sealed server is not ready, and
-# post-install hooks wait for readiness) that initialises the server once, keeps the unseal key in
-# the Kubernetes Secret `ztd-openbao-bootstrap`, enables kv-v2 at secret/ and transit at transit/,
-# issues a narrow periodic verification token and revokes the root token. It talks to the
-# Kubernetes API from the management plane, so networkPolicy.kubeApi must be open there.
-# After a restart the server is sealed until it is unsealed by hand (scripts/secrets/unseal.sh).
-openbaoBootstrap:
-  image: docker.io/curlimages/curl:8.10.1@sha256:d9b4541e214bcd85196d6e92e2753ac6d0ea699f0af5741f8c6cccbfcf00ef4b
+# --------------------------------------------------------------------------------------------
+# Telemetry export (participant role; docs/adr/0012-central-observability-backends.md). A zone sends
+# its telemetry out of the cluster to the demonstrator cluster's telemetry entry and nowhere else.
+# The zone gateway (release otel-gateway in the management namespace) is the one pod with a declared
+# egress to the entry; the node collectors (release otel-node, namespace ztd-otel-node) run on the
+# host network, where no pod egress policy applies, and name the entry as their only exporter. The
+# path is a declared bypass of the Zero Trust Connector under ZT-26, class observability export
+# (docs/architecture.md, section 6). scripts/install-zone/install.sh refuses to render or install the
+# telemetry releases of a participant zone whose entry (address or inCluster) or revocation
+# status-list URL is empty.
+# --------------------------------------------------------------------------------------------
+telemetryExport:
+  entry:
+    # The demonstrator cluster's entry as a CIDR (one address, /32), the zone gateway's only external
+    # destination. It is the transport switch: during the contingency period the public address of the
+    # entry's LoadBalancer; after the move, the entry's address on the CUG interconnect.
+    address: ""
+    # This zone's listener on the entry: each zone has its own (zone A 4317, zone B 4417), which trusts
+    # only that zone's intermediate CA, so the entry takes the zone from the listener.
+    port: 4317
+    # The name in the entry's server certificate, which the collectors verify (the address is not in
+    # the certificate, so the same certificate serves the public and the CUG address).
+    serverName: otel-entry.ztd-observability.svc
+    # Which transport the address is, written into every evidence record of the export proof:
+    # contingency-public-transit | cug | in-cluster (kind, both roles in one cluster).
+    transport: contingency-public-transit
+    # Kind only, where the demonstrator role runs in the same cluster: the entry is a pod, which an
+    # ipBlock cannot select under Cilium, so the egress names its namespace and labels instead, and the
+    # collectors dial `host`. Empty on a real zone.
+    inCluster: {}
+    #   namespace: ztd-observability
+    #   podSelector: { app.kubernetes.io/name: otel-entry }
+    #   host: otel-entry.ztd-observability.svc.cluster.local
+  # The zone gateway's pods: the source of the export egress and of the SPIRE metrics lane. These are
+  # the labels the upstream collector chart sets on the release otel-gateway (deployment/helm/values/
+  # otel-gateway.yaml); the name is the one the allow-matrix row workloads-to-otel-collector selects.
+  gateway:
+    podSelector:
+      app.kubernetes.io/name: otel-collector
+      app.kubernetes.io/instance: otel-gateway
+  # The revocation status-list URL the zone gateway probes every 5 s (ZT-51, availability only). It must
+  # be reachable under the zone's policies without a further egress: an in-zone address (on kind, the
+  # proof's static server of the fixture status list in the management namespace).
+  revocationStatusListUrl: ""
+  # The Secret, in the node collectors' namespace and in the management namespace, that holds the
+  # zone's client certificate, its key and the telemetry root CA (keys tls.crt, tls.key, ca.crt). It is
+  # created by the installer step telemetry-client-certs of the demonstrator role, never from the
+  # repository.
+  clientSecret: ztd-telemetry-client
 
-# An OpenBao the umbrella does not own, such as the one the XFSC ArgoCD deployment installs. When
-# `address` is set, openbao.enabled must be false: nothing is installed or initialised, and only the
-# verification hook runs, with the token in the named Secret of the management namespace.
-openbaoExternal:
-  address: ""
-  verifyTokenSecret: ""
+# --------------------------------------------------------------------------------------------
+# Central observability backends (demonstrator role). The umbrella creates their namespace with the
+# default deny, the DNS bypass and the lane between the backends, and opens the entry's listeners and
+# nothing else: Prometheus, Alertmanager and Jaeger are reached through cluster access only.
+# --------------------------------------------------------------------------------------------
+observabilityBackends:
+  namespace: ztd-observability
+  entry:
+    # The receiving collector's pods (release otel-entry, deployment/helm/values/otel-entry.yaml).
+    podSelector:
+      app.kubernetes.io/name: otel-entry
+    serverName: otel-entry.ztd-observability.svc
+    # One listener per participant zone. A zone's port is the one its zone file names in
+    # telemetryExport.entry.port.
+    zones: []
+    #   - { name: zone-a, port: 4317 }
+    #   - { name: zone-b, port: 4417 }
+    # The zones' egress addresses (CIDRs): the LoadBalancer's loadBalancerSourceRanges and the
+    # ingress policy's sources. With the Service's externalTrafficPolicy Local the entry sees them
+    # unchanged.
+    sourceRanges: []
+    # Kind only, both roles in one cluster: the zone gateway's namespaces, and (with Cilium) the
+    # entities of the host-networked node collectors.
+    inClusterSources:
+      namespaces: []
+      entities: []
+  # How long Prometheus keeps the metrics, and the size bound that keeps it inside its volume.
+  retention: 30d
+  retentionSize: 9GB
+  volumes:
+    prometheus: 10Gi
+    jaeger: 10Gi
+    alertmanager: 1Gi

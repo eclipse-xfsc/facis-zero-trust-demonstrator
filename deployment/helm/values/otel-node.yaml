@@ -1,0 +1,180 @@
+# Release `otel-node` of a participant zone: the node collectors, a DaemonSet of the upstream
+# OpenTelemetry Collector chart (contrib image) in the namespace ztd-otel-node (management plane,
+# no mesh, created by the umbrella), on the host network.
+#   chart source      https://open-telemetry.github.io/opentelemetry-helm-charts, chart
+#                     opentelemetry-collector, version and sha256 pinned in scripts/tools/pins.env
+#   image             OTEL_COLLECTOR_IMAGE in scripts/tools/pins.env, set by the installer
+# What it does (docs/adr/0012-central-observability-backends.md):
+#   - reads the log lines of every pod on its node from /var/log/pods (read-only hostPath, nothing
+#     else of the host), keeps zone/namespace/pod/container, and keeps the fields of an IF-01 event
+#     (correlation_id, run_id, seq, ...) as attributes; a line that is not JSON is kept as it is;
+#   - scrapes the SPIRE agent of its own node on 127.0.0.1:9988 every 5 s (the agent stays bound to
+#     the loopback), labelled with the node;
+#   - scrapes its own metrics (uptime, queue size, dropped items) on the loopback;
+#   - exports straight to the demonstrator cluster's entry with the zone's client certificate,
+#     through a bounded, file-backed sending queue.
+# One listener on the host, the health check the kubelet probes (status only, no telemetry); the
+# collector's own metrics are bound to the loopback, and every port of the chart is off. No added
+# capability. The installer fills the values
+# marked "installer": the exporter's endpoint and server name (telemetryExport.entry), the client
+# certificate's Secret (telemetryExport.clientSecret) and, on kind only, the log exclusion of the
+# demonstrator role's namespace, which shares the cluster there.
+mode: daemonset
+nameOverride: otel-node
+fullnameOverride: otel-node
+image:
+  repository: ""                 # installer: OTEL_COLLECTOR_IMAGE
+hostNetwork: true
+dnsPolicy: ClusterFirstWithHostNet
+# The collector reads files the kubelet writes as root (0640), so it runs as root, with every
+# capability dropped, no privilege escalation and a read-only root file system.
+podSecurityContext:
+  runAsUser: 0
+  runAsGroup: 0
+  seccompProfile:
+    type: RuntimeDefault
+securityContext:
+  runAsNonRoot: false
+  allowPrivilegeEscalation: false
+  readOnlyRootFilesystem: true
+  capabilities:
+    drop: ["ALL"]
+ports:
+  otlp: { enabled: false }
+  otlp-http: { enabled: false }
+  jaeger-compact: { enabled: false }
+  jaeger-thrift: { enabled: false }
+  jaeger-grpc: { enabled: false }
+  zipkin: { enabled: false }
+  metrics: { enabled: false }
+service:
+  enabled: false
+# The kubelet's probes: the chart probes the pod's address, which on the host network is the node's,
+# so the health check listens there (status only, port 13133); it is the collector's one listener.
+resources:
+  requests: { cpu: 50m, memory: 96Mi }
+  limits: { memory: 256Mi }
+extraVolumes:
+  - name: varlogpods
+    hostPath:
+      path: /var/log/pods
+      type: Directory
+  - name: storage
+    emptyDir:
+      sizeLimit: 512Mi
+  - name: telemetry-client
+    secret:
+      secretName: ztd-telemetry-client     # installer: telemetryExport.clientSecret
+      defaultMode: 0400
+extraVolumeMounts:
+  - { name: varlogpods, mountPath: /var/log/pods, readOnly: true }
+  - { name: storage, mountPath: /var/lib/otelcol/storage }
+  - { name: telemetry-client, mountPath: /etc/ztd-telemetry, readOnly: true }
+config:
+  extensions:
+    health_check:
+      endpoint: ${env:MY_POD_IP}:13133
+    # The sending queue and the file offsets survive a restart of the collector's container.
+    file_storage:
+      directory: /var/lib/otelcol/storage
+      create_directory: false
+  receivers:
+    jaeger: null
+    zipkin: null
+    otlp: null
+    filelog:
+      include: [/var/log/pods/*/*/*.log]
+      exclude: []                        # installer (kind only): the demonstrator role's namespace
+      start_at: end
+      include_file_path: true
+      include_file_name: false
+      storage: file_storage
+      operators:
+        # CRI and Docker formats; zone facts from the path: namespace, pod, pod uid, container.
+        - type: container
+          id: container
+          add_metadata_from_filepath: true
+        # An IF-01 event (docs/api-docs.md) is a JSON log line: its fields become attributes, so
+        # correlation_id, run_id and seq can be queried. Anything that does not parse is kept as is.
+        - type: json_parser
+          id: if01
+          if: 'body matches "^\\s*\\{"'
+          parse_from: body
+          parse_to: attributes
+          on_error: send_quiet
+        - type: add
+          id: if01-mark
+          if: 'attributes.run_id != nil and attributes.seq != nil'
+          field: attributes["ztd.if01"]
+          value: true
+    prometheus:
+      config:
+        scrape_configs:
+          - job_name: spire-agent
+            scrape_interval: 5s
+            scrape_timeout: 4s
+            static_configs:
+              - targets: ["127.0.0.1:9988"]
+                labels:
+                  node: ${env:OTEL_K8S_NODE_NAME}
+          - job_name: otel-node
+            scrape_interval: 5s
+            scrape_timeout: 4s
+            static_configs:
+              - targets: ["127.0.0.1:18888"]
+                labels:
+                  node: ${env:OTEL_K8S_NODE_NAME}
+                  collector: otel-node
+  processors:
+    memory_limiter:
+      check_interval: 1s
+      limit_percentage: 80
+      spike_limit_percentage: 25
+    batch:
+      timeout: 1s
+      send_batch_size: 512
+  exporters:
+    debug: null
+    otlp/entry:
+      endpoint: ""                       # installer: <entry host>:<this zone's port>
+      compression: gzip
+      tls:
+        ca_file: /etc/ztd-telemetry/ca.crt
+        cert_file: /etc/ztd-telemetry/tls.crt
+        key_file: /etc/ztd-telemetry/tls.key
+        server_name_override: ""         # installer: telemetryExport.entry.serverName
+        min_version: "1.3"
+      # Bounded and file-backed: telemetry produced while the entry is unreachable is kept and sent
+      # when it returns. A full queue refuses new batches, and a batch still unsent after the retry
+      # window is dropped; both are counted (otelcol_exporter_enqueue_failed_*,
+      # otelcol_exporter_send_failed_*), and nothing in the zone waits on it.
+      sending_queue:
+        enabled: true
+        storage: file_storage
+        queue_size: 2000
+        num_consumers: 4
+      retry_on_failure:
+        enabled: true
+        initial_interval: 1s
+        max_interval: 10s
+        max_elapsed_time: 30m
+  service:
+    extensions: [health_check, file_storage]
+    telemetry:
+      metrics:
+        readers:
+          - pull:
+              exporter:
+                prometheus:
+                  host: 127.0.0.1
+                  port: 18888
+    pipelines:
+      logs:
+        receivers: [filelog]
+        processors: [memory_limiter, batch]
+        exporters: [otlp/entry]
+      metrics:
+        receivers: [prometheus]
+        processors: [memory_limiter, batch]
+        exporters: [otlp/entry]
+      traces: null

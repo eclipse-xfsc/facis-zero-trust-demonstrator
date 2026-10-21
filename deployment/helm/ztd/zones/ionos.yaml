@@ -6,13 +6,14 @@
 # file is only validated against the cluster's API (helm --dry-run=server, nothing persisted).
 zone:
   name: ionos
+  role: demonstrator
   kubernetesVersion: v1.35.6      # kubectl version, server, 2026-09-23; unchanged 2026-09-26
   storageClass: ionos-cloud-essential   # the default of four ionos.cloud.com classes
   loadBalancer:
     type: cloud                   # IONOS provisions Services of type LoadBalancer; not yet exercised here
 
 # The CNI is Calico v3.30.7 (IONOS managed), not Cilium: the Cilium-only pieces stay off and the
-# mesh baseline of ADR-0001 (Istio CNI chained behind Cilium) does not apply to this cluster as is.
+# mesh baseline of ADR-0009 (Istio CNI chained behind Cilium) does not apply to this cluster as is.
 cni:
   cilium:
     enabled: false
@@ -36,3 +37,22 @@ networkPolicy:
     enabled: false
     cidrs: []
     ports: [15700]
+
+# The central observability backends. One listener per participant zone on the receiving collector
+# (zone A 4317, zone B 4417, matching telemetryExport.entry.port of each zone file). The zones' egress
+# addresses are recorded when the entry is installed (the LoadBalancer's loadBalancerSourceRanges and
+# the entry's ingress sources); the installer refuses this file while they are empty, so the entry is
+# never published without its source ranges. Metrics are kept for the project's duration.
+observabilityBackends:
+  namespace: ztd-observability
+  entry:
+    zones:
+      - { name: zone-a, port: 4317 }
+      - { name: zone-b, port: 4417 }
+    sourceRanges: []
+  retention: 400d
+  retentionSize: 45GB
+  volumes:
+    prometheus: 50Gi
+    jaeger: 20Gi
+    alertmanager: 1Gi

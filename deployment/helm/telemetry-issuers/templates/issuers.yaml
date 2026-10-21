@@ -1,0 +1,136 @@
+{{- /*
+The telemetry CA (docs/adr/0012-central-observability-backends.md, "Authentication"):
+  ztd-telemetry-root            a self-signed root, the trust anchor the zones verify the entry with
+  otel-entry-server             the receiving collector's server certificate, issued by the root
+  ztd-telemetry-<zone>-ca       one intermediate CA per zone, issued by the root; the entry's listener
+                                of that zone trusts this intermediate alone, so the zone of a
+                                connection is the listener's, fixed by which CA completed the handshake
+  ztd-telemetry-client-<zone>   the zone's client certificate, issued by its intermediate; the
+                                installer step telemetry-client-certs copies it into the zone
+Every private key stays in a Secret of this namespace (and, for a client key, in that zone's Secret);
+none is rendered by this chart or written anywhere else.
+*/ -}}
+{{- $pk := .Values.privateKey }}
+---
+apiVersion: cert-manager.io/v1
+kind: Issuer
+metadata:
+  name: ztd-telemetry-selfsigned
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "telemetry-issuers.labels" . | nindent 4 }}
+spec:
+  selfSigned: {}
+---
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: ztd-telemetry-root
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "telemetry-issuers.labels" . | nindent 4 }}
+spec:
+  isCA: true
+  commonName: ztd-telemetry-root
+  secretName: ztd-telemetry-root
+  duration: {{ .Values.durations.root }}
+  privateKey:
+    algorithm: {{ $pk.algorithm }}
+    size: {{ $pk.size }}
+    rotationPolicy: Never
+  issuerRef:
+    group: cert-manager.io
+    kind: Issuer
+    name: ztd-telemetry-selfsigned
+---
+apiVersion: cert-manager.io/v1
+kind: Issuer
+metadata:
+  name: ztd-telemetry-root
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "telemetry-issuers.labels" . | nindent 4 }}
+spec:
+  ca:
+    secretName: ztd-telemetry-root
+---
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: otel-entry-server
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "telemetry-issuers.labels" . | nindent 4 }}
+spec:
+  commonName: {{ .Values.serverName }}
+  dnsNames:
+    - {{ .Values.serverName }}
+  secretName: otel-entry-server
+  duration: {{ .Values.durations.server }}
+  usages: ["server auth", "digital signature"]
+  privateKey:
+    algorithm: {{ $pk.algorithm }}
+    size: {{ $pk.size }}
+    rotationPolicy: Always
+  issuerRef:
+    group: cert-manager.io
+    kind: Issuer
+    name: ztd-telemetry-root
+{{- range .Values.zones }}
+---
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: ztd-telemetry-{{ .name }}-ca
+  namespace: {{ $.Release.Namespace }}
+  labels:
+    {{- include "telemetry-issuers.labels" $ | nindent 4 }}
+    ztd.facis.io/telemetry-zone: {{ .name }}
+spec:
+  isCA: true
+  commonName: ztd-telemetry-{{ .name }}-ca
+  secretName: ztd-telemetry-{{ .name }}-ca
+  duration: {{ $.Values.durations.intermediate }}
+  privateKey:
+    algorithm: {{ $pk.algorithm }}
+    size: {{ $pk.size }}
+    rotationPolicy: Never
+  issuerRef:
+    group: cert-manager.io
+    kind: Issuer
+    name: ztd-telemetry-root
+---
+apiVersion: cert-manager.io/v1
+kind: Issuer
+metadata:
+  name: ztd-telemetry-{{ .name }}-ca
+  namespace: {{ $.Release.Namespace }}
+  labels:
+    {{- include "telemetry-issuers.labels" $ | nindent 4 }}
+    ztd.facis.io/telemetry-zone: {{ .name }}
+spec:
+  ca:
+    secretName: ztd-telemetry-{{ .name }}-ca
+---
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: ztd-telemetry-client-{{ .name }}
+  namespace: {{ $.Release.Namespace }}
+  labels:
+    {{- include "telemetry-issuers.labels" $ | nindent 4 }}
+    ztd.facis.io/telemetry-zone: {{ .name }}
+spec:
+  commonName: {{ .name }}
+  secretName: ztd-telemetry-client-{{ .name }}
+  duration: {{ $.Values.durations.client }}
+  usages: ["client auth", "digital signature"]
+  privateKey:
+    algorithm: {{ $pk.algorithm }}
+    size: {{ $pk.size }}
+    rotationPolicy: Always
+  issuerRef:
+    group: cert-manager.io
+    kind: Issuer
+    name: ztd-telemetry-{{ .name }}-ca
+{{- end }}

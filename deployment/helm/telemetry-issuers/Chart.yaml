@@ -1,0 +1,15 @@
+apiVersion: v2
+name: telemetry-issuers
+description: >-
+  The telemetry CA of the demonstrator cluster, as cert-manager resources: the root
+  ztd-telemetry-root, the receiving collector's server certificate, one intermediate CA per
+  participant zone and each zone's client certificate, issued by that zone's intermediate.
+type: application
+version: 0.1.0
+appVersion: "0.1.0"
+keywords:
+  - facis
+  - zero-trust
+  - observability
+sources:
+  - https://github.com/eclipse-xfsc/facis-zero-trust-demonstrator

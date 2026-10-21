@@ -1,0 +1,34 @@
+# The demonstrator role on the local kind cluster (zone.role demonstrator), installed into the same
+# cluster as the kind zone (ci/values.yaml), which stands in for a participant zone: the umbrella's
+# demonstrator release creates the backends' namespace only, and the backends' releases go into it.
+# The entry has one listener for the kind zone (4317) and one for a second zone that no collector
+# uses (4417), so that the proof can show a zone's certificate refused on another zone's listener.
+# No LoadBalancer on kind: the entry is a ClusterIP Service, reached in the cluster by the zone
+# gateway (namespace ztd-mgmt) and by the host-networked node collectors (Cilium entities).
+zone:
+  name: kind-demonstrator
+  role: demonstrator
+  kubernetesVersion: v1.35.8
+  storageClass: standard
+  loadBalancer:
+    type: none
+mesh:
+  mode: none
+cni:
+  cilium:
+    enabled: true
+observabilityBackends:
+  namespace: ztd-observability
+  entry:
+    zones:
+      - { name: kind, port: 4317 }
+      - { name: kind-other, port: 4417 }
+    inClusterSources:
+      namespaces: [ztd-mgmt]
+      entities: [host, remote-node]
+  retention: 2d
+  retentionSize: 1GB
+  volumes:
+    prometheus: 2Gi
+    jaeger: 2Gi
+    alertmanager: 256Mi

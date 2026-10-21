@@ -244,6 +244,64 @@ jobs:
           name: bdd-evidence
           path: bundles/bdd
 
+  # The observability proof end to end on kind (scripts/verify-observability/verify.sh): a kind
+  # cluster with Cilium, the kind zone, cert-manager, the demonstrator role in the same cluster, the
+  # zone's telemetry releases and the proof's echo image; then every check of the proof, alerts with
+  # their measured detection times included. The record is published as an artefact.
+  observability-kind:
+    name: Observability proof (kind)
+    runs-on: ubuntu-latest
+    timeout-minutes: 75
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+
+      - name: Set up Helm
+        uses: azure/setup-helm@1a275c3b69536ee54be43f2070a358922e12c8d4 # v4
+        with:
+          version: v4.3.0
+
+      - name: Install the pinned tools
+        run: |
+          scripts/tools/install.sh "$RUNNER_TEMP/bin" kind kubectl cilium-cli
+          echo "$RUNNER_TEMP/bin" >> "$GITHUB_PATH"
+          python3 -c 'import yaml' 2>/dev/null || python3 -m pip install --user pyyaml
+
+      - name: Create the kind cluster with Cilium and cert-manager
+        run: |
+          scripts/dev/kind-cilium-up.sh
+          scripts/dev/kind-cert-manager-up.sh
+
+      - name: Install the kind zone without its telemetry releases
+        run: scripts/install-zone/install.sh install ztd spire-crds spire istio-base istiod istio-cni zone-policy ztd-openbao
+
+      - name: Install the demonstrator role and copy the zone's client certificate
+        env:
+          ZONE_VALUES: deployment/helm/ztd/ci/demonstrator-values.yaml
+          TELEMETRY_ZONES: kind=kind-ztd
+        run: scripts/install-zone/install.sh install
+
+      - name: Install the zone's telemetry releases
+        run: scripts/install-zone/install.sh install otel-node otel-gateway
+
+      - name: Build the proof's echo image into kind
+        run: |
+          docker build --platform linux/amd64 -f deployment/docker/trace-echo/Dockerfile -t ztd-proof/trace-echo:dev .
+          kind load docker-image ztd-proof/trace-echo:dev --name ztd
+
+      - name: Run the observability proof
+        env:
+          ZTD_EVIDENCE_DIR: ${{ runner.temp }}/verify-observability
+        run: scripts/verify-observability/verify.sh
+
+      - name: Publish the record
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: verify-observability-kind
+          path: ${{ runner.temp }}/verify-observability
+          if-no-files-found: ignore
+
   charts:
     name: Chart lint and render
     runs-on: ubuntu-latest
@@ -262,14 +320,197 @@ jobs:
       # defaults ships its valid baseline in ci/values.yaml. The same script is the release gate,
       # where it adds a server dry-run against a disposable cluster (release.yml, TDR-BDD-11), and
       # packages the charts when a release is published (release-charts below), so the gate a pull
-      # request clears is the gate the release is held to.
+      # request clears is the gate the release is held to. The umbrella is also rendered with every
+      # shipped zone file under deployment/helm/ztd/zones/ (the example excepted), so a zone file
+      # that stops rendering is caught here rather than by an operator on the cluster. Rendering only.
       - name: Lint and render every chart
-        run: scripts/ci/check-charts.sh
+        run: |
+          scripts/ci/check-charts.sh
+          for zone in deployment/helm/ztd/zones/*.yaml; do
+            [ "$(basename "$zone")" = zone-a.example.yaml ] && continue
+            echo "render deployment/helm/ztd with $zone"
+            helm lint deployment/helm/ztd -f "$zone"
+            helm template deployment/helm/ztd -f "$zone" >/dev/null
+          done
 
       # What the release relies on, against charts the test writes: a set that passes is packaged
       # at the version with matching checksums, and one failing chart leaves no package at all.
       - name: Test the chart check
         run: scripts/ci/check-charts_test.sh
+
+      # A zone is eight releases (scripts/install-zone/install.sh): three project charts linted above
+      # (the umbrella, zone-policy and ztd-openbao, the last wrapping the upstream openbao chart from
+      # its Chart.lock) and five upstream charts, SPIRE's and Istio's, pinned by version and digest in
+      # the installer. Each upstream release is rendered from its pinned chart with its values file
+      # under deployment/helm/values/ and the kind zone's facts, and ztd-openbao through the installer
+      # with the zone facts it reads from the umbrella's defaults and the zone file: its server
+      # StatefulSet and both of its jobs must carry the identity label the registration rule selects,
+      # unpinned on kind and pinned (the placeholder node, no cluster) with zone A's file. Rendering
+      # only: CI never installs.
+      # The rendered istiod mesh configuration must carry the TLS 1.3 minimum of the security
+      # baseline (ADR 005), and the installer must refuse a revisioned or an ambient zone before it
+      # renders anything (it installs the default, unrevisioned istiod in sidecar mode only), and a
+      # zone-policy whose proxy image or status port differs from istiod's before it renders anything.
+      - name: Render the upstream releases of a zone
+        run: |
+          python3 -c 'import yaml' 2>/dev/null || python3 -m pip install --user pyyaml
+          RENDER_DIR="$RUNNER_TEMP/render" \
+            scripts/install-zone/install.sh render spire-crds spire istio-base istiod istio-cni ztd-openbao
+          RENDER_DIR="$RUNNER_TEMP/render-zone-a" ZONE_VALUES=deployment/helm/ztd/zones/zone-a.yaml \
+            scripts/install-zone/install.sh render ztd-openbao
+          python3 - "$RUNNER_TEMP/render/ztd-openbao.yaml" "$RUNNER_TEMP/render-zone-a/ztd-openbao.yaml" <<'PY'
+          import sys, yaml
+          def pods(path):
+              docs = [d for d in yaml.safe_load_all(open(path)) if d]
+              found = {}
+              for d in docs:
+                  kind, name = d.get("kind"), d["metadata"]["name"]
+                  if kind == "StatefulSet" and name == "ztd-openbao": found["server"] = d
+                  elif kind == "Job" and name.startswith("ztd-openbao-bootstrap-"): found["bootstrap"] = d
+                  elif kind == "Job" and name == "ztd-verify-openbao": found["verification"] = d
+              missing = {"server", "bootstrap", "verification"} - set(found)
+              if missing: sys.exit(f"ztd-openbao render {path}: no {', '.join(sorted(missing))}")
+              return {k: v["spec"]["template"] for k, v in found.items()}
+          def node_pin(t):
+              terms = (((t["spec"].get("affinity") or {}).get("nodeAffinity") or {})
+                       .get("requiredDuringSchedulingIgnoredDuringExecution") or {}).get("nodeSelectorTerms") or []
+              return [v for term in terms for e in term.get("matchExpressions") or []
+                      if e.get("key") == "kubernetes.io/hostname" for v in e.get("values") or []]
+          accounts = {"server": "ztd-openbao", "bootstrap": "ztd-openbao-bootstrap", "verification": "ztd-verify-openbao"}
+          for zone, path, want in (("kind", sys.argv[1], []), ("zone-a", sys.argv[2], ["istiod-node-not-found"])):
+              for name, t in pods(path).items():
+                  label = (t["metadata"].get("labels") or {}).get("spiffe.io/spire-managed-identity")
+                  if label != "true":
+                      sys.exit(f"ztd-openbao render ({zone}): the {name} pod template lacks spiffe.io/spire-managed-identity: \"true\"")
+                  if node_pin(t) != want:
+                      sys.exit(f"ztd-openbao render ({zone}): the {name} pod template's node pin is {node_pin(t)}, not {want}")
+                  # Each pod its own ServiceAccount, so each its own SPIFFE ID (none on "default").
+                  sa = t["spec"].get("serviceAccountName") or "default"
+                  if sa != accounts[name]:
+                      sys.exit(f"ztd-openbao render ({zone}): the {name} pod runs as ServiceAccount {sa}, not {accounts[name]}")
+              print(f"ztd-openbao render ({zone}): the server and both jobs carry the identity label, each with its own ServiceAccount; node pin {want or 'none'}")
+          PY
+          python3 - "$RUNNER_TEMP/render/istiod.yaml" <<'PY'
+          import sys, yaml
+          docs = [d for d in yaml.safe_load_all(open(sys.argv[1])) if d]
+          cm = [d for d in docs if d.get("kind") == "ConfigMap" and d["metadata"]["name"] == "istio"]
+          mesh = yaml.safe_load(cm[0]["data"]["mesh"]) if cm else {}
+          got = ((mesh or {}).get("meshMTLS") or {}).get("minProtocolVersion")
+          if got != "TLSV1_3":
+              sys.exit(f"istiod render: meshConfig.meshMTLS.minProtocolVersion is {got!r}, not 'TLSV1_3' (ADR 005)")
+          print("istiod render: meshConfig.meshMTLS.minProtocolVersion is TLSV1_3")
+          PY
+          for setting in revision=canary mode=ambient; do
+            key=${setting%%=*}
+            zone="$RUNNER_TEMP/zone-$key.yaml"
+            out="$RUNNER_TEMP/refused-$key"
+            mkdir -p "$out"
+            python3 - deployment/helm/ztd/ci/values.yaml "$key" "${setting#*=}" "$zone" <<'PY'
+          import sys, yaml
+          source, key, value, target = sys.argv[1:]
+          zone = yaml.safe_load(open(source))
+          zone.setdefault("mesh", {})[key] = value
+          yaml.safe_dump(zone, open(target, "w"), sort_keys=False)
+          PY
+            if ZONE_VALUES="$zone" RENDER_DIR="$out" \
+                scripts/install-zone/install.sh render 2>"$out.err"; then
+              echo "install-zone rendered a zone with mesh.$key set to ${setting#*=}" >&2; exit 1
+            fi
+            cat "$out.err"
+            grep -q "mesh\.$key" "$out.err" || { echo "the refusal does not name mesh.$key" >&2; exit 1; }
+            [ -z "$(ls -A "$out")" ] || { echo "install-zone rendered into $out before refusing" >&2; exit 1; }
+          done
+          # zone-policy pins the injected proxy's image and status port; a copy of the tree whose
+          # zone-policy image or status port differs from istiod's must be refused before anything
+          # renders, and the refusal must name the value that differs.
+          for field in statusPort proxyImage; do
+            copy="$RUNNER_TEMP/coupling-$field"
+            mkdir -p "$copy/scripts" "$copy/deployment/helm"
+            cp -r scripts/install-zone scripts/tools "$copy/scripts/"
+            cp -r deployment/helm/values deployment/helm/zone-policy deployment/helm/ztd "$copy/deployment/helm/"
+            case $field in
+              statusPort) sed -i 's/^  statusPort: 15020$/  statusPort: 15021/' "$copy/deployment/helm/zone-policy/values.yaml" ;;
+              proxyImage) sed -i 's|^  proxyImage: .*$|  proxyImage: docker.io/istio/proxyv2:1.31.0|' "$copy/deployment/helm/zone-policy/values.yaml" ;;
+            esac
+            ! cmp -s "$copy/deployment/helm/zone-policy/values.yaml" deployment/helm/zone-policy/values.yaml \
+              || { echo "the test did not change zone-policy proxySocketPolicy.$field" >&2; exit 1; }
+            if RENDER_DIR="$copy/out" "$copy/scripts/install-zone/install.sh" render istiod 2>"$copy.err"; then
+              echo "install-zone rendered istiod with a zone-policy $field other than istiod's" >&2; exit 1
+            fi
+            cat "$copy.err"
+            grep -q "proxySocketPolicy.$field" "$copy.err" || { echo "the refusal does not name proxySocketPolicy.$field" >&2; exit 1; }
+            [ ! -e "$copy/out/istiod.yaml" ] || { echo "install-zone rendered istiod before refusing the $field mismatch" >&2; exit 1; }
+          done
+
+      # The telemetry releases of a zone: the installer refuses, before it renders anything, a
+      # participant zone file without the entry or without the revocation status-list URL (zone A's
+      # file has neither until the demonstrator role is installed, and its other releases still
+      # render), and a demonstrator file on a cluster with a LoadBalancer and no source ranges. The
+      # mesh's tracing: istiod renders the OpenTelemetry provider of the zone gateway, and zone-policy
+      # the mesh-wide Telemetry resource that enables it, under the same name.
+      - name: Render the telemetry releases and their refusals
+        run: |
+          refuse() { # refuse <expected text> <zone file> [release...]
+            local want=$1 zone=$2 out; shift 2
+            out=$(mktemp -d)
+            if ZONE_VALUES="$zone" RENDER_DIR="$out" scripts/install-zone/install.sh render "$@" 2>"$out.err"; then
+              echo "install-zone rendered $zone ($*) without $want" >&2; exit 1
+            fi
+            cat "$out.err"
+            grep -qF "$want" "$out.err" || { echo "the refusal does not name $want" >&2; exit 1; }
+            [ -z "$(ls -A "$out")" ] || { echo "install-zone rendered into $out before refusing" >&2; exit 1; }
+          }
+          refuse telemetryExport.entry.address deployment/helm/ztd/zones/zone-a.yaml otel-gateway
+          python3 - deployment/helm/ztd/ci/values.yaml "$RUNNER_TEMP/no-url.yaml" <<'PY'
+          import sys, yaml
+          zone = yaml.safe_load(open(sys.argv[1]))
+          zone["telemetryExport"]["revocationStatusListUrl"] = ""
+          yaml.safe_dump(zone, open(sys.argv[2], "w"))
+          PY
+          refuse telemetryExport.revocationStatusListUrl "$RUNNER_TEMP/no-url.yaml"
+          refuse observabilityBackends.entry.sourceRanges deployment/helm/ztd/zones/ionos.yaml
+          ZONE_VALUES=deployment/helm/ztd/zones/zone-a.yaml scripts/install-zone/install.sh render ztd-openbao >/dev/null
+          RENDER_DIR="$RUNNER_TEMP/render-tracing" scripts/install-zone/install.sh render istiod zone-policy otel-node otel-gateway >/dev/null
+          python3 - "$RUNNER_TEMP/render-tracing" <<'PY'
+          import sys, yaml
+          d = sys.argv[1]
+          docs = lambda f: [x for x in yaml.safe_load_all(open(f"{d}/{f}.yaml")) if x]
+          mesh = yaml.safe_load(next(x for x in docs("istiod") if x["kind"] == "ConfigMap" and x["metadata"]["name"] == "istio")["data"]["mesh"])
+          providers = {p["name"]: p for p in mesh.get("extensionProviders") or []}
+          tel = [x for x in docs("zone-policy") if x["kind"] == "Telemetry"]
+          if len(tel) != 1: sys.exit("zone-policy render: no mesh-wide Telemetry resource")
+          name = tel[0]["spec"]["tracing"][0]["providers"][0]["name"]
+          p = providers.get(name, {}).get("opentelemetry") or {}
+          if p.get("service") != "otel-gateway.ztd-mgmt.svc.cluster.local" or p.get("port") != 4317:
+              sys.exit(f"istiod render: no OpenTelemetry provider {name!r} at the zone gateway on 4317: {providers}")
+          gw = [x for x in docs("otel-gateway") if x["kind"] == "Deployment"][0]["spec"]["template"]["metadata"]["labels"]
+          if gw.get("app.kubernetes.io/name") != "otel-collector" or gw.get("spiffe.io/spire-managed-identity") != "true":
+              sys.exit(f"otel-gateway render: the pod lacks the allow-matrix label or the identity label: {gw}")
+          node = [x for x in docs("otel-node") if x["kind"] == "DaemonSet"][0]["spec"]["template"]["spec"]
+          paths = [v["hostPath"]["path"] for v in node["volumes"] if "hostPath" in v]
+          if not node.get("hostNetwork") or paths != ["/var/log/pods"]:
+              sys.exit(f"otel-node render: host network {node.get('hostNetwork')}, host paths {paths}")
+          print(f"tracing provider {name} at the zone gateway; gateway labelled; node collectors on the host network with /var/log/pods only")
+          PY
+
+      # The observability releases: every rendered image pinned by digest and under an accepted
+      # licence, no Grafana or Loki; the alert rules under promtool against fixture series, and the
+      # rendered intervals equal to the detection budget the documentation states (below 30 s).
+      - name: Check the observability releases' images, alert rules and detection budget
+        run: |
+          scripts/verify-observability/check-rendered-images.sh
+          scripts/verify-observability/test-alert-rules.sh
+
+      # The upstream-state checker against local stand-ins that answer 404, 500 and the wrong
+      # document: an error page must count as unreachable, never as the document. Its record goes
+      # to a temporary directory; CI never writes the evidence under docs/evidences/.
+      - name: Test the upstream-state checker's failure paths
+        env:
+          ALLOW_CI: "1"
+        run: |
+          scripts/mesh-mode/check-upstream-state-test.sh
+          changed=$(git status --porcelain docs/evidences/mesh-mode-upstream-state)
+          [ -z "$changed" ] || { echo "the checker's test changed the evidence: $changed" >&2; exit 1; }
 
   # The release set of charts. release.yml builds and signs the candidate images and creates no
   # release; this job delivers the charts when one is published, and only once every gate of this

@@ -70,8 +70,15 @@ pending.
   ORCE refuses to start without them. No credential is in the image or the repository.
 - **Log masking.** The lifecycle node and script mask credential-shaped values in the Helm output
   before it is stored or logged, and never log the deployment values.
+- **TLS 1.3 for mesh mTLS.** The `istiod` release raises the mesh-wide minimum for mesh mTLS to
+  TLS 1.3 (`meshConfig.meshMTLS.minProtocolVersion: TLSV1_3` in
+  `deployment/helm/values/istiod.yaml`; Istio's default minimum is TLS 1.2). The CI chart job
+  asserts the value in the rendered `istio` ConfigMap, and the mesh identity proof shows a meshed
+  peer's proxy completing a TLS 1.3 handshake with the caller's SPIRE SVID and refusing one capped
+  at TLS 1.2 with a protocol alert, in section 8 (`mesh-identity-issued-by-spire`) of every run's
+  record (see `scripts/verify-mesh-identity/README.md`).
 
-**Not yet:** TLS 1.3 on the endpoints. ORCE has no ingress yet and is reached by port-forward;
+**Not yet:** TLS 1.3 on ORCE's endpoints. ORCE has no ingress yet and is reached by port-forward;
 TLS 1.3 termination comes with its exposure, together with the ORCE chart. The rows that check the baseline at run
 time: TLS 1.3 (TDR-BDD-07) is pending; secrets and log masking (TDR-BDD-08) is proven on every
 release candidate by a canary scan and a pipeline-log audit ([Secrets](../secrets.md)).
@@ -88,4 +95,17 @@ logging API — `console` calls in function or third-party nodes, Node.js warnin
 entrypoint — is not JSON. Details in [ORCE logging](../flows.md#orce-logging); TDR-BDD-06 proves it
 on a cluster.
 
-**Not yet:** the observability stack for the services (ZT-27).
+**Applied, for the services (ZT-27, ZT-52):** the observability stack of
+[ADR-0012](0012-central-observability-backends.md). In each participant zone the node collectors read
+every pod's log lines, keeping the fields of an IF-01 event (`correlation_id`, `run_id`, `seq`) as
+attributes, and scrape the SPIRE agents on their loopback; the zone gateway receives the workloads'
+and the mesh proxies' OTLP, scrapes the SPIRE server and the controller-manager, and probes the
+revocation status list. Both export over mutual TLS to the demonstrator cluster, where Prometheus
+stores the metrics, Jaeger the traces, and Alertmanager emits the alerts of a missing SPIRE target, a
+silent zone and an unreachable status list within 30 seconds. `scripts/verify-observability/verify.sh`
+proves it on a cluster.
+
+**Not yet:** a store in which the logs are queryable. The log pipeline reaches the demonstrator
+cluster, but the store is an open point; until it is chosen the records end in the receiving
+collector's debug exporter and ZT-27's "OTEL logs available" is not met. The alert rules for the
+Policy Engine, TRAIN and OCM come with those components.

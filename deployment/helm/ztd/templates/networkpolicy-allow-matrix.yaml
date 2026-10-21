@@ -1,7 +1,9 @@
 {{- /*
 The ZT-55 allow matrix as network policy: for each lane, an egress rule in the source namespace
-and an ingress rule in the destination namespace. The mesh layer decides on identity on top.
+and an ingress rule in the destination namespace. The mesh layer decides on identity on top. A
+participant zone only: the demonstrator cluster has no planes.
 */ -}}
+{{- if ne (include "ztd.role" .) "demonstrator" }}
 {{- range .Values.allowMatrix }}
 {{- $fromNs := include "ztd.endpointNamespace" (dict "root" $ "endpoint" .from) }}
 {{- $toNs := include "ztd.endpointNamespace" (dict "root" $ "endpoint" .to) }}
@@ -65,4 +67,5 @@ spec:
       ports:
         {{- toYaml . | nindent 8 }}
       {{- end }}
+{{- end }}
 {{- end }}

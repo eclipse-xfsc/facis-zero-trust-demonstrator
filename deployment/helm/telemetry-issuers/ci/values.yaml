@@ -1,0 +1,4 @@
+# The kind demonstrator's zones (deployment/helm/ztd/ci/demonstrator-values.yaml).
+zones:
+  - { name: kind, port: 4317 }
+  - { name: kind-other, port: 4417 }
