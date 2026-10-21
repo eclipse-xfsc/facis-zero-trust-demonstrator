@@ -101,7 +101,7 @@ The JavaScript packages above are pinned by exact version with integrity hashes 
 | OPA Gatekeeper (Helm chart) | 3.23.1 | Apache-2.0 | admission control with the first-party external-data provider |
 | PostgreSQL | 16.10 (test service) | PostgreSQL License | token-store integration tests |
 | OpenBao | 2.7.0 (test service) | MPL-2.0 | token-store integration tests only; its use in the demonstrator is the declared licence exception |
-| OpenBao (Helm chart `openbao`) | chart 0.28.3, server v2.5.4 | MPL-2.0 | the umbrella's X.509 key-value store when a zone turns it on ([Secrets](secrets.md)); covered by the declared licence exception |
+| OpenBao (Helm chart `openbao`) | chart 0.28.3, server v2.5.4 | MPL-2.0 | the zone's X.509 key-value store, the release `ztd-openbao`: a dependency of the project chart `deployment/helm/ztd-openbao`, locked in its `Chart.lock`, its archive pinned by sha256 in `dependencies.sha256` ([Secrets](secrets.md)); covered by the declared licence exception |
 | Docker Distribution registry | 2.8.3 (test service) | Apache-2.0 | a local registry for signing and verification tests in CI |
 
 ## Go dependencies being added
@@ -116,3 +116,40 @@ other dependency.
 The admission provider talks to OCI registries through a small first-party client built on the Go
 standard library rather than a general-purpose registry library, to keep its dependency set minimal.
 
+## Identity and service mesh
+
+The identity path and the mesh ([Workload identity](workload-identity.md)) are installed from the
+upstream charts as they ship, one Helm release per chart, by `scripts/install-zone/install.sh`,
+which pins each chart by version and by the sha256 of the chart archive (the Istio charts: of the
+release archive). The container images the charts run are pinned separately, by tag and digest
+(the multi-arch index digest of the tag, read from its registry), in the values files under
+`deployment/helm/values/`: the SPIRE server, agent, controller-manager and SPIFFE CSI driver, the
+CSI node-driver registrar, the server's `busybox` init container and `kubectl` hook image, and
+Istio's `pilot`, `proxyv2` (the injected proxy and the injected `istio-validation` init container)
+and `install-cni`. The images the charts already pin by digest are left
+as they ship. One image stays a tag: `busybox:1.28` in Istio's `grpc-simple` injection template,
+which only a pod that chooses its injection templates would run, and the `zone-policy` admission
+policy refuses such a pod in every plane namespace. The values the repository sets on the charts
+are listed with their reasons in `deployment/helm/values/README.md`.
+
+| Component | Version | Installed through | Licence | Why |
+|---|---|---|---|---|
+| SPIRE (server, agent, controller-manager, SPIFFE CSI driver) | v1.15.3 | chart `spire` 0.30.2 and chart `spire-crds` 0.6.1, from the SPIFFE hardened charts `https://spiffe.github.io/helm-charts-hardened/` | Apache-2.0 | the only issuer of workload and mesh identities (ZT-24): attests every pod and serves its SVID over the CSI-mounted Workload API socket and to the mesh proxy over SDS |
+| Istio, sidecar mode | 1.31.1 | charts `base`, `istiod` and `cni` 1.31.1, from the Istio release archive `istio-1.31.1-linux-amd64.tar.gz` (`manifests/charts`), pinned by its published sha256 | Apache-2.0 | the service mesh of [ADR-0009](adr/0009-service-mesh-mode-istio-sidecar-with-cilium.md): native sidecars that take their certificates from SPIRE, mesh-wide STRICT mTLS, the CNI plugin chained behind Cilium |
+| Cilium | 1.20.2 on kind; 1.18.8 on the participant clusters | kind: chart `cilium/cilium` 1.20.2, by `scripts/dev/kind-cilium-up.sh`, the version a kind run of `scripts/verify-mesh-identity/verify.sh` shows; the participant clusters of zone A and zone B: installed and upgraded by the provider (Gardener), never by the zone, found at 1.18.8, the version a participant-cluster run of the same script shows in its preconditions and `environment.json` (see `scripts/verify-mesh-identity/README.md`) (the chaining proven on every node; cross-node pod traffic masqueraded by the provider's configuration, so the mesh is proven node-locally there and fails across nodes until the provider changes it; a kind pass on 1.20.2 supports but does not prove a fix for the provider's 1.18.8 pod network) | Apache-2.0 | the CNI and the enforcer of the network policies, with `cni.exclusive=false` (`cni-exclusive=false` in `cilium-config`) so that the Istio plugin can chain |
+| istioctl | 1.31.1 | the operator's machine | Apache-2.0 | reads a proxy's secrets and sync status in the proof; never installs |
+
+The Istio 1.31 charts are taken from the release archive because Istio's Helm repository and OCI
+registry do not carry them (on 2026-10-06 the repository's index stopped at 1.31.0-rc.0); the
+archive is the release Istio publishes, and its charts are the same charts.
+
+**Upgrades.** An upgrade changes the pinned version and digest in the installer and re-reads the
+digest of every image tag in the values files (`docker buildx imagetools inspect <image>:<tag>`
+prints the index digest), then reruns `scripts/verify-mesh-identity/verify.sh`, whose record goes
+to the run directory outside the repository. The local proof runs on kind node v1.35.8 with Cilium
+1.20.2; the participant clusters run Kubernetes v1.34.7 with the provider's
+Cilium 1.18.8, and the same proof is re-run there with the keep opt-in. At every Istio minor upgrade the
+[ADR-0009](adr/0009-service-mesh-mode-istio-sidecar-with-cilium.md) reopen check
+(`scripts/mesh-mode/check-upstream-state.sh`) runs alongside the proof. The SPIRE charts are
+upgraded as a pair (`spire-crds` first), because the controller-manager in `spire` is built
+against the CRDs of its `spire-crds`.
