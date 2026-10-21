@@ -163,6 +163,7 @@ func InitializeScenario(ctx *godog.ScenarioContext) {
 	registerAdmissionProof(ctx, dryRun)
 	registerChartGate(ctx, dryRun)
 	registerSecretsBaseline(ctx, dryRun)
+	registerZoneManager(ctx)
 	registerPending(ctx)
 }
 

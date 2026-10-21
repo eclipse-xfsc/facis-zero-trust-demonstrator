@@ -1,0 +1,8 @@
+{{ include "tzm.name" . }} installed in {{ .Release.Namespace }} for zone {{ .Values.zone.name }}.
+
+The DNS Service:   kubectl -n {{ .Release.Namespace }} get svc {{ include "tzm.name" . }}-dns
+The zone's DS:     kubectl -n {{ .Release.Namespace }} get configmap {{ .Values.dsRecord.configMap }} -o jsonpath='{.data.ds}'
+Re-sign now:       kubectl -n {{ .Release.Namespace }} exec deploy/{{ include "tzm.name" . }} -c keeper -- zone-keeper resign-now
+Back up now:       kubectl -n {{ .Release.Namespace }} exec deploy/{{ include "tzm.name" . }} -c keeper -- zone-keeper backup-now
+
+The delegation records for the parent zone follow the Service's address (README, "Records for the parent").

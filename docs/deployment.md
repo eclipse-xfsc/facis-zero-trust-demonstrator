@@ -31,6 +31,21 @@ file is written from what the cluster baseline recorded; the chart has no defaul
 design, the hook-weight scheme and the evidence are in [Umbrella chart](umbrella-chart.md), and
 chart values are documented with each chart under `deployment/helm/`.
 
+### Components after the umbrella
+
+Each component installs into the plane the layout gives it, with its own chart and its own README
+under `deployment/helm/`. The first is the TRAIN DNS zone manager, into the management plane:
+
+```bash
+helm upgrade --install train-zone-manager deployment/helm/train-zone-manager -n ztd-mgmt \
+  -f <zone values> --wait --wait-for-jobs
+```
+
+It needs the plane's egress lane to the Kubernetes API (`networkPolicy.kubeApi` in the zone file)
+for the hook that records the zone's DS, and a zone with a load balancer for its public address;
+what it installs, how its keys survive a reinstall and how the delegation records are derived are in
+the chart's README under `deployment/helm/train-zone-manager/` and in [TRAIN DNS zone](train-dns.md).
+
 ### Through the ORCE workflow
 
 The same install, redeploy and uninstall run through ORCE with zero manual steps: a
