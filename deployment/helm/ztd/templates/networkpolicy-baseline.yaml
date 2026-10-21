@@ -1,18 +1,20 @@
 {{- /*
 Network-layer baseline per plane namespace: default deny in both directions, the DNS bypass, the
-intra-plane lane, and (management plane only, when configured) egress to the Kubernetes API.
-
-The API lane takes two forms. A NetworkPolicy to the API server's addresses (networkPolicy.kubeApi.cidrs)
-works where the CNI selects the API server by address. Cilium does not when the API server runs on a
-cluster node: it treats it as the kube-apiserver entity, and an ipBlock never matches it. With Cilium
-the lane is therefore a CiliumNetworkPolicy to that entity, and the addresses are optional; any that
-are given still render as the address lane. Its ports are the `kubernetes` Service port, 443, and the
-endpoint ports (networkPolicy.kubeApi.ports): with kube-proxy, Cilium sees the Service port before
-kube-proxy translates it; without, the endpoint port. Leaving the ports open would open every port of
-the node the API server runs on, the kubelet's among them.
+intra-plane lane, (management plane only, when configured) egress to the Kubernetes API, and the
+declared opening from the meshed plane namespaces to istiod on the xDS port. With Cilium the API
+lane is a CiliumNetworkPolicy by entity (ciliumnetworkpolicy-control-planes.yaml), not the ipBlock
+form below: Cilium does not select an API server that runs on a cluster node by its address.
 */ -}}
-{{- if and .Values.networkPolicy.kubeApi.enabled (not .Values.networkPolicy.kubeApi.cidrs) (not .Values.cni.cilium.enabled) }}
+{{- $cilium := .Values.cni.cilium.enabled }}
+{{- if and .Values.networkPolicy.kubeApi.enabled (not $cilium) (not .Values.networkPolicy.kubeApi.cidrs) }}
 {{- fail "networkPolicy.kubeApi.enabled needs at least one entry in networkPolicy.kubeApi.cidrs; an empty destination would open every address" }}
+{{- end }}
+{{- $mcp := .Values.networkPolicy.meshControlPlane }}
+{{- $meshed := list }}
+{{- if ne .Values.mesh.mode "none" }}
+{{- range (include "ztd.planeNamespaces" . | fromJsonArray) }}
+{{- if .mesh }}{{ $meshed = append $meshed .name }}{{ end }}
+{{- end }}
 {{- end }}
 {{- range (include "ztd.planeNamespaces" . | fromJsonArray) }}
 {{- $ns := .name }}
@@ -86,7 +88,7 @@ spec:
     - to:
         - podSelector: {}
 {{- end }}
-{{- if and (eq $plane "management") $.Values.networkPolicy.kubeApi.enabled $.Values.networkPolicy.kubeApi.cidrs }}
+{{- if and (eq $plane "management") $.Values.networkPolicy.kubeApi.enabled (not $cilium) }}
 ---
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
@@ -112,28 +114,63 @@ spec:
           protocol: TCP
         {{- end }}
 {{- end }}
-{{- if and (eq $plane "management") $.Values.networkPolicy.kubeApi.enabled $.Values.cni.cilium.enabled }}
-{{- $ports := list "443" }}
-{{- range $.Values.networkPolicy.kubeApi.ports }}{{ $ports = append $ports (toString .) }}{{ end }}
+{{- if and $mcp.enabled (has $ns $meshed) }}
 ---
-apiVersion: cilium.io/v2
-kind: CiliumNetworkPolicy
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
 metadata:
-  name: allow-kube-api-egress
+  name: allow-mesh-control-plane-egress
   namespace: {{ $ns }}
   labels:
     {{- include "ztd.labels" $ | nindent 4 }}
     ztd.facis.io/plane: {{ $plane }}
+  annotations:
+    ztd.facis.io/declared-opening: meshControlPlane
 spec:
-  endpointSelector: {}
+  podSelector: {}
+  policyTypes:
+    - Egress
   egress:
-    - toEntities:
-        - kube-apiserver
-      toPorts:
-        - ports:
-            {{- range (uniq $ports) }}
-            - port: {{ . | quote }}
-              protocol: TCP
-            {{- end }}
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: {{ $mcp.namespace }}
+          podSelector:
+            matchLabels:
+              {{- toYaml $mcp.podSelector | nindent 14 }}
+      ports:
+        - port: {{ $mcp.port }}
+          protocol: TCP
 {{- end }}
+{{- end }}
+{{- if and $mcp.enabled $meshed }}
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-mesh-control-plane-ingress
+  namespace: {{ $mcp.namespace }}
+  labels:
+    {{- include "ztd.labels" . | nindent 4 }}
+  annotations:
+    ztd.facis.io/declared-opening: meshControlPlane
+spec:
+  podSelector:
+    matchLabels:
+      {{- toYaml $mcp.podSelector | nindent 6 }}
+  policyTypes:
+    - Ingress
+  ingress:
+    - from:
+        - namespaceSelector:
+            matchExpressions:
+              - key: kubernetes.io/metadata.name
+                operator: In
+                values:
+                  {{- range $meshed }}
+                  - {{ . }}
+                  {{- end }}
+      ports:
+        - port: {{ $mcp.port }}
+          protocol: TCP
 {{- end }}

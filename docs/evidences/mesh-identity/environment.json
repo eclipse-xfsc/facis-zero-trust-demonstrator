@@ -1,0 +1,53 @@
+{
+  "commit": "96e23b869fdd51be771f074be97cf241919f07b4",
+  "dirty": false,
+  "date": "2026-10-09T14:59:09Z",
+  "finished": "2026-10-09T15:09:17Z",
+  "host": {
+    "kind": "Linux 6.8.0-146-generic, Ubuntu 24.04.5 LTS"
+  },
+  "cluster": {
+    "context": "kind-ztd",
+    "kubernetes": "v1.35.5",
+    "kindNodeImage": "kindest/node:v1.35.5@sha256:ce977ae6d65918d0b58a5f8b5e940429c2ce42fa3a5619ec2bbc60b949c0ac95",
+    "cni": "quay.io/cilium/cilium:v1.20.2@sha256:2939231d0d3e3ebddcd80fffa168b7ddcc78fdf0dc864d1c8c126ff523c54f01"
+  },
+  "zone": {
+    "file": "deployment/helm/ztd/ci/values.yaml",
+    "trustDomain": "kind.facis-ztd.local"
+  },
+  "tools": {
+    "kind": "kind v0.33.0 go1.26.7 linux/amd64",
+    "kubectl": "v1.37.1",
+    "helm": "v4.3.0+gbec5b06",
+    "istioctl": "1.31.1",
+    "cilium": "cilium-cli: v0.20.1 compiled with go1.27.1 on linux/amd64"
+  },
+  "charts": {
+    "spire-crds": "0.6.1",
+    "spire": "0.30.2",
+    "istio-base": "1.31.1",
+    "istiod": "1.31.1",
+    "istio-cni": "1.31.1"
+  },
+  "images": {
+    "spire-system": [
+      "busybox:1.37.0-uclibc@sha256:31b72538c3019a20336b04c4cebcd47c36511d0b45aa76666804c2845055bbd3",
+      "cgr.dev/chainguard/bash:latest@sha256:90041f375e30f41aa7e0390075d8a69dc61900771d52fa98d63ee5d03d866a58",
+      "ghcr.io/spiffe/spiffe-csi-driver:0.2.7@sha256:9dfe4f0caff096164fd921aa7f15319804df2fc0325f1d90bc793ef3256ab1cd",
+      "ghcr.io/spiffe/spire-agent:1.15.3@sha256:41b0dcd8b258a69db9e2768292a060766fb76fd866e4bc925849981ea1b825ff",
+      "ghcr.io/spiffe/spire-controller-manager:0.7.0@sha256:d7b9e710f5428ea25daa35a07083fe517ed70c23df902d21c54a0f444455a84b",
+      "ghcr.io/spiffe/spire-server:1.15.3@sha256:4082f30d3e0ddc4000a171392c4ea174345ee44d161ee917c70b97b2ecfba141",
+      "registry.k8s.io/sig-storage/csi-node-driver-registrar:v2.15.0@sha256:11f199f6bec47403b03cb49c79a41f445884b213b382582a60710b8c6fdc316a"
+    ],
+    "istio-system": [
+      "docker.io/istio/install-cni:1.31.1@sha256:49140cc9a9d742cea829f452d93956896e85c4f47bbc7b69cf76484b63cce8b1",
+      "docker.io/istio/pilot:1.31.1@sha256:212ca088ada22f48be1576e6b688972b8aa7495710abb7c5f1febca856a15577"
+    ],
+    "proxy": "docker.io/istio/proxyv2:1.31.1@sha256:d86cba0dd1eb15c00b6901c69ce5ae3d2d5f8427a47751098cf8c3ab2a4a62e9",
+    "cilium": "quay.io/cilium/cilium:v1.20.2@sha256:2939231d0d3e3ebddcd80fffa168b7ddcc78fdf0dc864d1c8c126ff523c54f01"
+  },
+  "result": {
+    "failures": 0
+  }
+}

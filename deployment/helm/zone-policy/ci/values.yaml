@@ -1,0 +1,3 @@
+# The kind zone (deployment/helm/ztd/ci/values.yaml): the CI render and the local proof.
+# scripts/install-zone fills trustDomain from the zone file; CI renders with this file.
+trustDomain: kind.facis-ztd.local
