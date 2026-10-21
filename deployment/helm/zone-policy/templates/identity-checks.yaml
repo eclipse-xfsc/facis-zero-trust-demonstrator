@@ -1,0 +1,264 @@
+{{- /*
+Identity-band checks (hook-weight band "identity", 20-39). After install and after upgrade, three
+Jobs read the state of the identity path back through the Kubernetes API and fail the release when
+identity is not there:
+  server-healthy            (20) the SPIRE server's StatefulSet is Ready (its readiness probe is the
+                                 server's health endpoint) and every agent of the DaemonSet is Ready
+  trust-bundle-published    (25) the server has published its trust bundle, and the SPIRE
+                                 controller-manager and the mesh both run with the zone's trust domain
+  registrations-reconciled  (30) the controller-manager has reconciled the ClusterSPIFFEID into
+                                 entries on the server: no failure, every selected pod has its entry,
+                                 and every running labelled pod of the plane namespaces is selected
+The Jobs only read: their ServiceAccount may get and list, nothing else, and they never create an
+entry (registrations are regular resources, clusterspiffeid-plane-workloads.yaml). They run in the
+release namespace under its default deny, through the DNS bypass and the API lane.
+*/ -}}
+{{- if .Values.checks.enabled }}
+{{- $name := printf "%s-identity-checks" .Release.Name }}
+{{- $hook := dict "phase" "post-install,post-upgrade" "band" "identity" "offset" 0 }}
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: {{ $name }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "zone-policy.labels" . | nindent 4 }}
+  annotations:
+    {{- include "zone-policy.hook.annotations" $hook | nindent 4 }}
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: {{ $name }}
+  labels:
+    {{- include "zone-policy.labels" . | nindent 4 }}
+  annotations:
+    {{- include "zone-policy.hook.annotations" $hook | nindent 4 }}
+rules:
+  - apiGroups: [""]
+    resources: ["namespaces", "pods"]
+    verbs: ["list"]
+  - apiGroups: ["spire.spiffe.io"]
+    resources: ["clusterspiffeids"]
+    resourceNames: [{{ .Values.registration.name | quote }}]
+    verbs: ["get"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: {{ $name }}
+  labels:
+    {{- include "zone-policy.labels" . | nindent 4 }}
+  annotations:
+    {{- include "zone-policy.hook.annotations" $hook | nindent 4 }}
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: {{ $name }}
+subjects:
+  - kind: ServiceAccount
+    name: {{ $name }}
+    namespace: {{ .Release.Namespace }}
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: {{ $name }}
+  namespace: {{ .Values.spire.namespace }}
+  labels:
+    {{- include "zone-policy.labels" . | nindent 4 }}
+  annotations:
+    {{- include "zone-policy.hook.annotations" $hook | nindent 4 }}
+rules:
+  - apiGroups: [""]
+    resources: ["configmaps"]
+    resourceNames: [{{ .Values.spire.bundleConfigMap | quote }}, {{ .Values.spire.controllerManagerConfigMap | quote }}]
+    verbs: ["get"]
+  - apiGroups: ["apps"]
+    resources: ["statefulsets"]
+    resourceNames: [{{ .Values.spire.serverStatefulSet | quote }}]
+    verbs: ["get"]
+  - apiGroups: ["apps"]
+    resources: ["daemonsets"]
+    resourceNames: [{{ .Values.spire.agentDaemonSet | quote }}]
+    verbs: ["get"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: {{ $name }}
+  namespace: {{ .Values.spire.namespace }}
+  labels:
+    {{- include "zone-policy.labels" . | nindent 4 }}
+  annotations:
+    {{- include "zone-policy.hook.annotations" $hook | nindent 4 }}
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: {{ $name }}
+subjects:
+  - kind: ServiceAccount
+    name: {{ $name }}
+    namespace: {{ .Release.Namespace }}
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: {{ $name }}
+  namespace: {{ .Values.mesh.namespace }}
+  labels:
+    {{- include "zone-policy.labels" . | nindent 4 }}
+  annotations:
+    {{- include "zone-policy.hook.annotations" $hook | nindent 4 }}
+rules:
+  - apiGroups: [""]
+    resources: ["configmaps"]
+    resourceNames: [{{ .Values.mesh.configMap | quote }}]
+    verbs: ["get"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: {{ $name }}
+  namespace: {{ .Values.mesh.namespace }}
+  labels:
+    {{- include "zone-policy.labels" . | nindent 4 }}
+  annotations:
+    {{- include "zone-policy.hook.annotations" $hook | nindent 4 }}
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: {{ $name }}
+subjects:
+  - kind: ServiceAccount
+    name: {{ $name }}
+    namespace: {{ .Release.Namespace }}
+{{- $common := `API=https://kubernetes.default.svc
+SA=/var/run/secrets/kubernetes.io/serviceaccount
+# get <path> [accept]: the body goes to /tmp/body, the HTTP status to stdout. The API server
+# pretty-prints for curl's user agent unless told otherwise, and the checks grep compact JSON.
+get() { case $1 in *\?*) q='&';; *) q='?';; esac
+  curl -sS --cacert "$SA/ca.crt" -H "Authorization: Bearer $(cat "$SA/token")" -H "Accept: ${2:-application/json}" -o /tmp/body -w '%{http_code}' "$API$1${q}pretty=false" || echo 000; }
+# num <field>: an integer field of /tmp/body, 0 when absent (omitted zero values)
+num() { v=$(grep -o "\"$1\":[0-9]*" /tmp/body | head -1 | cut -d: -f2); echo "${v:-0}"; }
+deadline=$(( $(date +%s) + TIMEOUT ))
+# retry <description> <test function>: until the test passes or the timeout ends
+retry() { while :; do if "$2"; then echo "ok $1"; return 0; fi; [ "$(date +%s)" -ge "$deadline" ] && { echo "FAIL $1 (after ${TIMEOUT}s): $why"; exit 1; }; sleep 5; done; }
+` }}
+{{- $checks := list
+  (dict "check" "server-healthy" "offset" 0 "script" (printf `%s
+server() {
+  code=$(get "/apis/apps/v1/namespaces/%s/statefulsets/%s"); [ "$code" = 200 ] || { why="StatefulSet: HTTP $code"; return 1; }
+  want=$(grep -o '"spec":{"replicas":[0-9]*' /tmp/body | grep -o '[0-9]*$'); ready=$(num readyReplicas)
+  why="server ready $ready of ${want:-?} (the readiness probe is the server's health endpoint)"; [ -n "$want" ] && [ "$want" -gt 0 ] && [ "$ready" = "$want" ]
+}
+agents() {
+  code=$(get "/apis/apps/v1/namespaces/%s/daemonsets/%s"); [ "$code" = 200 ] || { why="DaemonSet: HTTP $code"; return 1; }
+  want=$(num desiredNumberScheduled); ready=$(num numberReady)
+  why="agents ready $ready of $want"; [ "$want" -gt 0 ] && [ "$ready" = "$want" ]
+}
+retry "the SPIRE server's StatefulSet is Ready (its readiness probe is the server's health endpoint)" server
+retry "every SPIRE agent is Ready" agents
+echo "identity check server-healthy passed"` $common .Values.spire.namespace .Values.spire.serverStatefulSet .Values.spire.namespace .Values.spire.agentDaemonSet))
+  (dict "check" "trust-bundle-published" "offset" 5 "script" (printf `%s
+TD=%s
+# the trust domain as a line of the YAML document in a ConfigMap value (followed by \n or the end)
+has_td() { grep -qF "trustDomain: $TD\n" /tmp/body || grep -qF "trustDomain: $TD\"" /tmp/body; }
+bundle() {
+  code=$(get "/api/v1/namespaces/%s/configmaps/%s"); [ "$code" = 200 ] || { why="bundle ConfigMap: HTTP $code"; return 1; }
+  # the SPIFFE bundle (JWKS) carries the X.509 authorities as keys with use x509-svid and an x5c chain
+  why="no X.509 authority in the published bundle"; grep -q 'x509-svid' /tmp/body && grep -q 'x5c' /tmp/body
+}
+spire_td() {
+  code=$(get "/api/v1/namespaces/%s/configmaps/%s"); [ "$code" = 200 ] || { why="controller-manager ConfigMap: HTTP $code"; return 1; }
+  why="the SPIRE controller-manager does not run with trust domain $TD"; has_td
+}
+mesh_td() {
+  code=$(get "/api/v1/namespaces/%s/configmaps/%s"); [ "$code" = 200 ] || { why="mesh ConfigMap: HTTP $code"; return 1; }
+  why="the mesh does not run with trust domain $TD"; has_td
+}
+retry "the SPIRE server has published its trust bundle" bundle
+retry "SPIRE runs with the zone's trust domain $TD" spire_td
+retry "the mesh runs with the zone's trust domain $TD" mesh_td
+echo "identity check trust-bundle-published passed"` $common .Values.trustDomain .Values.spire.namespace .Values.spire.bundleConfigMap .Values.spire.namespace .Values.spire.controllerManagerConfigMap .Values.mesh.namespace .Values.mesh.configMap))
+  (dict "check" "registrations-reconciled" "offset" 10 "script" (printf `%s
+TABLE='application/json;as=Table;v=v1;g=meta.k8s.io'
+# declared: sets want to the running pods the zone declares an identity for, the labelled pods
+# of the plane namespaces. It runs in the shell itself, not in $(...), so its why reaches retry.
+declared() {
+  code=$(get "/api/v1/namespaces?labelSelector=%s" "$TABLE"); [ "$code" = 200 ] || { why="namespaces: HTTP $code"; return 1; }
+  want=0
+  for ns in $(grep -o '"cells":\["[^"]*"' /tmp/body | sed 's/.*\["//; s/"$//'); do
+    code=$(get "/api/v1/namespaces/$ns/pods?labelSelector=%s&fieldSelector=status.phase%%3DRunning" "$TABLE"); [ "$code" = 200 ] || { why="pods in $ns: HTTP $code"; return 1; }
+    want=$(( want + $(grep -o '"cells":' /tmp/body | wc -l) ))
+  done
+}
+last=
+reconciled() {
+  declared || return 1
+  code=$(get "/apis/spire.spiffe.io/v1alpha1/clusterspiffeids/%s"); [ "$code" = 200 ] || { why="ClusterSPIFFEID: HTTP $code"; return 1; }
+  grep -q '"status":{"stats"' /tmp/body || { why="the controller-manager has not reconciled the ClusterSPIFFEID yet"; return 1; }
+  sel=$(num podsSelected); toset=$(num entriesToSet); masked=$(num entriesMasked); fail=$(num entryFailures); render=$(num podEntryRenderFailures)
+  why="labelled running pods $want, selected $sel, entries to set $toset, masked $masked, entry failures $fail, render failures $render"
+  # the counters are logged when they change, not on every retry
+  [ "$why" = "$last" ] || { echo "$why"; last=$why; }
+  [ "$fail" = 0 ] && [ "$render" = 0 ] && [ $(( toset + masked )) = "$sel" ] && [ "$sel" -ge "$want" ]
+}
+retry "every registration the zone declares exists as an entry on the server" reconciled
+echo "identity check registrations-reconciled passed"` $common (.Values.registration.planeLabel | urlquery) (printf "%s=%s" .Values.registration.identityLabel.key .Values.registration.identityLabel.value | urlquery) .Values.registration.name))
+}}
+{{- range $checks }}
+---
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: {{ printf "%s-%s" $.Release.Name .check | trunc 63 | trimSuffix "-" }}
+  namespace: {{ $.Release.Namespace }}
+  labels:
+    {{- include "zone-policy.labels" $ | nindent 4 }}
+    ztd.facis.io/identity-check: {{ .check }}
+  annotations:
+    {{- include "zone-policy.hook.annotations" (dict "phase" "post-install,post-upgrade" "band" "identity" "offset" .offset) | nindent 4 }}
+spec:
+  backoffLimit: 0
+  ttlSecondsAfterFinished: 3600  # a failed job stays for an hour so its log can be read; a successful one is removed by the hook policy
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: zone-policy-identity-check
+        app.kubernetes.io/instance: {{ $.Release.Name }}
+        ztd.facis.io/identity-check: {{ .check }}
+    spec:
+      serviceAccountName: {{ $name }}
+      restartPolicy: Never
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 100
+        runAsGroup: 101
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: check
+          image: {{ $.Values.checks.image | quote }}
+          imagePullPolicy: IfNotPresent
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: ["ALL"]
+          env:
+            - name: TIMEOUT
+              value: {{ $.Values.checks.timeoutSeconds | quote }}
+          volumeMounts:
+            - name: tmp
+              mountPath: /tmp
+          command: ["/bin/sh", "-eu", "-c"]
+          args:
+            - |
+              {{- .script | nindent 14 }}
+      volumes:
+        - name: tmp
+          emptyDir: {}
+{{- end }}
+{{- end }}
