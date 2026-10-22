@@ -1,0 +1,9 @@
+apiVersion: v2
+name: admission-gitops
+description: >-
+  The admission policy of a zone as Argo CD Applications: the constraint templates, the exemptions and
+  the constraints under deployment/admission, reconciled from Git into the cluster and kept equal to it.
+  Rendered by Argo CD itself from the parent Application that scripts/argocd/install.sh creates
+  (app-of-apps); never installed with helm directly.
+type: application
+version: 0.1.0

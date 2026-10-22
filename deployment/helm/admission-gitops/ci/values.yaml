@@ -1,0 +1,4 @@
+# Renders the chart in CI: the chart gate's server dry-run runs in the default namespace of a cluster
+# without an argocd namespace, so the Applications are placed there. Never deployed.
+argocd:
+  namespace: default
