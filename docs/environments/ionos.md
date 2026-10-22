@@ -209,8 +209,8 @@ the change; break-glass (the webhook removed, then restored by `install.sh`); an
 latency from Gatekeeper's own request histogram (p99 below 1.5 s).
 
 **Break-glass:** `kubectl delete validatingwebhookconfiguration gatekeeper-validating-webhook-configuration`,
-then `helm uninstall gatekeeper -n gatekeeper-system`. **Teardown:** `kubectl delete -f
-deployment/admission/constraints/ -f deployment/admission/templates/`, then `helm uninstall
+then `helm uninstall gatekeeper -n gatekeeper-system`. **Teardown:** `kubectl delete -k
+deployment/admission/constraints`, then `kubectl delete -f deployment/admission/templates/`, then `helm uninstall
 admission-pool admission gatekeeper -n gatekeeper-system`.
 
 ## Planned: runner, registry access and visualization

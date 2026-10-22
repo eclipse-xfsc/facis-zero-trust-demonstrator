@@ -93,6 +93,21 @@ start.
 reason code rather than a generic admission error. A cluster where that image starts is not
 configured.
 
+The policy catalogue is then handed to the zone's Argo CD, which keeps it equal to Git from there on
+([deployment/argocd](../../deployment/argocd/README.md)). The two OSC clusters are Gardener shoots
+with Cilium, so the installer gets the Cilium lane to the API server and the namespace label that
+keeps the platform's API proxy out of it:
+
+```bash
+BIN=<dir> TRUST_REPOSITORY=<the zone's trusted repository prefix> CILIUM=1 \
+NAMESPACE_LABELS=apiserver-proxy.networking.gardener.cloud/inject=disable \
+scripts/argocd/install.sh
+```
+
+**Verify:** the installer ends with every Application `Synced/Healthy` and one `argocd_app_info`
+series with `sync_status="Synced"` per Application; `scripts/argocd/drift-check.sh` then reports
+the seconds until a hand-edited constraint is put back.
+
 ## 6. The demonstrator workloads
 
 The demonstrator services install into the data plane as regular resources; the jobs they bring

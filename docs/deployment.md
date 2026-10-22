@@ -31,6 +31,23 @@ file is written from what the cluster baseline recorded; the chart has no defaul
 design, the hook-weight scheme and the evidence are in [Umbrella chart](umbrella-chart.md), and
 chart values are documented with each chart under `deployment/helm/`.
 
+### Admission policy from Git
+
+Gatekeeper, the provider and the policy catalogue install with `scripts/admission/install.sh`
+([deployment/admission](../deployment/admission/README.md)). From then on the catalogue is kept equal
+to Git by an Argo CD in the zone, installed after it:
+
+```bash
+BIN=<dir with the Argo CD chart> TRUST_REPOSITORY=<the zone's trusted repository prefix> CILIUM=1 \
+NAMESPACE_LABELS=apiserver-proxy.networking.gardener.cloud/inject=disable \
+scripts/argocd/install.sh
+```
+
+A change merged to `deployment/admission/` on the revision the zone follows reaches the cluster on the
+next reconciliation, a constraint edited in the cluster is put back, and the sync status is exported
+as metrics. The layout, the lanes it needs and how it is operated are in
+[deployment/argocd/README.md](../deployment/argocd/README.md).
+
 ### Through the ORCE workflow
 
 The same install, redeploy and uninstall run through ORCE with zero manual steps: a
