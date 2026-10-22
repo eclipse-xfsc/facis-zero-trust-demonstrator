@@ -68,7 +68,7 @@ the umbrella chart is, with these lanes:
 | egress, within the namespace | `allow-intra-namespace-egress` | the same, from the other side |
 | egress, DNS | `allow-dns-egress` | to CoreDNS in `kube-system`, ports 53 and 8053 |
 | egress, Git | `allow-git-egress` | the repo server only, HTTPS only, anywhere: the repository is on a public host |
-| egress, the Kubernetes API | added by the installer | under Cilium a CiliumNetworkPolicy to the `kube-apiserver` entity ([kube-api-lane.cilium.yaml](kube-api-lane.cilium.yaml)), the only form that selects the API server there; elsewhere a NetworkPolicy to the addresses given |
+| egress, the Kubernetes API | added by the installer | under Cilium a CiliumNetworkPolicy to the `kube-apiserver` entity ([kube-api-lane.cilium.yaml](kube-api-lane.cilium.yaml)), the only form that selects the API server there; elsewhere a NetworkPolicy to the addresses given (`KUBE_API_CIDRS`: the endpoint of the `kubernetes` Service and its cluster address; kind's CNI enforces policy and needs it, as the e2e script shows) |
 
 On a Gardener cluster the namespace also carries `apiserver-proxy.networking.gardener.cloud/inject=disable`,
 as the umbrella's namespaces do: without it the platform points every pod at a node-local proxy that
