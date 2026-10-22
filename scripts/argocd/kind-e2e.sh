@@ -60,19 +60,35 @@ helm upgrade --install gatekeeper "$bin/gatekeeper-$GATEKEEPER_CHART_VERSION.tgz
 echo "gatekeeper deployed"
 
 step "Argo CD and the admission policy of $REVISION"
-BIN="$bin" TRUST_REPOSITORY="$trust_repository" REPO_URL="$REPO_URL" REVISION="$REVISION" scripts/argocd/install.sh
+# kind's CNI enforces NetworkPolicy and selects the API server by address: the lane goes to the
+# endpoint of the kubernetes Service (the node, port 6443) and to the Service address.
+api_cidrs=$(kubectl get endpointslices -n default -l kubernetes.io/service-name=kubernetes -o jsonpath='{.items[*].endpoints[*].addresses[*]}' | tr ' ' '\n' | sed 's|$|/32|' | paste -sd,)
+api_cidrs="$api_cidrs,$(kubectl get service kubernetes -o jsonpath='{.spec.clusterIP}')/32"
+BIN="$bin" TRUST_REPOSITORY="$trust_repository" REPO_URL="$REPO_URL" REVISION="$REVISION" KUBE_API_CIDRS="$api_cidrs" scripts/argocd/install.sh
 
 step "The catalogue in the cluster is the checkout"
-# kubectl diff exits 1 on a difference; the files that are zone-independent must match as they are.
+# The spec of every object in a file, as the server would store it (a server dry-run applies the
+# defaults the API fills in, legacySchema on a ConstraintTemplate among them), against the spec of the
+# live object. What Argo CD adds to the metadata (its tracking annotation) is not a difference, so
+# kubectl diff is not the comparison. jq -s takes both forms kubectl prints, one object or a List.
+specs() { jq -S -s '[.[] | (if .kind == "List" then .items[] else . end) | {kind, namespace: .metadata.namespace, name: .metadata.name, spec}]'; }
+same_spec() { # file [jq filter applied to both sides]
+  local want have
+  want=$(kubectl apply --dry-run=server -o json -f "$1" | specs | jq -S "${2:-.}")
+  have=$(kubectl get -o json -f "$1" | specs | jq -S "${2:-.}")
+  [ "$want" = "$have" ] || { diff <(echo "$want") <(echo "$have") || true; return 1; }
+}
 for f in deployment/admission/templates/ deployment/admission/exemptions.yaml \
   deployment/admission/constraints/image-digest.yaml deployment/admission/constraints/naming.yaml \
   deployment/admission/constraints/verified-images.yaml; do
-  if kubectl diff -f "$f" >/dev/null 2>&1; then pass "$f equal in the cluster"; else fail "$f differs in the cluster"; kubectl diff -f "$f" || true; fi
+  if same_spec "$f"; then pass "$f equal in the cluster"; else fail "$f differs in the cluster"; fi
 done
-if kubectl diff -f deployment/admission/constraints/allowed-repositories.yaml 2>/dev/null | grep -q "^-.*$trust_repository"; then
+# The one zone fact: equal once the prefix is taken out of both sides, and the live prefix is the zone's.
+if same_spec deployment/admission/constraints/allowed-repositories.yaml 'del(.[].spec.parameters.repositories)' \
+  && [ "$(kubectl get k8sztdallowedrepositories ztd-allowed-repositories -o jsonpath='{.spec.parameters.repositories}')" = "[\"$trust_repository\"]" ]; then
   pass "allowed-repositories carries the zone's prefix $trust_repository and nothing else differs"
 else
-  fail "allowed-repositories does not carry the zone's prefix"
+  fail "allowed-repositories does not carry the zone's prefix, or differs beyond it"
 fi
 
 step "A hand-edited constraint is put back"

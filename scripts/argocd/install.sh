@@ -14,8 +14,9 @@
 #
 # The lane to the Kubernetes API is a zone fact: CILIUM=1 applies deployment/argocd/kube-api-lane.cilium.yaml,
 # a CiliumNetworkPolicy to the kube-apiserver entity, the only form that selects the API server under
-# Cilium; KUBE_API_CIDRS opens a NetworkPolicy to those addresses where the CNI selects it by address.
-# Neither: no lane, for a cluster whose CNI enforces no policy (kind). NAMESPACE_LABELS go on the argocd
+# Cilium; KUBE_API_CIDRS opens a NetworkPolicy to those addresses (the endpoint of the kubernetes
+# Service, and its cluster address) where the CNI selects it by address, kind's among them. Neither:
+# no lane, only for a CNI that enforces no policy at all. NAMESPACE_LABELS go on the argocd
 # namespace before anything runs in it; on a Gardener cluster that is
 # apiserver-proxy.networking.gardener.cloud/inject=disable, so the pods reach the API server through the
 # kubernetes Service, inside the lane, and not through a node-local proxy outside it.
@@ -59,7 +60,7 @@ POLICY
   } | kubectl apply -f - >/dev/null
   echo "kube API lane: NetworkPolicy to $KUBE_API_CIDRS"
 else
-  echo "kube API lane: none (a CNI without policy enforcement)"
+  echo "kube API lane: none (only right for a CNI that enforces no policy)"
 fi
 
 echo "== Argo CD"
