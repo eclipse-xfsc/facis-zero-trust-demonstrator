@@ -75,26 +75,29 @@ configs:
     # Managed resources are tracked by an annotation, not by a label: the objects in the cluster stay
     # equal to the files in Git, with one annotation added.
     application.resourceTrackingMethod: annotation
+    # No users: the admin account is disabled and no SSO is configured, so the API server accepts no
+    # login at all. The state is read and the Applications are written with kubectl, as the installer
+    # and the checks do; the installer also deletes the initial admin password Secret.
+    admin.enabled: "false"
 
 # Network layer: default deny in both directions, as in every plane namespace of the umbrella chart,
-# with the lanes Argo CD needs. The chart's own policies (global.networkPolicy.create) are the ingress
-# side: each component admits its peers and, on its metrics port, any namespace. The egress side is
-# below: within the namespace, to DNS, and from the repo server to Git over HTTPS. The lane to the
-# Kubernetes API is a zone fact and is added by the installer: under Cilium, a CiliumNetworkPolicy to
-# the kube-apiserver entity (deployment/argocd/kube-api-lane.cilium.yaml), the only form that selects
-# the API server there; elsewhere, a NetworkPolicy to the API server's addresses (KUBE_API_CIDRS).
+# with the lanes Argo CD needs and nothing else. The chart's own policies are off: its API-server
+# policy admits ingress from anywhere, so every policy is written here instead. Ingress: each
+# component admits its peers on its service port, and any namespace on its metrics port (the zone's
+# collector lives elsewhere); the API server admits only this namespace. Egress: within the
+# namespace, to DNS, and from the repo server to Git over HTTPS. The lane to the Kubernetes API is a
+# zone fact and is added by the installer (CILIUM=1 or KUBE_API_CIDRS, with KUBE_API_PORTS).
 global:
   networkPolicy:
-    create: true
-    defaultDenyIngress: true
+    create: false
 extraObjects:
   - apiVersion: networking.k8s.io/v1
     kind: NetworkPolicy
     metadata:
-      name: default-deny-egress
+      name: default-deny
     spec:
       podSelector: {}
-      policyTypes: [Egress]
+      policyTypes: [Ingress, Egress]
   - apiVersion: networking.k8s.io/v1
     kind: NetworkPolicy
     metadata:
@@ -143,3 +146,82 @@ extraObjects:
                 cidr: 0.0.0.0/0
           ports:
             - { port: 443, protocol: TCP }
+  - apiVersion: networking.k8s.io/v1
+    kind: NetworkPolicy
+    metadata:
+      name: allow-repo-server-ingress
+    spec:
+      # Rendering requests from the controller and the API server; metrics from any namespace.
+      podSelector:
+        matchLabels:
+          app.kubernetes.io/name: argocd-repo-server
+      policyTypes: [Ingress]
+      ingress:
+        - from:
+            - podSelector:
+                matchLabels:
+                  app.kubernetes.io/name: argocd-application-controller
+            - podSelector:
+                matchLabels:
+                  app.kubernetes.io/name: argocd-server
+          ports:
+            - { port: 8081, protocol: TCP }
+        - from:
+            - namespaceSelector: {}
+          ports:
+            - { port: 8084, protocol: TCP }
+  - apiVersion: networking.k8s.io/v1
+    kind: NetworkPolicy
+    metadata:
+      name: allow-redis-ingress
+    spec:
+      podSelector:
+        matchLabels:
+          app.kubernetes.io/name: argocd-redis
+      policyTypes: [Ingress]
+      ingress:
+        - from:
+            - podSelector:
+                matchLabels:
+                  app.kubernetes.io/name: argocd-application-controller
+            - podSelector:
+                matchLabels:
+                  app.kubernetes.io/name: argocd-repo-server
+            - podSelector:
+                matchLabels:
+                  app.kubernetes.io/name: argocd-server
+          ports:
+            - { port: 6379, protocol: TCP }
+  - apiVersion: networking.k8s.io/v1
+    kind: NetworkPolicy
+    metadata:
+      name: allow-controller-metrics-ingress
+    spec:
+      podSelector:
+        matchLabels:
+          app.kubernetes.io/name: argocd-application-controller
+      policyTypes: [Ingress]
+      ingress:
+        - from:
+            - namespaceSelector: {}
+          ports:
+            - { port: 8082, protocol: TCP }
+  - apiVersion: networking.k8s.io/v1
+    kind: NetworkPolicy
+    metadata:
+      name: allow-server-ingress
+    spec:
+      # The API server answers this namespace only (it has no users anyway); metrics from any namespace.
+      podSelector:
+        matchLabels:
+          app.kubernetes.io/name: argocd-server
+      policyTypes: [Ingress]
+      ingress:
+        - from:
+            - podSelector: {}
+          ports:
+            - { port: 8080, protocol: TCP }
+        - from:
+            - namespaceSelector: {}
+          ports:
+            - { port: 8083, protocol: TCP }
