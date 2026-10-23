@@ -15,7 +15,7 @@ destination, and Argo CD keeps the destination equal to the path. The layout is 
 
 | Application | Source | What it keeps equal to Git |
 |---|---|---|
-| `ztd-admission` (parent) | [deployment/helm/admission-gitops](../helm/admission-gitops/README.md), rendered as a Helm chart with the zone's values | the project and the three children below |
+| `ztd-admission` (parent) | [deployment/helm/admission-gitops](../helm/admission-gitops/README.md), rendered as a Helm chart with the zone's values; in the `ztd-bootstrap` project, which allows it one repository, this namespace, and only Applications and AppProjects | the project and the three children below |
 | `admission-templates` (wave 0) | `deployment/admission/templates/` | the ConstraintTemplates, cluster-scoped |
 | `admission-exemptions` (wave 0) | `deployment/admission/exemptions.yaml` | Gatekeeper's `Config` in `gatekeeper-system` |
 | `admission-constraints` (wave 1) | `deployment/admission/constraints/` (a kustomize base) | the constraints, with the zone's trusted repository prefixes patched into `ztd-allowed-repositories` |
@@ -51,8 +51,11 @@ both are told the same one.
 
 The pinned Argo CD chart (`scripts/tools/pins.env`: chart version and SHA-256, images by digest) with
 [argocd-values.yaml](argocd-values.yaml): the application controller, the repo server, the API server
-and redis. Dex, the notifications and the ApplicationSet controllers are off; the UI is not exposed
-and is reached with `kubectl -n argocd port-forward svc/argocd-server 8080:443` when needed.
+and redis. Dex, the notifications and the ApplicationSet controllers are off (the last stays as a
+Deployment with zero replicas: the chart has no switch for it). The API server has no users: the admin
+account is disabled, no SSO is configured, and the installer deletes the password Secret the server
+writes at its first start, so nothing can log in to the UI or the API. The state is read and the
+Applications are written with kubectl, as the installer and the checks do.
 
 **Rights.** The chart's default gives the controller `*` on everything. Here the controller reads
 everything (its resource cache, and the state it reports) and writes only the three Gatekeeper API
@@ -64,11 +67,12 @@ the umbrella chart is, with these lanes:
 
 | Lane | Rule | Why |
 |---|---|---|
-| ingress, between components | the chart's own policies | controller and API server to the repo server and redis; metrics ports from any namespace |
+| ingress, between components | `allow-repo-server-ingress`, `allow-redis-ingress`, `allow-controller-metrics-ingress` | the controller and the API server to the repo server (8081) and redis (6379); the metrics ports (8082, 8084) from any namespace, for the zone's collector |
+| ingress, the API server | `allow-server-ingress` | port 8080 from this namespace only, metrics (8083) from any namespace. The chart's own policies are off: its API-server policy admitted ingress from anywhere |
 | egress, within the namespace | `allow-intra-namespace-egress` | the same, from the other side |
 | egress, DNS | `allow-dns-egress` | to CoreDNS in `kube-system`, ports 53 and 8053 |
 | egress, Git | `allow-git-egress` | the repo server only, HTTPS only, anywhere: the repository is on a public host |
-| egress, the Kubernetes API | added by the installer | under Cilium a CiliumNetworkPolicy to the `kube-apiserver` entity ([kube-api-lane.cilium.yaml](kube-api-lane.cilium.yaml)), the only form that selects the API server there; elsewhere a NetworkPolicy to the addresses given (`KUBE_API_CIDRS`: the endpoint of the `kubernetes` Service and its cluster address; kind's CNI enforces policy and needs it, as the e2e script shows) |
+| egress, the Kubernetes API | written by the installer | under Cilium (`CILIUM=1`) a CiliumNetworkPolicy to the `kube-apiserver` entity, the only form that selects the API server there; elsewhere a NetworkPolicy to the addresses given (`KUBE_API_CIDRS`: the endpoint of the `kubernetes` Service and its cluster address; kind's CNI enforces policy and needs it, as the e2e script shows). Both open `KUBE_API_PORTS` (default `443,6443`: the Service port and the endpoint port, as the umbrella's lane). On a cluster with Cilium the installer refuses to run without a lane |
 
 On a Gardener cluster the namespace also carries `apiserver-proxy.networking.gardener.cloud/inject=disable`,
 as the umbrella's namespaces do: without it the platform points every pod at a node-local proxy that
@@ -93,7 +97,8 @@ scripts/argocd/install.sh
 ```
 
 `TRUST_REPOSITORY` is the zone's trusted repository prefix, the value the provider was installed
-with. `REPO_URL` and `REVISION` (default: this repository on GitHub, `main`) are what the zone
+with; the installer refuses one that is not among the provider's `trust.repositories`, so the
+constraint and the provider cannot disagree. `REPO_URL` and `REVISION` (default: this repository on GitHub, `main`) are what the zone
 follows; a pull request is proven on a cluster by pointing a zone at its branch, then re-running the
 installer with the defaults once it is merged. The script is idempotent and stops at the first check
 that fails: an image not pinned by digest, an Application not `Synced/Healthy`, the zone's prefix
