@@ -1,31 +1,42 @@
 name: Release SBOM (CycloneDX)
 
+# Every published release carries a signed CycloneDX SBOM of the Go module: sbom.json, checked by
+# cmd/sbomcheck, and sbom.json.sig, signed with the interim key and verifiable against
+# docs/contracts/keys/interim-cosign.pub (see docs/ci-cd.md). A release counts as done only when both
+# files are attached and the signature verifies; a release with no SBOM, an unsigned one, a half-finished
+# upload or a pair that does not verify is regenerated from its tag and attached again. A release run
+# covers the new tag, the scheduled run backfills anything that was missed, and a push to
+# candidate/<anything> runs it in a fork whose default branch does not carry this workflow.
+#
+# The interim key lives in the release environment. That environment admits main and candidate/*; for
+# the run a published release starts (it runs on the tag) to reach the key, the environment must also
+# admit the release tags (v*) - a repository setting, recorded in docs/ci-cd.md.
 on:
   workflow_dispatch:
   schedule:
     - cron: '0 0 1 * *'
   release:
     types: [published]
+  push:
+    branches: ['candidate/**']
 
 permissions:
   contents: read
 
-# The SBOM is generated here rather than through the shared org workflow. That
-# workflow sets up a fixed Go version, and an older Go refuses to read a module
-# whose go directive is newer, so it cannot produce an SBOM for this module.
-# The behaviour is otherwise the same: every published release that has no SBOM
-# attached yet gets one, so a release run covers the new tag and the scheduled
-# run backfills anything that was missed.
+concurrency:
+  group: release-sbom
+  cancel-in-progress: false
+
 jobs:
   sbom:
-    name: Generate and attach the SBOM
+    name: Generate, sign and attach the SBOM
     runs-on: ubuntu-latest
+    environment: release
     permissions:
-      contents: write # uploads the SBOM onto the release
+      contents: write # uploads the SBOM and its signature onto the release
     env:
       GH_TOKEN: ${{ github.token }}
       SBOM_NAME: sbom.json
-      CYCLONEDX_GOMOD_VERSION: v1.9.0
     steps:
       - name: Checkout repository
         uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
@@ -48,41 +59,62 @@ jobs:
         with:
           go-version-file: go.mod
 
-      - name: Install cyclonedx-gomod
-        if: steps.go-mod.outputs.exists == 'true'
-        run: go install "github.com/CycloneDX/cyclonedx-gomod/cmd/cyclonedx-gomod@${CYCLONEDX_GOMOD_VERSION}"
-
-      - name: Attach an SBOM to every release that lacks one
+      - name: Install the pinned signing and SBOM tools
         if: steps.go-mod.outputs.exists == 'true'
         run: |
-          tool="$(go env GOPATH)/bin/cyclonedx-gomod"
+          scripts/tools/install.sh "$RUNNER_TEMP/bin" cosign syft
+          echo "$RUNNER_TEMP/bin" >> "$GITHUB_PATH"
+
+      - name: Check the signing key
+        if: steps.go-mod.outputs.exists == 'true'
+        env:
+          COSIGN_INTERIM_KEY: ${{ secrets.COSIGN_INTERIM_KEY }}
+          COSIGN_PASSWORD: ${{ secrets.COSIGN_INTERIM_PASSWORD }}
+        run: scripts/supplychain/check-key.sh
+
+      - name: Attach a signed SBOM to every release that lacks a verifying one
+        if: steps.go-mod.outputs.exists == 'true'
+        env:
+          COSIGN_KEY: env://COSIGN_INTERIM_KEY
+          COSIGN_INTERIM_KEY: ${{ secrets.COSIGN_INTERIM_KEY }}
+          COSIGN_PASSWORD: ${{ secrets.COSIGN_INTERIM_PASSWORD }}
+        run: |
+          public=docs/contracts/keys/interim-cosign.pub
           failed=0
+
+          # Every published release, all pages; a failed listing fails the run instead of looking empty.
+          tags="$(gh api --paginate "repos/$GITHUB_REPOSITORY/releases" --jq '.[] | select(.draft | not) | .tag_name')"
 
           while read -r tag; do
             [ -n "$tag" ] || continue
+            check="$(mktemp -d)"
 
-            if gh release view "$tag" --json assets --jq '.assets[].name' | grep -qxF "$SBOM_NAME"; then
-              echo "SBOM already attached to $tag"
+            # Done only if both files are attached and the signature verifies.
+            if gh release download "$tag" --dir "$check" --pattern "$SBOM_NAME" --pattern "$SBOM_NAME.sig" 2>/dev/null \
+              && [ -s "$check/$SBOM_NAME" ] && [ -s "$check/$SBOM_NAME.sig" ] \
+              && cosign verify-blob --key "$public" --insecure-ignore-tlog=true \
+                   --signature "$check/$SBOM_NAME.sig" "$check/$SBOM_NAME" >/dev/null 2>&1; then
+              echo "Signed SBOM already attached to $tag"
+              rm -rf "$check"
               continue
             fi
+            rm -rf "$check"
 
             if ! git cat-file -e "refs/tags/$tag:go.mod" 2>/dev/null; then
               echo "No go.mod at $tag - skipped"
               continue
             fi
 
-            echo "Generating the SBOM for $tag"
-            workdir="$(mktemp -d)"
+            echo "Generating and signing the SBOM for $tag"
+            workdir="$(mktemp -d)" out="$(mktemp -d)/$SBOM_NAME"
             git worktree add --quiet --detach "$workdir" "refs/tags/$tag"
-
-            if (cd "$workdir" && "$tool" mod -licenses -json -output "$SBOM_NAME"); then
-              gh release upload "$tag" "$workdir/$SBOM_NAME" --clobber
+            if scripts/supplychain/repo-sbom.sh "$workdir" "$out"; then
+              gh release upload "$tag" "$out" "$out.sig" --clobber
             else
-              echo "::error::could not generate the SBOM for $tag"
+              echo "::error::could not produce a signed SBOM for $tag"
               failed=1
             fi
-
             git worktree remove --force "$workdir"
-          done < <(gh release list --limit 200 --json tagName --jq '.[].tagName')
+          done <<< "$tags"
 
           exit "$failed"

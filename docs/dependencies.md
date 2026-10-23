@@ -5,8 +5,9 @@ but does not own.
 
 ## Licence compliance
 
-Every dependency clears Eclipse Dash before it ships. The scan runs on every pull request and a
-dependency Dash marks `restricted` blocks the merge; anything Dash cannot clear automatically goes
+Every dependency clears Eclipse Dash before it ships. The scan runs on every pull request, and a
+dependency Dash marks `restricted` fails the licence gate — which blocks the merge once the gate is a
+required check of the `main` ruleset ([CI/CD](ci-cd.md#branch-protection)); anything Dash cannot clear automatically goes
 to the Eclipse IP team for review. See [CI/CD](ci-cd.md).
 
 A dependency under a licence the project cannot accept is replaced, not waived. The exception below
@@ -14,6 +15,15 @@ is the only other route, and it is not a way to waive the rule.
 
 Generated inventories — the CycloneDX SBOM and the Dash summary — are published with each release
 and are the authoritative list. This page records the components chosen and why.
+
+### Pending Eclipse IP review
+
+Dependencies Dash cannot clear yet. They are not exceptions: each stays here until Eclipse approves it,
+and is removed then. None is pending: the last two, `golang.org/x/text` v0.42.0
+([iplab #32075](https://gitlab.eclipse.org/eclipsefdn/emo-team/iplab/-/work_items/32075)) and
+`github.com/santhosh-tekuri/jsonschema/v6` v6.0.3
+([iplab #32387](https://gitlab.eclipse.org/eclipsefdn/emo-team/iplab/-/work_items/32387)), were approved
+by 23 October 2026.
 
 ## Licence exceptions
 
