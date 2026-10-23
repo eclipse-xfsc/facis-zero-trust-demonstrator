@@ -1,0 +1,9 @@
+apiVersion: v2
+name: application-service
+description: >-
+  One application service as its own release, outside the umbrella chart: a Deployment by image
+  digest, its Service, an optional ingress route and the service's own network policy. Creates no
+  cluster-scoped objects, so a namespace-scoped identity can install it.
+type: application
+version: 0.1.0
+appVersion: 0.1.0

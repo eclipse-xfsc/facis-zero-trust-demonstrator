@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"net/http"
 
 	"authelia.com/provider/oauth2"
@@ -35,7 +36,15 @@ func noteReplay(ctx context.Context) {
 // classify maps a library error to a reason code by its OAuth 2.0 error
 // name, never by its message text.
 func classify(err error, o *outcome) oauth2provider.Code {
-	switch oauth2.ErrorToRFC6749Error(err).ErrorField {
+	field := oauth2.ErrorToRFC6749Error(err).ErrorField
+
+	// A refused verification outcome carries its IF-03 code as the error's cause.
+	var cred *credError
+	if field == "invalid_grant" && errors.As(err, &cred) {
+		return cred.code
+	}
+
+	switch field {
 	case "use_dpop_nonce":
 		return oauth2provider.CodeDPoPUseNonce
 	case "invalid_dpop_proof":

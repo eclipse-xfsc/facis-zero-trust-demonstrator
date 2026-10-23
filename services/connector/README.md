@@ -21,7 +21,7 @@ Behaviour, configuration, reason codes and limitations are described in
 
 | Path | Contents |
 |---|---|
-| `internal/oauth2provider` | The contract the connector programs against. Imports no OAuth 2.0 library. API unstable. |
+| `internal/oauth2provider` | The contract the connector programs against, at version 1. Imports no OAuth 2.0 library. |
 | `internal/oauth2provider/authelia` | The implementation, and the only package allowed to import the OAuth 2.0 library. |
 | `internal/oauth2provider/memstore` | In-memory stores for tests and local development. |
 | `internal/dpoptest` | Test helper that mints DPoP proofs. |
