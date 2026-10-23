@@ -2,6 +2,8 @@ apiVersion: constraints.gatekeeper.sh/v1beta1
 kind: K8sZtdImageDigest
 metadata:
   name: ztd-image-digest
+  annotations:
+    description: "Denies an image not referenced as host/repository@sha256:<digest> (ADM-NOT-DIGEST)."
 spec:
   enforcementAction: deny
   match:
