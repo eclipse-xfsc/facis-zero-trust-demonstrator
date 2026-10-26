@@ -19,7 +19,8 @@ and is declared as such in [Specification changes](specifications.md#readings-an
 | `.github/workflows/sbom.yml` | schedule, release, manual | Generates a CycloneDX SBOM for every release that has none and attaches it |
 | `.github/workflows/docs.yml` | push to `main` affecting `docs/`, manual | Builds the MkDocs site and publishes it to the `gh-pages` branch |
 | `.github/workflows/workflow-hygiene.yml` | every pull request, manual | Fails the pull request when an action is not pinned to a commit or a token scope is too wide |
-| `.github/workflows/ci.yml` | every pull request, push to `main`, published release, manual | Go lint and tests, image build with the Linux assertion and a Trivy scan, chart lint and dry-run render, the admission catalogue and the admission reconciler each on a kind cluster (see [Admission reconciler](#admission-reconciler)); on a published release, the chart gate once more and the chart packaging and publication (see [Chart release](#chart-release)) |
+| `.github/workflows/ci.yml` | every pull request, push to `main`, published release, manual | Go lint and tests, image build with the Linux assertion and a Trivy scan, chart lint and dry-run render, the admission catalogue and the admission reconciler each on a kind cluster (see [Admission reconciler](#admission-reconciler)), the policy package against a local registry (see [Policy package](#policy-package)); on a published release, the chart gate once more and the chart packaging and publication (see [Chart release](#chart-release)) |
+| `.github/workflows/policy-publish.yml` | push to `main` touching the admission catalogue, manual | Packages the admission policy catalogue as one OCI artefact, pushes it to the policy registry, signs it by digest with the interim key and verifies the signature (see [Policy package](#policy-package)) |
 | `.github/workflows/release.yml` | manual, push to a `candidate/**` branch | Release candidate: the chart gate (see [Chart gate](#chart-gate)), then builds, pushes, signs and attests every image by digest and verifies each one (see [Image signing](#image-signing)); beside it the secrets baseline (see [Secrets](secrets.md#the-baseline-proof-tdr-bdd-08)) |
 | `.github/workflows/measurement-determinism.yml` | pull request and push to `main` touching the check, manual | Measures one fixture on a hosted runner, in a container, and on a deliberately divergent checkout, and requires the normalised measurement to be the same on all three |
 
@@ -142,6 +143,48 @@ the committed public key, so a missing environment, secret or key file stops the
 is pushed. GHCR creates new packages as private; the job verifies them with its own token, but a
 cluster pulls and verifies anonymously, so the candidate packages must be made public in the package
 settings (once per package) before a cluster can admit them.
+
+## Policy package
+
+ZT-12 and ZT-37 want the admission policy distributed through a registry, as tarball packages over
+OCI, published by a GitHub Action from a repository only authorised maintainers write to. Git stays
+where the policy is authored and reviewed; the registry becomes where a zone is meant to read it
+from. `policy-publish.yml` is that action; the zone's side, a reconciler that reads the registry and
+verifies the signature before it applies anything, is the step after this one, and until it lands
+the zones keep reading Git ([Admission reconciler](#admission-reconciler)).
+
+The package is the catalogue's cluster objects at their Git paths — `templates/`, `constraints/`
+(with its kustomization) and `exemptions.yaml`, nothing else — so an Application that reads the
+package names the path it names in Git, and the zone's repository prefix is still patched in by the
+consumer, never written into the package. `scripts/supplychain/policy-package.sh` builds it
+reproducibly: the same files give the same bytes, whatever the checkout's owner, times and modes, so
+the same commit publishes the same digest and the registry can be compared with Git.
+`scripts/supplychain/policy-publish.sh` then pushes it with ORAS as one layer of media type
+`application/vnd.oci.image.layer.v1.tar+gzip` — the one shape Argo CD reads from an `oci://` source,
+so the consumer needs no unpacking of its own — with the version, the commit and the source
+repository as manifest annotations, signs the manifest by digest with the profile of
+[Image signing](#image-signing) (interim key, no transparency log) and verifies the signature against
+the committed public key. The last line it prints is the digest reference, the one thing a consumer
+pins: a tag can be moved to other content, a digest cannot.
+
+The workflow runs in the protected `release` environment, on a push to `main` that touches the
+catalogue or by hand with a version, and packages nothing until `gator verify` has passed on the
+catalogue and the signing key has been checked against the public key. The run is the log of the
+publication — who started it, who approved the environment, the digest in the run summary — and the
+annotations tie the artefact to its commit. The registry is the repository variable
+`POLICY_REGISTRY` (for example `harbor.example.org/facis/policy`) with the `POLICY_REGISTRY_USER` and
+`POLICY_REGISTRY_PASSWORD` secrets of a robot account, as `CHART_REGISTRY` is for the charts; while
+none is configured the package goes to `ghcr.io/<owner>/<repository>/policy/admission`, where GHCR
+creates it private, so it is made public once in the package settings before a cluster can read it
+anonymously. The interim key is not the client trust chain; it is replaced by the client key and
+Harbor.
+
+`scripts/supplychain/policy-package_test.sh` holds the two scripts to this in the `policy-package`
+job, against a `registry:2` on the runner and an ephemeral key: the package holds the cluster
+objects and nothing else, two checkouts give the same bytes, a catalogue missing a member is refused,
+the artefact is one layer of the media type above, pulling the signed digest back gives the bytes
+that were packaged, a signature by another key is refused, and a tampered package pushed to the same
+tag moves the tag to a digest the signature does not cover while the signed digest still verifies.
 
 ## Chart release
 

@@ -62,10 +62,22 @@ hand-edited constraint is put back.
 **Break-glass:** delete the `gatekeeper-validating-webhook-configuration` ValidatingWebhookConfiguration,
 then `helm uninstall gatekeeper -n gatekeeper-system`.
 
+## Publish
+
+The same three paths — `templates/`, `constraints/`, `exemptions.yaml` — are also published as one
+signed OCI artefact, the tarball package ZT-37 asks for, by `.github/workflows/policy-publish.yml`
+on every change merged to `main` (`scripts/supplychain/policy-package.sh` and `policy-publish.sh`;
+see [Policy package](../../docs/ci-cd.md#policy-package)). The package carries the files as they are
+here, the zone's repository prefix included as the catalogue names it: the consumer patches its own
+in, as the reconciler does from Git.
+
 ## Tests
 
 - `gator verify deployment/admission` — the constraints that need only the object
   ([suite.yaml](suite.yaml)); the `gator` job in CI.
+- `scripts/supplychain/policy-package_test.sh` — the package holds these files and nothing else, is
+  the same bytes from any checkout, and against a local registry is one layer, signed and verified,
+  with a tampered push to the same tag left uncovered by the signature; the `policy-package` job in CI.
 - `scripts/admission/kind-e2e.sh` — the whole catalogue in a real Gatekeeper on kind, with the
   provider and a local registry of test images signed with the release script and an ephemeral key:
   signed (admitted and Running), unsigned, untrusted key, mutable tag, each attestation missing,
