@@ -11,12 +11,14 @@ import (
 	"net/http"
 	"net/url"
 	"os"
+	"path/filepath"
 	"strconv"
 	"strings"
 	"testing"
 	"time"
 
 	"github.com/jackc/pgx/v5/pgxpool"
+	"github.com/santhosh-tekuri/jsonschema/v6"
 
 	"github.com/eclipse-xfsc/facis-zero-trust-demonstrator/internal/if03"
 	"github.com/eclipse-xfsc/facis-zero-trust-demonstrator/internal/jose"
@@ -201,9 +203,123 @@ func TestServeBootstrapsTheRegistrarAndIssuesVerifiableTokens(t *testing.T) {
 	var registered struct {
 		ClientID     string `json:"client_id"`
 		ClientSecret string `json:"client_secret"`
+		RAT          string `json:"registration_access_token"`
 	}
-	if resp.StatusCode != http.StatusCreated || json.Unmarshal(regBody, &registered) != nil || registered.ClientID == "" {
+	if resp.StatusCode != http.StatusCreated || json.Unmarshal(regBody, &registered) != nil || registered.ClientID == "" || registered.RAT == "" {
 		t.Fatalf("registration: status %d", resp.StatusCode)
+	}
+
+	// The accepted registration left its audit row, naming the client, the registrar and the
+	// request; then four refusals, each audited with its rule or the library's reason, none of
+	// them leaving a client. The nonce handshake of each call is no decision and leaves no row.
+	registrations := 1
+	for name, c := range map[string]struct {
+		change func(m map[string]any)
+		token  string
+		rule   string
+		code   string
+	}{
+		"no DPoP binding":  {func(m map[string]any) { m["dpop_bound_access_tokens"] = false }, registrarToken, ruleDPoPBound, "TOK-REGISTRATION-REJECTED"},
+		"public client":    {func(m map[string]any) { m["token_endpoint_auth_method"] = "none" }, registrarToken, ruleAuthMethod, "TOK-REGISTRATION-REJECTED"},
+		"redirect_uris":    {func(m map[string]any) { m["redirect_uris"] = []string{"https://x.example/cb"} }, registrarToken, ruleMembers, "TOK-REGISTRATION-REJECTED"},
+		"no authorization": {nil, "", ruleLibrary, "TOK-MISSING"},
+		// A token the store does not know: the library refuses it, the policy gives no verdict.
+		"forged token": {func(m map[string]any) { m["dpop_bound_access_tokens"] = false }, "connector_at_forged.unknown", ruleLibrary, "TOK-INVALID"},
+	} {
+		m := map[string]any{"client_name": "refused " + name, "grant_types": []string{"client_credentials"},
+			"token_endpoint_auth_method": "client_secret_basic", "scope": scope,
+			"dpop_bound_access_tokens": true, "audience": []string{resourceAudience}}
+		if c.change != nil {
+			c.change(m)
+		}
+		body, _ := json.Marshal(m)
+		resp, answer := dpopCall(t, &proofs, func(nonce string) (*http.Request, string) {
+			req, _ := http.NewRequest(http.MethodPost, endpoint, bytes.NewReader(body))
+			req.Header.Set("Content-Type", "application/json")
+			req.Header.Set("X-Request-Id", "refused-"+strings.ReplaceAll(name, " ", "-"))
+			if c.token != "" {
+				req.Header.Set("Authorization", "DPoP "+c.token)
+			}
+			return req, dpoptest.Mint(t, registrarKey, dpoptest.Proof{Method: http.MethodPost, URL: endpoint, AccessToken: c.token, Nonce: nonce})
+		})
+		var refusal struct {
+			Error, Reason, Description string `json:"-"`
+		}
+		var raw map[string]string
+		_ = json.Unmarshal(answer, &raw)
+		refusal.Error, refusal.Reason, refusal.Description = raw["error"], raw["reason"], raw["error_description"]
+		switch c.rule {
+		case ruleLibrary:
+			if resp.StatusCode != http.StatusUnauthorized || refusal.Reason != "invalid_token" {
+				t.Errorf("%s: %d %s", name, resp.StatusCode, answer)
+			}
+		default:
+			if resp.StatusCode != http.StatusBadRequest || refusal.Error != "invalid_client_metadata" || refusal.Reason != "registration_rejected" || refusal.Description != ruleText[c.rule] {
+				t.Errorf("%s: %d %s", name, resp.StatusCode, answer)
+			}
+		}
+		registrations++
+	}
+	type auditRow struct {
+		Kind, ClientID, Reason, Correlation, Detail string
+	}
+	rows, err := in.pool.Query(t.Context(), `SELECT kind, coalesce(client_id, ''), coalesce(reason_code, ''), coalesce(correlation_id, ''), detail::text
+		FROM audit_event WHERE kind LIKE 'registration.%' ORDER BY event_id`)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var audit []auditRow
+	for rows.Next() {
+		var a auditRow
+		if err := rows.Scan(&a.Kind, &a.ClientID, &a.Reason, &a.Correlation, &a.Detail); err != nil {
+			t.Fatal(err)
+		}
+		audit = append(audit, a)
+	}
+	rows.Close()
+	if len(audit) != registrations {
+		t.Fatalf("%d audit rows for %d registrations: %+v", len(audit), registrations, audit)
+	}
+	if a := audit[0]; a.Kind != "registration.accepted" || a.ClientID != registered.ClientID || a.Reason != "" ||
+		!strings.Contains(a.Detail, `"registrar": "registrar"`) || !strings.Contains(a.Detail, `"client_name": "participant backend"`) {
+		t.Errorf("accepted row: %+v", a)
+	}
+	rules := map[string]bool{}
+	for _, a := range audit[1:] {
+		if a.Kind != "registration.refused" || !strings.HasPrefix(a.Correlation, "refused-") {
+			t.Errorf("refused row: %+v", a)
+		}
+		var detail struct {
+			Rule   string `json:"rule"`
+			Status int    `json:"status"`
+		}
+		_ = json.Unmarshal([]byte(a.Detail), &detail)
+		rules[detail.Rule] = true
+		if detail.Rule == ruleLibrary {
+			if (a.Reason != "TOK-MISSING" && a.Reason != "TOK-INVALID") || a.ClientID != "" || detail.Status != http.StatusUnauthorized {
+				t.Errorf("library refusal row: %+v", a)
+			}
+		} else if a.Reason != "TOK-REGISTRATION-REJECTED" || a.ClientID != "registrar" || detail.Status != http.StatusBadRequest {
+			t.Errorf("policy refusal row: %+v", a)
+		}
+	}
+	for _, rule := range []string{ruleDPoPBound, ruleAuthMethod, ruleMembers, ruleLibrary} {
+		if !rules[rule] {
+			t.Errorf("no audit row for rule %s: %v", rule, rules)
+		}
+	}
+	var clients int
+	if err := in.pool.QueryRow(t.Context(), `SELECT count(*) FROM oauth2_client`).Scan(&clients); err != nil || clients != 2 {
+		t.Errorf("%d clients (registrar and one registered), err %v", clients, err)
+	}
+	var detailText string
+	if err := in.pool.QueryRow(t.Context(), `SELECT coalesce(string_agg(detail::text, ' '), '') FROM audit_event`).Scan(&detailText); err != nil {
+		t.Fatal(err)
+	}
+	for _, canary := range []string{registered.ClientSecret, registered.RAT, registrarToken, canaryRegistrarSecret} {
+		if strings.Contains(detailText, canary) {
+			t.Errorf("a secret reached the audit detail")
+		}
 	}
 
 	clientKey := dpoptest.NewKey(t)
@@ -265,18 +381,127 @@ func TestServeBootstrapsTheRegistrarAndIssuesVerifiableTokens(t *testing.T) {
 		"token secret": strings.TrimSpace(canaryTokenSecret), "registration secret": canaryRegistrationSecret,
 		"registrar secret": canaryRegistrarSecret, "other registrar secret": "another-registrar-secret",
 		"registrar token": registrarToken, "client secret": registered.ClientSecret, "client token": clientToken,
-		"resource proof": resourceProof, "Authorization header": "Authorization",
+		"registration access token": registered.RAT,
+		"resource proof":            resourceProof, "Authorization header": "Authorization",
 	}
 	for i, p := range proofs {
 		canaries["proof "+strconv.Itoa(i)] = p
 	}
 	noCanary(t, logs, canaries)
 	for _, want := range []string{`"msg":"signer ready"`, `"msg":"registrar ready"`, `"msg":"ready"`, `"correlation_id":"token-call"`,
-		`"path":"/oauth2/register"`, `"msg":"draining"`, `"window":"2m0s"`} {
+		`"path":"/oauth2/register"`, `"msg":"draining"`, `"window":"2m0s"`, `"outcome":"accepted"`, `"outcome":"refused"`} {
 		if !strings.Contains(logs, want) {
 			t.Errorf("records lack %s:\n%s", want, logs)
 		}
 	}
+	// The IF-01 events of the first run, each valid against the contract: one registered, then one
+	// refused per refusal, with its correlation id, its registry code and, for the policy's own, its rule.
+	schema := if01Schema(t)
+	var events []if01Event
+	for _, line := range strings.Split(r.out.String(), "\n") {
+		if !strings.Contains(line, `"kind":"token_event"`) {
+			continue
+		}
+		doc, err := jsonschema.UnmarshalJSON(strings.NewReader(line))
+		if err != nil {
+			t.Fatalf("event line: %v\n%s", err, line)
+		}
+		if err := schema.Validate(doc); err != nil {
+			t.Errorf("event violates the IF-01 contract: %v\n%s", err, line)
+		}
+		var ev if01Event
+		if err := json.Unmarshal([]byte(line), &ev); err != nil {
+			t.Fatalf("event line: %v\n%s", err, line)
+		}
+		events = append(events, ev)
+	}
+	if len(events) != registrations {
+		t.Fatalf("%d events for %d registrations", len(events), registrations)
+	}
+	for i, ev := range events {
+		if ev.Seq != uint64(i) || ev.Source != "connector-b" || !strings.HasPrefix(ev.RunID, "connector-b-") || ev.CorrelationID == "" {
+			t.Errorf("event %d: %+v", i, ev)
+		}
+	}
+	if events[0].Payload.State != "registered" || events[0].Payload.Detail != "client_id="+registered.ClientID {
+		t.Errorf("registered event: %+v", events[0])
+	}
+	want := map[string][2]string{ // correlation id: reason code, rule id
+		"refused-no-DPoP-binding":  {"TOK-REGISTRATION-REJECTED", ruleDPoPBound},
+		"refused-public-client":    {"TOK-REGISTRATION-REJECTED", ruleAuthMethod},
+		"refused-redirect_uris":    {"TOK-REGISTRATION-REJECTED", ruleMembers},
+		"refused-no-authorization": {"TOK-MISSING", ""},
+		"refused-forged-token":     {"TOK-INVALID", ""},
+	}
+	for _, ev := range events[1:] {
+		w, known := want[ev.CorrelationID]
+		if !known || ev.Payload.State != "refused" || ev.Payload.ReasonCode != w[0] || ev.Payload.RuleID != w[1] {
+			t.Errorf("refused event: %+v", ev)
+		}
+		delete(want, ev.CorrelationID)
+	}
+	if len(want) != 0 {
+		t.Errorf("no event for %v", want)
+	}
+}
+
+// `connector register` against the running binary: it obtains the registrar's token, registers,
+// writes the credentials file, and those credentials obtain a token; a metadata file the policy
+// refuses exits 1 and leaves no file; no secret reaches its output.
+func TestRegisterCommandAgainstTheBinary(t *testing.T) {
+	in := newInfra(t)
+	apiAddr := freeAddr(t)
+	r := start(t, in.args(t, apiAddr, in.key.Version))
+	waitFor(t, r, `"ready":true`)
+	defer func() {
+		if code := r.stop(t); code != exitOK {
+			t.Errorf("exit %d after SIGTERM", code)
+		}
+	}()
+
+	out := filepath.Join(t.TempDir(), "credentials.json")
+	var stdout, stderr bytes.Buffer
+	code := run([]string{"register", "--connector", "http://" + apiAddr, "--registrar-id", "registrar",
+		"--registrar-secret-file", writeFile(t, "registrar-secret", canaryRegistrarSecret),
+		"--client-name", "cli participant", "--scope", scope, "--audience", resourceAudience, "--out", out, "--request-id", "cli-register"}, &stdout, &stderr)
+	if code != exitOK {
+		t.Fatalf("register: exit %d\n%s%s", code, stdout.String(), stderr.String())
+	}
+	content, err := os.ReadFile(out)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var creds struct {
+		ClientID     string `json:"client_id"`
+		ClientSecret string `json:"client_secret"`
+	}
+	if json.Unmarshal(content, &creds) != nil || len(creds.ClientID) != 64 || len(creds.ClientSecret) != 32 {
+		t.Fatalf("credentials file: %s", content)
+	}
+	var proofs []string
+	if tok := token(t, &proofs, apiAddr, creds.ClientID, creds.ClientSecret, dpoptest.NewKey(t), scope, resourceAudience); tok == "" {
+		t.Error("the registered credentials obtained no token")
+	}
+	var kind, correlation string
+	if err := in.pool.QueryRow(t.Context(), `SELECT kind, coalesce(correlation_id, '') FROM audit_event WHERE client_id = $1`, creds.ClientID).Scan(&kind, &correlation); err != nil ||
+		kind != "registration.accepted" || correlation != "cli-register" {
+		t.Errorf("audit row of the command's registration: %s %s %v", kind, correlation, err)
+	}
+
+	refused := filepath.Join(t.TempDir(), "refused.json")
+	metadata := writeFile(t, "metadata.json", `{"client_name":"cli refused","grant_types":["client_credentials"],"token_endpoint_auth_method":"client_secret_basic","scope":"`+scope+`","dpop_bound_access_tokens":false,"audience":["`+resourceAudience+`"]}`)
+	stdout.Reset()
+	stderr.Reset()
+	code = run([]string{"register", "--connector", "http://" + apiAddr, "--registrar-id", "registrar",
+		"--registrar-secret-file", writeFile(t, "registrar-secret", canaryRegistrarSecret),
+		"--metadata-file", metadata, "--out", refused}, &stdout, &stderr)
+	if code != exitRefused || !strings.Contains(stderr.String(), "registration refused: registration_rejected (400): "+ruleText[ruleDPoPBound]) {
+		t.Errorf("refused register: exit %d\n%s%s", code, stdout.String(), stderr.String())
+	}
+	if _, err := os.Stat(refused); !os.IsNotExist(err) {
+		t.Errorf("a refused registration left a file")
+	}
+	noCanary(t, stdout.String()+stderr.String(), map[string]string{"client secret": creds.ClientSecret, "registrar secret": canaryRegistrarSecret})
 }
 
 // A pinned key version that does not exist keeps the connector not ready and serving no token.
@@ -358,6 +583,24 @@ func TestServeIssuesVerifiedPresentationTokens(t *testing.T) {
 	}
 	if resp.StatusCode != http.StatusCreated || json.Unmarshal(regBody, &client) != nil || client.ClientID == "" {
 		t.Fatalf("registration: status %d %s", resp.StatusCode, regBody)
+	}
+
+	// connector register does the same for a VP client once it knows which scopes are delegable:
+	// they stay out of the registrar's token, which can never carry them. Without that it asks the
+	// token for the VP scope and is refused before anything is registered.
+	registerVP := func(out string, extra ...string) (int, string) {
+		var stdout, stderr bytes.Buffer
+		code := run(append([]string{"register", "--connector", "http://" + apiAddr, "--registrar-id", "registrar",
+			"--registrar-secret-file", writeFile(t, "registrar-secret", canaryRegistrarSecret),
+			"--client-name", "cli vp participant", "--scope", vpScope, "--audience", resourceAudience,
+			"--grant-types", oauth2provider.VerifiedPresentationGrantType, "--out", out}, extra...), &stdout, &stderr)
+		return code, stdout.String() + stderr.String()
+	}
+	if code, output := registerVP(filepath.Join(t.TempDir(), "vp.json"), "--delegable-scopes", vpScope); code != exitOK {
+		t.Errorf("register a VP client: exit %d\n%s", code, output)
+	}
+	if code, output := registerVP(filepath.Join(t.TempDir(), "vp.json")); code != exitRefused || !strings.Contains(output, "registrar token refused") {
+		t.Errorf("register a VP client without its delegable scope named: exit %d\n%s", code, output)
 	}
 
 	form := url.Values{"audience": {resourceAudience}}

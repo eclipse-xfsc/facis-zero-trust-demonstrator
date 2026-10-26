@@ -1,0 +1,16 @@
+apiVersion: v2
+name: connector
+description: >-
+  The zone's connector (services/connector): the OAuth2 authorization surface that registers
+  participant backends behind a policy gate with every decision audited, issues DPoP-bound signed
+  access tokens and publishes its signing key. It runs on the authorization database the token-store
+  chart's schema prepares, so that chart is installed first.
+type: application
+version: 0.1.0
+appVersion: "0.1.0"
+keywords:
+  - facis
+  - zero-trust
+  - connector
+sources:
+  - https://github.com/eclipse-xfsc/facis-zero-trust-demonstrator

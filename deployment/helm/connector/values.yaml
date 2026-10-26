@@ -1,0 +1,97 @@
+# The connector image, by digest only - the chart refuses a tag.
+image:
+  repository: ghcr.io/eclipse-xfsc/facis-zero-trust-demonstrator/connector
+  digest: ""
+
+# The zone this connector serves, a or b: the source of its security-state events is connector-<zone>.
+zone: ""
+
+# The authorization database, shared with the token store, whose chart applies the schema (the
+# connector requires schema version 4 and reports schema_behind until it is there). The chart never
+# carries the credential: the connection URL lives in a Secret of the release namespace, the same
+# one the token-store chart reads.
+database:
+  existingSecret: ""
+  secretKey: url
+
+# The zone's key-value store: the transit key that signs the access tokens. Plain HTTP inside the
+# management plane, the mesh carries the traffic as mTLS. The token is mounted as a file from its
+# own Secret and read on every call, so a rotated token is picked up without a restart.
+openbao:
+  address: http://ztd-openbao.ztd-mgmt.svc:8200
+  existingTokenSecret: ""
+  tokenSecretKey: token
+
+# The connector's own secrets, mounted as files from one Secret: the access-token HMAC secret, the
+# registration-token HMAC secret (both 32 bytes or more, and different) and the registrar's client
+# secret (32 bytes or more), the credential a deployment hands to whoever registers clients.
+secrets:
+  existingSecret: ""
+  tokenSecretKey: token-secret
+  registrationSecretKey: registration-secret
+  registrarSecretKey: registrar-secret
+
+# iss of the access tokens: the connector as its callers and the resources name it, https://.
+issuer: ""
+# POST /oauth2/register as clients reach it: the audience a registration token must carry. Empty
+# renders the Service's own address, http://<name>.<namespace>.svc:8080/oauth2/register.
+registrationEndpoint: ""
+
+# The transit key that signs the access tokens, pinned to one version (1 or more). Create it before
+# the install: type ecdsa-p256, not exportable.
+signing:
+  key: ""
+  version: 0
+
+# The registrar: the one client allowed to obtain the token that authorises registrations, seeded
+# at start. Its audiences are the resource audiences registered clients may name; the chart prepends
+# the registration endpoint. Delegable scopes are verified-presentation scopes it may grant beyond
+# its own token's.
+registrar:
+  id: ztd-registrar
+  scopes:
+    - connector:client_registration
+  audiences: []
+  delegableScopes: []
+
+# The verified-presentation grant: off unless a ConfigMap with the trusted issuers and the scope
+# map is named.
+verifiedPresentation:
+  configMap: ""
+  issuersKey: issuers.json
+  scopeMapKey: scopes.json
+
+accessTokenLifespan: 5m
+dpop:
+  enforce: true
+  nonce: true
+
+# The service.
+replicas: 1
+server:
+  # Budget of one /readyz evaluation; the probe's timeoutSeconds renders as this plus one.
+  readinessTimeoutSeconds: 2
+  # On SIGTERM, how long /readyz answers 503 while the listeners stay open. 0 closes at once.
+  drainDelaySeconds: 5
+  # Drain of the listeners after that delay; terminationGracePeriodSeconds renders as the drain
+  # delay plus this plus the readiness budget plus five.
+  shutdownTimeoutSeconds: 10
+  # debug, info, warn or error.
+  logLevel: info
+
+# The connector's identity in the mesh: its own ServiceAccount, the last segment of its SPIFFE ID
+# (spiffe://<trust domain>/ns/<namespace>/sa/<name>), and the pod label the SPIRE registration
+# selects. No pod mounts the account's token; the label is harmless where SPIRE is absent and
+# required where it runs. With create off the account is managed outside the chart and must exist.
+serviceAccount:
+  create: true
+  name: ztd-connector
+identity:
+  spireManagedIdentity: true
+
+resources:
+  requests:
+    cpu: 50m
+    memory: 64Mi
+  limits:
+    memory: 256Mi

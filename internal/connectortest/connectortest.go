@@ -9,17 +9,13 @@ import (
 	"bytes"
 	"context"
 	"crypto/ecdsa"
-	"crypto/elliptic"
 	"crypto/rand"
-	"crypto/sha256"
-	"encoding/base64"
 	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"io"
 	"net"
 	"net/http"
-	"net/url"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -33,6 +29,7 @@ import (
 
 	"github.com/jackc/pgx/v5"
 
+	"github.com/eclipse-xfsc/facis-zero-trust-demonstrator/internal/connectorclient"
 	"github.com/eclipse-xfsc/facis-zero-trust-demonstrator/internal/dpopproof"
 	"github.com/eclipse-xfsc/facis-zero-trust-demonstrator/internal/jose"
 	"github.com/eclipse-xfsc/facis-zero-trust-demonstrator/internal/transit"
@@ -181,7 +178,7 @@ func Start(t *testing.T, dsn, baoAddr, baoToken string, o Options) *Connector {
 		"--registrar-delegable-scopes", strings.Join(delegable, ","),
 		"--vp-trusted-issuers-file", WriteFile(t, "issuers.json", `{"`+o.VPIssuer+`":{"keys":[`+string(jwkJSON)+`]}}`),
 		"--vp-scope-map-file", WriteFile(t, "scopes.json", string(scopeMap)),
-		"--drain-delay", "0s", "--shutdown-timeout", "2s")
+		"--zone", "b", "--drain-delay", "0s", "--shutdown-timeout", "2s")
 	out := &buffer{}
 	cmd.Stdout, cmd.Stderr = out, out
 	if err := cmd.Start(); err != nil {
@@ -214,99 +211,31 @@ func Start(t *testing.T, dsn, baoAddr, baoToken string, o Options) *Connector {
 }
 
 // Register registers a confidential client for the verified-presentation grant, DPoP-bound, with
-// scope (space-separated) and audiences, through the registrar's DCR, and returns its credentials.
+// scope (space-separated) and audiences, through the registrar's DCR as a deployment does
+// (connectorclient, the client side `connector register` runs), and returns its credentials.
 func (c *Connector) Register(t *testing.T, name, scope string, audiences ...string) (clientID, clientSecret string) {
 	t.Helper()
-	// The registrar's DPoP-bound registration token, then DCR of the client.
-	rk := newProcessKey(t)
-	tokenURL := c.Base + "/oauth2/token"
-	resp, body := dpopPost(t, rk, tokenURL, "", func(r *http.Request) {
-		r.SetBasicAuth("registrar", url.QueryEscape(c.registrarSecret))
-	}, "application/x-www-form-urlencoded", url.Values{"grant_type": {"client_credentials"},
-		"scope": {"connector:client_registration"}, "audience": {strings.Join(append([]string{c.endpoint}, audiences...), " ")}}.Encode())
-	var issued struct {
-		AccessToken string `json:"access_token"`
+	key, err := dpopproof.NewProcessKey()
+	if err != nil {
+		t.Fatal(err)
 	}
-	if resp.StatusCode != http.StatusOK || json.Unmarshal(body, &issued) != nil {
-		t.Fatalf("registrar token: status %d %s", resp.StatusCode, body)
+	registrar := &connectorclient.Client{BaseURL: c.Base, ClientID: "registrar", ClientSecret: c.registrarSecret}
+	issued, err := registrar.ClientCredentialsToken(t.Context(), key, connectorclient.RegistrationScope, append([]string{c.endpoint}, audiences...))
+	if err != nil {
+		t.Fatalf("registrar token: %v", err)
 	}
-	metadata, _ := json.Marshal(map[string]any{
-		"client_name": name, "grant_types": []string{vpGrantType},
-		"token_endpoint_auth_method": "client_secret_basic", "scope": scope,
-		"dpop_bound_access_tokens": true, "audience": audiences,
+	creds, err := registrar.Register(t.Context(), key, c.endpoint, issued.AccessToken, connectorclient.Registration{
+		ClientName: name, GrantTypes: []string{vpGrantType}, Scope: scope, Audience: audiences,
 	})
-	resp, body = dpopPost(t, rk, c.endpoint, issued.AccessToken, func(r *http.Request) {
-		r.Header.Set("Authorization", "DPoP "+issued.AccessToken)
-	}, "application/json", string(metadata))
-	var client struct {
-		ClientID     string `json:"client_id"`
-		ClientSecret string `json:"client_secret"`
+	if err != nil {
+		t.Fatalf("registration: %v", err)
 	}
-	if resp.StatusCode != http.StatusCreated || json.Unmarshal(body, &client) != nil || client.ClientID == "" {
-		t.Fatalf("registration: status %d %s", resp.StatusCode, body)
-	}
-	return client.ClientID, client.ClientSecret
+	return creds.ClientID, creds.ClientSecret
 }
 
 func migrationsDir() string {
 	_, self, _, _ := runtime.Caller(0)
 	return filepath.Join(filepath.Dir(self), "..", "..", "services", "token-store", "internal", "schema", "migrations")
-}
-
-// processKey is a DPoP key held in the process, for the registrar.
-type processKey struct{ k *ecdsa.PrivateKey }
-
-func newProcessKey(t *testing.T) processKey {
-	k, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
-	if err != nil {
-		t.Fatal(err)
-	}
-	return processKey{k}
-}
-
-func (p processKey) JWK() jose.JWK { return jose.PublicJWK(&p.k.PublicKey) }
-func (p processKey) Sign(_ context.Context, in []byte) ([]byte, error) {
-	digest := sha256.Sum256(in)
-	r, s, err := ecdsa.Sign(rand.Reader, p.k, digest[:])
-	if err != nil {
-		return nil, err
-	}
-	sig := make([]byte, 64)
-	r.FillBytes(sig[:32])
-	s.FillBytes(sig[32:])
-	return sig, nil
-}
-
-// dpopPost posts body with a fresh proof, once more with the server's nonce when asked for one.
-func dpopPost(t *testing.T, key dpopproof.Key, target, accessToken string, auth func(*http.Request), contentType, body string) (*http.Response, []byte) {
-	t.Helper()
-	nonce := ""
-	for try := 0; ; try++ {
-		c := dpopproof.Claims{HTM: http.MethodPost, HTU: target, Nonce: nonce}
-		if accessToken != "" {
-			d := sha256.Sum256([]byte(accessToken))
-			c.ATH = base64.RawURLEncoding.EncodeToString(d[:])
-		}
-		proof, err := dpopproof.Build(context.Background(), key, c)
-		if err != nil {
-			t.Fatal(err)
-		}
-		req, _ := http.NewRequest(http.MethodPost, target, strings.NewReader(body))
-		req.Header.Set("Content-Type", contentType)
-		req.Header.Set("DPoP", proof)
-		auth(req)
-		resp, err := http.DefaultClient.Do(req)
-		if err != nil {
-			t.Fatal(err)
-		}
-		var b bytes.Buffer
-		_, _ = b.ReadFrom(resp.Body)
-		_ = resp.Body.Close()
-		if resp.StatusCode < 300 || resp.Header.Get("DPoP-Nonce") == "" || try > 0 {
-			return resp, b.Bytes()
-		}
-		nonce = resp.Header.Get("DPoP-Nonce")
-	}
 }
 
 // buffer collects the connector's output from its own goroutines.

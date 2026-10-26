@@ -1,7 +1,10 @@
 # ADR-0016: OAuth2 library behind the connector's provider contract
 
 - **Status:** Proposed. Decisions 1 to 5 are implemented, signed access tokens included; what
-  remains open is signing-key rotation and deployment (see Open items).
+  remains open is signing-key rotation (see Open items). Deployment, once open, is settled: the
+  chart `deployment/helm/connector` deploys the connector into the management plane with its own
+  identity, behind a registration policy with every decision audited
+  ([Connector service](../connector.md)).
 - **Date:** 2026-10-05
 - **Deciders:** Delivery team, from the OAuth2 library evaluation of September 2026 and its
   follow-up comparison of library versions. Confirmation by the deciders of ADR-0003 is pending.
@@ -140,8 +143,6 @@ contract: the signer and the issuer in the configuration. Details in
   it means publishing the new key next to the old one in the key set for at least the longest token
   lifetime before signing with it; the resource-side verifier (`internal/tokenverify`) already accepts
   several keys and refreshes on an unknown `kid`. The procedure is not automated yet.
-- **Deployment.** The connector runs from its image (`deployment/docker/connector`); no chart
-  deploys it into a zone yet.
 
 ## References
 

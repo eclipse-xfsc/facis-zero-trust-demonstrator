@@ -1,0 +1,20 @@
+# Renders the chart in CI: a placeholder digest and the names the lifecycle proof uses, the Secrets
+# it creates before the install and the key-value store and transit key it starts inside the
+# cluster; never deployed as is.
+image:
+  digest: sha256:0000000000000000000000000000000000000000000000000000000000000000
+zone: b
+database:
+  existingSecret: token-store-database
+openbao:
+  address: http://openbao:8200
+  existingTokenSecret: connector-openbao
+secrets:
+  existingSecret: connector-secrets
+issuer: https://connector-b.verify.invalid
+signing:
+  key: connector-at
+  version: 1
+registrar:
+  audiences:
+    - https://resource.verify.invalid

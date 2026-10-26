@@ -22,7 +22,7 @@ verified.
 | `verified_outcome` | the token store; in the issuing zone, the connector | verification outcomes received over IF-03, consumed at most once. The connector records each outcome its verified-presentation grant consumes here, in the transaction that issues the token |
 | `upstream_token` | the token store | the upstream tokens held per route `(peer_zone, audience, tenant)`, as references into the key-value store, with state and the single-flight renewal claim; at most one live row (`active` or `renewing`) per route (migration 4) |
 | `proof_jti` | the token store, on behalf of the connector and the guard | one-time DPoP proof identifiers, keyed `(jkt, htm, htu, jti)` and kept until `not_after`; the replay check of the store's API |
-| `audit_event` | both | registration decisions, outcome consumption and refusal, every renewal attempt with its reason; append-only |
+| `audit_event` | both | the connector's registration decisions (`registration.accepted` in the transaction that creates the client, `registration.refused`, `registration.uncertain` when a commit's outcome is unknown; [Connector service](connector.md#audit)), outcome consumption and refusal, every renewal attempt with its reason; append-only |
 
 Three properties are the schema's own, not the services' good conduct:
 

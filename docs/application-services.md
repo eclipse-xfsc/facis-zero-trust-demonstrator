@@ -54,7 +54,7 @@ Token mode only; each is required there except the entitlement, and none is read
 | Variable | Meaning |
 | --- | --- |
 | `PARTICIPANT_CONNECTOR_URL` | The Connector's base URL; `/oauth2/challenge` and `/oauth2/token` are called below it. |
-| `PARTICIPANT_CREDENTIALS_FILE` | Mounted file with the provisioned client: one JSON object with exactly the members `client_id` and `client_secret` (case-sensitive), both non-empty strings, no duplicate member and nothing after the object; read at every bootstrap run, never logged. |
+| `PARTICIPANT_CREDENTIALS_FILE` | Mounted file with the provisioned client: one JSON object with exactly the members `client_id` and `client_secret` (case-sensitive), both non-empty strings, no duplicate member and nothing after the object; read at every bootstrap run, never logged. `connector register` writes exactly this file ([Connector service](connector.md#registering-a-participant)). |
 | `PARTICIPANT_AUDIENCE` | The audience the token is requested for: the Resource's `PROTECTED_RESOURCE_AUDIENCE`, registered for the client. |
 | `PARTICIPANT_OUTCOME_ISSUER`, `PARTICIPANT_OUTCOME_KID` | `iss` and `kid` of the fixture IF-03 outcomes; the Connector's trusted-issuers file must hold this issuer and key id. |
 | `PARTICIPANT_OUTCOME_KEY_FILE` | PEM P-256 private key (`EC PRIVATE KEY` or `PRIVATE KEY`) the fixture signs outcomes with; read at start. |

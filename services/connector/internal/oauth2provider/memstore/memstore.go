@@ -2,10 +2,11 @@
 // stores. Nothing is persisted: it is meant for tests and local development.
 //
 // Transactions are serialised and undo-logged: one transaction runs at a time, and a rollback
-// undoes the token creations, challenge creations and consumptions, and outcome consumptions made
-// with its context. Nothing else is transactional: client changes and token deletions take effect
-// at once and are not undone. A transaction's writes are visible to readers outside it before it
-// commits. That is all the verified-presentation grant needs.
+// undoes the client creations, token creations, challenge creations and consumptions, and outcome
+// consumptions made with its context. Nothing else is transactional: client updates and deletions
+// and token deletions take effect at once and are not undone. A transaction's writes are visible to
+// readers outside it before it commits. That is all the verified-presentation grant and the
+// registration gate need.
 package memstore
 
 import (
@@ -186,11 +187,22 @@ func (s *clientStore) GetClient(_ context.Context, id string) (oauth2provider.Cl
 	return client, nil
 }
 
-func (s *clientStore) CreateClient(_ context.Context, client oauth2provider.Client) error {
+func (s *clientStore) CreateClient(ctx context.Context, client oauth2provider.Client) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
+	previous, existed := s.clients[client.ID]
 	s.clients[client.ID] = client
+	onRollback(ctx, func() {
+		s.mu.Lock()
+		defer s.mu.Unlock()
+
+		if existed {
+			s.clients[client.ID] = previous
+		} else {
+			delete(s.clients, client.ID)
+		}
+	})
 
 	return nil
 }

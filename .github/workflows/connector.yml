@@ -1,0 +1,97 @@
+name: Connector
+
+# The connector chart and the registration path, proven on every change to what the proof builds or
+# runs (the connector and the token store, the shared packages, both images and charts, the proof,
+# the tool installer and the pinned images): the token-store chart prepares the schema, the
+# connector installs and comes up ready on a kind cluster against PostgreSQL and OpenBao, a client
+# registers through the registrar with the connector's own image, a registration the policy
+# refuses is refused with its specific error, and both decisions are in the audit trail and on the
+# security-state feed. The connector's Go tests run in the Token store workflow, which covers the
+# service and the shared packages against PostgreSQL and OpenBao in both token modes. Nothing is
+# committed; the records are the run's artefact.
+on:
+  pull_request:
+    paths:
+      - services/connector/**
+      - services/token-store/**
+      - internal/**
+      - deployment/docker/connector/**
+      - deployment/docker/token-store/**
+      - deployment/helm/connector/**
+      - deployment/helm/token-store/**
+      - scripts/verify-connector/**
+      - scripts/tools/pins.env
+      - scripts/tools/install.sh
+      - .dockerignore
+      - go.mod
+      - go.sum
+      - .github/workflows/connector.yml
+  push:
+    branches: [main]
+    paths:
+      - services/connector/**
+      - services/token-store/**
+      - internal/**
+      - deployment/docker/connector/**
+      - deployment/docker/token-store/**
+      - deployment/helm/connector/**
+      - deployment/helm/token-store/**
+      - scripts/verify-connector/**
+      - scripts/tools/pins.env
+      - scripts/tools/install.sh
+      - .dockerignore
+      - go.mod
+      - go.sum
+      - .github/workflows/connector.yml
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  chart:
+    name: Connector chart and registration on kind
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+
+      - name: Set up Helm
+        uses: azure/setup-helm@1a275c3b69536ee54be43f2070a358922e12c8d4 # v4
+        with:
+          version: v4.3.0
+
+      - name: Install the pinned kind and kubectl
+        run: scripts/tools/install.sh "$RUNNER_TEMP/bin" kind kubectl
+
+      # The records go to the runner's temp directory, outside the checkout.
+      - name: Install the charts, register a client, refuse one, read the audit trail
+        run: BIN="$RUNNER_TEMP/bin" scripts/verify-connector/verify.sh --out "$RUNNER_TEMP/evidence"
+
+      - name: Write the verdict to the job summary
+        if: ${{ !cancelled() }}
+        run: |
+          {
+            echo '```'
+            cat "$RUNNER_TEMP/evidence/verdict.txt"
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload this run's records
+        if: ${{ !cancelled() }}
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: connector-lifecycle
+          path: ${{ runner.temp }}/evidence
+          if-no-files-found: error
+
+      # The proof writes outside the checkout; the checkout must be as it was.
+      - name: The repository is unchanged
+        if: ${{ !cancelled() }}
+        run: |
+          if [ -n "$(git status --porcelain)" ]; then
+            git status --porcelain
+            echo "::error::the proof changed files in the repository"
+            exit 1
+          fi

@@ -73,8 +73,9 @@ type server struct {
 
 	registrar       oauth2provider.Client // as seeded, without its hash
 	registrarSecret []byte
-	clients         oauth2provider.ClientStore
-	registrarState  atomic.Int32 // registrarPending, registrarOK or registrarConflict
+	stores          oauth2provider.Stores // the PostgreSQL stores, shared by the provider and the registration gate
+	registrarState  atomic.Int32          // registrarPending, registrarOK or registrarConflict
+	events          *eventSink            // the IF-01 security-state events
 
 	readyState atomic.Int32 // 0 unknown, 1 ready, 2 not ready; only a change is logged
 	draining   atomic.Bool
@@ -96,7 +97,7 @@ const (
 
 // newServer reads the secrets, prepares the pool and the transit client (opening no connection, so
 // a connector that starts before its dependencies still starts) and binds both listeners.
-func newServer(ctx context.Context, cfg config, log *slog.Logger) (*server, error) {
+func newServer(ctx context.Context, cfg config, log *slog.Logger, events *eventSink) (*server, error) {
 	tokenSecret, err := readSecret(cfg.tokenSecretFile, "token secret")
 	if err != nil {
 		return nil, err
@@ -146,11 +147,13 @@ func newServer(ctx context.Context, cfg config, log *slog.Logger) (*server, erro
 	}
 	healthTransport := http.DefaultTransport.(*http.Transport).Clone()
 	healthTransport.Proxy = nil
+	stores := pgstore.New(pool, nil)
 	s := &server{
 		cfg:     cfg,
 		log:     log,
 		pool:    pool,
 		transit: tc,
+		events:  events,
 		key:     transit.KeyVersion{Name: cfg.signingKey, Version: cfg.signingKeyVersion},
 		health: &http.Client{Transport: healthTransport, CheckRedirect: func(*http.Request, []*http.Request) error {
 			return http.ErrUseLastResponse
@@ -179,7 +182,7 @@ func newServer(ctx context.Context, cfg config, log *slog.Logger) (*server, erro
 			Scopes: cfg.registrarScopes, Audience: cfg.registrarAudiences, DPoPBound: true,
 		},
 		registrarSecret: registrarSecret,
-		clients:         pgstore.New(pool, nil).Clients,
+		stores:          stores,
 	}
 	if len(cfg.vp.TrustedIssuers) > 0 {
 		// Clients may register for the grant; the registrar itself needs only client_credentials.
@@ -230,7 +233,7 @@ func (s *server) apiRoutes(provider oauth2provider.Provider, signer oauth2provid
 		return s.correlate(mux)
 	}
 	mux.Handle("POST /oauth2/token", provider.TokenHandler())
-	mux.Handle("POST /oauth2/register", provider.RegistrationHandler())
+	mux.Handle("POST /oauth2/register", s.registrationGate(provider.RegistrationHandler()))
 	mux.Handle("GET /.well-known/jwks.json", jwksHandler(signer))
 	mux.Handle("POST /oauth2/challenge", provider.ChallengeHandler())
 	return s.correlate(bounded(mux))
@@ -302,7 +305,7 @@ func (s *server) tryProvider(ctx context.Context) error {
 	}
 	cfg := s.providerCfg
 	cfg.AccessTokenSigner = signer
-	provider, err := authelia.New(cfg, pgstore.New(s.pool, nil))
+	provider, err := authelia.New(cfg, s.stores)
 	if err != nil {
 		return err
 	}
@@ -347,13 +350,13 @@ func (s *server) bootstrapRegistrar(ctx context.Context) {
 // configured settings. A create that loses a race to another replica fails here and the retry reads
 // the winner's row.
 func (s *server) seedRegistrar(ctx context.Context) (same bool, err error) {
-	stored, err := s.clients.GetClient(ctx, s.registrar.ID)
+	stored, err := s.stores.Clients.GetClient(ctx, s.registrar.ID)
 	if errors.Is(err, oauth2provider.ErrNotFound) {
 		c := s.registrar
 		if c.SecretHash, err = bcrypt.GenerateFromPassword(s.registrarSecret, bcrypt.DefaultCost); err != nil {
 			return false, err
 		}
-		if err := s.clients.CreateClient(ctx, c); err != nil {
+		if err := s.stores.Clients.CreateClient(ctx, c); err != nil {
 			return false, err
 		}
 		return true, nil
@@ -643,12 +646,18 @@ func (s *server) correlate(next http.Handler) http.Handler {
 
 type correlationKey struct{}
 
-func correlationID(header string) string {
-	ok := len(header) >= 1 && len(header) <= 128
-	for i := 0; ok && i < len(header); i++ {
-		ok = header[i] >= 0x21 && header[i] <= 0x7e
+// validCorrelationID: what a caller's x-request-id must be to be kept, 1 to 128 visible ASCII
+// characters.
+func validCorrelationID(id string) bool {
+	ok := len(id) >= 1 && len(id) <= 128
+	for i := 0; ok && i < len(id); i++ {
+		ok = id[i] >= 0x21 && id[i] <= 0x7e
 	}
-	if ok {
+	return ok
+}
+
+func correlationID(header string) string {
+	if validCorrelationID(header) {
 		return header
 	}
 	var b [16]byte

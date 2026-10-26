@@ -51,6 +51,9 @@ type config struct {
 	vpIssuersFile, vpScopeMapFile string
 	vp                            oauth2provider.VerifiedPresentationConfig
 	registrarDelegable            []string // scopes the registrar may grant beyond its token's
+
+	// The IF-01 events: their source is connector-<zone>; their run id is minted at every start.
+	zone string
 }
 
 type serveOptions struct {
@@ -88,6 +91,7 @@ func parseServe(args []string, env func(string) string, stderr io.Writer) (serve
 		{"registrar-delegable-scopes", "CONNECTOR_REGISTRAR_DELEGABLE_SCOPES", "", "comma-separated scopes the registrar may grant to the clients it registers beyond its token's", &registrarDelegable},
 		{"vp-trusted-issuers-file", "CONNECTOR_VP_TRUSTED_ISSUERS_FILE", "", "JSON file of the IF-03 issuers and their keys; enables the verified-presentation grant", &c.vpIssuersFile},
 		{"vp-scope-map-file", "CONNECTOR_VP_SCOPE_MAP_FILE", "", "JSON file mapping outcome claims to scopes, required with the issuers file", &c.vpScopeMapFile},
+		{"zone", "CONNECTOR_ZONE", "", "the zone this connector serves, a or b: the source of its security-state events", &c.zone},
 	}
 	for _, s := range strs {
 		fs.StringVar(s.dst, s.name, s.def, s.help+" ($"+s.variable+")")
@@ -231,6 +235,9 @@ func (c config) validate() error {
 	if slices.Contains(c.registrarDelegable, oauth2provider.RegistrationScope) {
 		return errors.New("--registrar-delegable-scopes cannot include " + oauth2provider.RegistrationScope)
 	}
+	if c.zone != "a" && c.zone != "b" {
+		return errors.New("missing: set --zone or CONNECTOR_ZONE to a or b")
+	}
 	if c.accessTokenLifespan <= 0 {
 		return errors.New("the access-token lifespan must be longer than 0")
 	}
@@ -286,10 +293,11 @@ func serve(args []string, stdout, stderr io.Writer) int {
 	hostname, _ := os.Hostname()
 	log := slog.New(stampHandler{slog.NewJSONHandler(stdout, &slog.HandlerOptions{Level: opts.level})}).
 		With("service", "connector", "instance", hostname)
+	events := newEventSink(stdout, opts.cfg.zone)
 	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGTERM, os.Interrupt)
 	defer stop()
 
-	s, err := newServer(ctx, opts.cfg, log)
+	s, err := newServer(ctx, opts.cfg, log, events)
 	if err != nil {
 		log.ErrorContext(ctx, "starting the connector", "err", err)
 		return exitFailed

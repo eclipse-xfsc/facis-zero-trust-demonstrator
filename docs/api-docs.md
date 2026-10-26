@@ -10,7 +10,7 @@ compatible addition; anything else is a v2.
 | Interface | Purpose | v1 artefacts | Status |
 |---|---|---|---|
 | IF-01 | Security-state event stream to the demonstrator UI | [event](contracts/if01-event.v1.schema.json), [snapshot](contracts/if01-snapshot.v1.schema.json), [feed API](contracts/if01-feed.v1.openapi.yaml) | v1 |
-| IF-02 | Connector authorization surface — registration and token issuance | [connector API](contracts/if02-connector.v1.openapi.yaml), [rules](#if-02-connector-authorization-surface) | v1 (1.1) |
+| IF-02 | Connector authorization surface — registration and token issuance | [connector API](contracts/if02-connector.v1.openapi.yaml), [rules](#if-02-connector-authorization-surface) | v1 (1.1.1) |
 | IF-03 | Credential verification outcome | [JWS payload](contracts/if03-verification-outcome.v1.schema.json), [JWS header](contracts/if03-jws-header.v1.schema.json), [signing rules](#if-03-signed-verification-outcome) | v1 |
 | IF-04 | Observability and evidence | The IF-01 event schema, as a JSON log line; [rules](#if-04-observability-and-evidence) | v1 |
 | IF-05 | Policy decision input and output | [input](contracts/if05-policy-input.v1.schema.json), [decision](contracts/if05-policy-decision.v1.schema.json), [header rules](#header-propagation-guard-to-gateway) | v1 |
@@ -109,9 +109,10 @@ way.
 ## IF-02 — connector authorization surface
 
 The connector's token, registration and challenge endpoints
-([connector API](contracts/if02-connector.v1.openapi.yaml), v1.1;
+([connector API](contracts/if02-connector.v1.openapi.yaml), v1.1.1;
 [Connector OAuth2 provider](oauth2-provider.md)). Version 1.1 adds, compatibly, the
-verified-presentation grant, which consumes IF-03 outcomes:
+verified-presentation grant, which consumes IF-03 outcomes; 1.1.1 names the `audience` member of
+the client metadata, which registrations already carried:
 
 - **Challenge.** `POST /oauth2/challenge`, client authentication as at the token endpoint, form
   `audience` — exactly one of the client's registered audiences. The client must be registered for
@@ -139,7 +140,19 @@ verified-presentation grant, which consumes IF-03 outcomes:
   one `aud`.
 - **Registration.** A deployment may admit the grant type in dynamic registration. A registrar can
   grant a client a verified-presentation scope only through a delegation ceiling the server
-  configures for it, since its own token can never carry such a scope.
+  configures for it, since its own token can never carry such a scope. The connector's own
+  registration policy ([Connector service](connector.md#the-policy)) requires a `client_name`,
+  `grant_types`, a `client_secret_basic` client, `dpop_bound_access_tokens: true`, a `scope` and
+  one or more absolute `audience` URLs, and admits no member outside those six; a violation is
+  refused as `400 invalid_client_metadata` with the reason `registration_rejected` and a
+  description naming the rule, the shape of the library's own refusal. Every registration
+  decision is audited (`TOK-REGISTRATION-REJECTED` for a refused registration).
+- **Why 1.1.1 is a compatible change.** The policy refuses metadata that 1.1.0 did not forbid in
+  so many words. RFC 7591 section 3.2.2 lets an authorization server refuse any client metadata
+  value with `invalid_client_metadata`, and IF-02 always allowed that refusal on this endpoint, so
+  a refusal under the policy is one of the answers a 1.1.0 client already had to handle. Nothing a
+  1.1.0 client receives changed shape, and the one member 1.1.1 adds, `audience`, was already sent
+  by every registrar. A client that sends what the policy requires is accepted under both.
 
 ## IF-03 — signed verification outcome
 

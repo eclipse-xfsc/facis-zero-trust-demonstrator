@@ -2,10 +2,6 @@ package participant
 
 import (
 	"context"
-	"crypto/ecdsa"
-	"crypto/elliptic"
-	"crypto/rand"
-	"crypto/sha256"
 	"errors"
 	"net/http"
 	"os"
@@ -35,7 +31,7 @@ type ConnectorBootstrap struct {
 	credentials string
 	audience    string
 	outcomes    connectorclient.OutcomeSource
-	key         processKey
+	key         dpopproof.ProcessKey
 	jkt         string
 
 	grant sync.Mutex       // held across every grant: never two at once
@@ -54,12 +50,11 @@ func NewConnectorBootstrap(connectorURL, credentialsFile, audience string, outco
 	if credentialsFile == "" || strings.TrimSpace(audience) == "" || outcomes == nil {
 		return nil, errors.New("credentials file, audience and outcome source are required")
 	}
-	k, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
+	key, err := dpopproof.NewProcessKey()
 	if err != nil {
 		return nil, errors.New("DPoP key not generated")
 	}
-	key := processKey{k}
-	jkt, err := key.JWK().Thumbprint()
+	jkt, err := key.Thumbprint()
 	if err != nil {
 		return nil, errors.New("DPoP key thumbprint")
 	}
@@ -275,21 +270,4 @@ func readCredentials(path string) (id, secret string, err error) {
 		return "", "", errors.New("credentials malformed")
 	}
 	return id, secret, nil
-}
-
-// processKey is the Participant's DPoP key, held in the process.
-type processKey struct{ k *ecdsa.PrivateKey }
-
-func (p processKey) JWK() jose.JWK { return jose.PublicJWK(&p.k.PublicKey) }
-
-func (p processKey) Sign(_ context.Context, in []byte) ([]byte, error) {
-	digest := sha256.Sum256(in)
-	r, s, err := ecdsa.Sign(rand.Reader, p.k, digest[:])
-	if err != nil {
-		return nil, err
-	}
-	sig := make([]byte, 64)
-	r.FillBytes(sig[:32])
-	s.FillBytes(sig[32:])
-	return sig, nil
 }

@@ -94,8 +94,9 @@ access token, issued by the token endpoint like any other, that
 - names the registration endpoint as its audience, and
 - carries the scope `connector:client_registration`.
 
-A deployment provisions one client that is allowed to obtain such a token; participant backends
-holding it can then register themselves without an operator creating each client by hand.
+A deployment provisions one client that is allowed to obtain such a token, the registrar; whoever
+holds the registrar's credentials registers participant backends without an operator creating each
+client by hand (`connector register`, [Connector service](connector.md#registering-a-participant)).
 
 A registration cannot exceed the token that authorised it. Requested scopes must be within the scopes
 of that token, the registration scope itself can never be registered, and grant types are limited to
@@ -344,14 +345,18 @@ a URI that has no such form fails closed.
 
 `connector serve` (`services/connector`, image `deployment/docker/connector/Dockerfile`) runs the
 provider on the PostgreSQL stores (`pgstore`, replay included) with access tokens signed through
-`signing.Transit`. It has two plain-HTTP listeners and writes JSON records on stdout.
+`signing.Transit`. It has two plain-HTTP listeners and writes JSON records and security-state
+events on stdout. Its registration policy, audit trail, chart, identity and the `connector register`
+client are described in [Connector service](connector.md).
 
 ### Configuration
 
 Every flag defaults to the environment variable of the same name; a flag set on the command line
 wins, and the environment fills in after parsing, so no value, the database URL above all, ever
 reaches the usage text. The database URL is never logged. Secrets never come from a flag or a
-variable: the OpenBao token and the two HMAC secrets are read from files, named below. A trailing
+variable: the OpenBao token, the two HMAC secrets and the registrar's secret are read from files,
+named below; the database URL, which holds a credential, comes from a flag or a variable and is
+never logged. A trailing
 line break in a secret file is not part of the secret.
 
 | Flag | Environment | Default | Meaning |
@@ -381,6 +386,7 @@ line break in a secret file is not part of the secret.
 | `--drain-delay` | `CONNECTOR_DRAIN_DELAY` | `5s` | On SIGTERM, how long `/readyz` answers 503 while the listeners stay open |
 | `--shutdown-timeout` | `CONNECTOR_SHUTDOWN_TIMEOUT` | `10s` | Drain of the listeners after that delay; what is still open then is closed |
 | `--log-level` | `CONNECTOR_LOG_LEVEL` | `info` | `debug`, `info`, `warn` or `error` |
+| `--zone` | `CONNECTOR_ZONE` | required | `a` or `b`: the source of the security-state events is `connector-<zone>`; their run id is minted at every start ([Connector service](connector.md#security-state-events)) |
 
 The DPoP proof window is fixed at 60 s lifespan and 30 s skew. A missing, short or shared secret
 file stops the process at start with exit 1; a usage error exits 2; a clean stop exits 0. A
@@ -437,14 +443,16 @@ ready` and stays not ready until an operator resolves it and restarts it.
 
 The registrar asks for a token with a DPoP proof, `scope` including `connector:client_registration`
 and `audience` naming the registration endpoint and the resource audience the new client will
-register, then posts the client's metadata to `/oauth2/register` with that token.
+register, then posts the client's metadata to `/oauth2/register` with that token. `connector
+register` does exactly this and writes the new client's credentials file
+([Connector service](connector.md#registering-a-participant)).
 
 ### Endpoints
 
 | Listener | Path | Serves |
 |---|---|---|
 | API | `POST /oauth2/token` | The token endpoint (`Provider.TokenHandler`) |
-| API | `POST /oauth2/register` | Client registration (`Provider.RegistrationHandler`) |
+| API | `POST /oauth2/register` | Client registration (`Provider.RegistrationHandler`) behind the connector's registration policy, every decision audited ([Connector service](connector.md#registration)) |
 | API | `POST /oauth2/challenge` | The challenge endpoint (`Provider.ChallengeHandler`); refuses every request while the verified-presentation grant is off |
 | API | `GET /.well-known/jwks.json` | The signing key as a JWK set: `kid` the signer's `KeyID()`, `use` `sig`, `alg` `ES256`; `Cache-Control: public, max-age=300` |
 | API and ops | `GET /healthz`, `GET /readyz` | Liveness and readiness |
