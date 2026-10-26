@@ -224,6 +224,15 @@ acceptance of the umbrella release. The umbrella chart (`deployment/helm/ztd`) i
 creates the plane namespaces and a cluster role, which the pool-confined deployer cannot do. Before
 it may replace the fixture, those cluster-scoped deploy rights must be designed
 ([Umbrella chart](umbrella-chart.md#release-namespace-and-teardown)); it then needs its own run.
+The ownership and removal of CRDs is answered by the shape of the zone: one Helm release per upstream
+chart, so every CRD is installed, upgraded and removed by the release that ships it in its
+templates (`spire-crds`, Istio's `base`), and the umbrella itself ships none. `spire-crds` drops
+the chart's `helm.sh/resource-policy: keep` in its values, so `helm uninstall` removes its CRDs;
+Istio's `base` sets that policy in its files, so the zone installer deletes that release's CRDs
+after uninstalling it. The zone installer,
+`scripts/install-zone/install.sh`, runs the releases in order through the same lifecycle step this
+pack exercises, and its uninstall leaves no SPIRE or Istio CRD behind, as the
+[mesh identity evidence](evidences/mesh-identity/README.md) shows.
 
 ### Evidence
 

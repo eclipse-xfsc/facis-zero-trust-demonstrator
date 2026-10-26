@@ -1,4 +1,14 @@
-{{- /* One namespace per plane entry, labelled with its plane and the mesh mode. */ -}}
+{{- /*
+One namespace per plane entry, labelled with its plane and, unless the entry sets mesh: false, the
+mesh mode. Sidecar mode needs native sidecar containers (the injected proxy as an init container
+with restartPolicy Always, ADR-0009), which Kubernetes offers from 1.33: a zone that records an
+older server version cannot be installed.
+*/ -}}
+{{- if eq .Values.mesh.mode "sidecar" }}
+{{- if semverCompare "<1.33.0-0" .Values.zone.kubernetesVersion }}
+{{- fail (printf "mesh.mode sidecar needs native sidecar containers, which need Kubernetes 1.33 or later; zone.kubernetesVersion is %s" .Values.zone.kubernetesVersion) }}
+{{- end }}
+{{- end }}
 {{- $meshKey := include "ztd.meshLabelKey" . }}
 {{- $meshValue := include "ztd.meshLabelValue" . }}
 {{- range (include "ztd.planeNamespaces" . | fromJsonArray) }}
@@ -10,7 +20,7 @@ metadata:
   labels:
     {{- include "ztd.labels" $ | nindent 4 }}
     ztd.facis.io/plane: {{ .plane }}
-    {{- if $meshKey }}
+    {{- if and $meshKey .mesh }}
     {{ $meshKey }}: {{ $meshValue | quote }}
     {{- end }}
 {{- end }}

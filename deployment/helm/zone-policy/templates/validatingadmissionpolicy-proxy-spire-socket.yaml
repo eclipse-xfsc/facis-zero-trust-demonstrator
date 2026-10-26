@@ -1,0 +1,408 @@
+{{- /*
+No mesh proxy without the SPIRE socket. istiod adds the `spire` injection template to every
+injection, but a pod can name its own templates with the annotation inject.istio.io/templates
+(for example `sidecar` alone), override the injected istio-proxy container, or run Istio's agent
+(pilot-agent, the proxyv2 image) itself under another container name with its own istio-token
+volume. Its agent would then find no SPIRE socket and ask istiod's CA for a certificate, which
+istiod cannot stop issuing: its CA also signs istiod's own serving certificates, and istiod does
+not start its webhooks without it.
+This policy closes those paths at admission: in a namespace carrying the umbrella's plane label, a
+pod may not carry the templates annotation at all (which also rules out the proxyless gRPC
+templates), and a pod (after injection, which runs before validation) is admitted only when each
+of its mesh proxies takes the SPIFFE CSI driver's volume where Istio looks for the SPIRE socket,
+whole: a mount with subPath or subPathExpr would put a file or a subdirectory of the volume at that
+path, the agent would find no socket there and fall back to istiod's CA, so the socket mount carries
+neither, and no mount propagation either. A
+mesh proxy is any container, init container or ephemeral container that is named istio-proxy, runs
+the proxyv2 image (whatever its name, registry or tag), or names pilot-agent in its command or
+arguments; the one exception is the CNI validation init container that the injector adds
+(istio-validation: the proxyv2 image, no command, first argument istio-iptables), which runs no
+agent. Pod updates, ephemeral containers and status updates are checked too, so a container cannot
+become a proxy after creation. What stays open (design D7, docs/workload-identity.md): a program that is none of
+these and calls istiod's CA on 15012 itself; the certificate it gets is refused by every peer,
+because every proxy trusts SPIRE's bundle only, and the proof shows that refusal.
+Pods without a proxy are not concerned by the socket rule: under the mesh-wide STRICT policy they
+reach no meshed peer. They are concerned by the capture rule below, which refuses them in an
+injected plane namespace.
+
+The capture rule (third validation). The Istio CNI plugin builds each pod's redirect rules from the
+pod's capture annotations, so a registered pod annotated
+traffic.sidecar.istio.io/excludeInboundPorts: "8080" gets that port delivered to the application
+outside its proxy: STRICT never sees the connection, and an unregistered pod of the same namespace
+reaches it in plaintext through the intra-plane lane. The injector writes four capture annotations
+onto every pod it injects (sidecar.istio.io/interceptionMode, traffic.sidecar.istio.io/
+includeInboundPorts, excludeInboundPorts with the status port, includeOutboundIPRanges), from the
+pod's own value when there is one, and this policy runs after the injector, so it cannot tell a
+written value from a requested one: the rule is an equality with the injector's defaults, not an
+absence check. In a plane namespace a pod is admitted only when each of those four annotations it
+carries equals its default (REDIRECT, all inbound ports, the status port alone, all outbound
+ranges), when it carries none of the annotations the injector writes only on request (outbound
+exclusions, outbound port lists, excluded or virtual interfaces), and none of those that move or
+replace the capture or the proxy (status.sidecar.istio.io/port, which excludes an application port
+without naming excludeInboundPorts; proxy.istio.io/config, which can point the proxy at another
+discovery server; sidecar.istio.io/proxyImage, which swaps the proxy's image;
+sidecar.istio.io/bootstrapOverride, which replaces Envoy's bootstrap; sidecar.istio.io/userVolume
+and userVolumeMount, which mount the pod's own volumes into the proxy; proxy.istio.io/overrides,
+which the injector writes when the pod brings its own container named istio-proxy, merged over the
+injected one with the pod's fields winning: another image, environment or mounts for the proxy). The
+injector writes none of these on a pod that does not ask for them. The status port is the chart
+value proxySocketPolicy.statusPort and must equal the istiod release's global.proxy.statusPort.
+The injection opt-out (sidecar.istio.io/inject, as an annotation or a label, whatever its value) is
+refused in an injected plane namespace, one whose namespace carries the injection label
+(istio-injection or istio.io/rev): there a pod without a proxy is reachable in plaintext the same
+way an excluded port is. The plane namespaces that the zone file declares mesh: false
+(istio-system, spire-system) carry the plane label but no injection label, and their own pods
+(istiod, the istio-cni node agents) carry the opt-out: there it is admitted, since no pod of those
+namespaces is injected anyway. The umbrella writes the injection label from the plane entry's mesh
+field and its verification hook fails the release when a mesh: false namespace carries one or a
+meshed namespace lacks it; changing a namespace's labels is the same privilege that already removes
+the plane label this binding selects on, so the scope adds no new trust.
+
+The proxy rule (fourth validation), behind the refusal of proxy.istio.io/overrides: a proxy whose
+image, entry point or configuration is not the injector's, for example another image that mounts
+the SPIRE socket and so passes the socket rule, or a second proxyv2 container started with its own
+--templateFile, PROXY_CONFIG or bootstrap, could accept plaintext on the inbound capture port. The
+overrides annotation does not catch every path: a pod that arrives with sidecar.istio.io/status
+already set has its own istio-proxy merged over the injected one and no override recorded, and a
+pod that is not injected brings its proxy as written. Every mesh proxy must therefore be the
+injector's: in a namespace with the injection label only (no mesh proxy at all in a mesh: false
+plane namespace, where nothing is injected), named istio-proxy (so no second proxy under another
+name), the image proxySocketPolicy.proxyImage (which must equal the istiod release's
+global.proxy.image; scripts/install-zone refuses a mismatch), no command, the arguments as the
+1.31.1 injector writes them (proxy sidecar --domain $(POD_NAMESPACE).svc.<cluster domain>, the three
+log-level flags, and only --stsPort, --log_as_json or --outlierLogPath besides), no envFrom, only
+the environment variables the injector writes (proxyEnv), with PILOT_CERT_PROVIDER, CA_ADDR,
+ISTIO_META_INTERCEPTION_MODE and TRUST_DOMAIN at the injector's values and PROXY_CONFIG an empty
+object (the zone sets no per-pod proxy configuration, so the injector writes {}), and only the
+injector's volume mounts at the injector's paths (proxyMounts, plus the service-account token), none
+with subPath, subPathExpr or mount propagation, over volumes of the injector's kinds (the SPIRE
+socket a csi.spiffe.io volume, istio-podinfo the downward API, istio-token a projected
+service-account token only, the CA root and CRL their configMaps, the other four emptyDir).
+proxyEnv also holds the variables the injector's code adds after the template from pod
+annotations: ISTIO_KUBE_APP_PROBERS (the probe rewrite) and ISTIO_PROMETHEUS_ANNOTATIONS (a pod
+annotated prometheus.io/*, under the mesh's enablePrometheusMerge). The variables it writes only
+under istiod or mesh settings the zone does not make (COMPLIANCE_POLICY, GODEBUG,
+ISTIO_META_NETWORK, the datadog tracer's, meshConfig proxyMetadata keys) are not admitted.
+The proxy's lifecycle, probes and securityContext are the injector's too, so that no command of the
+pod runs in the proxy container as UID 1337 and the proxy gains no capability: lifecycle none, or
+exec [pilot-agent wait] (postStart, holdApplicationUntilProxyStarts) and exec [pilot-agent request
+--debug-port=<status port> POST drain] (preStop, native sidecars); no liveness probe; startup and
+readiness probes, when present, httpGet /healthz/ready on 15021 with no host; securityContext
+runAsUser and runAsGroup 1337, runAsNonRoot, no privilege escalation, not privileged, read-only
+root, capabilities drop [ALL] and none added, and no seLinuxOptions, seccompProfile,
+appArmorProfile, procMount or windowsOptions. sidecar.istio.io/capNetBindService: "true" makes the
+injector run the proxy as root with NET_BIND_SERVICE; the proxy rule refuses that pod.
+
+Updates. The policy also runs on every pod UPDATE (a label, a finalizer, an image, an added
+ephemeral container), and on every update of the pods/status subresource, which can change a pod's
+annotations and labels too (the agent rereads its annotations through the downward-API file
+istio-podinfo whenever the proxy restarts). The capture and proxy rules look only at what the
+update changes: an annotation or label whose value is unchanged, and a container whose name and
+image are unchanged (nothing else of an existing container can change), is not checked again. An
+update may not remove sidecar.istio.io/status or one of the four capture annotations the injector
+wrote (the Istio CNI plugin sets up no redirect for a pod without the status annotation the next
+time it runs for the pod), nor change sidecar.istio.io/status. A pod admitted before an
+Istio upgrade, whose proxy still runs the previous image, therefore keeps taking metadata updates;
+a changed image or a new ephemeral proxy is checked in full. The template and socket rules, which do
+not depend on the Istio version, check the whole pod on every pod update; a status update cannot
+change the pod's spec, and an injection-templates annotation added after creation selects nothing,
+so they do not run on it: the kubelet's and controllers' status updates of a running pod are never
+refused by them.
+
+What stays open: capture is iptables inside the pod's network namespace, so a host-networked pod or
+a container with NET_ADMIN steps around it without any annotation; and the redirect rules let the
+proxy's own UID and GID 1337 leave without capture, so an application container that runs as 1337
+(by its securityContext or its image's USER) sends its outbound traffic past the proxy. The injector
+also skips host-networked pods, so such a pod could bring its own istio-proxy with its own
+environment. Those belong to a Pod Security level on the plane namespaces and a rule on
+runAsUser/runAsGroup, the follow-up change, not to this policy. Under enablePrometheusMerge the
+proxy's agent also fetches the metrics path a pod names in its prometheus.io annotations from the
+application and serves it on the status port, which is outside the capture: that one path of the
+application is readable in plaintext, as on every Istio sidecar with the merge on. The probe rewrite
+(ISTIO_KUBE_APP_PROBERS, on by default) does the same for every httpGet probe path of an
+application container: the agent fetches it from the application and serves it on the status port
+(/app-health/<container>/livez, readyz, startupz). A pod chooses its own probe paths, so pinning the
+variable's value would add nothing: a probe path must reveal nothing more than health. The proxy's
+other environment values (ISTIO_META_CLUSTER_ID, ISTIO_META_NODE_NAME, ISTIO_META_WORKLOAD_NAME,
+ISTIO_META_OWNER, OTEL_RESOURCE_ATTRIBUTES, also through valueFrom) are not pinned: they change how
+istiod files and labels the proxy (registry lookup, telemetry), not the certificate, which SPIRE
+issues for the pod's service account. An ephemeral container that targets istio-proxy, or
+shareProcessNamespace, lets another container (as root, or as 1337) reach the proxy's process; that too is the
+Pod Security follow-up.
+*/ -}}
+{{- $p := .Values.proxySocketPolicy }}
+{{- define "zone-policy.isProxy" -}}
+(c.name == 'istio-proxy'
+  || (has(c.command) && c.command.exists(a, a.contains('pilot-agent')))
+  || (has(c.args) && c.args.exists(a, a.contains('pilot-agent')))
+  || (has(c.image) && c.image.matches('(^|/)proxyv2([:@]|$)')
+      && !(!has(c.command) && has(c.args) && size(c.args) > 0 && c.args[0] == 'istio-iptables')))
+{{- end }}
+{{- define "zone-policy.isInjectedProxy" -}}
+(c.name == 'istio-proxy'
+  && has(c.image) && c.image == {{ .proxyImage | squote }} && !has(c.command)
+  && has(c.args) && size(c.args) >= 7
+  && c.args[0] == 'proxy' && c.args[1] == 'sidecar' && c.args[2] == '--domain'
+  && c.args[3].matches('^[$][(]POD_NAMESPACE[)][.]svc[.][a-z0-9.-]+$')
+  && c.args[4].startsWith('--proxyLogLevel=')
+  && c.args[5].startsWith('--proxyComponentLogLevel=')
+  && c.args[6].startsWith('--log_output_level=')
+  && c.args.all(a, a.matches('^(proxy|sidecar|--domain|[$][(]POD_NAMESPACE[)][.]svc[.][a-z0-9.-]+|--proxyLogLevel=[^ ]*|--proxyComponentLogLevel=[^ ]*|--log_output_level=[^ ]*|--stsPort=[0-9]+|--log_as_json|--outlierLogPath=[^ ]*)$'))
+  && !has(c.envFrom)
+  && (!has(c.env) || c.env.all(e, e.name in variables.proxyEnv
+      && (!(e.name in variables.proxyEnvValues) || (has(e.value) && e.value == variables.proxyEnvValues[e.name]))
+      && (e.name != 'PROXY_CONFIG' || (has(e.value) && e.value.matches('^\\s*[{]\\s*[}]\\s*$')))))
+  && (!has(c.volumeMounts) || c.volumeMounts.all(m,
+      ((m.name in variables.proxyMounts && m.mountPath == variables.proxyMounts[m.name])
+       || (m.name.startsWith('kube-api-access-') && m.mountPath == '/var/run/secrets/kubernetes.io/serviceaccount'))
+      && !has(m.subPath) && !has(m.subPathExpr)
+      && (!has(m.mountPropagation) || m.mountPropagation == 'None')))
+  && (!has(c.lifecycle)
+      || ((!has(c.lifecycle.postStart)
+           || (has(c.lifecycle.postStart.exec) && has(c.lifecycle.postStart.exec.command)
+               && c.lifecycle.postStart.exec.command == ['pilot-agent', 'wait']))
+          && (!has(c.lifecycle.preStop)
+           || (has(c.lifecycle.preStop.exec) && has(c.lifecycle.preStop.exec.command)
+               && c.lifecycle.preStop.exec.command == ['pilot-agent', 'request', '--debug-port={{ .statusPort }}', 'POST', 'drain']))))
+  && !has(c.livenessProbe)
+  && (!has(c.startupProbe) || (has(c.startupProbe.httpGet) && !has(c.startupProbe.httpGet.host)
+      && has(c.startupProbe.httpGet.path) && c.startupProbe.httpGet.path == '/healthz/ready'
+      && string(c.startupProbe.httpGet.port) == '15021'))
+  && (!has(c.readinessProbe) || (has(c.readinessProbe.httpGet) && !has(c.readinessProbe.httpGet.host)
+      && has(c.readinessProbe.httpGet.path) && c.readinessProbe.httpGet.path == '/healthz/ready'
+      && string(c.readinessProbe.httpGet.port) == '15021'))
+  && has(c.securityContext)
+  && has(c.securityContext.runAsUser) && c.securityContext.runAsUser == 1337
+  && has(c.securityContext.runAsGroup) && c.securityContext.runAsGroup == 1337
+  && has(c.securityContext.runAsNonRoot) && c.securityContext.runAsNonRoot
+  && has(c.securityContext.allowPrivilegeEscalation) && !c.securityContext.allowPrivilegeEscalation
+  && (!has(c.securityContext.privileged) || !c.securityContext.privileged)
+  && has(c.securityContext.readOnlyRootFilesystem) && c.securityContext.readOnlyRootFilesystem
+  && has(c.securityContext.capabilities) && !has(c.securityContext.capabilities.add)
+  && has(c.securityContext.capabilities.drop) && c.securityContext.capabilities.drop == ['ALL']
+  && !has(c.securityContext.seLinuxOptions) && !has(c.securityContext.seccompProfile)
+  && !has(c.securityContext.appArmorProfile) && !has(c.securityContext.procMount)
+  && !has(c.securityContext.windowsOptions))
+{{- end }}
+{{- define "zone-policy.takesSocket" -}}
+(has(c.volumeMounts) && c.volumeMounts.exists(m, m.name == {{ .volume | squote }} && m.mountPath == {{ .mountPath | squote }} && !has(m.subPath) && !has(m.subPathExpr) && (!has(m.mountPropagation) || m.mountPropagation == 'None')))
+{{- end }}
+apiVersion: admissionregistration.k8s.io/v1
+kind: ValidatingAdmissionPolicy
+metadata:
+  name: {{ $p.name }}
+  labels:
+    {{- include "zone-policy.labels" . | nindent 4 }}
+spec:
+  failurePolicy: Fail
+  matchConstraints:
+    resourceRules:
+      - apiGroups: [""]
+        apiVersions: ["v1"]
+        operations: ["CREATE", "UPDATE"]
+        resources: ["pods", "pods/ephemeralcontainers", "pods/status"]
+  variables:
+    - name: proxies
+      expression: >-
+        object.spec.containers.filter(c, {{ include "zone-policy.isProxy" . | nindent 10 | trim }}) +
+        (has(object.spec.initContainers) ? object.spec.initContainers.filter(c, {{ include "zone-policy.isProxy" . | nindent 10 | trim }}) : [])
+    - name: ephemeralProxies
+      expression: >-
+        has(object.spec.ephemeralContainers) ? object.spec.ephemeralContainers.filter(c, {{ include "zone-policy.isProxy" . | nindent 10 | trim }}) : []
+    - name: oldContainers
+      expression: >-
+        request.operation == 'UPDATE'
+          ? oldObject.spec.containers + (has(oldObject.spec.initContainers) ? oldObject.spec.initContainers : [])
+          : []
+    - name: oldEphemeral
+      expression: >-
+        request.operation == 'UPDATE' && has(oldObject.spec.ephemeralContainers) ? oldObject.spec.ephemeralContainers : []
+    - name: changedProxies
+      expression: >-
+        variables.proxies.filter(c, !variables.oldContainers.exists(o, o.name == c.name && o.image == c.image))
+    - name: changedEphemeralProxies
+      expression: >-
+        variables.ephemeralProxies.filter(c, !variables.oldEphemeral.exists(o, o.name == c.name && o.image == c.image))
+    - name: proxyEnv
+      expression: >-
+        [
+          'PILOT_CERT_PROVIDER', 'CA_ADDR', 'POD_NAME', 'POD_NAMESPACE', 'INSTANCE_IP', 'SERVICE_ACCOUNT',
+          'HOST_IP', 'ISTIO_CPU_LIMIT', 'PROXY_CONFIG', 'ISTIO_META_POD_PORTS', 'ISTIO_META_APP_CONTAINERS',
+          'GOMEMLIMIT', 'GOMAXPROCS', 'ISTIO_META_CLUSTER_ID', 'ISTIO_META_NODE_NAME',
+          'ISTIO_META_INTERCEPTION_MODE', 'ISTIO_META_WORKLOAD_NAME', 'ISTIO_META_OWNER',
+          'ISTIO_META_MESH_ID', 'TRUST_DOMAIN', 'OTEL_RESOURCE_ATTRIBUTES', 'ISTIO_KUBE_APP_PROBERS',
+          'REWRITE_PROBE_LEGACY_LOCALHOST_DESTINATION', 'ISTIO_PROMETHEUS_ANNOTATIONS'
+        ]
+    - name: proxyEnvValues
+      expression: >-
+        {
+          'PILOT_CERT_PROVIDER': 'istiod',
+          'CA_ADDR': {{ printf "istiod.%s.svc:15012" .Values.mesh.namespace | squote }},
+          'ISTIO_META_INTERCEPTION_MODE': 'REDIRECT',
+          'TRUST_DOMAIN': {{ .Values.trustDomain | squote }}
+        }
+    - name: proxyMounts
+      expression: >-
+        {
+          {{ $p.volume | squote }}: {{ $p.mountPath | squote }},
+          'credential-socket': '/var/run/secrets/credential-uds',
+          'workload-certs': '/var/run/secrets/workload-spiffe-credentials',
+          'istiod-ca-cert': '/var/run/secrets/istio',
+          'istio-ca-crl': '/var/run/secrets/istio/crl',
+          'istio-data': '/var/lib/istio/data',
+          'istio-envoy': '/etc/istio/proxy',
+          'istio-token': '/var/run/secrets/tokens',
+          'istio-podinfo': '/etc/istio/pod'
+        }
+    - name: socketVolume
+      expression: >-
+        has(object.spec.volumes) && object.spec.volumes.exists(v, v.name == {{ $p.volume | squote }}
+          && has(v.csi) && v.csi.driver == {{ $p.driver | squote }})
+    - name: proxyVolumes
+      expression: >-
+        !has(object.spec.volumes) || object.spec.volumes.all(v,
+          (v.name != {{ $p.volume | squote }} || (has(v.csi) && v.csi.driver == {{ $p.driver | squote }}))
+          && (!(v.name in ['credential-socket', 'workload-certs', 'istio-data', 'istio-envoy']) || has(v.emptyDir))
+          && (v.name != 'istiod-ca-cert' || (has(v.configMap) && v.configMap.name == 'istio-ca-root-cert'))
+          && (v.name != 'istio-ca-crl' || (has(v.configMap) && v.configMap.name == 'istio-ca-crl'))
+          && (v.name != 'istio-podinfo' || has(v.downwardAPI))
+          && (v.name != 'istio-token' || (has(v.projected) && has(v.projected.sources)
+              && v.projected.sources.all(s, has(s.serviceAccountToken))))
+          && (!v.name.startsWith('kube-api-access-') || has(v.projected)))
+    - name: ann
+      expression: >-
+        has(object.metadata.annotations) ? object.metadata.annotations : {}
+    - name: oldAnn
+      expression: >-
+        request.operation == 'UPDATE' && has(oldObject.metadata.annotations) ? oldObject.metadata.annotations : {}
+    - name: changedAnn
+      expression: >-
+        variables.ann.filter(k, !(k in variables.oldAnn) || variables.oldAnn[k] != variables.ann[k])
+    - name: labels
+      expression: >-
+        has(object.metadata.labels) ? object.metadata.labels : {}
+    - name: oldLabels
+      expression: >-
+        request.operation == 'UPDATE' && has(oldObject.metadata.labels) ? oldObject.metadata.labels : {}
+    - name: changedLabels
+      expression: >-
+        variables.labels.filter(k, !(k in variables.oldLabels) || variables.oldLabels[k] != variables.labels[k])
+    - name: injectedNamespace
+      expression: >-
+        has(namespaceObject.metadata.labels)
+          && ('istio-injection' in namespaceObject.metadata.labels || 'istio.io/rev' in namespaceObject.metadata.labels)
+    - name: captureDefaults
+      expression: >-
+        {
+          'sidecar.istio.io/interceptionMode': 'REDIRECT',
+          'traffic.sidecar.istio.io/includeInboundPorts': '*',
+          'traffic.sidecar.istio.io/excludeInboundPorts': {{ $p.statusPort | toString | squote }},
+          'traffic.sidecar.istio.io/includeOutboundIPRanges': '*'
+        }
+    - name: injectorWritten
+      expression: >-
+        [
+          'sidecar.istio.io/status',
+          'sidecar.istio.io/interceptionMode',
+          'traffic.sidecar.istio.io/includeInboundPorts',
+          'traffic.sidecar.istio.io/excludeInboundPorts',
+          'traffic.sidecar.istio.io/includeOutboundIPRanges'
+        ]
+    - name: captureForbidden
+      expression: >-
+        [
+          'traffic.sidecar.istio.io/excludeOutboundIPRanges',
+          'traffic.sidecar.istio.io/includeOutboundPorts',
+          'traffic.sidecar.istio.io/excludeOutboundPorts',
+          'traffic.sidecar.istio.io/excludeInterfaces',
+          'traffic.sidecar.istio.io/kubevirtInterfaces',
+          'istio.io/reroute-virtual-interfaces',
+          'status.sidecar.istio.io/port',
+          'proxy.istio.io/config',
+          'sidecar.istio.io/proxyImage',
+          'sidecar.istio.io/bootstrapOverride',
+          'sidecar.istio.io/userVolume',
+          'sidecar.istio.io/userVolumeMount',
+          'proxy.istio.io/overrides'
+        ]
+  validations:
+    - expression: >-
+        (has(request.subResource) && request.subResource == 'status')
+        || !has(object.metadata.annotations) || !('inject.istio.io/templates' in object.metadata.annotations)
+      message: >-
+        a pod in a plane namespace may not choose its injection templates
+        (inject.istio.io/templates): every injection is the sidecar template with the SPIRE socket
+      reason: Forbidden
+    - expression: >-
+        (has(request.subResource) && request.subResource == 'status') ||
+        (size(variables.proxies) == 0 && size(variables.ephemeralProxies) == 0) ||
+        (variables.socketVolume
+         && variables.proxies.all(c, {{ include "zone-policy.takesSocket" $p }})
+         && variables.ephemeralProxies.all(c, {{ include "zone-policy.takesSocket" $p }}))
+      message: >-
+        socket rule: a mesh proxy in a plane namespace must take its certificate from SPIRE: every container
+        named istio-proxy, running the proxyv2 image or naming pilot-agent must mount the
+        {{ $p.driver }} volume {{ $p.volume }} at {{ $p.mountPath }}, whole (no subPath,
+        subPathExpr or mount propagation);
+        leave out the inject.istio.io/templates annotation and any istio-proxy override
+      reason: Forbidden
+    - expression: >-
+        variables.captureDefaults.all(k, !(k in variables.changedAnn) || variables.ann[k] == variables.captureDefaults[k])
+        && !variables.captureForbidden.exists(k, k in variables.changedAnn)
+        && variables.injectorWritten.all(k, !(k in variables.oldAnn)
+            || (k in variables.ann && (k != 'sidecar.istio.io/status' || variables.ann[k] == variables.oldAnn[k])))
+        && (!variables.injectedNamespace
+            || (!('sidecar.istio.io/inject' in variables.changedAnn)
+                && !('sidecar.istio.io/inject' in variables.changedLabels)))
+      message: >-
+        capture rule: a pod in a plane namespace must keep the proxy's traffic capture at the
+        injector's defaults (sidecar.istio.io/interceptionMode REDIRECT,
+        traffic.sidecar.istio.io/includeInboundPorts *, traffic.sidecar.istio.io/excludeInboundPorts
+        {{ $p.statusPort }} (the status port only), traffic.sidecar.istio.io/includeOutboundIPRanges *)
+        and may not carry traffic.sidecar.istio.io/excludeOutboundIPRanges, includeOutboundPorts,
+        excludeOutboundPorts, excludeInterfaces, kubevirtInterfaces,
+        istio.io/reroute-virtual-interfaces, status.sidecar.istio.io/port, proxy.istio.io/config,
+        sidecar.istio.io/proxyImage, bootstrapOverride, userVolume, userVolumeMount,
+        proxy.istio.io/overrides (written when the pod brings its own istio-proxy), nor, in a
+        namespace with the injection label, sidecar.istio.io/inject (annotation or label, any
+        value); an update may not remove sidecar.istio.io/status or a capture annotation the
+        injector wrote, nor change sidecar.istio.io/status; a capture exception is declared mesh-wide in the charts, never by a pod annotation.
+        If every injected pod is refused, check that zone-policy proxySocketPolicy.statusPort equals
+        istiod global.proxy.statusPort
+      reason: Forbidden
+    - expression: >-
+        (size(variables.changedProxies) == 0 && size(variables.changedEphemeralProxies) == 0)
+        || (variables.injectedNamespace
+            && variables.proxyVolumes
+            && variables.changedProxies.all(c, {{ include "zone-policy.isInjectedProxy" $p | nindent 14 | trim }})
+            && variables.changedEphemeralProxies.all(c, {{ include "zone-policy.isInjectedProxy" $p | nindent 14 | trim }}))
+      message: >-
+        proxy rule: every mesh proxy in a plane namespace must be the injector's istio-proxy as the
+        injector writes it, in a namespace with the injection label: named istio-proxy, image
+        {{ $p.proxyImage }}, no command, the arguments proxy sidecar --domain
+        $(POD_NAMESPACE).svc.<cluster domain> and the three log levels (only --stsPort,
+        --log_as_json and --outlierLogPath besides), no envFrom, only the injector's environment
+        variables (PROXY_CONFIG {}, CA_ADDR istiod's, no ISTIO_BOOTSTRAP_OVERRIDE), only the
+        injector's volume mounts (no subPath, subPathExpr or mount propagation) over volumes of the
+        injector's kinds, and the injector's lifecycle (pilot-agent wait or drain), probes
+        (httpGet /healthz/ready on 15021, no liveness probe) and securityContext (UID and GID 1337,
+        non-root, every capability dropped and none added, so no
+        sidecar.istio.io/capNetBindService); leave out any istio-proxy override and any second proxy. If
+        every injected pod is refused, check that zone-policy proxySocketPolicy.proxyImage equals
+        istiod global.proxy.image
+      reason: Forbidden
+---
+apiVersion: admissionregistration.k8s.io/v1
+kind: ValidatingAdmissionPolicyBinding
+metadata:
+  name: {{ $p.name }}
+  labels:
+    {{- include "zone-policy.labels" . | nindent 4 }}
+spec:
+  policyName: {{ $p.name }}
+  validationActions: [Deny]
+  matchResources:
+    namespaceSelector:
+      matchExpressions:
+        - key: {{ .Values.registration.planeLabel }}
+          operator: Exists
