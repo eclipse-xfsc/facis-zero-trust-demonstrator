@@ -1,0 +1,126 @@
+name: Policy package
+
+# The publication of the admission policy (ZT-12, ZT-37): the catalogue under deployment/admission -
+# templates, constraints, exemptions - packaged as one tar.gz layer of an OCI artefact, pushed to the
+# policy registry, signed by digest with the interim key and verified against the committed public
+# key: the signing profile of the candidate images (scripts/supplychain/). A zone that reads the
+# registry instead of Git reads this artefact.
+#
+# Restricted and logged: the job runs in the protected release environment, from main or by hand, and
+# only once the gator suite has passed on the catalogue it packages. The run and its approval are the
+# log of who published what; the summary prints the digest, and the manifest's annotations name the
+# commit it came from.
+#
+# The registry is POLICY_REGISTRY (a repository variable, for example harbor.example.org/facis/policy)
+# with the POLICY_REGISTRY_USER and POLICY_REGISTRY_PASSWORD secrets of a robot account allowed to push
+# there. While none is configured, the package goes to this repository's GHCR namespace, as the
+# candidate images do; GHCR creates the package private, and it is made public once in the package
+# settings before a cluster can read it anonymously.
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: Version of the package (default 0.0.0-<commit>)
+        required: false
+        type: string
+  push:
+    branches: [main]
+    paths:
+      - deployment/admission/templates/**
+      - deployment/admission/constraints/**
+      - deployment/admission/exemptions.yaml
+
+permissions:
+  contents: read
+
+concurrency:
+  group: policy-package
+  cancel-in-progress: false
+
+jobs:
+  publish:
+    name: Package, push and sign
+    runs-on: ubuntu-latest
+    # The interim signing key lives only in this protected environment's secrets.
+    environment: release
+    permissions:
+      contents: read
+      packages: write # pushes the package and its signature to GHCR
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+
+      - name: Install the pinned tools
+        run: |
+          scripts/tools/install.sh "$RUNNER_TEMP/bin" gator cosign oras
+          echo "$RUNNER_TEMP/bin" >> "$GITHUB_PATH"
+
+      # Nothing is packaged unless the catalogue passes its own suite.
+      - name: Verify the constraint suite
+        run: gator verify -v deployment/admission
+
+      # Before anything is pushed: the key must be present and match the committed public key.
+      - name: Check the signing key
+        env:
+          COSIGN_INTERIM_KEY: ${{ secrets.COSIGN_INTERIM_KEY }}
+          COSIGN_PASSWORD: ${{ secrets.COSIGN_INTERIM_PASSWORD }}
+        run: scripts/supplychain/check-key.sh
+
+      # The policy registry when one is configured, else GHCR (names are lower case; the owner may not be).
+      - name: Registry
+        id: registry
+        env:
+          POLICY_REGISTRY: ${{ vars.POLICY_REGISTRY }}
+          POLICY_REGISTRY_USER: ${{ secrets.POLICY_REGISTRY_USER }}
+          POLICY_REGISTRY_PASSWORD: ${{ secrets.POLICY_REGISTRY_PASSWORD }}
+          GITHUB_TOKEN: ${{ github.token }}
+        run: |
+          if [ -n "$POLICY_REGISTRY" ]; then
+            printf '%s' "$POLICY_REGISTRY_PASSWORD" | docker login "${POLICY_REGISTRY%%/*}" -u "$POLICY_REGISTRY_USER" --password-stdin
+            echo "repository=$POLICY_REGISTRY/admission" >> "$GITHUB_OUTPUT"
+          else
+            echo "$GITHUB_TOKEN" | docker login ghcr.io -u "$GITHUB_ACTOR" --password-stdin
+            echo "repository=ghcr.io/${GITHUB_REPOSITORY,,}/policy/admission" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Version
+        id: version
+        env:
+          INPUT_VERSION: ${{ inputs.version }}
+        run: echo "version=${INPUT_VERSION:-0.0.0-${GITHUB_SHA::12}}" >> "$GITHUB_OUTPUT"
+
+      - name: Package the catalogue
+        run: |
+          mkdir -p package
+          scripts/supplychain/policy-package.sh deployment/admission package/admission.tar.gz
+
+      - name: Push, sign and verify by digest
+        id: publish
+        env:
+          COSIGN_KEY: env://COSIGN_INTERIM_KEY
+          COSIGN_INTERIM_KEY: ${{ secrets.COSIGN_INTERIM_KEY }}
+          COSIGN_PASSWORD: ${{ secrets.COSIGN_INTERIM_PASSWORD }}
+          SOURCE_URL: ${{ github.server_url }}/${{ github.repository }}
+        run: |
+          # The commit's own time as the created annotation: the same commit publishes the same digest.
+          CREATED="$(git show -s --format=%cI HEAD)" scripts/supplychain/policy-publish.sh \
+            package/admission.tar.gz "${{ steps.registry.outputs.repository }}" "${{ steps.version.outputs.version }}" "$GITHUB_SHA" | tee package/publish.log
+          echo "reference=$(tail -n1 package/publish.log)" >> "$GITHUB_OUTPUT"
+
+      - name: Summary
+        if: always()
+        run: |
+          {
+            echo "### Policy package (interim key - not the client trust chain)"
+            echo "- version: \`${{ steps.version.outputs.version }}\`"
+            echo "- commit: \`$GITHUB_SHA\`"
+            echo "- published by: $GITHUB_ACTOR"
+            if [ -n "${{ steps.publish.outputs.reference }}" ]; then echo "- reference: \`${{ steps.publish.outputs.reference }}\`"; fi
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Keep the package and the log
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: policy-package
+          path: package/

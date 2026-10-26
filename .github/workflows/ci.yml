@@ -120,6 +120,30 @@ jobs:
           FACIS_INTEROP_REGISTRY: localhost:5000
           COSIGN: ${{ runner.temp }}/bin/cosign
 
+  # The policy package (ZT-37) and its publication: the catalogue packaged reproducibly, pushed to a
+  # registry:2 on the runner as one layer of the media type Argo CD reads, signed with an ephemeral key
+  # and verified; a tampered push to the same tag leaves a digest the signature does not cover. No
+  # secret and no external push.
+  policy-package:
+    name: Policy package
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+
+      - name: Start a local registry and install the pinned cosign and oras
+        run: |
+          . scripts/tools/pins.env
+          docker run -d --name registry -p 127.0.0.1:5000:5000 "$REGISTRY_IMAGE"
+          scripts/tools/install.sh "$RUNNER_TEMP/bin" cosign oras
+
+      - name: Package, publish, pull back and tamper
+        env:
+          REGISTRY: localhost:5000
+          ORAS: ${{ runner.temp }}/bin/oras
+          COSIGN: ${{ runner.temp }}/bin/cosign
+        run: scripts/supplychain/policy-package_test.sh
+
   # The constraints that need nothing but the object (digest-only, allowed repositories, naming, the
   # namespace scope), tested offline with the pinned gator.
   gator:
