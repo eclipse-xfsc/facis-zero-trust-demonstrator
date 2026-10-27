@@ -60,6 +60,7 @@ Direct dependencies of the Go module. Transitive dependencies are listed in the 
 | `github.com/cucumber/gherkin/go/v42` | v42.0.0 | MIT | parses the feature files for the Annex verbatim check (`cmd/bddpack`) |
 | `github.com/cucumber/messages/go/v34` | v34.2.0 | MIT | the Gherkin document model used with it |
 | `github.com/santhosh-tekuri/jsonschema/v6` | v6.0.3 | Apache-2.0 | validates SBOMs and mock attestations against their JSON Schemas at admission |
+| `go.opentelemetry.io/otel`, `/otel/sdk`, `/otel/trace`, `/otel/exporters/otlp/otlptrace/otlptracehttp` | v1.47.0 | Apache-2.0 | the OpenTelemetry Go SDK of the observability proof's echo service (`tools/trace-echo`): W3C trace-context propagation and one server span per request, exported by OTLP/HTTP |
 
 The admission check validates SBOMs against the official CycloneDX 1.5, 1.6 and 1.7 JSON Schemas and
 the schemas they reference (CycloneDX specification tag 1.7.2, Apache-2.0), vendored in
@@ -101,7 +102,7 @@ The JavaScript packages above are pinned by exact version with integrity hashes 
 | OPA Gatekeeper (Helm chart) | 3.23.1 | Apache-2.0 | admission control with the first-party external-data provider |
 | PostgreSQL | 16.10 (test service) | PostgreSQL License | token-store integration tests |
 | OpenBao | 2.7.0 (test service) | MPL-2.0 | token-store integration tests only; its use in the demonstrator is the declared licence exception |
-| OpenBao (Helm chart `openbao`) | chart 0.28.3, server v2.5.4 | MPL-2.0 | the umbrella's X.509 key-value store when a zone turns it on ([Secrets](secrets.md)); covered by the declared licence exception |
+| OpenBao (Helm chart `openbao`) | chart 0.28.3, server v2.5.4 | MPL-2.0 | the zone's X.509 key-value store, the release `ztd-openbao`: a dependency of the project chart `deployment/helm/ztd-openbao`, locked in its `Chart.lock`, its archive pinned by sha256 in `dependencies.sha256` ([Secrets](secrets.md)); covered by the declared licence exception |
 | Docker Distribution registry | 2.8.3 (test service) | Apache-2.0 | a local registry for signing and verification tests in CI |
 
 ## Go dependencies being added
@@ -116,3 +117,73 @@ other dependency.
 The admission provider talks to OCI registries through a small first-party client built on the Go
 standard library rather than a general-purpose registry library, to keep its dependency set minimal.
 
+## Identity and service mesh
+
+The identity path and the mesh ([Workload identity](workload-identity.md)) are installed from the
+upstream charts as they ship, one Helm release per chart, by `scripts/install-zone/install.sh`,
+which pins each chart by version and by the sha256 of the chart archive (the Istio charts: of the
+release archive). The container images the charts run are pinned separately, by tag and digest
+(the multi-arch index digest of the tag, read from its registry), in the values files under
+`deployment/helm/values/`: the SPIRE server, agent, controller-manager and SPIFFE CSI driver, the
+CSI node-driver registrar, the server's `busybox` init container and `kubectl` hook image, and
+Istio's `pilot`, `proxyv2` (the injected proxy and the injected `istio-validation` init container)
+and `install-cni`. The images the charts already pin by digest are left
+as they ship. One image stays a tag: `busybox:1.28` in Istio's `grpc-simple` injection template,
+which only a pod that chooses its injection templates would run, and the `zone-policy` admission
+policy refuses such a pod in every plane namespace. The values the repository sets on the charts
+are listed with their reasons in `deployment/helm/values/README.md`.
+
+| Component | Version | Installed through | Licence | Why |
+|---|---|---|---|---|
+| SPIRE (server, agent, controller-manager, SPIFFE CSI driver) | v1.15.3 | chart `spire` 0.30.2 and chart `spire-crds` 0.6.1, from the SPIFFE hardened charts `https://spiffe.github.io/helm-charts-hardened/` | Apache-2.0 | the only issuer of workload and mesh identities (ZT-24): attests every pod and serves its SVID over the CSI-mounted Workload API socket and to the mesh proxy over SDS |
+| Istio, sidecar mode | 1.31.1 | charts `base`, `istiod` and `cni` 1.31.1, from the Istio release archive `istio-1.31.1-linux-amd64.tar.gz` (`manifests/charts`), pinned by its published sha256 | Apache-2.0 | the service mesh of [ADR-0009](adr/0009-service-mesh-mode-istio-sidecar-with-cilium.md): native sidecars that take their certificates from SPIRE, mesh-wide STRICT mTLS, the CNI plugin chained behind Cilium |
+| Cilium | 1.20.2 on kind; 1.18.8 on the participant clusters | kind: chart `cilium/cilium` 1.20.2, by `scripts/dev/kind-cilium-up.sh`, the version a kind run of `scripts/verify-mesh-identity/verify.sh` shows; the participant clusters of zone A and zone B: installed and upgraded by the provider (Gardener), never by the zone, found at 1.18.8, the version a participant-cluster run of the same script shows in its preconditions and `environment.json` (see `scripts/verify-mesh-identity/README.md`) (the chaining proven on every node; cross-node pod traffic masqueraded by the provider's configuration, so the mesh is proven node-locally there and fails across nodes until the provider changes it; a kind pass on 1.20.2 supports but does not prove a fix for the provider's 1.18.8 pod network) | Apache-2.0 | the CNI and the enforcer of the network policies, with `cni.exclusive=false` (`cni-exclusive=false` in `cilium-config`) so that the Istio plugin can chain |
+| istioctl | 1.31.1 | the operator's machine | Apache-2.0 | reads a proxy's secrets and sync status in the proof; never installs |
+
+The Istio 1.31 charts are taken from the release archive because Istio's Helm repository and OCI
+registry do not carry them (on 2026-10-06 the repository's index stopped at 1.31.0-rc.0); the
+archive is the release Istio publishes, and its charts are the same charts.
+
+**Upgrades.** An upgrade changes the pinned version and digest in the installer and re-reads the
+digest of every image tag in the values files (`docker buildx imagetools inspect <image>:<tag>`
+prints the index digest), then reruns `scripts/verify-mesh-identity/verify.sh`, whose record goes
+to the run directory outside the repository. The local proof runs on kind node v1.35.8 with Cilium
+1.20.2; the participant clusters run Kubernetes v1.34.7 with the provider's
+Cilium 1.18.8, and the same proof is re-run there with the keep opt-in. At every Istio minor upgrade the
+[ADR-0009](adr/0009-service-mesh-mode-istio-sidecar-with-cilium.md) reopen check
+(`scripts/mesh-mode/check-upstream-state.sh`) runs alongside the proof. The SPIRE charts are
+upgraded as a pair (`spire-crds` first), because the controller-manager in `spire` is built
+against the CRDs of its `spire-crds`.
+
+## Observability
+
+The observability stack ([ADR-0012](adr/0012-central-observability-backends.md)) is installed from
+upstream charts by `scripts/install-zone/install.sh`: the collectors in each participant zone, the
+backends on the demonstrator cluster. Every chart is pinned by version and by the sha256 of its archive
+(the digest its repository's `index.yaml` publishes), and every image by tag and multi-arch index
+digest, all in `scripts/tools/pins.env`; the installer sets the images on the charts. The values the
+repository sets are in `deployment/helm/values/` (`otel-node.yaml`, `otel-gateway.yaml`,
+`otel-entry.yaml`, `prometheus.yaml`, `alertmanager.yaml`, `jaeger.yaml`).
+`scripts/verify-observability/check-rendered-images.sh` fails CI when a rendered image of these
+releases is not pinned by digest, is not in its list of accepted images with their licences, or is a
+Grafana or Loki component.
+
+| Component | Version | Installed through | Licence | Why |
+|---|---|---|---|---|
+| OpenTelemetry Collector (contrib distribution) | 0.162.0 | chart `opentelemetry-collector` 0.176.1, `https://open-telemetry.github.io/opentelemetry-helm-charts`, three releases: `otel-node`, `otel-gateway` (zones), `otel-entry` (demonstrator cluster) | Apache-2.0 | ZT-27's primary aggregation and export tool: pod logs, SPIRE metrics, OTLP from workloads and proxies, the revocation probe, the mutual-TLS entry |
+| Prometheus | v3.15.0 | chart `prometheus` 29.37.0, `https://prometheus-community.github.io/helm-charts`, release `prometheus`, subcharts off | Apache-2.0 | ZT-27's metrics store, by remote write; the alert rules of ZT-52 and ZT-51 |
+| Alertmanager | v0.34.1 | chart `alertmanager` 2.1.1, same repository, release `alertmanager` | Apache-2.0 | emits every alert (ZT-52, "emit alerts via the observability stack") |
+| Prometheus config reloader | v0.94.1 | the reloader both charts run beside the server | Apache-2.0 | reloads the rules and the route when their ConfigMap changes |
+| Jaeger (v2, all-in-one, Badger storage) | 2.22.0 | chart `jaeger` 4.16.1, `https://jaegertracing.github.io/helm-charts`, release `jaeger` | Apache-2.0 | ZT-27's OTel-compatible tracing backend |
+| cert-manager | v1.21.2 | on the demonstrator cluster: installed there already, found at v1.21.2; on kind: chart `cert-manager` v1.21.2, `https://charts.jetstack.io`, by `scripts/dev/kind-cert-manager-up.sh` | Apache-2.0 | issues the telemetry CA, the entry's server certificate and the zones' client certificates (project chart `deployment/helm/telemetry-issuers`) |
+| Cilium CLI | v0.20.1 | `scripts/tools/install.sh cilium-cli`, CI only | Apache-2.0 | waits for Cilium in the kind run of the observability proof |
+
+**Excluded: Grafana and Loki.** Both are AGPL-3.0, which breaches the Apache-2.0-compatibility rule;
+neither is installed. The Prometheus and Jaeger interfaces, reached with cluster access, are the
+visualization of the observability data on the IONOS cluster until the demonstrator UI takes over
+([Specifications](specifications.md)). The log store is an open point of ADR-0012; whichever is chosen
+gets its row here and its pin in `scripts/tools/pins.env`.
+
+**Upgrades.** An upgrade changes a version and its digest in `scripts/tools/pins.env` (and, for an
+image, the index digest read with `docker buildx imagetools inspect <image>:<tag>`), then reruns
+`scripts/verify-observability/verify.sh` on kind.

@@ -1,0 +1,119 @@
+# Release `otel-entry` of the demonstrator cluster: the receiving collector, a Deployment of the
+# upstream OpenTelemetry Collector chart (contrib image) in the backends' namespace
+# (observabilityBackends.namespace, ztd-observability), the one public listener of the cluster.
+#   chart source      https://open-telemetry.github.io/opentelemetry-helm-charts, chart
+#                     opentelemetry-collector, version and sha256 pinned in scripts/tools/pins.env
+#   image             OTEL_COLLECTOR_IMAGE in scripts/tools/pins.env, set by the installer
+# One OTLP/gRPC listener per participant zone (observabilityBackends.entry.zones: zone A 4317, zone B
+# 4417), each with the server certificate otel-entry-server, TLS 1.3 minimum, and a client CA that is
+# that zone's intermediate alone (release telemetry-issuers). Each listener has its own pipelines,
+# which overwrite the `zone` resource attribute with the listener's zone and remove any `zone`
+# attribute the client put on a data point, span or log record: the zone is the listener's, never the
+# client's. The installer generates the listeners, their pipelines, the Service's ports and the CA
+# mounts from the zone list (scripts/install-zone/install.sh, derived values of otel-entry).
+# Onward:
+#   - metrics by remote write to Prometheus (resource attributes become labels: zone, k8s_*);
+#   - traces by OTLP to Jaeger;
+#   - logs: the pipeline is fixed; its exporter is the open point of the log store. Until it is
+#     settled the records end in the collector's debug exporter, visible in its own container log
+#     (rotated by the kubelet), not stored or queryable.
+# The Service is a LoadBalancer where the cluster has one (zone.loadBalancer.type), with the zones'
+# egress addresses as loadBalancerSourceRanges and externalTrafficPolicy Local, so the entry's
+# ingress policy sees them; on kind a ClusterIP.
+mode: deployment
+replicaCount: 1
+nameOverride: otel-entry
+fullnameOverride: otel-entry
+image:
+  repository: ""                 # installer: OTEL_COLLECTOR_IMAGE
+podSecurityContext:
+  runAsNonRoot: true
+  runAsUser: 10001
+  runAsGroup: 10001
+  fsGroup: 10001                 # the mounted certificates are group-readable (0440)
+  seccompProfile:
+    type: RuntimeDefault
+securityContext:
+  allowPrivilegeEscalation: false
+  readOnlyRootFilesystem: true
+  capabilities:
+    drop: ["ALL"]
+ports:
+  otlp: { enabled: false }
+  otlp-http: { enabled: false }
+  jaeger-compact: { enabled: false }
+  jaeger-thrift: { enabled: false }
+  jaeger-grpc: { enabled: false }
+  zipkin: { enabled: false }
+  metrics: { enabled: false }
+  # installer: one port per zone, named tcp-<zone>
+service:
+  type: ClusterIP                # installer: LoadBalancer where zone.loadBalancer.type is not none
+  loadBalancerSourceRanges: []   # installer: observabilityBackends.entry.sourceRanges
+  externalTrafficPolicy: Local
+resources:
+  requests: { cpu: 50m, memory: 128Mi }
+  limits: { memory: 512Mi }
+extraVolumes:
+  - name: server-cert
+    secret:
+      secretName: otel-entry-server
+      defaultMode: 0440
+      items:
+        - { key: tls.crt, path: tls.crt }
+        - { key: tls.key, path: tls.key }
+  # installer: one volume per zone, the tls.crt of ztd-telemetry-<zone>-ca only (never its key)
+extraVolumeMounts:
+  - { name: server-cert, mountPath: /etc/ztd-entry/server, readOnly: true }
+config:
+  extensions:
+    health_check:
+      endpoint: 0.0.0.0:13133
+  receivers:
+    jaeger: null
+    zipkin: null
+    otlp: null
+    prometheus: null
+    # installer: otlp/<zone> per zone
+  processors:
+    memory_limiter:
+      check_interval: 1s
+      limit_percentage: 80
+      spike_limit_percentage: 25
+    batch:
+      timeout: 1s
+      send_batch_size: 1024
+    # installer: transform/zone-<zone> per zone
+  exporters:
+    debug:
+      # The stand-in for the log store (open point): the records are printed, not stored.
+      verbosity: detailed
+      sampling_initial: 1000000
+      sampling_thereafter: 1
+    prometheus_remote_write:
+      endpoint: http://prometheus-server.ztd-observability.svc:80/api/v1/write
+      resource_to_telemetry_conversion:
+        enabled: true
+      remote_write_queue:
+        enabled: true
+        queue_size: 10000
+        num_consumers: 4
+    otlp/jaeger:
+      endpoint: jaeger.ztd-observability.svc:4317
+      tls:
+        insecure: true             # inside the backends' namespace, under its default deny
+  service:
+    extensions: [health_check]
+    telemetry:
+      metrics:
+        readers:
+          - pull:
+              exporter:
+                prometheus:
+                  host: 127.0.0.1
+                  port: 8888
+    pipelines:
+      logs: null
+      metrics: null
+      traces: null
+      # installer: logs/<zone>, metrics/<zone>, traces/<zone> per zone

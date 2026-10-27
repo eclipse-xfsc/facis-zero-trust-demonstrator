@@ -1,0 +1,9 @@
+# Refused by values.schema.json: the demonstrator cluster runs no mesh (zone.role demonstrator needs
+# mesh.mode none).
+# expect: /mesh/mode
+zone:
+  role: demonstrator
+observabilityBackends:
+  entry:
+    zones:
+      - { name: zone-a, port: 4317 }

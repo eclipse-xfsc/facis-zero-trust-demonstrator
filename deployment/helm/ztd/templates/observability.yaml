@@ -1,0 +1,290 @@
+{{- /*
+The observability paths (docs/adr/0012-central-observability-backends.md, docs/umbrella-chart.md).
+
+Participant zone:
+  - telemetryExport: egress from the zone gateway's pods to the demonstrator cluster's entry and to no
+    other external destination (an ipBlock of the entry's /32; on kind, where the entry is a pod of the
+    same cluster, its namespace and labels). The node collectors run on the host network, where no pod
+    policy applies; their configuration names the entry as their only exporter.
+  - observabilityScrape: the zone gateway -> the SPIRE server (9988) and the controller-manager (8082),
+    an egress in the management namespace and the matching ingress in spire-system, plus a ClusterIP
+    Service on those two ports so that the scrape has a stable address and a stopped server shows as
+    a failed scrape (up == 0), not as a vanished target.
+  Both paths start in the management plane, so they are outside the allow matrix.
+
+Demonstrator cluster:
+  - the backends' namespace (observabilityBackends.namespace), outside both trust domains: no plane
+    label, no mesh label, default deny in both directions, the DNS bypass, the lane between the
+    backends, and the entry's listeners open from the zones' egress addresses (sourceRanges; on kind
+    from the in-cluster sources). Prometheus, Alertmanager and Jaeger get no opening from outside.
+*/ -}}
+{{- $role := include "ztd.role" . }}
+{{- if ne $role "demonstrator" }}
+{{- $te := .Values.telemetryExport }}
+{{- $mgmt := .Values.planes.management.namespace }}
+{{- $gw := $te.gateway.podSelector }}
+{{- $entry := $te.entry }}
+{{- $inCluster := $entry.inCluster | default dict }}
+{{- if or $entry.address $inCluster.namespace }}
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-telemetry-export-egress
+  namespace: {{ $mgmt }}
+  labels:
+    {{- include "ztd.labels" . | nindent 4 }}
+  annotations:
+    ztd.facis.io/declared-bypass: observability-export
+    ztd.facis.io/transport: {{ $entry.transport | quote }}
+spec:
+  podSelector:
+    matchLabels:
+      {{- toYaml $gw | nindent 6 }}
+  policyTypes:
+    - Egress
+  egress:
+    - to:
+        {{- if $inCluster.namespace }}
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: {{ $inCluster.namespace }}
+          podSelector:
+            matchLabels:
+              {{- toYaml $inCluster.podSelector | nindent 14 }}
+        {{- else }}
+        - ipBlock:
+            cidr: {{ $entry.address | quote }}
+        {{- end }}
+      ports:
+        - port: {{ $entry.port }}
+          protocol: TCP
+{{- end }}
+{{- $os := .Values.networkPolicy.observabilityScrape }}
+{{- if $os.enabled }}
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-observability-scrape-egress
+  namespace: {{ $mgmt }}
+  labels:
+    {{- include "ztd.labels" . | nindent 4 }}
+  annotations:
+    ztd.facis.io/declared-opening: observabilityScrape
+spec:
+  podSelector:
+    matchLabels:
+      {{- toYaml $gw | nindent 6 }}
+  policyTypes:
+    - Egress
+  egress:
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: {{ $os.namespace }}
+          podSelector:
+            matchLabels:
+              {{- toYaml $os.podSelector | nindent 14 }}
+      ports:
+        {{- range $os.ports }}
+        - port: {{ .port }}
+          protocol: TCP
+        {{- end }}
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-observability-scrape-ingress
+  namespace: {{ $os.namespace }}
+  labels:
+    {{- include "ztd.labels" . | nindent 4 }}
+  annotations:
+    ztd.facis.io/declared-opening: observabilityScrape
+spec:
+  podSelector:
+    matchLabels:
+      {{- toYaml $os.podSelector | nindent 6 }}
+  policyTypes:
+    - Ingress
+  ingress:
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: {{ $mgmt }}
+          podSelector:
+            matchLabels:
+              {{- toYaml $gw | nindent 14 }}
+      ports:
+        {{- range $os.ports }}
+        - port: {{ .port }}
+          protocol: TCP
+        {{- end }}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ $os.service }}
+  namespace: {{ $os.namespace }}
+  labels:
+    {{- include "ztd.labels" . | nindent 4 }}
+  annotations:
+    ztd.facis.io/declared-opening: observabilityScrape
+spec:
+  type: ClusterIP
+  selector:
+    {{- toYaml $os.podSelector | nindent 4 }}
+  ports:
+    {{- range $os.ports }}
+    - name: {{ .name }}
+      port: {{ .port }}
+      targetPort: {{ .port }}
+      protocol: TCP
+    {{- end }}
+{{- end }}
+{{- else }}
+{{- $ob := .Values.observabilityBackends }}
+{{- $ns := $ob.namespace }}
+{{- $e := $ob.entry }}
+{{- $src := $e.inClusterSources | default dict }}
+{{- $extraLabels := .Values.planes.namespaceLabels | default dict }}
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: {{ $ns }}
+  labels:
+    {{- include "ztd.labels" . | nindent 4 }}
+    ztd.facis.io/role: observability-backends
+    {{- range $k, $v := $extraLabels }}
+    {{ $k }}: {{ $v | quote }}
+    {{- end }}
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: default-deny
+  namespace: {{ $ns }}
+  labels:
+    {{- include "ztd.labels" . | nindent 4 }}
+spec:
+  podSelector: {}
+  policyTypes:
+    - Ingress
+    - Egress
+{{- if .Values.networkPolicy.dns.enabled }}
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-dns-egress
+  namespace: {{ $ns }}
+  labels:
+    {{- include "ztd.labels" . | nindent 4 }}
+spec:
+  podSelector: {}
+  policyTypes:
+    - Egress
+  egress:
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: {{ .Values.networkPolicy.dns.namespace }}
+          podSelector:
+            matchLabels:
+              {{- toYaml .Values.networkPolicy.dns.podSelector | nindent 14 }}
+      ports:
+        {{- range (.Values.networkPolicy.dns.ports | default (list 53)) }}
+        - port: {{ . }}
+          protocol: UDP
+        - port: {{ . }}
+          protocol: TCP
+        {{- end }}
+{{- end }}
+---
+# The lane between the backends: the entry -> Prometheus (remote write) and Jaeger (OTLP),
+# Prometheus -> Alertmanager. Inside the namespace only.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-between-backends
+  namespace: {{ $ns }}
+  labels:
+    {{- include "ztd.labels" . | nindent 4 }}
+spec:
+  podSelector: {}
+  policyTypes:
+    - Ingress
+    - Egress
+  ingress:
+    - from:
+        - podSelector: {}
+  egress:
+    - to:
+        - podSelector: {}
+---
+# The entry's listeners, one per zone, and nothing else, from the zones' egress addresses.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-telemetry-entry-ingress
+  namespace: {{ $ns }}
+  labels:
+    {{- include "ztd.labels" . | nindent 4 }}
+  annotations:
+    ztd.facis.io/declared-bypass: observability-export
+spec:
+  podSelector:
+    matchLabels:
+      {{- toYaml $e.podSelector | nindent 6 }}
+  policyTypes:
+    - Ingress
+  ingress:
+    {{- if or $e.sourceRanges $src.namespaces }}
+    - from:
+        {{- range $e.sourceRanges }}
+        - ipBlock:
+            cidr: {{ . | quote }}
+        {{- end }}
+        {{- range ($src.namespaces | default list) }}
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: {{ . }}
+        {{- end }}
+      ports:
+        {{- range $e.zones }}
+        - port: {{ .port }}
+          protocol: TCP
+        {{- end }}
+    {{- end }}
+{{- if and .Values.cni.cilium.enabled $src.entities }}
+---
+# Kind only: the host-networked node collectors of the zone that shares the cluster, by entity.
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: allow-telemetry-entry-from-nodes
+  namespace: {{ $ns }}
+  labels:
+    {{- include "ztd.labels" . | nindent 4 }}
+  annotations:
+    ztd.facis.io/declared-bypass: observability-export
+spec:
+  description: "observability export: the in-cluster node collectors -> the entry's listeners (kind)"
+  enableDefaultDeny:
+    ingress: false
+    egress: false
+  endpointSelector:
+    matchLabels:
+      {{- toYaml $e.podSelector | nindent 6 }}
+  ingress:
+    - fromEntities:
+        {{- toYaml $src.entities | nindent 8 }}
+      toPorts:
+        - ports:
+            {{- range $e.zones }}
+            - port: {{ .port | quote }}
+              protocol: TCP
+            {{- end }}
+{{- end }}
+{{- end }}

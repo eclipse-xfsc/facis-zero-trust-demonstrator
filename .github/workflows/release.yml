@@ -7,8 +7,9 @@ name: Release
 #
 # Nothing is built unless the chart gate (TDR-BDD-11) passed. A later stage that publishes charts or
 # promotes a release must need the chart gate too. Beside it, the secrets baseline (TDR-BDD-08) installs
-# the umbrella with OpenBao on a disposable cluster, scans every log and ConfigMap for a synthetic
-# canary, and a second job audits the first job's published log once it has completed.
+# the umbrella and then OpenBao as its own release (ztd-openbao) on a disposable cluster, scans every
+# log and ConfigMap for a synthetic canary, and a second job audits the first job's published log once
+# it has completed.
 #
 # Started by hand, or by pushing a branch named candidate/<anything> - which also works in a fork whose
 # default branch does not carry this workflow. The release environment only accepts those branches and
@@ -148,8 +149,9 @@ jobs:
             images.txt
             candidate/
 
-  # TDR-BDD-08, producer: the umbrella with OpenBao on a disposable kind cluster (kind's own CNI), a
-  # restart with manual unseal, and the canary scan of every log and ConfigMap (scripts/secrets/).
+  # TDR-BDD-08, producer: the umbrella and the OpenBao release ztd-openbao on a disposable kind cluster
+  # (kind's own CNI, no mesh), a restart with manual unseal, and the canary scan of every log and
+  # ConfigMap (scripts/secrets/).
   # The canary and the masking control are synthetic values derived from this run and masked before
   # first use; the control is printed once so the audit can prove masking happened.
   secrets-baseline:

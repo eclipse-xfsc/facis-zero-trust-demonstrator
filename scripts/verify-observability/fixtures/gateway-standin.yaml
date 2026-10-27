@@ -1,0 +1,38 @@
+# A stand-in that carries the zone gateway's pod labels (the selector of the umbrella's
+# observabilityScrape lane and of the telemetry export egress) and the identity label, in the
+# management namespace, with the zone's client certificate mounted: the policies select it exactly as
+# they select the gateway, whose image has no shell. It lacks the chart's component label, so the
+# gateway's Service never selects it. Placeholders: ${NS_MGMT}, ${CLIENT_IMAGE}, ${PIN}.
+apiVersion: v1
+kind: Pod
+metadata:
+  name: obs-gateway-standin
+  namespace: ${NS_MGMT}
+  labels:
+    app.kubernetes.io/name: otel-collector
+    app.kubernetes.io/instance: otel-gateway
+    app.kubernetes.io/part-of: verify-observability
+    spiffe.io/spire-managed-identity: "true"
+spec:
+  ${PIN}
+  securityContext:
+    runAsNonRoot: true
+    runAsUser: 100
+    fsGroup: 101
+    seccompProfile: { type: RuntimeDefault }
+  containers:
+    - name: client
+      image: ${CLIENT_IMAGE}
+      command: ["sleep", "86400"]
+      securityContext:
+        allowPrivilegeEscalation: false
+        readOnlyRootFilesystem: true
+        capabilities: { drop: ["ALL"] }
+      volumeMounts:
+        - { name: tmp, mountPath: /tmp }
+        - { name: telemetry-client, mountPath: /etc/ztd-telemetry, readOnly: true }
+  volumes:
+    - name: tmp
+      emptyDir: {}
+    - name: telemetry-client
+      secret: { secretName: ztd-telemetry-client, defaultMode: 0440 }

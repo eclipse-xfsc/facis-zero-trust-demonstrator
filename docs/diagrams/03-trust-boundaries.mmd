@@ -1,10 +1,43 @@
+%% Render: docker run --rm -u "$(id -u):$(id -g)" -v "$PWD/docs/diagrams:/data" minlag/mermaid-cli --no-font-embed -i /data/03-trust-boundaries.mmd -o /data/03-trust-boundaries.svg (or, with a local Chrome: npx -y -p @mermaid-js/mermaid-cli mmdc --no-font-embed -i docs/diagrams/03-trust-boundaries.mmd -o docs/diagrams/03-trust-boundaries.svg)
+%% Diagram 03, trust boundaries. Illustrates docs/architecture.md section 6; the allow matrix and the bypass list there are the place of record.
+%% --no-font-embed: the embedded webfont is measured before it loads, which clips the widest line of every label in browsers.
+%%{init: {"flowchart": {"nodeSpacing": 30, "rankSpacing": 70, "wrappingWidth": 360}}}%%
 flowchart LR
-  subgraph TD_A["SPIFFE trust domain zone-a"]
-    A1["workloads with SVIDs"]
+  classDef data fill:#e8f1fb,stroke:#2b5d8c,color:#10243a
+  classDef mgmt fill:#fff3d6,stroke:#a86b00,color:#3a2600
+  classDef prov fill:#fff3d6,stroke:#a86b00,stroke-dasharray:6 4,color:#3a2600
+  classDef obs fill:#e9f5ec,stroke:#2e7d32,color:#0f2e12
+  classDef ext fill:#f4f4f4,stroke:#666,color:#222
+  classDef deny fill:#fbe3e3,stroke:#b3261e,color:#5c0f0b
+
+  subgraph TD_A["SPIFFE trust domain zone-a (one cluster)"]
+    direction TB
+    A1["data plane<br/>workloads with SVIDs"]:::data
+    A2["management plane, placed here:<br/>SPIRE server · zone gateway and node collectors"]:::mgmt
+    A1 -. "default DENY (ZT-55 matrix); the OTLP export to the zone gateway is a ZT-26 declared bypass" .-> A2
   end
-  subgraph TD_B["SPIFFE trust domain zone-b"]
-    B1["workloads with SVIDs"]
+  subgraph TD_B["SPIFFE trust domain zone-b (one cluster)"]
+    direction TB
+    B1["data plane<br/>workloads with SVIDs"]:::data
+    B2["management plane, placed here:<br/>SPIRE server · zone gateway and node collectors"]:::mgmt
+    B1 -. "default DENY (ZT-55 matrix); the OTLP export to the zone gateway is a ZT-26 declared bypass" .-> B2
   end
-  A1 ==>|"ONLY via attested channel + TRAIN verdict"| B1
-  A1 -.->|"deny by default (ZT-55 matrix)"| MGMT["management plane"]
-  EXT["anything without SVID / unsigned image"] -->|"cannot join / cannot start"| X((denied))
+  A1 == "ONLY via attested channel<br/>+ TRAIN verdict" ==> B1
+
+  subgraph DEMO["demonstrator cluster (IONOS), outside both trust domains: placement recorded"]
+    direction TB
+    O1["observability backends:<br/>receiving collector · Prometheus · Alertmanager · Jaeger · log store (open)"]:::obs
+  end
+  A2 == "ZT-26 observability export (outward only, mTLS, own egress control)" ==> O1
+  B2 == "ZT-26 observability export (outward only, mTLS, own egress control)" ==> O1
+
+  MGMT_P["management plane, placement not yet recorded:<br/>TRAIN (TCR, TSPA) · TSA policy engine · OCM"]:::prov
+  A1 -. "same rule: ZT-55 allow matrix" .-> MGMT_P
+
+  EXT["anything without SVID<br/>or with an unsigned image"]:::ext
+  X(["denied"]):::deny
+  EXT -- "cannot join / cannot start" --> X
+
+  style TD_A fill:#f7f9fc,stroke:#7a8aa0
+  style TD_B fill:#f7f9fc,stroke:#7a8aa0
+  style DEMO fill:#f3faf4,stroke:#2e7d32

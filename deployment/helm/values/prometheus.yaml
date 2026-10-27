@@ -1,0 +1,139 @@
+# Release `prometheus` of the demonstrator cluster: the central metrics store, the upstream
+# Prometheus chart in the backends' namespace (ztd-observability).
+#   chart source      https://prometheus-community.github.io/helm-charts, chart prometheus,
+#                     version and sha256 pinned in scripts/tools/pins.env
+#   images            PROMETHEUS_IMAGE and CONFIG_RELOADER_IMAGE in scripts/tools/pins.env, set by the
+#                     installer
+# It receives the zones' metrics by remote write from the receiving collector
+# (--web.enable-remote-write-receiver; the Service is ClusterIP, never on the public entry) and
+# scrapes nothing in a participant zone: the only scrape job is Prometheus's own. Retention, its size
+# bound, the volume size and the storage class come from the demonstrator zone file (installer
+# facts). The alert rules evaluate every 5 s; the silent-zone rules, one per zone of the entry, are
+# added by the installer from observabilityBackends.entry.zones. The detection budget
+# (docs/troubleshooting.md, ADR-0012): scrape 5 s + batch 1 s + export at most 2 s + evaluation 5 s +
+# for 10 s + group_wait 2 s = 25 s worst case, below the 30 s of the requirement.
+server:
+  image:
+    repository: ""               # installer: PROMETHEUS_IMAGE
+    digest: ""
+  retention: ""                  # installer: observabilityBackends.retention
+  retentionSize: ""              # installer: observabilityBackends.retentionSize
+  extraFlags:
+    - web.enable-lifecycle
+    - web.enable-remote-write-receiver
+  global:
+    scrape_interval: 15s
+    scrape_timeout: 10s
+    evaluation_interval: 5s
+  # Telemetry buffered in a zone while its export path was down arrives late, and the collectors' queues
+  # may deliver batches out of order: Prometheus accepts samples up to an hour old.
+  tsdb:
+    out_of_order_time_window: 1h
+  persistentVolume:
+    enabled: true
+    size: ""                     # installer: observabilityBackends.volumes.prometheus
+    storageClass: ""             # installer: zone.storageClass
+  service:
+    type: ClusterIP
+  alertmanagers:
+    - static_configs:
+        - targets: ["alertmanager.ztd-observability.svc:9093"]
+  securityContext:
+    runAsUser: 65534
+    runAsNonRoot: true
+    runAsGroup: 65534
+    fsGroup: 65534
+  containerSecurityContext:
+    allowPrivilegeEscalation: false
+    readOnlyRootFilesystem: true
+    capabilities:
+      drop: ["ALL"]
+  resources:
+    requests: { cpu: 100m, memory: 256Mi }
+    limits: { memory: 1Gi }
+configmapReload:
+  prometheus:
+    image:
+      repository: ""             # installer: CONFIG_RELOADER_IMAGE
+      digest: ""
+# No service discovery, so no cluster-wide read access.
+rbac:
+  create: false
+alertmanager:
+  enabled: false                 # the separate release alertmanager
+kube-state-metrics:
+  enabled: false
+prometheus-node-exporter:
+  enabled: false
+prometheus-pushgateway:
+  enabled: false
+scrapeConfigs:
+  prometheus:
+    enabled: true
+  kubernetes-api-servers: { enabled: false }
+  kubernetes-nodes: { enabled: false }
+  kubernetes-nodes-cadvisor: { enabled: false }
+  kubernetes-service-endpoints: { enabled: false }
+  kubernetes-service-endpoints-slow: { enabled: false }
+  prometheus-pushgateway: { enabled: false }
+  kubernetes-services: { enabled: false }
+  kubernetes-pods: { enabled: false }
+  kubernetes-pods-slow: { enabled: false }
+serverFiles:
+  alerting_rules.yml:
+    groups:
+      - name: ztd-control-plane
+        interval: 5s
+        rules:
+          # A scrape target of a zone stops answering: the scrape result, not the pod status. The
+          # window of 15 s keeps a target whose collector has gone silent from counting as up for
+          # Prometheus's 5 min lookback.
+          - alert: SpireServerDown
+            expr: last_over_time(up{job="spire-server"}[15s]) == 0
+            for: 10s
+            labels: { severity: critical, target: spire-server }
+            annotations:
+              summary: "The SPIRE server of {{ $labels.zone }} does not answer its metrics scrape"
+          - alert: SpireControllerManagerDown
+            expr: last_over_time(up{job="spire-controller-manager"}[15s]) == 0
+            for: 10s
+            labels: { severity: critical, target: spire-controller-manager }
+            annotations:
+              summary: "The SPIRE controller-manager of {{ $labels.zone }} does not answer its metrics scrape"
+          - alert: SpireAgentDown
+            expr: last_over_time(up{job="spire-agent"}[15s]) == 0
+            for: 10s
+            labels: { severity: critical, target: spire-agent }
+            annotations:
+              summary: "The SPIRE agent on node {{ $labels.node }} of {{ $labels.zone }} does not answer its metrics scrape"
+          # An agent whose series vanish with its node collector: fewer agents report than the zone
+          # has ready nodes that the agent DaemonSet targets.
+          - record: ztd:spire_agents_expected:count
+            expr: |
+              min by (zone) (
+                label_replace(count by (zone) (last_over_time(k8s_node_condition_ready[30s]) == 1), "source", "ready-nodes", "", "")
+                or
+                label_replace(max by (zone) (last_over_time(k8s_daemonset_desired_scheduled_nodes{k8s_daemonset_name="spire-agent"}[30s])), "source", "agent-daemonset", "", "")
+              )
+          - record: ztd:spire_agents_reporting:count
+            expr: |
+              count by (zone) (last_over_time(up{job="spire-agent"}[15s]) == 1)
+              or on (zone) (0 * ztd:spire_agents_expected:count)
+          - alert: SpireAgentsMissing
+            expr: ztd:spire_agents_reporting:count < on (zone) ztd:spire_agents_expected:count
+            for: 10s
+            labels: { severity: critical, target: spire-agent }
+            annotations:
+              summary: "{{ $labels.zone }}: {{ $value }} SPIRE agents report, fewer than the zone's ready nodes"
+          # The revocation status list probed from a zone does not answer, or answers an error
+          # (availability only, ZT-51).
+          - alert: RevocationEndpointDown
+            expr: |
+              (max by (zone, http_url) (last_over_time(httpcheck_error[10s])) > 0)
+              or
+              (max by (zone, http_url) (last_over_time(httpcheck_status{http_status_class="2xx"}[10s])) == 0)
+            for: 10s
+            labels: { severity: critical, target: revocation-endpoint }
+            annotations:
+              summary: "{{ $labels.zone }}: the revocation status list {{ $labels.http_url }} is unreachable"
+      # installer: the group ztd-silent-zones, one absent_over_time rule per zone of the entry

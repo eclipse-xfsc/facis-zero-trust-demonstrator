@@ -6,20 +6,41 @@ round-trips the fixture transit key, and every run renews the periodic token. It
 management namespace next to the server (no new network lane) and needs no Kubernetes API access:
 the token comes from a Secret volume. It is kept until the next run replaces it, so its log can be
 collected (docs/secrets.md). Install with --wait --wait-for-jobs, so the bootstrap Job has finished.
+
+The Job keeps the name ztd-verify-openbao whatever the release is called, and runs with a
+ServiceAccount of its own, ztd-verify-openbao, that holds no role and mounts no API token. On a
+meshed zone its pod carries the identity label, so it is created with a sidecar and an SVID
+(spiffe://<trust domain>/ns/<namespace>/sa/ztd-verify-openbao) and reads the server as mesh mTLS;
+the native sidecar exits with the verify container. The ServiceAccount of its own keeps that SPIFFE
+ID apart from any other labelled pod of the namespace left on the default ServiceAccount, so a mesh
+policy for OpenBao can name the hook. The ServiceAccount is a hook of the same phase and delete
+policy as the Job, one weight lower, so Helm creates it just before the Job and replaces both on the
+next run; in external mode the release thus holds the verification hook and nothing else.
 */ -}}
-{{- if or .Values.openbao.enabled .Values.openbaoExternal.address }}
-{{- $bundled := .Values.openbao.enabled }}
-{{- $secret := ternary "ztd-openbao-bootstrap" .Values.openbaoExternal.verifyTokenSecret $bundled }}
+{{- $bundled := eq (include "ztd-openbao.bundled" .) "true" }}
+{{- if or $bundled .Values.external.address }}
+{{- $secret := ternary "ztd-openbao-bootstrap" .Values.external.verifyTokenSecret $bundled }}
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: ztd-verify-openbao
+  namespace: {{ .Values.managementNamespace }}
+  labels:
+    {{- include "ztd-openbao.labels" . | nindent 4 }}
+  annotations:
+    {{- include "ztd-openbao.hook.annotations" (dict "phase" "post-install,post-upgrade" "band" "platform" "offset" 9 "deletePolicy" "before-hook-creation") | nindent 4 }}
+automountServiceAccountToken: false
 ---
 apiVersion: batch/v1
 kind: Job
 metadata:
-  name: {{ .Release.Name }}-verify-openbao
-  namespace: {{ .Values.planes.management.namespace }}
+  name: ztd-verify-openbao
+  namespace: {{ .Values.managementNamespace }}
   labels:
-    {{- include "ztd.labels" . | nindent 4 }}
+    {{- include "ztd-openbao.labels" . | nindent 4 }}
   annotations:
-    {{- include "ztd.hook.annotations" (dict "phase" "post-install,post-upgrade" "band" "platform" "offset" 10 "deletePolicy" "before-hook-creation") | nindent 4 }}
+    {{- include "ztd-openbao.hook.annotations" (dict "phase" "post-install,post-upgrade" "band" "platform" "offset" 10 "deletePolicy" "before-hook-creation") | nindent 4 }}
 spec:
   backoffLimit: 0
   template:
@@ -27,8 +48,13 @@ spec:
       labels:
         app.kubernetes.io/name: ztd-verify-openbao
         app.kubernetes.io/instance: {{ .Release.Name }}
+        {{- include "ztd-openbao.podIdentity" . | nindent 8 }}
     spec:
+      serviceAccountName: ztd-verify-openbao
       automountServiceAccountToken: false
+      {{- /* The node pin (global.pin.node): TEMPORARY, participant zones only - the provider's pod
+      network masquerades cross-node pod traffic, so this meshed pod must run on istiod's node. */}}
+      {{- include "ztd-openbao.pinAffinity" . | nindent 6 }}
       restartPolicy: Never
       securityContext:
         runAsNonRoot: true
@@ -38,7 +64,7 @@ spec:
           type: RuntimeDefault
       containers:
         - name: verify
-          image: {{ .Values.openbaoBootstrap.image | quote }}
+          image: {{ .Values.bootstrap.image | quote }}
           imagePullPolicy: IfNotPresent
           securityContext:
             allowPrivilegeEscalation: false
@@ -47,7 +73,7 @@ spec:
               drop: ["ALL"]
           env:
             - name: BAO_ADDR
-              value: {{ include "ztd.openbao.address" . | quote }}
+              value: {{ include "ztd-openbao.address" . | quote }}
             - name: BUNDLED
               value: {{ $bundled | quote }}
           volumeMounts:

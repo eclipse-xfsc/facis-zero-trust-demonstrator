@@ -1,0 +1,52 @@
+# Release `alertmanager` of the demonstrator cluster: the alert route, the upstream Alertmanager
+# chart in the backends' namespace (ztd-observability), fed by the release prometheus.
+#   chart source      https://prometheus-community.github.io/helm-charts, chart alertmanager,
+#                     version and sha256 pinned in scripts/tools/pins.env
+#   images            ALERTMANAGER_IMAGE and CONFIG_RELOADER_IMAGE in scripts/tools/pins.env, set by
+#                     the installer
+# Every alert is emitted through it (ZT-52). The receiver `ztd-evidence` has no notifier yet: the
+# alerts are read from its API (/api/v2/alerts) by the proof and, later, by the demonstrator UI; a
+# notifier is added when an operator channel is named. group_wait 2 s is part of the detection
+# budget (25 s worst case). The Service is ClusterIP, never on the public entry.
+image:
+  repository: quay.io/prometheus/alertmanager
+  tag: ""                        # installer: ALERTMANAGER_IMAGE (tag@digest)
+configmapReload:
+  enabled: true
+  image:
+    repository: ""               # installer: CONFIG_RELOADER_IMAGE
+    tag: ""
+persistence:
+  enabled: true
+  size: ""                       # installer: observabilityBackends.volumes.alertmanager
+  storageClass: ""               # installer: zone.storageClass
+service:
+  type: ClusterIP
+podSecurityContext:
+  runAsUser: 65534
+  runAsNonRoot: true
+  runAsGroup: 65534
+  fsGroup: 65534
+  seccompProfile:
+    type: RuntimeDefault
+securityContext:
+  allowPrivilegeEscalation: false
+  readOnlyRootFilesystem: true
+  capabilities:
+    drop: ["ALL"]
+resources:
+  requests: { cpu: 10m, memory: 32Mi }
+  limits: { memory: 128Mi }
+config:
+  enabled: true
+  global:
+    resolve_timeout: 1m
+  route:
+    receiver: ztd-evidence
+    group_by: [alertname, zone]
+    group_wait: 2s
+    group_interval: 5s
+    repeat_interval: 1h
+  receivers:
+    - name: ztd-evidence
+  templates: []

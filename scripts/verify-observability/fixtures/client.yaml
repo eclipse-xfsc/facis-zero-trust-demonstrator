@@ -1,0 +1,38 @@
+# A meshed data-plane workload with the identity label: it writes one IF-01 event and one plain-text
+# line to its log at start (pod-logs-collected, if01-fields-kept), and the proof execs curl in it to
+# send OTLP to the zone gateway and requests to the echo. Placeholders: ${NS_DATA}, ${CLIENT_IMAGE},
+# ${RUN_ID}, ${PIN}.
+apiVersion: v1
+kind: Pod
+metadata:
+  name: obs-client
+  namespace: ${NS_DATA}
+  labels:
+    app.kubernetes.io/name: obs-client
+    app.kubernetes.io/part-of: verify-observability
+    spiffe.io/spire-managed-identity: "true"
+spec:
+  ${PIN}
+  securityContext:
+    runAsNonRoot: true
+    runAsUser: 100
+    seccompProfile: { type: RuntimeDefault }
+  containers:
+    - name: client
+      image: ${CLIENT_IMAGE}
+      command: ["/bin/sh", "-c"]
+      args:
+        - |
+          sleep 5
+          echo '{"run_id":"${RUN_ID}","seq":1,"ts":"2026-10-21T00:00:00Z","source":"verify-observability","kind":"proof.log","correlation_id":"corr-${RUN_ID}","payload":{"check":"if01-fields-kept"}}'
+          echo "plain text line ${RUN_ID}: not JSON, kept as it is"
+          exec sleep 86400
+      securityContext:
+        allowPrivilegeEscalation: false
+        readOnlyRootFilesystem: true
+        capabilities: { drop: ["ALL"] }
+      volumeMounts:
+        - { name: tmp, mountPath: /tmp }
+  volumes:
+    - name: tmp
+      emptyDir: {}

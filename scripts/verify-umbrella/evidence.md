@@ -1,8 +1,10 @@
-# Umbrella chart evidence (2026-10-01T11:04:23Z)
+# Umbrella chart evidence (2026-10-17T15:47:44Z)
 
-Cluster context `kind-ztd`, chart `deployment/helm/ztd` 0.1.0, zone file `deployment/helm/ztd/ci/values.yaml`.
+Commit `224ee9ffb2ec95b1e8927e5ec1071e5161b806e4`, tree dirty: false.
 
-Tools: helm v4.3.0+gbec5b06, kubectl client v1.34.1. The CI chart job pins Helm v4.3.0.
+Cluster context `kind-ztd`, chart `deployment/helm/ztd` 0.3.0, zone file `deployment/helm/ztd/ci/values.yaml` (mesh mode sidecar, the installed baseline), excursion fixture `scripts/verify-umbrella/ambient-values.yaml`.
+
+Tools: helm v4.3.0+gbec5b06, kubectl client v1.37.1. The CI chart job pins Helm v4.3.0.
 
 Probe results: `200` means the call went through; `denied(28)` means curl gave up after 5 s because the policy dropped the packets.
 
@@ -18,8 +20,8 @@ Probe results: `200` means the call went through; `denied(28)` means curl gave u
 
 ```
 NAME STATUS ROLES AGE VERSION INTERNAL-IP EXTERNAL-IP OS-IMAGE KERNEL-VERSION CONTAINER-RUNTIME
-ztd-control-plane Ready control-plane 11m v1.35.8 172.30.0.2 <none> Debian GNU/Linux 13 (trixie) 6.10.14-linuxkit containerd://2.3.4
-ztd-worker Ready <none> 11m v1.35.8 172.30.0.3 <none> Debian GNU/Linux 13 (trixie) 6.10.14-linuxkit containerd://2.3.4
+ztd-control-plane Ready control-plane 4d8h v1.35.8 172.18.0.2 <none> Debian GNU/Linux 13 (trixie) 6.8.0-146-generic containerd://2.3.4
+ztd-worker Ready <none> 4d8h v1.35.8 172.18.0.3 <none> Debian GNU/Linux 13 (trixie) 6.8.0-146-generic containerd://2.3.4
 ```
 
 
@@ -30,17 +32,19 @@ ztd-worker Ready <none> 11m v1.35.8 172.30.0.3 <none> Debian GNU/Linux 13 (trixi
 ## 2. Install from zero
 
 - PASS: helm upgrade --install from an empty cluster returns 0
-  4s
+  9s
 
 ```
 Release "ztd" does not exist. Installing it now.
 NAME: ztd
 DESCRIPTION: Install complete
-ztd umbrella chart 0.1.0: release ztd in ztd-system, zone kind.
+ztd umbrella chart 0.3.0: release ztd in ztd-system, zone kind.
 
 Plane namespaces:
-  - ztd-mgmt  plane=management  istio.io/dataplane-mode=ambient
-  - ztd-data  plane=data  istio.io/dataplane-mode=ambient
+  - ztd-mgmt  plane=management  istio-injection=enabled
+  - ztd-data  plane=data  istio-injection=enabled
+  - spire-system  plane=management  istio-injection=enabled
+  - istio-system  plane=management  istio-injection=enabled
 
 Network layer: default-deny in both directions in every plane namespace, the DNS bypass, and
 5 allow-matrix lanes from the data plane into the management plane.
@@ -58,37 +62,68 @@ Evidence: scripts/verify-umbrella/verify.sh
 
 ## 3. The layout
 
+The control-plane namespaces of the zone file (`spire-system istio-system`) are management-plane namespaces without the mesh label; the SPIRE and Istio releases that install into them are proven by `scripts/verify-mesh-identity`.
+
 
 ```
 NAME STATUS AGE PLANE DATAPLANE-MODE ISTIO-INJECTION
-ztd-mgmt Active 4s management ambient 
-ztd-data Active 4s data ambient 
+ztd-mgmt Active 9s management enabled
+ztd-data Active 9s data enabled
+spire-system Active 9s management 
+istio-system Active 9s management 
 ```
 
 
 ```
 NAMESPACE NAME POD-SELECTOR AGE
-ztd-data allow-atls-gateway-to-cmcd-egress app.kubernetes.io/name=atls-gateway 4s
-ztd-data allow-atls-gateway-to-tcr-egress app.kubernetes.io/name=atls-gateway 4s
-ztd-data allow-backend-to-verification-service-egress app.kubernetes.io/name=backend 4s
-ztd-data allow-dns-egress <none> 4s
-ztd-data allow-intra-plane <none> 4s
-ztd-data allow-pdp-adapter-to-tsa-egress app.kubernetes.io/name=pdp-adapter 4s
-ztd-data allow-workloads-to-otel-collector-egress <none> 4s
-ztd-data default-deny <none> 4s
-ztd-mgmt allow-atls-gateway-to-cmcd-ingress app.kubernetes.io/name=cmcd 4s
-ztd-mgmt allow-atls-gateway-to-tcr-ingress app.kubernetes.io/name=tcr 4s
-ztd-mgmt allow-backend-to-verification-service-ingress app.kubernetes.io/name=verification-service 4s
-ztd-mgmt allow-dns-egress <none> 4s
-ztd-mgmt allow-intra-plane <none> 4s
-ztd-mgmt allow-pdp-adapter-to-tsa-ingress app.kubernetes.io/name=tsa-policy-engine 4s
-ztd-mgmt allow-workloads-to-otel-collector-ingress app.kubernetes.io/name=otel-collector 4s
-ztd-mgmt default-deny <none> 4s
+istio-system allow-dns-egress <none> 10s
+istio-system allow-intra-plane <none> 10s
+istio-system allow-mesh-control-plane-ingress app=istiod 10s
+istio-system default-deny <none> 10s
+spire-system allow-dns-egress <none> 10s
+spire-system allow-intra-plane <none> 10s
+spire-system default-deny <none> 10s
+ztd-data allow-atls-gateway-to-cmcd-egress app.kubernetes.io/name=atls-gateway 10s
+ztd-data allow-atls-gateway-to-tcr-egress app.kubernetes.io/name=atls-gateway 10s
+ztd-data allow-backend-to-verification-service-egress app.kubernetes.io/name=backend 10s
+ztd-data allow-dns-egress <none> 10s
+ztd-data allow-intra-plane <none> 10s
+ztd-data allow-mesh-control-plane-egress <none> 10s
+ztd-data allow-pdp-adapter-to-tsa-egress app.kubernetes.io/name=pdp-adapter 10s
+ztd-data allow-workloads-to-otel-collector-egress <none> 10s
+ztd-data default-deny <none> 10s
+ztd-mgmt allow-atls-gateway-to-cmcd-ingress app.kubernetes.io/name=cmcd 10s
+ztd-mgmt allow-atls-gateway-to-tcr-ingress app.kubernetes.io/name=tcr 10s
+ztd-mgmt allow-backend-to-verification-service-ingress app.kubernetes.io/name=verification-service 10s
+ztd-mgmt allow-dns-egress <none> 10s
+ztd-mgmt allow-intra-plane <none> 10s
+ztd-mgmt allow-mesh-control-plane-egress <none> 10s
+ztd-mgmt allow-pdp-adapter-to-tsa-ingress app.kubernetes.io/name=tsa-policy-engine 10s
+ztd-mgmt allow-workloads-to-otel-collector-ingress app.kubernetes.io/name=otel-collector 10s
+ztd-mgmt default-deny <none> 10s
+```
+
+
+```
+NAMESPACE NAME AGE VALID
+istio-system allow-control-plane-openings 10s True
+istio-system allow-kube-api-egress 10s True
+spire-system allow-control-plane-openings 10s True
+spire-system allow-kube-api-egress 10s True
+ztd-mgmt allow-kube-api-egress 10s True
 ```
 
 - PASS: default-deny present in ztd-mgmt
 - PASS: default-deny present in ztd-data
-- PASS: ambient host-probe exception present (mode ambient, Cilium)
+- PASS: default-deny present in spire-system
+- PASS: default-deny present in istio-system
+- PASS: control-plane namespace spire-system: management plane, no injection label
+- PASS: control-plane namespace istio-system: management plane, no injection label
+- PASS: sidecar mode (the baseline): istio-injection=enabled on ztd-mgmt
+- PASS: sidecar mode (the baseline): istio-injection=enabled on ztd-data
+- PASS: sidecar mode: no ambient label on ztd-mgmt
+- PASS: sidecar mode: no ambient label on ztd-data
+- PASS: sidecar mode: no ambient host-probe exception is rendered
 
 ## 4. Install again: idempotent
 
@@ -102,56 +137,75 @@ Stand-in pods carry the matrix labels; nothing else about them is real. Targets 
 
 - PASS: management stand-ins Ready
 - PASS: data-plane stand-ins Ready
-- PASS: unlabelled data-plane pod → openbao (management): DENIED
+- PASS: unlabelled data-plane pod → openbao-standin (management): DENIED
   → denied(28)
 - PASS: unlabelled data-plane pod → tsa-policy-engine (management): DENIED
   → denied(28)
 - PASS: pdp-adapter → tsa-policy-engine: ALLOWED (matrix lane pdp-adapter-to-tsa)
   → 200
-- PASS: pdp-adapter → openbao: DENIED (a lane is one pair, not a licence)
+- PASS: pdp-adapter → openbao-standin: DENIED (a lane is one pair, not a licence)
   → denied(28)
 - PASS: data-plane pod → data-plane pod: ALLOWED (intra-plane lane)
   → 200
 - PASS: management pod → data plane: DENIED (default deny is both directions)
   → denied(28)
 - PASS: DNS bypass: the denied pod still resolves names
-  Name:	tsa-policy-engine.ztd-mgmt.svc.cluster.local Address: 10.96.210.150  
+  Address: 10.96.208.149   
 
-## 6. Mesh mode is one label
+## 6. Mesh mode is one label: the excursion to the parked ambient mode, and back
 
-- PASS: upgrade to sidecar mode returns 0
+Sidecar is the installed baseline (ADR-0009). The release is switched to ambient with the excursion fixture, which must bring the ambient label and the Cilium host-probe exception while the denial and the lane hold, and then back to sidecar, which must leave neither behind.
+
+- PASS: upgrade to ambient mode returns 0
 
 ```
 NAME STATUS AGE PLANE DATAPLANE-MODE ISTIO-INJECTION
-ztd-mgmt Active 36s management enabled
-ztd-data Active 36s data enabled
+ztd-mgmt Active 81s management ambient 
+ztd-data Active 81s data ambient 
 ```
 
-- PASS: sidecar mode: istio-injection=enabled on the plane namespaces
-- PASS: sidecar mode: the ambient label is gone
-- PASS: sidecar mode: the ambient host-probe exception is gone
-- PASS: sidecar mode: cross-plane call still DENIED
+- PASS: ambient mode: istio.io/dataplane-mode=ambient on ztd-mgmt
+- PASS: ambient mode: istio.io/dataplane-mode=ambient on ztd-data
+- PASS: ambient mode: the sidecar label is gone
+- PASS: ambient mode: the Cilium host-probe exception is rendered (mode ambient, Cilium)
+- PASS: ambient mode: cross-plane call still DENIED
   → denied(28)
-- PASS: sidecar mode: matrix lane still ALLOWED
+- PASS: ambient mode: matrix lane still ALLOWED
   → 200
-- PASS: back to ambient mode returns 0
-- PASS: ambient label restored
+- PASS: back to sidecar mode returns 0
+
+```
+NAME STATUS AGE PLANE DATAPLANE-MODE ISTIO-INJECTION
+ztd-mgmt Active 98s management enabled
+ztd-data Active 98s data enabled
+```
+
+- PASS: sidecar mode restored: istio-injection=enabled on ztd-mgmt
+- PASS: sidecar mode restored: istio-injection=enabled on ztd-data
+- PASS: sidecar mode restored: the ambient label is gone
+- PASS: sidecar mode restored: the ambient host-probe exception is gone
+- PASS: sidecar mode restored: cross-plane call still DENIED
+  → denied(28)
+- PASS: sidecar mode restored: matrix lane still ALLOWED
+  → 200
 
 ## 7. The management plane's API lane under Cilium
 
-Cilium does not select an API server that runs on a node by its address, so with Cilium the lane is a CiliumNetworkPolicy to the kube-apiserver entity and needs no CIDR. Any HTTP code means the call reached the API server; denied(28), a timeout, means the policy dropped it; any other failure is an error.
+Cilium does not select an API server that runs on a node by its address, so with Cilium the lane is a CiliumNetworkPolicy to the kube-apiserver entity and the CIDR the zone file records is not rendered. In a meshed zone the lane is required (the SPIRE server, its controller-manager and istiod call the API), so it is on from the install in every management-plane namespace and the schema refuses it off (section 8). Any HTTP code means the call reached the API server; denied(28), a timeout, means the policy dropped it; any other failure is an error.
 
-- PASS: lane off: management pod → API server DENIED
-  → denied(28)
-- PASS: upgrade with the API lane on and no CIDR returns 0
-- PASS: the lane is a CiliumNetworkPolicy to the kube-apiserver entity
-- PASS: no address lane is rendered without a CIDR
-- PASS: lane on: management pod → API server ALLOWED
+- PASS: the lane is a CiliumNetworkPolicy to the kube-apiserver entity in ztd-mgmt
+- PASS: the lane is a CiliumNetworkPolicy to the kube-apiserver entity in spire-system
+- PASS: the lane is a CiliumNetworkPolicy to the kube-apiserver entity in istio-system
+
+```
+["kube-apiserver"] 443 6443
+```
+
+- PASS: no address lane is rendered under Cilium, although the zone file records a CIDR
+- PASS: no API lane in the data plane
+- PASS: management pod → API server ALLOWED
   → 200
-- PASS: lane on: data-plane pod → API server still DENIED (the lane is management-plane only)
-  → denied(28)
-- PASS: lane off again returns 0
-- PASS: lane off again: management pod → API server DENIED
+- PASS: data-plane pod → API server DENIED (the lane is management-plane only)
   → denied(28)
 
 ## 8. Guards that refuse a wrong configuration: the lint and render steps of the CI chart gate
@@ -160,19 +214,27 @@ The CI job runs `helm lint` and then `helm template`. Schema violations fail bot
 
 - PASS: no zone file: lint refused by the schema
 - PASS: no zone file: render refused by the schema
-  at '/zone/storageClass': minLength: got 0, want 1
+  at '/zone/name': validation failed
 - PASS: unknown mesh mode: lint refused by the schema
 - PASS: unknown mesh mode: render refused
   at '/mesh/mode': value must be one of 'ambient', 'sidecar', 'none'
-- PASS: kubeApi lane without cidrs and without Cilium: lint passes, as lint mode ignores the template guard; the render step below is the one that catches it
-- PASS: kubeApi lane without cidrs and without Cilium: render refused
+- PASS: kubeApi lane without cidrs on a zone without Cilium (an ipBlock lane): lint passes, as lint mode ignores the template guard; the render step below is the one that catches it
+- PASS: kubeApi lane without cidrs on a zone without Cilium: render refused
   networkPolicy.kubeApi.enabled needs at least one entry in networkPolicy.kubeApi.cidrs; an empty destination would open every address
+- PASS: meshed zone without zone.trustDomain: render refused by the schema
+  at '/zone/trustDomain': minLength: got 0, want 1
+- PASS: sidecar mode on Kubernetes v1.32.0: render refused (native sidecars need 1.33)
+  mesh.mode sidecar needs native sidecar containers, which need Kubernetes 1.33 or later; zone.kubernetesVersion is v1.32.0
+- PASS: meshed zone without Cilium: render refused, naming the control-plane openings and the derogation
+  mesh.mode sidecar needs Cilium (cni.cilium.enabled)
+- PASS: meshed zone with the kubeApi lane off: render refused by the schema (the control planes call the API)
+  at '/networkPolicy/kubeApi/enabled': value must be true
 
 ## 9. Teardown leaves no plane namespace behind
 
 - PASS: helm uninstall returns 0
   release "ztd" uninstalled
-- PASS: plane namespaces are gone
+- PASS: plane namespaces are gone, the control-plane namespaces with them
 - PASS: cluster-wide Cilium exception is gone
 - PASS: no hook resource left behind (hook-succeeded policy)
   the release namespace `ztd-system` remains, as expected: it was created by --create-namespace and is not owned by the release

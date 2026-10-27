@@ -1,0 +1,20 @@
+# Release `istio-cni` of the zone: the Istio CNI node agent, which installs the Istio CNI plugin as
+# a chained plugin behind the cluster's CNI (Cilium with cni.exclusive=false, ADR-0009), installed
+# as the upstream chart ships it.
+#   chart source      Istio 1.31.1 release archive, chart `cni` 1.31.1
+#                     https://github.com/istio/istio/releases/download/1.31.1/istio-1.31.1-linux-amd64.tar.gz
+#                     (manifests/charts/istio-cni; the archive's sha256 is pinned in scripts/install-zone/install.sh)
+#   namespace         istio-system (created by the umbrella chart, never by this release)
+# Pinned in scripts/install-zone/install.sh and docs/dependencies.md. Every value set here is
+# listed with its reason in README.md next to this file.
+cni:
+  # Pinned by tag and digest (the multi-arch index digest of the 1.31.1 tag, read from its
+  # registry); a value that contains "/" is used by the chart as the whole image reference.
+  image: docker.io/istio/install-cni:1.31.1@sha256:49140cc9a9d742cea829f452d93956896e85c4f47bbc7b69cf76484b63cce8b1
+  chained: true              # append to the CNI configuration Cilium wrote, never replace it
+  # The node paths of the kind nodes (and of the chart's defaults); a zone whose nodes keep the CNI
+  # binaries or configuration elsewhere overrides them in its zone overlay.
+  cniBinDir: /opt/cni/bin
+  cniConfDir: /etc/cni/net.d
+  ambient:
+    enabled: false           # sidecar mode (ADR-0009); ambient is parked

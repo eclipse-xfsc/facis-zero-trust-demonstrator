@@ -1,0 +1,24 @@
+# A pod in a scratch namespace without any network policy: it asks a node address for the SPIRE
+# agent's metrics port, which must refuse because the agent is bound to the loopback
+# (agents-stay-on-loopback). The proof creates and removes the namespace. Placeholders:
+# ${NS_SCRATCH}, ${CLIENT_IMAGE}.
+apiVersion: v1
+kind: Pod
+metadata:
+  name: obs-node-address-probe
+  namespace: ${NS_SCRATCH}
+  labels:
+    app.kubernetes.io/part-of: verify-observability
+spec:
+  securityContext:
+    runAsNonRoot: true
+    runAsUser: 100
+    seccompProfile: { type: RuntimeDefault }
+  containers:
+    - name: client
+      image: ${CLIENT_IMAGE}
+      command: ["sleep", "86400"]
+      securityContext:
+        allowPrivilegeEscalation: false
+        readOnlyRootFilesystem: true
+        capabilities: { drop: ["ALL"] }
