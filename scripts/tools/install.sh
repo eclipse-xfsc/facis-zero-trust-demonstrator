@@ -4,7 +4,7 @@
 # linux/amd64 only: it is what CI runs on. Images are pinned by digest in pins.env, not installed here.
 #
 #   scripts/tools/install.sh [dir] [tool...]      tools: cosign syft grype gator gatekeeper-chart kind kubectl
-#                                                  cilium-crds
+#                                                  cilium-crds istio-crds
 #                                                  (default: all)
 set -euo pipefail
 
@@ -65,6 +65,11 @@ for tool in "${tools[@]}"; do
       fetch "$crds/ciliumnetworkpolicies.yaml" "$CILIUM_CNP_CRD_SHA256" cnp.yaml
       mkdir -p "$dir/cilium-crds"
       install -m 0644 "$work/ccnp.yaml" "$work/cnp.yaml" "$dir/cilium-crds/"
+      ;;
+    istio-crds)
+      fetch "https://raw.githubusercontent.com/istio/istio/${ISTIO_CRDS_VERSION}/manifests/charts/base/files/crd-all.gen.yaml" "$ISTIO_CRDS_SHA256" istio.yaml
+      mkdir -p "$dir/istio-crds"
+      install -m 0644 "$work/istio.yaml" "$dir/istio-crds/istio.yaml"
       ;;
     *) echo "unknown tool: $tool" >&2; exit 2 ;;
   esac
