@@ -1,0 +1,17 @@
+# Render-only fixture, layered over ci/values.yaml. No credential values.
+runtime:
+  enabled: true
+  existingConfigMap: ztd-token-store-acquisition
+  credentialsSecret: ztd-token-store-credentials
+  replayCallers:
+    - spiffe://zone-b.trust.invalid/ns/example/sa/ztd-guard
+networkPolicy:
+  enabled: true
+  schemaEgress:
+    - to:
+        - podSelector: {matchLabels: {app: postgres}}
+      ports: [{port: 5432, protocol: TCP}]
+podAnnotations:
+  proxy.istio.io/config: '{"holdApplicationUntilProxyStarts":true}'
+nodeSelector:
+  kubernetes.io/hostname: render-only-node

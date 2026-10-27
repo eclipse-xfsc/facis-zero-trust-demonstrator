@@ -148,10 +148,15 @@ for dir in "${charts[@]}"; do
   fi
 
   gate "$dir" "$name" ${values[@]+"${values[@]}"}
+  runtime=not-run
+  if [ -d "$root/scripts/ci/chartcheck" ]; then
+    record "runtime chart boundaries" go -C "$root" run -mod=readonly ./scripts/ci/chartcheck "$root" "$dir"
+    runtime=$result
+  fi
 
   if [ -n "$evidence" ]; then
-    printf '{"chart":"%s","version":"%s","path":"%s","dependencies":"%s","lint":"%s","template":"%s","serverDryRun":"%s"}\n' \
-      "$name" "$version" "${dir#"$root"/}" "$deps" "$lint" "$template" "$dryrun" > "$evidence/$name.json"
+    printf '{"chart":"%s","version":"%s","path":"%s","dependencies":"%s","lint":"%s","template":"%s","serverDryRun":"%s","runtime":"%s"}\n' \
+      "$name" "$version" "${dir#"$root"/}" "$deps" "$lint" "$template" "$dryrun" "$runtime" > "$evidence/$name.json"
   fi
 done
 

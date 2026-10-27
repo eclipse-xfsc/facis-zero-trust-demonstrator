@@ -1,0 +1,174 @@
+name: Token store
+
+# The authorization database's schema, proven on every change to the store, its image, its chart
+# or the pinned images. Two jobs: the migration runner and the store's queries against a
+# PostgreSQL from the pinned image, and the chart's lifecycle (install, upgrade, uninstall) on a
+# kind cluster. Nothing is committed; the lifecycle records are the run's artefact.
+on:
+  pull_request:
+    paths:
+      - services/token-store/**
+      - services/connector/**
+      - services/participant/**
+      - services/protectedresource/**
+      - services/guard/**
+      - services/policyevaluator/**
+      - cmd/guard/**
+      - cmd/policy-evaluator/**
+      - cmd/participant/**
+      - cmd/protected-resource/**
+      - internal/**
+      - deployment/docker/token-store/**
+      - deployment/docker/connector/**
+      - deployment/docker/participant/**
+      - deployment/docker/protected-resource/**
+      - deployment/helm/token-store/**
+      - deployment/helm/guard/**
+      - deployment/docker/guard/**
+      - deployment/docker/policy-evaluator/**
+      - scripts/verify-token-store/**
+      - scripts/tools/pins.env
+      - go.mod
+      - go.sum
+      - .github/workflows/token-store.yml
+  push:
+    branches: [main]
+    paths:
+      - services/token-store/**
+      - services/connector/**
+      - services/participant/**
+      - services/protectedresource/**
+      - services/guard/**
+      - services/policyevaluator/**
+      - cmd/guard/**
+      - cmd/policy-evaluator/**
+      - cmd/participant/**
+      - cmd/protected-resource/**
+      - internal/**
+      - deployment/docker/token-store/**
+      - deployment/docker/connector/**
+      - deployment/docker/participant/**
+      - deployment/docker/protected-resource/**
+      - deployment/helm/token-store/**
+      - deployment/helm/guard/**
+      - deployment/docker/guard/**
+      - deployment/docker/policy-evaluator/**
+      - scripts/verify-token-store/**
+      - scripts/tools/pins.env
+      - go.mod
+      - go.sum
+      - .github/workflows/token-store.yml
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  schema:
+    name: Schema and store queries on an ephemeral database
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+
+      - name: Set up Go
+        uses: actions/setup-go@40f1582b2485089dde7abd97c1529aa768e1baff # v5.6.0
+        with:
+          go-version-file: go.mod
+
+      - name: Start PostgreSQL from the pinned image
+        run: |
+          . scripts/tools/pins.env
+          docker run -d --name postgres -e POSTGRES_PASSWORD=ci -p 127.0.0.1:5432:5432 "$POSTGRES_IMAGE"
+          # Readiness over TCP: during the image's init a temporary server answers on the socket only.
+          for _ in $(seq 1 30); do
+            docker exec postgres pg_isready -h 127.0.0.1 -U postgres >/dev/null 2>&1 && break
+            sleep 1
+          done
+          docker exec postgres pg_isready -h 127.0.0.1 -U postgres
+
+      # The token path needs a real OpenBao too: transit signing, the KV store of upstream tokens.
+      - name: Start OpenBao from the pinned image
+        run: |
+          . scripts/tools/pins.env
+          docker run -d --name openbao -e BAO_DEV_ROOT_TOKEN_ID=ci -p 127.0.0.1:8200:8200 "$OPENBAO_IMAGE" server -dev
+          for _ in $(seq 1 30); do
+            curl -sf http://127.0.0.1:8200/v1/sys/health >/dev/null && break
+            sleep 1
+          done
+          curl -sf -X POST -H 'X-Vault-Token: ci' -d '{"type":"transit"}' http://127.0.0.1:8200/v1/sys/mounts/transit
+
+      # Everything on the token path against PostgreSQL and OpenBao: the schema's migrations and
+      # queries, the store (replay check, acquisition with its recovery, substitution, renewal) with
+      # the real connector binary as the peer zone, the connector's conformance suite on the database
+      # stores, the shared packages, and the Participant and Protected Resource end to end through
+      # the real connector. Run twice, once per access-token form the connector issues.
+      # A skipped test means a missing dependency, so it fails the job.
+      - name: Run the token path with opaque and with signed access tokens
+        run: |
+          set -o pipefail
+          for tokens in opaque jwt; do
+            CONNECTOR_TEST_TOKENS=$tokens go test -count=1 -race -timeout 20m -v \
+              ./services/token-store/... ./services/connector/... ./internal/... \
+              ./services/participant/... ./services/protectedresource/... \
+              ./cmd/participant/... ./cmd/protected-resource/... \
+              ./services/guard/... ./services/policyevaluator/... ./cmd/guard/... ./cmd/policy-evaluator/... \
+              | tee "$RUNNER_TEMP/token-path-$tokens.log"
+            if grep -q -- '--- SKIP' "$RUNNER_TEMP/token-path-$tokens.log"; then
+              echo "::error::a test was skipped with $tokens tokens; this job must run them against PostgreSQL and OpenBao"
+              exit 1
+            fi
+          done
+        env:
+          CONNECTOR_TEST_STORE: pg
+          TOKEN_STORE_TEST_DATABASE_URL: postgres://postgres:ci@127.0.0.1:5432/postgres?sslmode=disable
+          TRANSIT_TEST_ADDR: http://127.0.0.1:8200
+          TRANSIT_TEST_TOKEN: ci
+
+  chart:
+    name: Chart lifecycle on kind
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+
+      - name: Set up Helm
+        uses: azure/setup-helm@1a275c3b69536ee54be43f2070a358922e12c8d4 # v4
+        with:
+          version: v4.3.0
+
+      - name: Install the pinned kind and kubectl
+        run: scripts/tools/install.sh "$RUNNER_TEMP/bin" kind kubectl
+
+      # The records go to the runner's temp directory, outside the checkout.
+      - name: Install, upgrade and uninstall the chart against PostgreSQL in the cluster
+        run: BIN="$RUNNER_TEMP/bin" scripts/verify-token-store/verify.sh --out "$RUNNER_TEMP/evidence"
+
+      - name: Write the verdict to the job summary
+        if: ${{ !cancelled() }}
+        run: |
+          {
+            echo '```'
+            cat "$RUNNER_TEMP/evidence/verdict.txt"
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload this run's records
+        if: ${{ !cancelled() }}
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: token-store-lifecycle
+          path: ${{ runner.temp }}/evidence
+          if-no-files-found: error
+
+      # The proof writes outside the checkout; the checkout must be as it was.
+      - name: The repository is unchanged
+        if: ${{ !cancelled() }}
+        run: |
+          if [ -n "$(git status --porcelain)" ]; then
+            git status --porcelain
+            echo "::error::the proof changed files in the repository"
+            exit 1
+          fi

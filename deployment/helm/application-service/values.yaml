@@ -1,0 +1,46 @@
+# Name of the Deployment and Service; other services reach it as <name>.<namespace>.svc.
+name: ""
+image:
+  repository: ""
+  # sha256:<64 hex>; the service is deployed by digest only.
+  digest: ""
+# Container and Service port.
+port: 8080
+# Path of the HTTP readiness and liveness probes.
+healthPath: /health
+# Environment of the process, as name: value. No secret values here.
+env: {}
+# Opt-in runtime wiring; existing sample deployments keep their default account.
+serviceAccount:
+  create: false
+  name: ""
+identity:
+  spireManagedIdentity: false
+podAnnotations: {}
+nodeSelector: {}
+# NAME: {name: existing-secret, key: secret-key}; values never contain credentials.
+secretEnv: {}
+# Each mount: {name: unique-volume-name, secretName: existing-secret, mountPath: /absolute/path}.
+secretMounts: []
+# Each mount: {name: unique-volume-name, configMapName: existing-config, mountPath: /absolute/path}.
+configMapMounts: []
+resources:
+  requests:
+    cpu: 100m
+    memory: 128Mi
+  limits:
+    cpu: 250m
+    memory: 128Mi
+networkPolicy:
+  # NetworkPolicyPeers allowed to reach the port. Empty denies all inbound traffic.
+  ingressFrom: []
+  # NetworkPolicyEgressRules besides DNS, which is always allowed. Empty denies all other egress.
+  egress: []
+ingress:
+  enabled: false
+  className: nginx
+  host: ""
+  # kubernetes.io/tls Secret for the host; empty serves the controller's default certificate.
+  tlsSecret: ""
+  # Secret with an htpasswd `auth` key; the route then requires HTTP basic authentication.
+  basicAuthSecret: ""

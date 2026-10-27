@@ -1,7 +1,14 @@
 {
   "expires": "2026-11-13",
-  "reason": "The HIGH/CRITICAL findings in these paths belong to the upstream ORCE 2.0.13 runtime (its bundled Node-RED, palette and npm dependencies), to kubectl v1.35.8, the newest 1.35 patch release, and to Helm v4.3.0, the newest release, which upstream built with Go 1.27.1 and golang.org/x/net v0.57.0 (CVE-2026-78667, CVE-2026-78669, CVE-2026-97031; fixed in Go 1.27.2 and x/net 0.60.0). They cannot be fixed in this project's layer without modifying the mandated upstream component. Everything this project adds stays under the scan gate.",
-  "tracking": "Client confirmation of the exception and a rebuilt ORCE image from Eclipse XFSC requested through FACIS on 2026-09-23; the Helm entry was added on 2026-10-14 and awaits confirmation by FACIS, the client. Helm's 4.3.1 milestone (due 2026-10-14) builds with Go 1.27.2 but still carries x/net v0.57.0: drop /usr/local/bin/helm from skipFiles when the pin moves to a Helm release built with Go 1.27.2 or later and x/net 0.60.0 or later. Remove this file when the pin moves to a rebuilt ORCE and a patched kubectl.",
-  "skipDirs": ["/opt/maestro", "/usr/src/node-red", "/data/node_modules", "/usr/local/lib/node_modules"],
-  "skipFiles": ["/usr/local/bin/kubectl", "/usr/local/bin/helm"]
+  "reason": "The excluded findings belong to the mandated upstream ORCE 2.0.13 runtime and kubectl v1.35.8. First-party additions, including Helm built with Go 1.27.3 and x/net v0.60.0, remain under the scan gate.",
+  "tracking": "Existing upstream ORCE and kubectl exception; confirmation requested through FACIS on 2026-09-23 remains pending. The Helm exclusion was removed on 2026-10-26 after updating its source build. No expiry extension.",
+  "skipDirs": [
+    "/opt/maestro",
+    "/usr/src/node-red",
+    "/data/node_modules",
+    "/usr/local/lib/node_modules"
+  ],
+  "skipFiles": [
+    "/usr/local/bin/kubectl"
+  ]
 }

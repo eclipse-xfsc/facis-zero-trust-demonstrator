@@ -1,0 +1,85 @@
+{{- include "guard.validate" . -}}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: ztd-guard-config
+  namespace: {{ .Release.Namespace }}
+data:
+  config.json: {{ toJson (mergeOverwrite (deepCopy .Values.config) (dict "allowed_callers" (list (printf "spiffe://%s/ns/%s/sa/%s" .Values.trustDomain .Release.Namespace .Values.participantServiceAccount)))) | quote }}
+  envoy.yaml: |
+    admin:
+      address:
+        socket_address: {address: 127.0.0.1, port_value: 9901}
+    static_resources:
+      listeners:
+        - name: guarded
+          address:
+            socket_address: {address: 0.0.0.0, port_value: 8080}
+          filter_chains:
+            - filters:
+                - name: envoy.filters.network.http_connection_manager
+                  typed_config:
+                    "@type": type.googleapis.com/envoy.extensions.filters.network.http_connection_manager.v3.HttpConnectionManager
+                    stat_prefix: guarded
+                    use_remote_address: true
+                    # Preserve only the trusted sidecar's XFCC for the local hook. The hook removes it upstream.
+                    forward_client_cert_details: ALWAYS_FORWARD_ONLY
+                    route_config:
+                      name: protected
+                      virtual_hosts:
+                        - name: protected
+                          domains: [{{ (urlParse .Values.config.published_base_url).host | quote }}]
+                          routes:
+                            - match: {path: /demo}
+                              route:
+                                cluster: resource
+                                timeout: 15s
+                                host_rewrite_literal: {{ printf "%s.%s.svc.cluster.local" .Values.resourceName .Release.Namespace | quote }}
+                    http_filters:
+                      - name: envoy.filters.http.ext_authz
+                        typed_config:
+                          "@type": type.googleapis.com/envoy.extensions.filters.http.ext_authz.v3.ExtAuthz
+                          transport_api_version: V3
+                          failure_mode_allow: false
+                          status_on_error: {code: ServiceUnavailable}
+                          grpc_service:
+                            envoy_grpc: {cluster_name: hook}
+                            timeout: 9s
+                      - name: envoy.filters.http.router
+                        typed_config:
+                          "@type": type.googleapis.com/envoy.extensions.filters.http.router.v3.Router
+                          suppress_envoy_headers: true
+      clusters:
+        - name: resource
+          type: STRICT_DNS
+          connect_timeout: 1s
+          load_assignment:
+            cluster_name: resource
+            endpoints:
+              - lb_endpoints:
+                  - endpoint:
+                      address:
+                        socket_address: {address: {{ .Values.resourceName }}, port_value: {{ .Values.resourcePort }}}
+        - name: hook
+          type: STATIC
+          connect_timeout: 1s
+          typed_extension_protocol_options:
+            envoy.extensions.upstreams.http.v3.HttpProtocolOptions:
+              "@type": type.googleapis.com/envoy.extensions.upstreams.http.v3.HttpProtocolOptions
+              explicit_http_config:
+                http2_protocol_options: {}
+          load_assignment:
+            cluster_name: hook
+            endpoints:
+              - lb_endpoints:
+                  - endpoint:
+                      address:
+                        socket_address: {address: 127.0.0.1, port_value: 50051}
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: ztd-policy-config
+  namespace: {{ .Release.Namespace }}
+data:
+  config.json: {{ toJson (dict "revision" .Values.policyRevision "audience" .Values.config.inbound_audience "host" (urlParse .Values.config.published_base_url).host "guard_callers" (list (printf "spiffe://%s/ns/%s/sa/ztd-guard" .Values.trustDomain .Release.Namespace)) "participant_callers" (list (printf "spiffe://%s/ns/%s/sa/%s" .Values.trustDomain .Release.Namespace .Values.participantServiceAccount)) "scope_tenants" .Values.config.scope_tenants) | quote }}
