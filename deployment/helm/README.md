@@ -11,6 +11,20 @@ documents its values in its own README.
 | Lifecycle fixture (test data, never released) | `features/fixtures/charts/lifecycle-fixture` | in use by the acceptance scenarios | [README](../../features/fixtures/charts/lifecycle-fixture/README.md) |
 | ORCE | — | planned; until then ORCE is installed from `deployment/orce-minimal/` | — |
 | Umbrella chart for a zone | `deployment/helm/ztd` | in use on kind; design in [docs/umbrella-chart.md](../../docs/umbrella-chart.md) | [ztd/README.md](ztd/README.md) |
+| Zone policy | `deployment/helm/zone-policy` | in use on kind | the workloads' registration with SPIRE, mesh-wide STRICT mTLS, the identity-band checks |
+| Upstream SPIRE and Istio charts (values only) | `deployment/helm/values` | in use on kind | [values/README.md](values/README.md) |
+
+## A zone
+
+A zone is seven Helm releases, installed in order by `scripts/install-zone/install.sh` from one zone
+file: the umbrella `ztd` (management and data planes and the two control-plane namespaces, baseline
+deny network policies with the declared openings, the allow matrix, the hook-weight bands); the
+upstream charts `spire-crds`, `spire`, `istio-base`, `istiod` and `istio-cni`, installed as they ship
+and pinned by version with the values files in `values/` (that README lists every value set and
+why); and `zone-policy`.
+
+Workload identity exists before any workload starts because of the identity path, not because of an
+install order (`docs/umbrella-chart.md`).
 
 ## Quality gate
 
