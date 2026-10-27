@@ -6,6 +6,9 @@
 #   LIFECYCLE_VALUES_FILE=values.json scripts/lifecycle.sh deploy
 #   LIFECYCLE_RELEASE=r LIFECYCLE_NAMESPACE=ns scripts/lifecycle.sh uninstall
 #
+# Optional: LIFECYCLE_TIMEOUT (default 5m); LIFECYCLE_WAIT_FOR_JOBS=true also waits for the
+# release's Jobs to complete (the zone installer sets it for the zone-policy release).
+#
 # Protocol on stdout: zero or more `EVENT_JSON=<json>` progress lines, then exactly one
 # `RESULT_JSON=<json>` line, also on failure. Exit status 0 means ok:true, 1 a reported failure.
 # Everything else goes to stderr. Secrets are masked before anything is printed.
@@ -20,6 +23,8 @@ namespace="${LIFECYCLE_NAMESPACE:-}"
 chart="${LIFECYCLE_CHART:-}"
 values_file="${LIFECYCLE_VALUES_FILE:-}"
 timeout="${LIFECYCLE_TIMEOUT:-5m}"
+wait_for_jobs=()
+[ "${LIFECYCLE_WAIT_FOR_JOBS:-false}" = true ] && wait_for_jobs=(--wait-for-jobs)
 
 work="$(mktemp -d)"
 result_printed=false
@@ -148,8 +153,8 @@ fi
 
 event deploy running
 if ! helm upgrade "$release" "$chart" --install --namespace "$namespace" \
-    --values "$values_file" --rollback-on-failure --wait=watcher --timeout "$timeout" \
-    >"$work/helm.out" 2>&1; then
+    --values "$values_file" --rollback-on-failure --wait=watcher ${wait_for_jobs[@]+"${wait_for_jobs[@]}"} \
+    --timeout "$timeout" >"$work/helm.out" 2>&1; then
   if grep -q "values don't meet the specifications of the schema" "$work/helm.out"; then
     fail valuesSchemaRejected "the chart rejected the deployment values; nothing was created"
   fi
@@ -159,8 +164,27 @@ fi
 # The expected inventory: every top-level object the release rendered, with its live identity.
 # It is returned so that absence can still be checked after the release record is gone.
 helm get manifest "$release" --namespace "$namespace" >"$work/manifest.yaml"
-# Rendered objects usually carry no namespace; they live in the release namespace.
-kubectl get --namespace "$namespace" --filename "$work/manifest.yaml" --output json >"$work/live.json"
+# Rendered objects usually carry no namespace; they live in the release namespace. A chart that
+# also renders objects into other namespaces (the umbrella) names them explicitly, which
+# `kubectl --namespace` refuses. The manifest is split on Helm's `---` separators into the objects
+# whose metadata names a namespace and the others, and each part is read on its own, so the step
+# needs no kubeconfig context or namespace of its own (in-cluster credentials work as before).
+awk -v named="$work/named.yaml" -v unnamed="$work/unnamed.yaml" '
+  function flush() { if (doc != "") printf "---\n%s", doc > (ns ? named : unnamed); doc = ""; ns = 0; meta = 0 }
+  /^---/ { flush(); next }
+  /^metadata:/ { meta = 1 }
+  /^[^ #]/ && !/^metadata:/ { meta = 0 }
+  meta && /^  namespace:/ { ns = 1 }
+  { doc = doc $0 "\n" }
+  END { flush() }' "$work/manifest.yaml"
+for part in unnamed named; do
+  [ -s "$work/$part.yaml" ] || continue
+  if [ "$part" = unnamed ]; then
+    kubectl get --namespace "$namespace" --filename "$work/$part.yaml" --output json || exit 1
+  else
+    kubectl get --filename "$work/$part.yaml" --output json || exit 1
+  fi
+done | jq -s '{apiVersion: "v1", kind: "List", items: [.[] | (.items // [.])[]]}' >"$work/live.json"
 revision="$(helm status "$release" --namespace "$namespace" --output json | jq '.version')"
 event deploy succeeded
 result true "$(jq -c --arg chart "$chart_digest" --arg values "$values_hash" --argjson revision "$revision" \

@@ -1,11 +1,12 @@
 apiVersion: v2
 name: ztd
 description: >-
-  Umbrella chart for one zone of the FACIS Zero Trust Demonstrator: plane namespaces, the baseline
-  deny network policies, the ZT-55 allow matrix at the network layer, and the hook-weight scheme
-  that the platform components plug into.
+  Umbrella chart for one zone of the FACIS Zero Trust Demonstrator: plane namespaces (including the
+  SPIRE and Istio control-plane namespaces), the baseline deny network policies with the declared
+  openings, the ZT-55 allow matrix at the network layer, and the hook-weight scheme that the
+  platform components plug into.
 type: application
-version: 0.1.0
+version: 0.3.0
 appVersion: "0.1.0"
 keywords:
   - facis
@@ -13,11 +14,3 @@ keywords:
   - umbrella
 sources:
   - https://github.com/eclipse-xfsc/facis-zero-trust-demonstrator
-dependencies:
-  # OpenBao (ZT-11, ADR-0004): the key-value store for X.509 key material. Off by default; a zone
-  # turns it on. Chart 0.28.3 ships OpenBao v2.5.4 - the chart version and the server version are
-  # recorded separately in docs/secrets.md.
-  - name: openbao
-    version: 0.28.3
-    repository: https://openbao.github.io/openbao-helm
-    condition: openbao.enabled
