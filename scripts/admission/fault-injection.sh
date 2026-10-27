@@ -5,7 +5,12 @@
 # namespaces are checked with server-side dry runs, so nothing is created there.
 #
 #   ADMIN_KUBECONFIG=... TESTER_KUBECONFIG=... FIXTURES=<case ref list> EVIDENCE=<dir> \
-#   BIN=... PROVIDER_IMAGE=... TRUST_REPOSITORY=... TRUST_KEY=... scripts/admission/fault-injection.sh
+#   BIN=... PROVIDER_IMAGE=... TRUST_REPOSITORY=... TRUST_KEY=... [OUTSIDE_NAMESPACES="ns ..."] \
+#   [CLUSTER_KIND=target|non-target] scripts/admission/fault-injection.sh
+#
+# OUTSIDE_NAMESPACES are the namespaces outside admission control that must stay schedulable while
+# admission is down (default: the IONOS proof's ztd-orce, kube-system, ztd-bdd-tdr-001). CLUSTER_KIND
+# is recorded with the evidence (default non-target, as on IONOS).
 #
 # Steps: ZT-13 mechanism (non-Linux and index refused), provider down, Gatekeeper down, trusted key
 # removed while the provider cache is warm, break-glass (webhook removed, then restored with
@@ -69,9 +74,10 @@ eventually_denied() { # case code name image
   if [ "$status" -eq 0 ]; then fail "$1: admitted, expected $2"; elif grep -q -- "$2" <<<"$out"; then pass "$1: denied ($2)"; else fail "$1: denied without $2: $out"; fi
 }
 outside_admitted() { # step
-  expect_admitted "$1: ztd-orce pod" admin ztd-other "$(fixture unsigned)" ztd-orce
-  expect_admitted "$1: kube-system pod" admin ztd-other "$(fixture unsigned)" kube-system
-  expect_admitted "$1: lifecycle-pool pod" admin ztd-other "$(fixture unsigned)" ztd-bdd-tdr-001
+  local n
+  for n in ${OUTSIDE_NAMESPACES:-ztd-orce kube-system ztd-bdd-tdr-001}; do
+    expect_admitted "$1: $n pod" admin ztd-other "$(fixture unsigned)" "$n"
+  done
 }
 signed="$(fixture app)"
 provider=deploy/ztd-admission-provider
@@ -269,6 +275,6 @@ fi
 
 note "== $(now) after"
 admin get pods -A -o wide > "$EVIDENCE/pods-after.txt"
-note "evidence: non-target cluster; interim signing key; not the client trust chain"
+note "evidence: ${CLUSTER_KIND:-non-target} cluster; interim signing key; not the client trust chain"
 [ "$failures" -eq 0 ] || { note "$failures case(s) failed"; exit 1; }
 note "all fault cases passed"

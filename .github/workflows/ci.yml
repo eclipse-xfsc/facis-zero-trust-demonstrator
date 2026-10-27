@@ -251,6 +251,11 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
 
+      - name: Set up Go
+        uses: actions/setup-go@40f1582b2485089dde7abd97c1529aa768e1baff # v5.6.0
+        with:
+          go-version-file: go.mod
+
       - name: Set up Helm
         uses: azure/setup-helm@1a275c3b69536ee54be43f2070a358922e12c8d4 # v4
         with:
@@ -311,6 +316,11 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
 
+      - name: Set up Go
+        uses: actions/setup-go@40f1582b2485089dde7abd97c1529aa768e1baff # v5.6.0
+        with:
+          go-version-file: go.mod
+
       - name: Set up Helm
         uses: azure/setup-helm@1a275c3b69536ee54be43f2070a358922e12c8d4 # v4
         with:
@@ -320,7 +330,7 @@ jobs:
       # against, so every package passes the server dry-run before it is attached.
       - name: Install the pinned tools
         run: |
-          scripts/tools/install.sh "$RUNNER_TEMP/bin" kind kubectl gatekeeper-chart cilium-crds
+          scripts/tools/install.sh "$RUNNER_TEMP/bin" kind kubectl gatekeeper-chart cilium-crds istio-crds
           echo "$RUNNER_TEMP/bin" >> "$GITHUB_PATH"
 
       - name: Create the gate cluster with the CRDs the charts render against
@@ -329,6 +339,8 @@ jobs:
           kind create cluster --name ztd-gate --image "$KIND_NODE_IMAGE" --wait 180s
           tar -xzf "$RUNNER_TEMP/bin/gatekeeper-${GATEKEEPER_CHART_VERSION}.tgz" -C "$RUNNER_TEMP" gatekeeper/crds
           kubectl apply -f "$RUNNER_TEMP/gatekeeper/crds/provider-customresourcedefinition.yaml" -f "$RUNNER_TEMP/bin/cilium-crds/"
+          kubectl apply --server-side -f "$RUNNER_TEMP/bin/istio-crds/"
+          kubectl wait --for condition=established --timeout=60s -f "$RUNNER_TEMP/bin/istio-crds/"
           kubectl wait --for condition=established --timeout=60s crd/providers.externaldata.gatekeeper.sh \
             crd/ciliumclusterwidenetworkpolicies.cilium.io crd/ciliumnetworkpolicies.cilium.io
 
@@ -520,3 +532,40 @@ jobs:
         with:
           name: bdd-traceability
           path: bundles/bdd
+
+  # Reachability of every client cluster from the pipeline: the API server answers and the
+  # identity authenticates. Read-only identity, never on pull requests; a target whose kubeconfig secret
+  # is not set yet is reported as skipped, not as reachable.
+  cluster-reachability:
+    name: Reachability of ${{ matrix.target }}
+    if: github.event_name != 'pull_request'
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - target: ionos
+            key: IONOS
+          - target: zone-a
+            key: ZONE_A
+          - target: zone-b
+            key: ZONE_B
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+
+      - name: Check the cluster answers
+        env:
+          OBSERVER_KUBECONFIG: ${{ secrets[format('BDD_{0}_OBSERVER_KUBECONFIG', matrix.key)] }}
+        run: |
+          if [ -z "$OBSERVER_KUBECONFIG" ]; then
+            echo "::notice::No observer kubeconfig for ${{ matrix.target }} - reachability not checked."
+            exit 0
+          fi
+          scripts/tools/install.sh "$RUNNER_TEMP/bin" kubectl
+          umask 077
+          printf '%s' "$OBSERVER_KUBECONFIG" > "$RUNNER_TEMP/observer.kubeconfig"
+          export KUBECONFIG="$RUNNER_TEMP/observer.kubeconfig"
+          "$RUNNER_TEMP/bin/kubectl" version --request-timeout=20s
+          "$RUNNER_TEMP/bin/kubectl" auth whoami --request-timeout=20s
+          echo "${{ matrix.target }}: reachable from GitHub Actions" >> "$GITHUB_STEP_SUMMARY"

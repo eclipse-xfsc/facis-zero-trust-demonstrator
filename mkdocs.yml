@@ -22,6 +22,7 @@ nav:
       - Overview: environments/index.md
       - T-Systems OSC: environments/osc.md
       - IONOS Cloud: environments/ionos.md
+      - Capability sheets: environments/capabilities/index.md
       - Application workloads: environments/application-workloads.md
   - Packaging and containers: packaging.md
   - Orchestrated flows: flows.md
@@ -35,6 +36,7 @@ nav:
   - BDD acceptance:
       - Harness and pack: bdd.md
       - Catalogue: bdd-catalogue.md
+      - M3 evidence: evidence-m3.md
   - CI/CD: ci-cd.md
   - Secrets: secrets.md
   - Troubleshooting: troubleshooting.md
@@ -43,6 +45,7 @@ nav:
   - Specification changes: specifications.md
   - Architecture decisions:
       - Overview: adr/index.md
+      - Decision ledger: adr/decision-ledger.md
       - TDR decisions ADR 001–006: adr/tdr-decisions.md
       - 0001 Service mesh mode: adr/0001-service-mesh-mode-istio-ambient-with-cilium.md
       - 0002 Gatekeeper external data provider: adr/0002-gatekeeper-external-data-provider-for-cosign-verification.md

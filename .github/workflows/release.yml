@@ -27,7 +27,7 @@ concurrency:
 
 jobs:
   # TDR-BDD-11: every chart passes lint, render and a server dry-run against a disposable cluster that
-  # serves the CRDs the charts render against (Cilium, Gatekeeper), and the two negative charts are
+  # serves the CRDs the charts render against (Cilium, Gatekeeper, Istio), and the two negative charts are
   # refused by the check each targets. A server dry-run proves render, API discovery and schemas; it
   # does not run admission webhooks or hooks and proves nothing about the release at runtime.
   chart-gate:
@@ -49,7 +49,7 @@ jobs:
 
       - name: Install the pinned tools
         run: |
-          scripts/tools/install.sh "$RUNNER_TEMP/bin" kind kubectl gatekeeper-chart cilium-crds
+          scripts/tools/install.sh "$RUNNER_TEMP/bin" kind kubectl gatekeeper-chart cilium-crds istio-crds
           echo "$RUNNER_TEMP/bin" >> "$GITHUB_PATH"
 
       - name: Create the gate cluster with the CRDs the charts render against
@@ -58,6 +58,8 @@ jobs:
           kind create cluster --name ztd-gate --image "$KIND_NODE_IMAGE" --wait 180s
           tar -xzf "$RUNNER_TEMP/bin/gatekeeper-${GATEKEEPER_CHART_VERSION}.tgz" -C "$RUNNER_TEMP" gatekeeper/crds
           kubectl apply -f "$RUNNER_TEMP/gatekeeper/crds/provider-customresourcedefinition.yaml" -f "$RUNNER_TEMP/bin/cilium-crds/"
+          kubectl apply --server-side -f "$RUNNER_TEMP/bin/istio-crds/"
+          kubectl wait --for condition=established --timeout=60s -f "$RUNNER_TEMP/bin/istio-crds/"
           kubectl wait --for condition=established --timeout=60s crd/providers.externaldata.gatekeeper.sh \
             crd/ciliumclusterwidenetworkpolicies.cilium.io crd/ciliumnetworkpolicies.cilium.io
 
