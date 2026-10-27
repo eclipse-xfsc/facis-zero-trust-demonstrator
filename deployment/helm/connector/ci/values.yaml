@@ -1,0 +1,19 @@
+# Render-only references. No credentials or deployable image in this file.
+image:
+  digest: sha256:0000000000000000000000000000000000000000000000000000000000000000
+database:
+  existingSecret: ztd-connector-database
+credentials:
+  existingSecret: ztd-connector-credentials
+openbao:
+  signingKey: ztd-connector
+oauth:
+  issuer: https://connector.example.invalid
+  registrationEndpoint: http://ztd-connector:8080/oauth2/register
+  registrarAudiences:
+    - http://ztd-connector:8080/oauth2/register
+    - https://guard.facis.invalid
+  exclusiveAudiences: [https://guard.facis.invalid, https://resource.facis.invalid]
+  registrarDelegableScopes: [report:read]
+verifiedPresentation:
+  existingConfigMap: ztd-connector-verification

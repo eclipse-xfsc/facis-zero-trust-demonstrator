@@ -8,6 +8,7 @@ import (
 
 	"github.com/eclipse-xfsc/facis-zero-trust-demonstrator/services/connector/internal/dpoptest"
 	"github.com/eclipse-xfsc/facis-zero-trust-demonstrator/services/connector/internal/oauth2provider"
+	"github.com/eclipse-xfsc/facis-zero-trust-demonstrator/services/connector/internal/oauth2provider/memstore"
 )
 
 func TestDPoP_ValidProofIssuesBoundToken(t *testing.T) {
@@ -281,5 +282,90 @@ func TestDPoP_NonceRoundTrip(t *testing.T) {
 
 	if expired := h.token("participant", mint(nonce), []string{resourceScope}, ""); expired.reason() != oauth2provider.CodeDPoPUseNonce {
 		t.Errorf("expired nonce: reason %q, want %q", expired.reason(), oauth2provider.CodeDPoPUseNonce)
+	}
+}
+
+// The replay store is handed the proof as the provider validated it: the
+// key thumbprint, the method and URI it was made for, its jti and its iat,
+// together with the instant it stops being acceptable. A store applying a
+// window of its own depends on that iat, which the adapter derives.
+func TestDPoP_ReplayStoreReceivesTheProofIdentity(t *testing.T) {
+	const (
+		lifespan = 45 * time.Second
+		skew     = 15 * time.Second
+	)
+
+	h := newHarness(t, func(cfg *oauth2provider.Config) {
+		cfg.DPoP.ProofLifespan = lifespan
+		cfg.DPoP.ClockSkew = skew
+	})
+	h.seedClient("participant", true, []string{resourceScope}, nil)
+
+	key := dpoptest.NewKey(t)
+	issuedAt := time.Now().Add(-30 * time.Second).Truncate(time.Second)
+	proof := dpoptest.Mint(t, key, dpoptest.Proof{
+		Method:   http.MethodPost,
+		URL:      h.tokenURL + "?ignored=query",
+		IssuedAt: issuedAt,
+		ID:       "proof-identity-1",
+	})
+
+	if issued := h.token("participant", proof, []string{resourceScope}, ""); issued.status != http.StatusOK {
+		t.Fatalf("token request: status %d, body %v", issued.status, issued.body)
+	}
+
+	got := h.replay.last()
+	want := oauth2provider.DPoPProofUse{
+		Thumbprint: key.Thumbprint(),
+		Method:     http.MethodPost,
+		URI:        h.tokenURL,
+		ID:         "proof-identity-1",
+		IssuedAt:   issuedAt,
+		NotAfter:   issuedAt.Add(lifespan + skew),
+	}
+
+	if got.Thumbprint != want.Thumbprint || got.Method != want.Method || got.URI != want.URI || got.ID != want.ID || got.Nonce != "" {
+		t.Errorf("proof identity = %+v, want %+v", got, want)
+	}
+
+	if !got.IssuedAt.Equal(want.IssuedAt) {
+		t.Errorf("IssuedAt = %s, want the proof's iat %s", got.IssuedAt, want.IssuedAt)
+	}
+
+	if !got.NotAfter.Equal(want.NotAfter) {
+		t.Errorf("NotAfter = %s, want iat + lifespan + skew = %s", got.NotAfter, want.NotAfter)
+	}
+}
+
+// A proof may stay acceptable for at most MaxDPoPProofWindow after its iat,
+// which is as long as a replay store is asked to keep a record. A
+// configuration beyond that is refused when the provider is built, so it
+// cannot surface as refused token requests later.
+func TestDPoP_ProofWindowIsBounded(t *testing.T) {
+	for _, tc := range []struct {
+		name           string
+		lifespan, skew time.Duration
+		wantErr        bool
+	}{
+		{name: "defaults", wantErr: false},
+		{name: "exactly the bound", lifespan: 80 * time.Second, skew: 10 * time.Second, wantErr: false},
+		{name: "one second over", lifespan: 80 * time.Second, skew: 11 * time.Second, wantErr: true},
+		{name: "default skew counts", lifespan: oauth2provider.MaxDPoPProofWindow, wantErr: true},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			cfg := oauth2provider.Config{
+				Secret: []byte("token-signing-secret-at-least-32-bytes!"),
+				DPoP:   oauth2provider.DPoPConfig{ProofLifespan: tc.lifespan, ClockSkew: tc.skew},
+				Registration: oauth2provider.RegistrationConfig{
+					Secret:      []byte("registration-secret-at-least-32-bytes!!"),
+					EndpointURL: "https://connector.example/oauth2/register",
+				},
+			}
+
+			_, err := New(cfg, memstore.New(time.Now))
+			if (err != nil) != tc.wantErr {
+				t.Fatalf("New: err = %v, want an error: %t", err, tc.wantErr)
+			}
+		})
 	}
 }

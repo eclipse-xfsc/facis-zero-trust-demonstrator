@@ -1,0 +1,15 @@
+apiVersion: v2
+name: token-store
+description: >-
+  The zone's token store (services/token-store): the authorization database's schema, applied as a
+  versioned migration by a hook Job before every install and upgrade, and the service with its
+  probes, identity and opt-in acquisition, substitution and renewal configuration.
+type: application
+version: 0.3.0
+appVersion: "0.2.0"
+keywords:
+  - facis
+  - zero-trust
+  - token-store
+sources:
+  - https://github.com/eclipse-xfsc/facis-zero-trust-demonstrator

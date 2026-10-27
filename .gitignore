@@ -4,6 +4,7 @@
 /bin/
 *.test
 *.out
+__pycache__/
 
 # Go
 vendor/
