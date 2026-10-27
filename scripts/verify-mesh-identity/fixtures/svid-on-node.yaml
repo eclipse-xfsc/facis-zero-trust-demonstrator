@@ -1,0 +1,38 @@
+# The per-node SVID stand-in of the mesh identity proof (scripts/verify-mesh-identity/verify.sh,
+# sections 5 and 6). Rendered once per node the SPIRE agent DaemonSet runs on, with the node's name
+# in place of __NODE__: a pod named svid-on-<node> in spire-system, placed on that node by a required
+# node affinity, that asks the node's SPIRE agent for its SVID over the mounted csi.spiffe.io socket.
+# It carries the identity label and no proxy: the SPIRE namespace is a plane namespace without the
+# injection label on every cluster the proof accepts, so the pod needs no opt-out, and the fetch is a
+# read over a Unix socket to the agent of the pod's own node that needs no lane. The placement
+# spreads the proof over every node on purpose, like the meshed stand-ins of mesh-on-node.yaml; it
+# holds no pod to istiod's node. Nothing here is part of a zone; the proof removes the pods and the
+# ServiceAccount with the other stand-ins in every case.
+apiVersion: v1
+kind: ServiceAccount
+metadata: { name: stand-in, namespace: spire-system }
+---
+apiVersion: v1
+kind: Pod
+metadata:
+  name: svid-on-__NODE__
+  namespace: spire-system
+  labels: { app.kubernetes.io/name: svid-on-node, spiffe.io/spire-managed-identity: "true" }
+spec:
+  terminationGracePeriodSeconds: 2   # the client holds no state
+  serviceAccountName: stand-in
+  affinity:
+    nodeAffinity:
+      requiredDuringSchedulingIgnoredDuringExecution:
+        nodeSelectorTerms:
+          - matchExpressions:
+              - { key: kubernetes.io/hostname, operator: In, values: [__NODE__] }
+  containers:
+    - name: svid
+      image: ghcr.io/spiffe/spire-agent:1.15.3@sha256:41b0dcd8b258a69db9e2768292a060766fb76fd866e4bc925849981ea1b825ff
+      command: [/opt/spire/bin/spire-agent]
+      args: [api, watch, -socketPath, /run/spiffe/socket]
+      volumeMounts: [{ name: spiffe-workload-api, mountPath: /run/spiffe, readOnly: true }]
+  volumes:
+    - name: spiffe-workload-api
+      csi: { driver: csi.spiffe.io, readOnly: true }
