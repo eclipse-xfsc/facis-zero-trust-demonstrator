@@ -77,7 +77,8 @@ in, as the reconciler does from Git.
   ([suite.yaml](suite.yaml)); the `gator` job in CI.
 - `scripts/supplychain/policy-package_test.sh` — the package holds these files and nothing else, is
   the same bytes from any checkout, and against a local registry is one layer, signed and verified,
-  with a tampered push to the same tag left uncovered by the signature; the `policy-package` job in CI.
+  the same digest when published again, with a tampered package published to the same tag by another
+  key left uncovered by the trusted signature; the `policy-package` job in CI.
 - `scripts/admission/kind-e2e.sh` — the whole catalogue in a real Gatekeeper on kind, with the
   provider and a local registry of test images signed with the release script and an ephemeral key:
   signed (admitted and Running), unsigned, untrusted key, mutable tag, each attestation missing,
