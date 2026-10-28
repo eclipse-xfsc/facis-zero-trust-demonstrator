@@ -167,24 +167,32 @@ repository as manifest annotations, signs the manifest by digest with the profil
 the committed public key. The last line it prints is the digest reference, the one thing a consumer
 pins: a tag can be moved to other content, a digest cannot.
 
-The workflow runs in the protected `release` environment, on a push to `main` that touches the
-catalogue or by hand with a version, and packages nothing until `gator verify` has passed on the
-catalogue and the signing key has been checked against the public key. The run is the log of the
-publication — who started it, who approved the environment, the digest in the run summary — and the
-annotations tie the artefact to its commit. The registry is the repository variable
-`POLICY_REGISTRY` (for example `harbor.example.org/facis/policy`) with the `POLICY_REGISTRY_USER` and
-`POLICY_REGISTRY_PASSWORD` secrets of a robot account, as `CHART_REGISTRY` is for the charts; while
-none is configured the package goes to `ghcr.io/<owner>/<repository>/policy/admission`, where GHCR
-creates it private, so it is made public once in the package settings before a cluster can read it
-anonymously. The interim key is not the client trust chain; it is replaced by the client key and
-Harbor.
+The workflow runs in the protected `release` environment, from `main` only — on a push that touches
+the catalogue, or by hand with a version; a manual run on any other ref fails in a first job that has
+no environment, so an unreviewed branch never reaches the key or the registry — and packages nothing
+until `gator verify` has passed on the catalogue and the signing key has been checked against the
+public key. The run is the log of the publication — who started it, who approved the environment,
+the digest in the run summary — and the annotations tie the artefact to its commit. The registry is
+the repository variable `POLICY_REGISTRY` (for example `harbor.example.org/facis/policy`) with the
+`POLICY_REGISTRY_USER` and `POLICY_REGISTRY_PASSWORD` secrets of a robot account, as
+`CHART_REGISTRY` is for the charts. The publish script hands that credential to ORAS and cosign
+through a Docker config private to the run, with no `docker login`: a login first asks the registry
+for a token with no scope, which a Harbor robot account granted its repositories by scope can be
+refused while the push itself is not. While no registry is configured the package goes to
+`ghcr.io/<owner>/<repository>/policy/admission` with the job token, where GHCR creates it private,
+so it is made public once in the package settings before a cluster can read it anonymously. The
+interim key is not the client trust chain; it is replaced by the client key and Harbor.
 
 `scripts/supplychain/policy-package_test.sh` holds the two scripts to this in the `policy-package`
-job, against a `registry:2` on the runner and an ephemeral key: the package holds the cluster
-objects and nothing else, two checkouts give the same bytes, a catalogue missing a member is refused,
-the artefact is one layer of the media type above, pulling the signed digest back gives the bytes
-that were packaged, a signature by another key is refused, and a tampered package pushed to the same
-tag moves the tag to a digest the signature does not cover while the signed digest still verifies.
+job, against a `registry:2` on the runner and ephemeral keys: the package holds the cluster objects
+and nothing else, two checkouts give the same bytes, a catalogue missing a member is refused, the
+artefact is one layer of the media type above, the same bytes published again are the same digest,
+pulling the signed digest back gives the bytes that were packaged, a signature by another key is
+refused, and a tampered package published to the same tag with another key moves the tag to a digest
+the trusted key never signed while the signed digest still verifies. Each refusal is checked for its
+reason, so a registry that cannot be reached is a failure, not a refusal. The registry asks for no
+credential, so the suite proves that the credential file the script writes is one the tools read,
+not that it authenticates; the first run against the policy registry proves that.
 
 ## Chart release
 

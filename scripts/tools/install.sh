@@ -14,7 +14,7 @@ here="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 dir="${1:-.tools/bin}"
 shift || true
 tools=("$@")
-[ ${#tools[@]} -gt 0 ] || tools=(cosign syft grype gator gatekeeper-chart kind kubectl)
+[ ${#tools[@]} -gt 0 ] || tools=(cosign syft grype gator gatekeeper-chart kind kubectl cilium-crds argocd-chart oras)
 mkdir -p "$dir"
 work="$(mktemp -d)"
 trap 'rm -rf "$work"' EXIT
