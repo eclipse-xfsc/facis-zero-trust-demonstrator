@@ -1,0 +1,24 @@
+FACIS ZTD identity applied through a Helm-managed keycloak-config-cli Job.
+
+Issuer: {{ trimSuffix "/" .Values.keycloak.publicUrl }}/realms/facis-ztd
+Client: ztd-ui (public), PKCE S256, scopes openid profile roles
+Callback: {{ include "ztd.callback" . }}
+Front-channel logout: {{ include "ztd.frontLogout" . }}
+Back-channel logout: {{ include "ztd.backLogout" . }}
+After logout: {{ include "ztd.afterLogout" . }}
+
+Check apply result:
+  kubectl -n {{ .Release.Namespace }} logs job/{{ include "ztd.fullname" . }}-apply
+Connection contract:
+  kubectl -n {{ .Release.Namespace }} get configmap {{ include "ztd.fullname" . }}-connection -o yaml
+
+Mode: {{ .Values.deployment.mode }}
+{{- if eq .Values.deployment.mode "adopt" }}
+Existing workload specs, credentials and PVCs are retained and now belong to this release.
+Continue using deployment.mode=adopt; do not switch this release to new mode.
+{{- end }}
+{{- if not .Values.externalSecrets.enabled }}
+OpenBao injection remains pending. Credentials currently come from Kubernetes Secrets.
+{{- end }}
+The configured ORCE routes are the integration contract; ORCE must implement its handlers.
+Helm uninstall retains Secrets and adopted PVCs, but removes workloads owned by this release.

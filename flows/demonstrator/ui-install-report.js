@@ -1,0 +1,1 @@
+const key="install:"+msg.installId;const count=(context.get(key)||0)+1;if(count>=msg.installFiles){context.set(key,undefined);node.status({fill:"green",shape:"dot",text:"All "+count+" UI files installed"});}else{context.set(key,count);node.status({fill:"blue",shape:"ring",text:count+"/"+msg.installFiles+" UI files installed"});}return null;

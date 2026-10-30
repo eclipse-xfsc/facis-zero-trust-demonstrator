@@ -1,0 +1,224 @@
+[
+  {
+    "disabled": false,
+    "id": "facis-native-identity-tab",
+    "info": "Authorization Code + PKCE using standard Node-RED nodes and built-in Node.js crypto/https/url modules. No custom node package. TLS verification remains enabled. Sessions stay in private Function sandbox memory. Restart/redeploy signs users out.",
+    "label": "FACIS UI Identity",
+    "type": "tab"
+  },
+  {
+    "id": "facis-native-route-0",
+    "method": "get",
+    "name": "GET/ztd/oidc/login",
+    "swaggerDoc": "",
+    "type": "http in",
+    "upload": false,
+    "url": "/ztd/oidc/login",
+    "wires": [
+      [
+        "facis-native-identity-engine"
+      ]
+    ],
+    "x": 197.5,
+    "y": 60,
+    "z": "facis-native-identity-tab"
+  },
+  {
+    "id": "facis-native-route-1",
+    "method": "get",
+    "name": "GET /ztd/oidc/callback",
+    "swaggerDoc": "",
+    "type": "http in",
+    "upload": false,
+    "url": "/ztd/oidc/callback",
+    "wires": [
+      [
+        "facis-native-identity-engine"
+      ]
+    ],
+    "x": 200,
+    "y": 145,
+    "z": "facis-native-identity-tab"
+  },
+  {
+    "id": "facis-native-route-2",
+    "method": "get",
+    "name": "GET /ztd/api/session",
+    "swaggerDoc": "",
+    "type": "http in",
+    "upload": false,
+    "url": "/ztd/api/session",
+    "wires": [
+      [
+        "facis-native-identity-engine"
+      ]
+    ],
+    "x": 200,
+    "y": 210,
+    "z": "facis-native-identity-tab"
+  },
+  {
+    "id": "facis-native-route-3",
+    "method": "post",
+    "name": "POST /ztd/api/journey",
+    "swaggerDoc": "",
+    "type": "http in",
+    "upload": false,
+    "url": "/ztd/api/journey",
+    "wires": [
+      [
+        "facis-native-identity-engine"
+      ]
+    ],
+    "x": 200,
+    "y": 275,
+    "z": "facis-native-identity-tab"
+  },
+  {
+    "id": "facis-native-route-4",
+    "method": "post",
+    "name": "POST /ztd/oidc/logout",
+    "swaggerDoc": "",
+    "type": "http in",
+    "upload": false,
+    "url": "/ztd/oidc/logout",
+    "wires": [
+      [
+        "facis-native-identity-engine"
+      ]
+    ],
+    "x": 200,
+    "y": 340,
+    "z": "facis-native-identity-tab"
+  },
+  {
+    "id": "facis-native-route-5",
+    "method": "get",
+    "name": "GET /ztd/oidc/frontchannel-logout",
+    "swaggerDoc": "",
+    "type": "http in",
+    "upload": false,
+    "url": "/ztd/oidc/frontchannel-logout",
+    "wires": [
+      [
+        "facis-native-identity-engine"
+      ]
+    ],
+    "x": 200,
+    "y": 405,
+    "z": "facis-native-identity-tab"
+  },
+  {
+    "id": "facis-native-route-6",
+    "method": "post",
+    "name": "POST /ztd/oidc/backchannel-logout",
+    "swaggerDoc": "",
+    "type": "http in",
+    "upload": false,
+    "url": "/ztd/oidc/backchannel-logout",
+    "wires": [
+      [
+        "facis-native-identity-engine"
+      ]
+    ],
+    "x": 200,
+    "y": 470,
+    "z": "facis-native-identity-tab"
+  },
+  {
+    "finalize": "context._facisAuth?.reset();context._facisAuth=null;global.set('facisUiAuthActive',false);",
+    "func": "const auth=context._facisAuth;\nif(!auth){msg.statusCode=503;msg.payload={ok:false,error:{code:'IDENTITY_UNAVAILABLE'}};return [msg,null];}\nconst req=msg.req; const headers={'Cache-Control':'no-store','Pragma':'no-cache','X-Content-Type-Options':'nosniff','Referrer-Policy':'no-referrer'};\nlet status=200,finished=false; const res={headersSent:false,set(k,v){headers[k]=v;return this;},append(k,v){headers[k]=headers[k]?[].concat(headers[k],v):v;return this;},status(v){status=v;return this;},json(v){this.set('Content-Type','application/json');this.end(JSON.stringify(v));},redirect(s,url){this.set('Location',url);this.status(s);this.end('');},end(v=''){if(finished)return;finished=true;this.headersSent=true;msg.statusCode=status;msg.headers=headers;msg.payload=v;delete msg._facisRoute;node.send([msg,null],false);}};\n(async()=>{\n try{\n  const route=req.route?.path||req.url.split('?')[0];\n  if(['POST'].includes(req.method)){const ct=String(req.headers['content-type']||'').split(';')[0];if(!['application/json','application/x-www-form-urlencoded'].includes(ct))return res.status(415).end();if(Number(req.headers['content-length'])>16384||JSON.stringify(req.body||{}).length>16384)return res.status(413).end();}\n  switch(route){\n   case '/ztd/oidc/login': await auth.login(req,res);break;\n   case '/ztd/oidc/callback': await auth.callbackHandler(req,res);break;\n   case '/ztd/api/session': await auth.status(req,res);break;\n   case '/ztd/oidc/logout': await auth.logout(req,res);break;\n   case '/ztd/oidc/frontchannel-logout': auth.frontchannel(req,res);break;\n   case '/ztd/oidc/backchannel-logout': await auth.backchannel(req,res);break;\n   case '/ztd/api/journey': await auth.command(req,res,command=>{const nativeResponse=msg.res._res||msg.res;const timer=setTimeout(()=>{if(!nativeResponse.headersSent&&!nativeResponse.writableEnded)res.status(504).json({ok:false,error:{code:'MODULE_TIMEOUT'}});},35000);nativeResponse.once('finish',()=>clearTimeout(timer));nativeResponse.once('close',()=>clearTimeout(timer));command.req=msg.req;command.res=msg.res;node.send([null,command],false);});break;\n   default:res.status(404).end();\n  }\n }catch{if(!finished)res.status(503).json({ok:false,error:{code:'IDENTITY_UNAVAILABLE'}});}finally{node.done();}\n})();return;\n",
+    "id": "facis-native-identity-engine",
+    "initialize": "'use strict';\nconst OidcSearchParams = nodeUrl.URLSearchParams; const OidcURL = nodeUrl.URL;\nconst ISSUER = 'https://keycloak.85.215.131.155.sslip.io/realms/facis-ztd';\nconst ORIGIN = 'https://orce.85-215-131-155.sslip.io';\nconst ROLE_OPERATOR = 'ztd-operator', ROLE_OBSERVER = 'ztd-observer';\nconst SESSION_COOKIE = '__Secure-facis-ui', TX_COOKIE = '__Secure-facis-oidc';\nconst err = code => Object.assign(new Error(code), { code });\nconst random = () => crypto.randomBytes(32).toString('base64url');\nconst same = (a, b) => typeof a === 'string' && typeof b === 'string' && Buffer.byteLength(a) === Buffer.byteLength(b) && crypto.timingSafeEqual(Buffer.from(a), Buffer.from(b));\nfunction cookies(req) { const out = {}; for (const part of String(req.headers.cookie || '').split(';')) { const i = part.indexOf('='); if (i > 0) out[part.slice(0, i).trim()] = part.slice(i + 1).trim(); } return out; }\nfunction cookie(res, name, value, maxAge, frame = false) { res.append('Set-Cookie', `${name}=${value}; Path=/dev/ztd; HttpOnly; Secure; SameSite=${frame ? 'None' : 'Lax'}; Max-Age=${maxAge}`); }\nfunction safeHeaders(res) { res.set('Cache-Control', 'no-store'); res.set('Pragma', 'no-cache'); res.set('X-Content-Type-Options', 'nosniff'); res.set('Referrer-Policy', 'no-referrer'); }\nfunction reply(res, status, code, state) { safeHeaders(res); res.status(status).json({ ok: false, error: { code }, ...(state ? { state } : {}) }); }\nfunction role(claims) { const roles = Array.isArray(claims.realm_access?.roles) ? claims.realm_access.roles : []; const op = roles.includes(ROLE_OPERATOR), ob = roles.includes(ROLE_OBSERVER); return op === ob ? null : op ? ROLE_OPERATOR : ROLE_OBSERVER; }\nfunction validateConfigChange(d) {\n  const object = v => v && typeof v === 'object' && !Array.isArray(v);\n  const exact = (v, keys) => object(v) && Object.keys(v).length === keys.length && keys.every(k => Object.hasOwn(v,k));\n  const fail = () => { throw err('CFG-SCHEMA-INVALID'); };\n  if (!exact(d,['kind','target','payload'])) fail();\n  const targets = {'trust-zone':['zone-a','zone-b'],'policy-ref':['guard-a','guard-b'],measurement:['zone-a-gateway','zone-b-gateway'],'mock-replacement':['participant-backend','protected-resource']};\n  if (!Object.hasOwn(targets,d.kind) || !targets[d.kind].includes(d.target)) fail();\n  const p=d.payload;\n  if (d.kind==='trust-zone' && (!exact(p,['zone']) || p.zone!==d.target)) fail();\n  if (d.kind==='measurement' && (!exact(p,['digest']) || typeof p.digest!=='string' || !/^sha256:[0-9a-fA-F]{64}$/.test(p.digest))) fail();\n  if (d.kind==='mock-replacement') {\n    if (!exact(p,['adapter']) || !['mock','real'].includes(p.adapter)) fail();\n    if (p.adapter==='real') throw err('CFG-REAL-API-UNAVAILABLE');\n  }\n  if (d.kind==='policy-ref' && (!exact(p,['bundle','revision']) || [p.bundle,p.revision].some(v=>typeof v!=='string' || !v.trim() || v.length>200))) fail();\n  return {...d, payload:{...p}, validation:d.kind==='policy-ref'?'awaiting-registry':'local-schema-valid', phase:'preview'};\n}\nclass UIAuth {\n  constructor(options = {}) {\n    this.issuer = options.issuer || ISSUER; this.origin = options.origin || ORIGIN; this.clientId = 'ztd-ui'; this.loginMode = options.loginMode === 'password' ? 'password' : 'pkce'; this.passwordPending = 0; this.loginAttempts = new Map(); this.fetch = options.fetch || null; this.now = options.now || Date.now;\n    this.callback = this.origin + '/dev/ztd/oidc/callback'; this.ui = this.origin + '/dev/facis-demo/'; this.postLogout = this.origin + '/dev/facis-demo/';\n    this.protocol = this.issuer + '/protocol/openid-connect'; this.sessions = new Map(); this.ended = new Map(); this.transactions = new Map(); this.replays = new Map(); this.keys = null; this.keyAt = 0; this.keyFetch = null; this.refreshes = new Map(); this.limit = 500; this.generation = 0;\n  }\n  reset() { this.generation += 1; this.sessions.clear(); this.ended.clear(); this.transactions.clear(); this.replays.clear(); }\n  cleanup() { const now = this.now(); for (const [k, v] of this.transactions) if (v.expires <= now) this.transactions.delete(k); for (const [k, v] of this.replays) if (v <= now) this.replays.delete(k); for (const [k, v] of this.ended) if (v <= now) this.ended.delete(k); for (const [k, v] of this.sessions) if (now - v.created >= 8 * 3600000 || now - v.last >= 30 * 60000) { this.sessions.delete(k); this.markExpired(k); } }\n  markExpired(key) { if (this.ended.size >= this.limit) this.ended.delete(this.ended.keys().next().value); this.ended.set(key, this.now() + 300000); }\n  async request(url, options = {}, tokenErrors = false) {\n    // Native TLS transport: fixed issuer endpoints, absolute timeout, bounded body; no redirects.\n    if (![this.protocol + '/token', this.protocol + '/certs'].includes(url)) throw err('INVALID_IDENTITY_ENDPOINT');\n    const data = await new Promise((resolve, reject) => {\n      let settled = false; const finish = (e, v) => { if (settled) return; settled = true; clearTimeout(timer); e ? reject(e) : resolve(v); };\n      const request = https.request(url, { method: options.method || 'GET', headers: options.headers || {}, rejectUnauthorized: true }, response => {\n        let size = 0, parts = []; response.on('data', chunk => { size += chunk.length; if (size > 131072) { finish(err('INVALID_IDENTITY_RESPONSE')); response.destroy(); request.destroy(); } else parts.push(chunk); });\n        response.on('error', () => finish(err('IDENTITY_PROVIDER_UNAVAILABLE')));\n        response.on('end', () => finish(null, { status: response.statusCode, text: Buffer.concat(parts).toString('utf8') }));\n      });\n      const timer = setTimeout(() => { finish(err('IDENTITY_PROVIDER_UNAVAILABLE')); request.destroy(); }, 10000);\n      request.on('error', () => finish(err('IDENTITY_PROVIDER_UNAVAILABLE')));\n      if (options.body) request.write(String(options.body)); request.end();\n    });\n    if (data.status < 200 || data.status >= 300) {\n      if (!tokenErrors) throw err('IDENTITY_PROVIDER_UNAVAILABLE');\n      let body; try { body = JSON.parse(data.text); } catch { throw err('INVALID_IDENTITY_RESPONSE'); }\n      throw err(data.status >= 500 ? 'IDENTITY_PROVIDER_UNAVAILABLE' : ({ unauthorized_client: 'CLIENT_NOT_ALLOWED', invalid_client: 'CLIENT_NOT_ALLOWED', invalid_grant: 'LOGIN_REJECTED', invalid_scope: 'LOGIN_SCOPE_REJECTED' }[body.error] || 'LOGIN_REJECTED'));\n    }\n    try { return JSON.parse(data.text); } catch { throw err('INVALID_IDENTITY_RESPONSE'); }\n  }\n  async jwks(force = false) {\n    if (this.keys && !force && this.now() - this.keyAt < 60000) return this.keys;\n    if (this.keyFetch) return this.keyFetch;\n    this.keyFetch = this.request(this.protocol + '/certs').then(data => { if (!Array.isArray(data.keys) || data.keys.length > 32) throw err('INVALID_JWKS'); this.keys = data.keys; this.keyAt = this.now(); return this.keys; }).finally(() => { this.keyFetch = null; }); return this.keyFetch;\n  }\n  async verify(token, { nonce = undefined, logout = false, requireSubject = true } = {}) {\n    if (typeof token !== 'string' || token.length > 32768) throw err('INVALID_TOKEN'); const parts = token.split('.'); if (parts.length !== 3) throw err('INVALID_TOKEN'); let h, c;\n    try { h = JSON.parse(Buffer.from(parts[0], 'base64url')); c = JSON.parse(Buffer.from(parts[1], 'base64url')); } catch { throw err('INVALID_TOKEN'); }\n    if (h.alg !== 'RS256' || typeof h.kid !== 'string' || h.crit || !c || Array.isArray(c)) throw err('INVALID_TOKEN');\n    let keys = await this.jwks(); let key = keys.find(k => k.kid === h.kid && k.kty === 'RSA' && (!k.alg || k.alg === 'RS256') && (!k.use || k.use === 'sig'));\n    if (!key) { keys = await this.jwks(true); key = keys.find(k => k.kid === h.kid && k.kty === 'RSA' && (!k.alg || k.alg === 'RS256') && (!k.use || k.use === 'sig')); }\n    if (!key || Buffer.from(key.n || '', 'base64url').length < 256) throw err('INVALID_TOKEN');\n    let valid = false; try { valid = crypto.verify('RSA-SHA256', Buffer.from(parts[0] + '.' + parts[1]), crypto.createPublicKey({ key, format: 'jwk' }), Buffer.from(parts[2], 'base64url')); } catch { } if (!valid) throw err('INVALID_TOKEN');\n    const now = Math.floor(this.now() / 1000), aud = typeof c.aud === 'string' ? [c.aud] : c.aud;\n    if (c.iss !== this.issuer || !Array.isArray(aud) || !aud.includes(this.clientId) || (c.azp && c.azp !== this.clientId) || typeof c.iat !== 'number' || c.iat > now + 30 || (c.nbf && c.nbf > now + 30)) throw err('INVALID_TOKEN');\n    if (!logout) { if (typeof c.exp !== 'number' || !Number.isFinite(c.exp)) throw err('TOKEN_EXP_MISSING'); if ((requireSubject || c.sub !== undefined) && (typeof c.sub !== 'string' || !c.sub)) throw err('TOKEN_SUB_MISSING'); if (c.exp <= now) { node.warn('FACIS token timing: remainingSeconds=' + Math.floor(c.exp - now) + ', lifetimeSeconds=' + Math.floor(c.exp - c.iat) + ', runtimeEpochSeconds=' + now + ', issuedAtEpochSeconds=' + c.iat); throw err('EXPIRED'); } }\n    if (nonce && !same(nonce, c.nonce)) throw err('INVALID_NONCE');\n    if (logout) { const events = c.events; if (now - c.iat > 300 || (c.exp !== undefined && c.exp <= now) || !c.jti || typeof c.jti !== 'string' || c.nonce !== undefined || !events || typeof events !== 'object' || !Object.hasOwn(events, 'http://schemas.openid.net/event/backchannel-logout') || !events['http://schemas.openid.net/event/backchannel-logout'] || typeof events['http://schemas.openid.net/event/backchannel-logout'] !== 'object' || Array.isArray(events['http://schemas.openid.net/event/backchannel-logout']) || (!c.sid && !c.sub)) throw err('INVALID_LOGOUT_TOKEN'); }\n    return c;\n  }\n  async token(form) { return this.request(this.protocol + '/token', { method: 'POST', headers: { 'content-type': 'application/x-www-form-urlencoded' }, body: new OidcSearchParams({ ...form, client_id: this.clientId }) }, true); }\n  async tokens(data, nonce, previous) {\n    let access, id; try { access = await this.verify(data.access_token); } catch (e) { node.warn('FACIS login: access token validation failed [' + (['INVALID_TOKEN', 'EXPIRED', 'TOKEN_EXP_MISSING', 'TOKEN_SUB_MISSING', 'INVALID_JWKS', 'IDENTITY_PROVIDER_UNAVAILABLE'].includes(e.code) ? e.code : 'VALIDATION_ERROR') + ']'); throw e; } try { id = await this.verify(data.id_token, { nonce, requireSubject: true }); } catch (e) { node.warn('FACIS login: ID token validation failed [' + (['INVALID_TOKEN', 'EXPIRED', 'TOKEN_EXP_MISSING', 'TOKEN_SUB_MISSING', 'INVALID_NONCE', 'INVALID_JWKS', 'IDENTITY_PROVIDER_UNAVAILABLE'].includes(e.code) ? e.code : 'VALIDATION_ERROR') + ']'); throw e; }\n    const username = typeof access.preferred_username === 'string' && access.preferred_username ? access.preferred_username : access.sub;\n    if ((access.sub !== id.sub) || (access.sid && id.sid && access.sid !== id.sid) || (previous && (id.sub !== previous.subject || (previous.sid && (id.sid || access.sid) !== previous.sid))) || typeof data.refresh_token !== 'string' || !data.refresh_token || data.refresh_token.length > 32768 || (previous && data.refresh_token === previous.refresh)) throw err('INVALID_IDENTITY_RESPONSE');\n    return { access: data.access_token, idToken: data.id_token, refresh: data.refresh_token, claims: { ...access, preferred_username: username }, subject: access.sub, username, sid: id.sid || access.sid, role: role(access), expires: access.exp * 1000 };\n  }\n  async session(req) {\n    this.cleanup(); const key = cookies(req)[SESSION_COOKIE]; let s = this.sessions.get(key); if (!s) throw err(this.ended.has(key) ? 'EXPIRED' : 'LOGGED_OUT');\n    if (this.now() >= s.expires) { this.sessions.delete(key); this.markExpired(key); throw err('EXPIRED'); }\n    // Revalidate signature, issuer, audience and expiry on every request; never accept browser claims.\n    const verifiedAccess = await this.verify(s.access); if (verifiedAccess.sub !== s.subject) throw err('INVALID_IDENTITY_RESPONSE'); s.claims = { ...verifiedAccess, preferred_username: verifiedAccess.preferred_username || verifiedAccess.sub }; s.role = role(verifiedAccess);\n    if (s.expires - this.now() < 60000) {\n      if (!this.refreshes.has(key)) this.refreshes.set(key, this.token({ grant_type: 'refresh_token', refresh_token: s.refresh }).then(d => this.tokens(d, null, s)).then(updated => { if (!this.sessions.has(key)) throw err('LOGGED_OUT'); Object.assign(s, updated); return s; }).catch(e => { this.sessions.delete(key); throw e; }).finally(() => this.refreshes.delete(key)));\n      s = await this.refreshes.get(key);\n    }\n    if (!this.sessions.has(key)) throw err('LOGGED_OUT'); s.last = this.now(); return s;\n  }\n  async login(req, res) {\n    this.cleanup(); if (this.transactions.size >= this.limit) return reply(res, 503, 'IDENTITY_BUSY');\n    const tx = random(), state = random(), nonce = random(), verifier = random(); this.transactions.set(tx, { state, nonce, verifier, expires: this.now() + 300000 }); cookie(res, TX_COOKIE, tx, 300); safeHeaders(res);\n    const q = new OidcSearchParams({ client_id: this.clientId, redirect_uri: this.callback, response_type: 'code', scope: 'openid profile roles', state, nonce, code_challenge: crypto.createHash('sha256').update(verifier).digest('base64url'), code_challenge_method: 'S256' }); res.redirect(303, this.protocol + '/auth?' + q);\n  }\n  async callbackHandler(req, res) {\n    const generation = this.generation; const tx = cookies(req)[TX_COOKIE], v = this.transactions.get(tx); this.transactions.delete(tx); cookie(res, TX_COOKIE, '', 0); safeHeaders(res);\n    const q = req.query; if (!v || v.expires <= this.now() || !same(v.state, q.state) || typeof q.code !== 'string' || q.code.length > 4096 || (q.iss && q.iss !== this.issuer)) return reply(res, 400, 'INVALID_OIDC_CALLBACK');\n    try { this.cleanup(); if (this.sessions.size >= this.limit) throw err('IDENTITY_BUSY'); const data = await this.token({ grant_type: 'authorization_code', code: q.code, redirect_uri: this.callback, code_verifier: v.verifier }); const s = await this.tokens(data, v.nonce); if (generation !== this.generation) throw err('LOGIN_FAILED'); s.created = s.last = this.now(); s.csrf = random(); const key = random(); const old = cookies(req)[SESSION_COOKIE]; this.sessions.delete(old); this.sessions.set(key, s); cookie(res, SESSION_COOKIE, key, 8 * 3600); res.redirect(303, this.ui); } catch (e) { node.warn('FACIS login failed [' + (['CLIENT_NOT_ALLOWED', 'LOGIN_REJECTED', 'LOGIN_SCOPE_REJECTED', 'INVALID_IDENTITY_RESPONSE', 'IDENTITY_PROVIDER_UNAVAILABLE', 'INVALID_TOKEN', 'INVALID_NONCE', 'INVALID_JWKS', 'EXPIRED', 'TOKEN_EXP_MISSING', 'TOKEN_SUB_MISSING', 'IDENTITY_BUSY', 'LOGIN_FAILED'].includes(e.code) ? e.code : 'INTERNAL_ERROR') + ']'); return reply(res, 401, 'LOGIN_FAILED'); }\n  }\n  async status(req, res) { try { const s = await this.session(req); safeHeaders(res); res.json({ mode: 'oidc', state: s.role ? 'authenticated' : 'denied', username: s.claims.preferred_username, role: s.role, canOperate: s.role === ROLE_OPERATOR, csrf: s.csrf }); } catch (e) { reply(res, e.code === 'IDENTITY_PROVIDER_UNAVAILABLE' ? 503 : 401, e.code || 'IDENTITY_UNAVAILABLE', e.code === 'EXPIRED' ? 'expired' : 'logged out'); } }\n  csrf(req, s) { return req.headers.origin === this.origin && same(req.headers['x-facis-csrf'], s.csrf); }\n  async command(req, res, emit) {\n    let s; try { s = await this.session(req); } catch (e) { return reply(res, 401, e.code || 'IDENTITY_UNAVAILABLE', e.code === 'EXPIRED' ? 'expired' : 'logged out'); }\n    const p = req.body; if (!p || typeof p !== 'object' || Array.isArray(p) || !['status', 'start', 'next', 'reset', 'config-preview'].includes(p.type)) return reply(res, 400, 'INVALID_COMMAND');\n    if (!this.csrf(req, s)) return reply(res, 403, 'CSRF_DENIED', 'denied');\n    if (!s.role || (p.type !== 'status' && s.role !== ROLE_OPERATOR)) return reply(res, 403, p.type === 'config-preview' ? 'CFG-NOT-AUTHORISED' : 'UI-NOT-AUTHORISED', 'denied');\n    if (p.type === 'config-preview') {\n      let preview; try { preview = validateConfigChange(p.data); } catch (e) { return reply(res, 400, e.code || 'CFG-SCHEMA-INVALID'); }\n      safeHeaders(res); return res.json({ ok: true, data: { preview, requested_by: s.claims.preferred_username, applied: false } });\n    }\n    const data = {}; for (const k of ['commandId', 'runId', 'scenario', 'serviceScenario', 'profile', 'variant', 'credentialToRevoke']) if (p.data?.[k] !== undefined) { if (typeof p.data[k] !== 'string' || p.data[k].length > 120) return reply(res, 400, 'INVALID_COMMAND'); data[k] = p.data[k]; }\n    safeHeaders(res); req.facis = { userId: 'oidc-shared-review', subject: s.claims.sub, username: s.claims.preferred_username, role: s.role, scope: 'oidc-review' }; emit({ type: p.type, data, req, res, _facisAuthResponse: true });\n  }\n  async logout(req, res) {\n    let s; try { s = await this.session(req); } catch { cookie(res, SESSION_COOKIE, '', 0); return reply(res, 401, 'LOGGED_OUT', 'logged out'); } if (req.headers.origin !== this.origin || !same(req.headers['x-facis-csrf'] || req.body?.csrf, s.csrf)) return reply(res, 403, 'CSRF_DENIED'); this.sessions.delete(cookies(req)[SESSION_COOKIE]); cookie(res, SESSION_COOKIE, '', 0); safeHeaders(res);\n    const q = new OidcSearchParams({ client_id: this.clientId, id_token_hint: s.idToken, post_logout_redirect_uri: this.postLogout }); res.redirect(303, this.protocol + '/logout?' + q);\n  }\n  async backchannel(req, res) { try { const c = await this.verify(req.body?.logout_token, { logout: true }); this.cleanup(); if (this.replays.has(c.jti) || this.replays.size >= this.limit) throw err('INVALID_LOGOUT_TOKEN'); this.replays.set(c.jti, this.now() + 300000); for (const [key, s] of this.sessions) if ((c.sid ? s.sid === c.sid && (!c.sub || s.subject === c.sub) : s.subject === c.sub)) this.sessions.delete(key); safeHeaders(res); res.status(200).end(); } catch { return reply(res, 400, 'INVALID_LOGOUT_TOKEN'); } }\n  frontchannel(req, res) { const { iss, sid } = req.query; safeHeaders(res); res.set('Content-Security-Policy', `default-src 'none'; frame-ancestors ${new OidcURL(this.issuer).origin}`); if (iss !== this.issuer || typeof sid !== 'string' || !sid) return reply(res, 400, 'INVALID_LOGOUT_REQUEST'); for (const [key, s] of this.sessions) if (s.sid === sid) this.sessions.delete(key); cookie(res, SESSION_COOKIE, '', 0); res.status(200).end(); }\n}\n\n\ncontext._facisAuth = new UIAuth(); global.set('facisUiAuthActive', true); node.status({ fill: 'green', shape: 'dot', text: 'PKCE session boundary' });",
+    "libs": [
+      {
+        "module": "crypto",
+        "var": "crypto"
+      },
+      {
+        "module": "https",
+        "var": "https"
+      },
+      {
+        "module": "url",
+        "var": "nodeUrl"
+      }
+    ],
+    "name": "Validate identity and session",
+    "noerr": 0,
+    "outputs": 2,
+    "timeout": 0,
+    "type": "function",
+    "wires": [
+      [
+        "facis-native-http-response"
+      ],
+      [
+        "facis-native-journey-out"
+      ]
+    ],
+    "x": 530,
+    "y": 260,
+    "z": "facis-native-identity-tab"
+  },
+  {
+    "headers": {},
+    "id": "facis-native-http-response",
+    "name": "Identity HTTP response",
+    "statusCode": "",
+    "type": "http response",
+    "wires": [],
+    "x": 890,
+    "y": 160,
+    "z": "facis-native-identity-tab"
+  },
+  {
+    "id": "facis-native-journey-out",
+    "links": [
+      "journey-entry"
+    ],
+    "mode": "link",
+    "name": "Authenticated Journey request",
+    "type": "link out",
+    "wires": [],
+    "x": 795,
+    "y": 280,
+    "z": "facis-native-identity-tab"
+  },
+  {
+    "id": "facis-native-journey-in",
+    "links": [
+      "journey-response"
+    ],
+    "name": "Journey HTTP result",
+    "type": "link in",
+    "wires": [
+      [
+        "facis-native-journey-reply"
+      ]
+    ],
+    "x": 540,
+    "y": 460,
+    "z": "facis-native-identity-tab"
+  },
+  {
+    "finalize": "",
+    "func": "const nativeResponse = msg.res?._res || msg.res;\nif (!msg._facisAuthResponse || !nativeResponse || nativeResponse.headersSent || nativeResponse.writableEnded) return null;\nmsg.statusCode = msg.payload?.ok === true ? 200 : 400;\nmsg.headers = { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' };\nreturn msg;",
+    "id": "facis-native-journey-reply",
+    "initialize": "",
+    "libs": [],
+    "name": "Return Journey outcome",
+    "noerr": 0,
+    "outputs": 1,
+    "timeout": "",
+    "type": "function",
+    "wires": [
+      [
+        "facis-native-http-response"
+      ]
+    ],
+    "x": 735,
+    "y": 460,
+    "z": "facis-native-identity-tab"
+  }
+]

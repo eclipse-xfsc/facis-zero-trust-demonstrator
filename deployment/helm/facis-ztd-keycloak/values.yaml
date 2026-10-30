@@ -1,0 +1,80 @@
+# Defaults match the existing IONOS deployment. No credentials belong in Git.
+deployment:
+  # existing: realm only; adopt: take existing workloads into Helm; new: fresh deployment.
+  mode: existing
+  keycloakName: keycloak
+  postgresName: postgres
+  ingressName: keycloak
+  runtimeSecret: keycloak-secrets
+
+keycloak:
+  publicUrl: https://keycloak.85.215.131.155.sslip.io
+  # Ignored in existing mode; used in new/adopt mode. Empty preserves the adopted image.
+  image: quay.io/keycloak/keycloak:26.7.4@sha256:82a77884f3af238beab1e7afd63b5f530e1b5c0590bd7aa60b40a40463e29b2c
+  resources:
+    requests: {cpu: 500m, memory: 1Gi}
+    limits: {cpu: "2", memory: 2Gi}
+
+postgresql:
+  # new mode expects the official Debian PostgreSQL 16/17 image, UID/GID 999.
+  image: ""
+  storageClass: ""
+  size: 8Gi
+  resources:
+    requests: {cpu: 100m, memory: 256Mi}
+    limits: {cpu: "1", memory: 1Gi}
+
+ingress:
+  enabled: true
+  className: ztd-public
+  tlsSecret: keycloak-public-tls
+  clusterIssuer: ztd-public-acme
+  existingTlsSecret: false
+
+admin:
+  existingSecret: keycloak-secrets
+  username: admin
+  # Optional username key instead of the literal username above.
+  usernameKey: ""
+  passwordKey: KC_BOOTSTRAP_ADMIN_PASSWORD
+
+personas:
+  # Import the prior JSON file with --set-file personas.credentialsJSON=/path/to/file.json.
+  # Only its personas section is used; values are retained in Helm release Secrets.
+  credentialsJSON: ""
+  # Alternatively reference an existing Secret using the JSON-encoded keys below.
+  existingSecret: ""
+  # With neither source, create random passwords once and preserve them via lookup.
+
+ui:
+  origin: https://orce.85-215-131-155.sslip.io
+  # Empty values resolve to /dev/ztd/oidc/* and /dev/facis-demo/ under origin.
+  callbackUrl: ""
+  frontchannelLogoutUrl: ""
+  backchannelLogoutUrl: ""
+  postLogoutRedirectUrl: ""
+
+realm:
+  enabled: true
+  clientEnabled: true
+
+configCli:
+  image: docker.io/adorsys/keycloak-config-cli:6.5.1-26@sha256:1b22dfaa9ae0c71f74b0342f9221a6510f272da5def683dbba26a98e6b1b1411
+  # Keycloak 26 build; the server image cannot replace this configuration import tool.
+  availabilityTimeout: 600s
+  activeDeadlineSeconds: 900
+  backoffLimit: 1
+  resources:
+    requests: {cpu: 100m, memory: 256Mi}
+    limits: {cpu: "1", memory: 1Gi}
+
+# Optional: an already installed External Secrets Operator reads OpenBao KV v2.
+# This chart does not install OpenBao or ESO, or assume they already exist.
+externalSecrets:
+  enabled: false
+  apiVersion: external-secrets.io/v1
+  storeRef: {name: openbao, kind: ClusterSecretStore}
+  # Store configuration must use KV v2 mount secret. ESO keys omit /data/.
+  adminPath: keycloak/admin
+  personaPathPrefix: keycloak/personas
+  refreshInterval: 1h
