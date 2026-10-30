@@ -14,8 +14,13 @@ not ready and still alive while PostgreSQL, then OpenBao, is gone, and ready aga
 back; a caller's `x-request-id` and trace context on the service's records, every request record
 correlated, no credential among them, no restart; the pod as its own ServiceAccount with the
 identity label; an upgrade that changes nothing, an uninstall with `schema.dropOnUninstall` that
-leaves the schema empty, and a default uninstall that keeps it. Records and the verdict go to
-`--out` (default the git-ignored `.dev/token-store-evidence/`). Needs docker, helm, kind, kubectl,
-curl and jq; `BIN=` names the directory `scripts/tools/install.sh kind kubectl` installed to. The
+leaves the schema empty, and a default uninstall that keeps it; then, in runtime mode with a
+least-privilege service token, the store's key custody: the key created in transit by `token-store
+keys ensure` and registered by reference and thumbprint only, the thumbprint recomputed with
+openssl, export refused, `keys rotate` retiring the previous version with transit no longer signing
+with it, and readiness failing closed with OpenBao gone while no key material or token reaches the
+database or the records. Records and the verdict go to `--out` (default the git-ignored
+`.dev/token-store-evidence/`). Needs docker, helm, kind, kubectl, curl, jq and openssl; `BIN=` names
+the directory `scripts/tools/install.sh kind kubectl` installed to. The
 `Token store` workflow runs it on every change to the store, its image, its chart or the pinned
 images. Design: [Token store](../docs/token-store.md).

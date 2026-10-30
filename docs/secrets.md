@@ -33,6 +33,10 @@ The server listens without TLS inside the management plane. Transport protection
 is the mesh layer's ([ADR-0001](adr/0001-service-mesh-mode-istio-ambient-with-cilium.md)), and the
 plane's default-deny admits only pods of the same plane.
 
+The token store's outbound signing key is a transit key of this store, referenced from PostgreSQL by
+version and thumbprint, never copied; its two policies, the operator commands that create and rotate
+it and the startup assertion are in [Token store: key custody](token-store.md#key-custody).
+
 ### Bootstrap
 
 A sealed OpenBao is not ready, and with `--wait` Helm runs post-install hooks only once every regular

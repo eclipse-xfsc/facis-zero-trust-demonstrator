@@ -56,13 +56,22 @@ both dependencies answered.
 ## How the service behaves
 
 - **Startup.** The pod starts whether or not PostgreSQL and the key-value store are there: the
-  service binds its listeners and reports not ready until both answer. Nothing waits in a loop,
-  and no URL is logged.
+  service binds its listeners and reports not ready until both answer. No URL is logged. In
+  runtime mode it also resolves its signing keys before it is ready: the configured transit key
+  exists (created if missing), its active `signing_key` row is registered or verified and every
+  active row resolves; `/readyz` answers `starting` until then. An outage is retried with a growing
+  pause and one record per change of reason; a misconfiguration (`missing`, `mismatch`,
+  `malformed`, `retired`, `unsupported`, `refused`) stops the process with exit 1 and one
+  `signing key misconfigured; stopping` record naming the key and the row, so a bad key is a crash
+  loop at install time and not a failure at the first call
+  ([key custody](../../../docs/token-store.md#key-custody)).
 - **Readiness.** The kubelet probes `/readyz` on the ops port every five seconds. The service
   asks both dependencies at once within `server.readinessTimeoutSeconds` and answers 200 only
   when PostgreSQL is reachable with the schema current and the key-value store is initialised and
   unsealed; otherwise 503 with the words of each check (`ok`, `unreachable`, `schema_behind`,
-  `schema_drift`; `ok`, `unreachable`, `uninitialized`, `sealed`). Callers that arrive while an
+  `schema_drift`; `ok`, `unreachable`, `uninitialized`, `sealed`; and for the signing keys `ok`,
+  `unreachable`, `missing`, `mismatch`, `unconfigured`, `retired`, `refused`, `starting`,
+  `shared_issuer_key`). Callers that arrive while an
   evaluation runs share it, so a burst of `/readyz` on the API port costs one connection and one
   key-value store call, not one each. A pod that is not ready leaves the Service's endpoints and
   rejoins them when the dependency is back.
@@ -109,11 +118,13 @@ cluster without SPIRE, as the lifecycle proof's kind cluster is, and required on
 
 ## Verify
 
-Without a cluster, the migration runner, the store's queries and the service's readiness against
-a database run against any PostgreSQL; the key-value store is faked in the tests:
+Without a cluster, the migration runner, the store's queries, the service's readiness and the
+key custody run against any PostgreSQL and an OpenBao in dev mode with transit mounted; without
+the variables the tests that need them skip (CI fails on a skip):
 
 ```bash
 TOKEN_STORE_TEST_DATABASE_URL='postgres://postgres:secret@127.0.0.1:5432/postgres?sslmode=disable' \
+TRANSIT_TEST_ADDR=http://127.0.0.1:8200 TRANSIT_TEST_TOKEN=... \
   go test -count=1 -race ./services/token-store/...
 ```
 
@@ -122,8 +133,12 @@ The chart's lifecycle and the service's readiness are proven on a throwaway kind
 ready, not ready and still alive while PostgreSQL and then the key-value store are gone, ready
 again when they are back, the caller's `x-request-id` and trace context on the service's records,
 the pod running as its own ServiceAccount with the identity label, an upgrade as a no-op and an
-uninstall to an empty schema. The `Token store` workflow runs it on every change to the store, the
-chart or the pinned images.
+uninstall to an empty schema; then, in runtime mode with a least-privilege service token, the key
+created in transit by `token-store keys ensure` and registered by reference and thumbprint only,
+the thumbprint recomputed with openssl, export refused, `keys rotate` retiring the previous version
+with transit no longer signing with it, and readiness failing closed with OpenBao gone while no key
+material or token reaches the database or the records. The `Token store` workflow runs it on every
+change to the store, the chart or the pinned images.
 
 ## Acquisition and renewal runtime
 
@@ -156,6 +171,18 @@ Jobs, including per-pod admitted sidecar image overrides.
 with placeholder references. It is not a deployable environment or an admission
 proof. Roll back runtime wiring by restoring a proven release or removing the
 slice; do not leave a token endpoint exposed while removing its identity controls.
+
+**Key custody.** The store's signing key lives in transit and is referenced from PostgreSQL by
+version and thumbprint. Before a runtime-mode install, register it with the operator's token:
+`token-store keys ensure` (from the image, with the same flags as `acquire`); the service's own
+token then needs only `read` on `transit/keys/<signing_key>`, `update` on
+`transit/sign/<signing_key>` and its KV prefix. Without that step the service creates the key at
+startup, which needs `update` on the key path. `token-store keys rotate` moves to the next version
+and retires the previous one with its tokens in one transaction, then raises transit's signing
+floor; `keys status` lists the versions, transit's latest and the floor. The two policies, the
+startup rules and the repair of an interrupted rotation are in
+[docs/token-store.md](../../../docs/token-store.md#key-custody). The chart runs none of these
+commands.
 
 Acquisition JSON accepts `kv_prefix` to isolate stored tokens and orphan sweeps.
 An isolated deployment can use `example/token-store/upstream`; omission preserves the existing
