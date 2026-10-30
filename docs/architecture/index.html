@@ -54,7 +54,11 @@
         <ul>
     <li class="toctree-l3"><a class="reference internal" href="#trust-boundaries-diagram-03">Trust boundaries (diagram 03)</a>
     </li>
+    <li class="toctree-l3"><a class="reference internal" href="#management-plane-roles-zt-55">Management-plane roles (ZT-55)</a>
+    </li>
     <li class="toctree-l3"><a class="reference internal" href="#allow-matrix-data-plane-management-plane">Allow matrix (data plane → management plane)</a>
+    </li>
+    <li class="toctree-l3"><a class="reference internal" href="#supporting-services-outside-the-management-plane">Supporting services (outside the management plane)</a>
     </li>
     <li class="toctree-l3"><a class="reference internal" href="#staleness-matrix">Staleness matrix</a>
     </li>
@@ -199,60 +203,374 @@
                 <h1 id="architecture">Architecture<a class="headerlink" href="#architecture" title="Permanent link">&para;</a></h1>
 <h2 id="6-plane-separation-and-staleness-windows">6. Plane separation and staleness windows<a class="headerlink" href="#6-plane-separation-and-staleness-windows" title="Permanent link">&para;</a></h2>
 <h3 id="trust-boundaries-diagram-03">Trust boundaries (diagram 03)<a class="headerlink" href="#trust-boundaries-diagram-03" title="Permanent link">&para;</a></h3>
-<p>Each trust zone is its own SPIFFE trust domain. The two domains meet only through the attested
-channel and a TRAIN verdict; they are never merged. Data-plane calls into the management plane are
-denied by default, and a workload without an SVID or running an unsigned image cannot join or
-start.</p>
-<p><img alt="Trust boundaries" src="../diagrams/03-trust-boundaries.svg" /></p>
-<p>Source: <a href="../diagrams/03-trust-boundaries.mmd"><code>diagrams/03-trust-boundaries.mmd</code></a>.</p>
+<p>Each trust zone is one cluster and its own SPIFFE trust domain (ZT-24, SRS 3.1.2). The two domains
+meet only through the attested channel and a TRAIN verdict; they are never merged. The
+management-plane components whose placement this section records, the SPIRE server, the
+OpenTelemetry Collector and the CMC daemon (cmcd), run in the same cluster as the zone's data-plane
+workloads and therefore inside the zone's trust domain: the separation between the planes is a
+namespace and policy boundary, not an identity boundary. Data-plane calls into the management plane are denied by default
+at both the NetworkPolicy layer and the mesh AuthorizationPolicy layer, and are permitted only along
+the paths the allow matrix below lists, which are named mTLS pairs and the declared observability
+export under ZT-26 (SRS 3.1.2). The management-plane components whose placement is not yet recorded,
+TRAIN (TCR and TSPA), the TSA policy engine and OCM, are drawn outside both zones under the same
+rule until their placement is decided; the four provisional rows of the allow matrix are theirs. A
+workload without an SVID or running an unsigned image cannot join or start.</p>
+<p><img alt="Diagram 03, trust boundaries: zone-a and zone-b are separate SPIFFE trust domains, each holding its data plane and the management-plane components placed in it (SPIRE server, OpenTelemetry Collector, cmcd), with data-plane calls into that management plane denied by default except along the allow-matrix paths; the zones meet only through the attested channel and a TRAIN verdict; TRAIN, the TSA policy engine and OCM are drawn outside both zones under the same rule; anything without an SVID or with an unsigned image is denied" src="../diagrams/03-trust-boundaries.svg" /></p>
+<p>Source: <a href="../diagrams/03-trust-boundaries.mmd"><code>diagrams/03-trust-boundaries.mmd</code></a>. The diagram only
+illustrates; every path it draws is listed in the <a href="#allow-matrix-data-plane-management-plane">allow matrix</a> below.</p>
+<h3 id="management-plane-roles-zt-55">Management-plane roles (ZT-55)<a class="headerlink" href="#management-plane-roles-zt-55" title="Permanent link">&para;</a></h3>
+<p>ZT-55 (SRS 3.3) names five management-plane components that must be strictly separated from the data
+plane network. In this demonstrator they are reachable from the data plane only through the paths
+the allow matrix below permits explicitly at both layers; those paths are dedicated control channels
+(named mTLS pairs), except the observability export path, which is a declared bypass under ZT-26.
+The table binds each of them, in the order the requirement names them, to the service or services
+that implement it in this demonstrator. The allow matrix below lists the permitted paths toward
+these roles and refers to the roles by name, so coverage of the five components can be checked here
+before the permitted paths are read.</p>
+<p>The table also binds one role ZT-55 does not name: attestation, implemented by CMC. ZT-55
+characterises the management plane with parenthetical examples rather than enumerating it, and its
+operative sentence is that compromise of the data plane must not grant any access to
+management-plane components. CMC is placed in the management plane by that test: cmcd holds the
+zone's attestation keys, enrolled through the estserver, and the pipeline-signed reference metadata
+(ZT-71) that the peer zone's trust decision rests on, so a workload able to alter it could alter
+what the system trusts. It is bound here because the data plane has a permitted path to it, which
+the allow matrix names by role.</p>
+<p>Every role in the table below is bound to at least one service; none is unimplemented.</p>
+<p>The supply boundary records who provides the software, not who deploys or operates it.
+<em>Project-built</em> means this project provides the software: it builds or packages it and owns its
+configuration. <em>Client-supplied</em> means the software is provided to the demonstrator by the client
+as part of the XFSC stack; a client-supplied role stays client-supplied when this project deploys
+and operates it, as it does for all three below. The column is kept because client-supplied
+software is the demonstrator's largest external dependency: its provenance, its versions and its
+interfaces are fixed outside this project. It says nothing about enforcement. The layer that
+enforces a path to a role follows network topology — where the destination runs relative to its
+source — not who supplies the service; see the allow matrix below.</p>
+<table>
+<thead>
+<tr>
+<th>ZT-55 role</th>
+<th>Implementing service(s)</th>
+<th>Supply boundary</th>
+<th>Evidence</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Policy Engine</td>
+<td>TSA policy engine (Trust Services API)</td>
+<td>Client-supplied</td>
+<td><a href="../dependencies/#external-xfsc-components">External XFSC components</a></td>
+</tr>
+<tr>
+<td>TRAIN</td>
+<td>TCR (trust-list resolution); TSPA (trust-list publication)</td>
+<td>Client-supplied</td>
+<td><a href="../dependencies/#external-xfsc-components">External XFSC components</a>; <a href="../tspa-publish-api/#3-what-tspa-is-in-the-zt-35-flow">TSPA in the ZT-35 flow</a></td>
+</tr>
+<tr>
+<td>SPIRE control plane</td>
+<td>SPIRE server and its controller-manager</td>
+<td>Project-built</td>
+<td><a href="../environments/osc/#3-workload-identity">Workload identity</a></td>
+</tr>
+<tr>
+<td>OCM</td>
+<td>OCM W-Stack, used by the backend as the credential verification service</td>
+<td>Client-supplied</td>
+<td><a href="../dependencies/#external-xfsc-components">External XFSC components</a></td>
+</tr>
+<tr>
+<td>Observability stack</td>
+<td>OpenTelemetry Collector, read through Prometheus and Jaeger</td>
+<td>Project-built</td>
+<td><a href="../environments/osc/#operations">Operations</a></td>
+</tr>
+<tr>
+<td>Attestation</td>
+<td>cmcd, the per-zone CMC daemon, and its enrolment server (estserver)</td>
+<td>Project-built</td>
+<td><a href="../specifications/">Specifications</a>; <a href="../environments/osc/#7-the-trust-boundary-between-the-zones">trust boundary between the zones</a></td>
+</tr>
+</tbody>
+</table>
 <h3 id="allow-matrix-data-plane-management-plane">Allow matrix (data plane → management plane)<a class="headerlink" href="#allow-matrix-data-plane-management-plane" title="Permanent link">&para;</a></h3>
-<p>Default DENY at both layers (NetworkPolicy and mesh AuthorizationPolicy). These are the only
-permitted paths:</p>
+<p>Default DENY at both layers (NetworkPolicy and mesh AuthorizationPolicy). Each ALLOW row below is
+permitted explicitly at both the NetworkPolicy layer and the mesh AuthorizationPolicy layer, and
+nothing else reaches the management plane. In this demonstrator, a <em>dedicated control channel</em> in
+the ZT-55 sense is a named, mTLS-authenticated source → destination pair; the rows marked <em>named
+pair</em> are such channels toward the roles they name. The observability export row is not a named
+pair: it is permitted as a declared bypass under ZT-26, defined below the matrix. The ZT-55 role
+column names the role from the table above that the destination serves. Any management-plane
+destination without its own row is denied by the catch-all row.</p>
+<p>ZT-55 (SRS 3.3) requires the separation to be enforced at both the Kubernetes network policy layer
+and the service mesh layer, so every row states its disposition at both. The enforcement column
+holds layers only: for each row it gives the NetworkPolicy disposition and the mesh
+AuthorizationPolicy disposition, and nothing else. A permitted path is permitted explicitly at both
+layers; a denied path is denied at both.</p>
+<p>On every permitted path the <strong>mesh's L7 proxy</strong> is the single L7 enforcement owner, and the
+NetworkPolicy layer is held to L3/L4 for that path. Which proxy that is follows the zone's
+<code>mesh.mode</code>: the waypoint under ambient mode, the current baseline
+(<a href="../adr/0001-service-mesh-mode-istio-ambient-with-cilium/">ADR-0001</a>), and the workload's sidecar
+proxy under sidecar mode. A zone whose <code>mesh.mode</code> is <code>none</code> has no mesh layer and so no L7 proxy;
+it does not meet ZT-55's rule that both layers enforce the separation, and is outside this matrix.
+Two L7 decision points on one path would make the fail-closed behaviour ZT-55 depends on
+non-deterministic, so each path has exactly one, in either mode. The place of record for the
+assignment is the mesh configuration, per path. No mesh configuration is deployed yet, so until one
+is, this column declares the intended assignment rather than reflecting a configured one. Once the
+configuration is deployed, this matrix reflects that record and does not replace it. If the mesh
+configuration changes the owner of a path, this column changes with it.</p>
+<p>The test column names the scenario tag that proves each row, in the form the acceptance harness
+requires: the requirement row and its acceptance test identifier
+(<a href="../bdd/#tags">Tags</a>). A tag is named here even where its scenario is not yet written — the
+matrix is the specification that scenario is written from, and the traceability sheet reports the
+row as uncovered until it exists.</p>
 <table>
 <thead>
 <tr>
 <th>From data-plane workload →</th>
+<th>ZT-55 role</th>
 <th>Allowed?</th>
-<th>Path/layer that enforces</th>
+<th>Enforcement (NetworkPolicy; mesh AuthorizationPolicy)</th>
+<th>Test</th>
 </tr>
 </thead>
 <tbody>
 <tr>
 <td>PDP adapter → TSA policy engine</td>
+<td>Policy Engine</td>
 <td>ALLOW (mTLS, named pair)</td>
-<td>mesh policy</td>
+<td>NetworkPolicy: ALLOW, L3/L4 only; mesh: ALLOW, L7 owner (mesh proxy: sidecar or waypoint, per <code>mesh.mode</code>)</td>
+<td><code>@ZT-55 @BDD-ZT-055</code></td>
 </tr>
 <tr>
-<td>aTLS gateway → cmcd / TCR resolve</td>
+<td>aTLS gateway → TCR resolve</td>
+<td>TRAIN (resolution)</td>
 <td>ALLOW (named pair)</td>
-<td>mesh policy</td>
+<td>NetworkPolicy: ALLOW, L3/L4 only; mesh: ALLOW, L7 owner (mesh proxy: sidecar or waypoint, per <code>mesh.mode</code>)</td>
+<td><code>@ZT-55 @BDD-ZT-055</code></td>
+</tr>
+<tr>
+<td>aTLS gateway → cmcd</td>
+<td>Attestation (CMC)</td>
+<td>ALLOW (named pair)</td>
+<td>NetworkPolicy: ALLOW, L3/L4 only; mesh: ALLOW, L7 owner (mesh proxy: sidecar or waypoint, per <code>mesh.mode</code>)</td>
+<td><code>@ZT-55 @BDD-ZT-055</code></td>
 </tr>
 <tr>
 <td>workloads → OTel collector (export only)</td>
+<td>Observability stack</td>
 <td>ALLOW (declared bypass, ZT-26)</td>
-<td>mesh policy, egress-restricted</td>
+<td>NetworkPolicy: ALLOW, L3/L4 only, egress rule limiting the source to the collector's export port (ZT-26); mesh: ALLOW, L7 owner (mesh proxy: sidecar or waypoint, per <code>mesh.mode</code>)</td>
+<td><code>@ZT-55 @BDD-ZT-055</code></td>
 </tr>
 <tr>
-<td>workloads → DNS</td>
-<td>ALLOW (declared bypass)</td>
-<td>NetworkPolicy port 53</td>
+<td>backend → verification service</td>
+<td>OCM</td>
+<td>ALLOW (named pair)</td>
+<td>NetworkPolicy: ALLOW, L3/L4 only; mesh: ALLOW, L7 owner (mesh proxy: sidecar or waypoint, per <code>mesh.mode</code>)</td>
+<td><code>@ZT-55 @BDD-ZT-055</code></td>
 </tr>
 <tr>
-<td>anything else data → management (SPIRE server, ArgoCD, OpenBao, TSPA, Harbor, estserver, admin APIs)</td>
+<td>any data-plane workload → TSPA (trust-list publication)</td>
+<td>TRAIN (publication)</td>
 <td><strong>DENY</strong></td>
-<td>both layers; ZT-55 matrix test</td>
+<td>NetworkPolicy: DENY; mesh: DENY</td>
+<td><code>@ZT-55 @BDD-ZT-055</code></td>
+</tr>
+<tr>
+<td>any data-plane workload → SPIRE server</td>
+<td>SPIRE control plane</td>
+<td><strong>DENY</strong></td>
+<td>NetworkPolicy: DENY; mesh: DENY</td>
+<td><code>@ZT-55 @BDD-ZT-055</code></td>
+</tr>
+<tr>
+<td>anything else data → management: any management-plane destination without its own row, including a bound service without a row of its own (estserver) and other management components (for example ArgoCD, OpenBao, Harbor, admin APIs)</td>
+<td>any management-plane destination not listed above</td>
+<td><strong>DENY</strong></td>
+<td>NetworkPolicy: DENY; mesh: DENY</td>
+<td><code>@ZT-55 @BDD-ZT-055</code></td>
 </tr>
 </tbody>
 </table>
+<p><strong>Same-cluster assumption.</strong> The layers named above assume that the destination runs in the same
+cluster as the source workload, where both are policies between namespaces. The enforcing
+mechanism follows network topology rather than who supplies a service: a destination in another
+cluster is reached through an egress rule, and one outside the estate through a different control
+again. Placement is recorded for the SPIRE control plane, the observability stack and attestation
+only, so four rows are provisional: PDP adapter → TSA policy engine, aTLS gateway → TCR resolve, backend →
+verification service, and the denied row any data-plane workload → TSPA. The denied row is
+included because a denial across a cluster boundary rests on a different mechanism than one within
+a cluster. Once their destinations are placed, these rows will also name their egress rule.</p>
+<p><strong>Declared bypass.</strong> A <em>declared bypass</em> is a path exempted from the Zero Trust Connector under
+ZT-26 (SRS 3.1.2). ZT-26 exempts protocols and endpoints not related to inter-connector
+communication, naming DNS and administrative or observability APIs as examples; the classes this
+section declares from those examples are name resolution, observability export and cluster
+administration. A declared bypass is listed with its reason and remains subject to its own ingress
+and egress controls. It bypasses the Connector only — not the mesh and not the network layer — and
+the term carries no other meaning in this section. The observability row above and the
+name-resolution row under <a href="#supporting-services-outside-the-management-plane">Supporting services</a>
+are the two paths that carry it.</p>
+<p>This matrix is not the ZT-26 bypass list, which is a separate reviewed artefact; the rows here that
+carry a declared bypass are entries in that list, not the list itself. Cluster administration is
+a declared class with no row here because administrative traffic does not originate in a data-plane
+workload, and the domain of this matrix is paths from the data plane to the management plane. A
+data-plane workload that reaches an administrative endpoint remains denied by the catch-all row.</p>
+<p><strong>Out of scope: collection initiated from the management plane.</strong> Paths initiated from the
+management plane toward a data-plane cluster, such as metric collection pulled by the
+observability interfaces, are outside this matrix. ZT-55 governs reachability from the data plane,
+so the matrix models that direction only.</p>
+<p>Each row of the matrix is justified below. A permitted row states the requirement that needs the
+path, which end initiates it, and the surface it is limited to. A denied row states what reaching
+the destination would give a compromised data-plane workload; the catch-all row states the role it
+plays in the matrix.</p>
+<ul>
+<li><strong>PDP adapter → TSA policy engine — Policy Engine.</strong> ZT-20 (SRS 3.1.1) requires the connector's
+  guard to base its enforcement on Rego policies and the TSA policy engine, and ZT-52 (SRS 3.3)
+  allows no access to a protected resource without a valid, verified policy decision. The engine
+  runs as its own service, so the enforcement point obtains every decision over the network, and
+  the PDP adapter is its route to the engine: without this path the enforcement point cannot obtain
+  a decision, and every guarded request is denied. The PDP adapter initiates each call; the engine
+  answers and never calls into the data plane over this path. The surface is policy evaluation
+  only — a decision request out and its verdict back — not the administration of the policies the
+  engine evaluates.</li>
+<li><strong>aTLS gateway → TCR resolve — TRAIN (resolution).</strong> ZT-35 (SRS 3.1.3) requires any endpoint
+  that establishes attested TLS connections to <em>resolve</em> its peers' trusted hashes from TRAIN, so
+  the aTLS gateway needs a read path to TCR at run time. Resolution is needed when a channel is
+  established: the gateway fetches the peer's hash from TRAIN and proceeds only if it matches the
+  value in the peer's attestation report, so without this path no attested channel between the
+  zones can be established. The gateway initiates; TCR answers and never calls into the data plane
+  over this path. The surface is resolution — a peer's hash is looked up, never written.
+  Publication, the write side of TRAIN, is a separate row and is denied.</li>
+<li><strong>aTLS gateway → cmcd — Attestation (CMC).</strong> The attested channel between the zones requires both
+  ends to present evidence of the software they run, bound to the TLS connection it is presented on
+  (<a href="../environments/osc/#7-the-trust-boundary-between-the-zones">trust boundary between the zones</a>).
+  That evidence comes from CMC (ZT-31; <a href="../specifications/">specifications</a>): the SRS grounds the
+  bidirectional remote attestation feature (SRS 5.2) in the CMC aTLS protocol (SRS 2.6.1), and its
+  appendix on attested TLS refers to the REQUIRED CMC daemon (SRS 6). The gateway reaches cmcd to
+  have its own evidence produced and its peer's evidence verified, so without this path it cannot
+  establish attested TLS as ZT-35 (SRS 3.1.3) requires. The gateway initiates; cmcd answers and
+  never calls into the data plane over this path. The surface is attestation only — evidence
+  produced for the gateway and a peer's evidence verified — not the provisioning of cmcd's keys or
+  of the pipeline-signed reference metadata (ZT-71) it checks evidence against. That provisioning
+  runs from the estserver to cmcd inside the management plane, and the estserver stays denied to
+  the data plane by the catch-all row.</li>
+<li><strong>workloads → OTel collector — Observability stack.</strong> ZT-27 (SRS 3.1.2) requires events to be
+  exported from the cluster in a standard format and names the OpenTelemetry Collector as the
+  primary aggregation and export tool, so data-plane workloads must be able to reach the collector.
+  ZT-26 (SRS 3.1.2) places observability APIs among the endpoints that must bypass the Zero Trust
+  Connector, and requires them to use their own appropriate ingress and egress configuration
+  instead; that is the declared bypass this row carries. ZT-52 (SRS 3.3) requires control-plane
+  failures to be detected within 30 seconds and alerted through the observability stack, and a
+  failure the data plane observes, such as a policy engine that no longer answers, reaches that
+  alerting only over this path. The row is therefore not a dedicated control channel, as the
+  definition above the matrix says, and it is not an exception granted against ZT-55 (SRS 3.3)
+  either: it is a path these requirements compel, and denying it would break ZT-27 and ZT-52
+  without adding to the separation ZT-55 requires.</li>
+</ul>
+<p>What these requirements need is narrower than reaching the observability stack, and the row
+  permits only that. The source is admitted by the workload identity it holds, its SVID. The
+  destination is the collector alone, not Prometheus, Jaeger or any other part of the stack. The
+  surface is the collector's export port, to which the egress rule in the enforcement column limits
+  the source. The workload initiates, and telemetry travels outward only: the path lets a workload
+  hand its telemetry to the collector and opens no route back into the stack, to the data it holds
+  or to its configuration. None of this depends on which component takes the L7 decision on the
+  path, so a change of mesh mode leaves the justification standing.
+- <strong>backend → verification service — OCM.</strong> ZT-40 (SRS 3.1.5) bases access on credentials from
+  the OCM W-Stack, and ZT-51 (SRS 3.3) requires revocation status to be checked at every credential
+  verification, failing closed when it cannot be. A verdict held from an earlier verification
+  cannot stand in for a new one: it records the credential's status when that verification ran,
+  so a credential revoked since would still pass. Each new verification therefore reaches the
+  service, and the <a href="#staleness-matrix">staleness matrix</a> bounds how long one verification's outcome
+  is relied on. The backend initiates; the verification service answers and never calls into the
+  data plane over this path. The surface is credential verification — a presentation out and its
+  verification result, revocation status included, back — not the issuance or revocation of
+  credentials.
+- <strong>any data-plane workload → TSPA — TRAIN (publication).</strong> The two TRAIN rows carry opposite
+  verdicts on purpose. The resolution row above rests on ZT-35 (SRS 3.1.3). The same requirement
+  assigns <em>publication</em> to the endpoint's CI/CD pipeline, which uploads the hash on deployment; no
+  data-plane workload publishes. Publication writes the trust anchors that every peer relies on, so
+  leaving it reachable from the data plane would let a compromised data-plane workload alter trust
+  decisions, which ZT-55 forbids. Publication therefore stays denied from the data plane and is
+  reached only through the pipeline's publication path.
+- <strong>any data-plane workload → SPIRE server — SPIRE control plane.</strong> Under ZT-24 (SRS 3.1.2) the
+  SPIRE server issues the SVIDs by which every other row names its source and destination, and
+  holds the registration entries that decide which workload receives which identity. A compromised
+  data-plane workload that reached it could seek identities it was never issued, or alter the
+  registrations that assign them; every named pair in this matrix, and the identity that admits the
+  observability row, would then rest on identities the attacker controls. That is the access to the
+  management plane that ZT-55 (SRS 3.3) requires a compromise of the data plane never to grant. The
+  denial does not cut a workload off from its own identity. A workload receives its SVID by the
+  node-local path, from the SPIRE agent on its node through a mounted volume
+  (<a href="../environments/osc/#3-workload-identity">workload identity</a>), and the agent, which is part of
+  the SPIRE deployment rather than a data-plane workload, is what talks to the server. The path
+  this row denies is the one from a workload to the server itself.
+- <strong>anything else data → management — any management-plane destination not listed above.</strong> The
+  rows above do not name every management-plane destination: the estserver, bound to the
+  attestation role, has no row of its own, and other management components such as ArgoCD, OpenBao,
+  Harbor and administrative APIs are bound to no role at all. This row is what
+  makes the matrix a closed statement about the management plane rather than a list of examples:
+  every management-plane destination is either named by a row above or denied by this one, and
+  none is denied merely by being left out. It is also what the plane-separation test asserts for
+  any management-plane destination it probes and does not find listed: that destination is
+  unreachable at both layers.</p>
+<h3 id="supporting-services-outside-the-management-plane">Supporting services (outside the management plane)<a class="headerlink" href="#supporting-services-outside-the-management-plane" title="Permanent link">&para;</a></h3>
+<p>The allow matrix covers destinations in the management plane, so a permitted destination outside
+it is recorded here; without a row, a reader would apply the catch-all denial to it. A destination
+is outside the management plane when reaching it grants no ability to alter what the system runs,
+trusts or holds, which is the test ZT-55 (SRS 3.3) states. Absence from the components ZT-55 lists
+decides nothing either way: the same test places attestation in the management plane
+(<a href="#management-plane-roles-zt-55">management-plane roles</a>) and drives the catch-all denial. Each
+row is justified by its own requirement, is not an exception to ZT-55, and sits under the same
+default DENY at both layers. A row need not be a named mTLS pair: a service whose traffic the mesh
+cannot govern is permitted at the network layer and says so. These rows are proved by the
+acceptance families of their own requirements (<a href="../bdd/#scenario-inventory">scenario inventory</a>),
+not by the plane-separation test, so the table has no test column.</p>
+<table>
+<thead>
+<tr>
+<th>From data-plane workload →</th>
+<th>Supporting service</th>
+<th>Allowed?</th>
+<th>Enforcement (NetworkPolicy; mesh AuthorizationPolicy)</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>workloads → DNS</td>
+<td>name-resolution infrastructure</td>
+<td>ALLOW (declared bypass, ZT-26)</td>
+<td>NetworkPolicy: ALLOW, port 53 only; mesh: not applicable — DNS is not mTLS traffic, so the mesh cannot govern it</td>
+</tr>
+</tbody>
+</table>
+<ul>
+<li><strong>workloads → DNS — name-resolution infrastructure.</strong> Data-plane workloads reach every
+  destination permitted above by service name, so none of those paths works without name
+  resolution. DNS is cluster infrastructure and a declared bypass under ZT-26, in the sense defined
+  above. The mesh cannot govern it because it is not mTLS traffic, so the NetworkPolicy rule
+  limited to port 53 imposes the restriction.</li>
+</ul>
 <h3 id="staleness-matrix">Staleness matrix<a class="headerlink" href="#staleness-matrix" title="Permanent link">&para;</a></h3>
-<p>Maximum window in which a revoked or rotated artefact still authorises. All values are proposed.</p>
+<p>Maximum window in which a revoked or rotated artefact still authorises. The allow matrix governs
+which management-plane decisions may travel to the data plane; the staleness matrix bounds how long
+they take to arrive. The staleness matrix is deliberately broader than the allow matrix: a row is
+in scope because its freshness bounds an authorisation, not because its producer is one of the five
+components ZT-55 (SRS 3.3) names, so rows for artefacts outside those five are not to be removed
+as inconsistencies. These values are what §6 commits to, and configuration has to meet them.</p>
+<p>The test column names the scenario tag that proves each row's window, in the form the acceptance
+harness requires: the requirement row and its acceptance test identifier (<a href="../bdd/#tags">Tags</a>). A
+tag is named here even where its scenario is not yet written — the matrix is the specification that
+scenario is written from, and the traceability sheet reports the row as uncovered until it exists.</p>
 <table>
 <thead>
 <tr>
 <th>Artefact</th>
 <th>Rotation/lifetime</th>
-<th>Cache</th>
+<th>Cache or held outcome</th>
 <th>Max stale-authorisation window</th>
+<th>Enforced by</th>
+<th>Test</th>
 </tr>
 </thead>
 <tbody>
@@ -260,40 +578,64 @@ permitted paths:</p>
 <td>SVID</td>
 <td>1 h TTL</td>
 <td>in-process</td>
-<td>≤ 1 h (mesh)</td>
+<td>≤ 1 h</td>
+<td>mesh</td>
+<td><code>@ZT-24 @BDD-ZT-024</code></td>
 </tr>
 <tr>
-<td>Keycloak/issuer JWKS</td>
+<td>Connector issuer JWKS</td>
 <td>rotate on demand</td>
 <td>guard cache 5 min</td>
 <td>≤ 5 min</td>
+<td>connector guard</td>
+<td><code>@ZT-22 @BDD-ZT-022</code></td>
 </tr>
 <tr>
 <td>Access token</td>
 <td>300 s lifetime</td>
 <td>—</td>
 <td>≤ 300 s after revocation of its basis</td>
+<td>guard and token store</td>
+<td><code>@ZT-22 @BDD-ZT-022</code></td>
 </tr>
 <tr>
 <td>Policy bundle</td>
 <td>poll 60 s</td>
 <td>TSA cache</td>
 <td>≤ 60 s</td>
+<td>TSA policy engine</td>
+<td><code>@ZT-20 @BDD-ZT-020</code></td>
 </tr>
 <tr>
 <td>Trust list / measurement</td>
 <td>TTL 300 s</td>
 <td>TCR/gateway</td>
 <td>≤ 300 s + channel lifetime 15 min ⇒ ≤ ~20 min for an established channel (bounded by channel re-establishment)</td>
+<td>aTLS gateway</td>
+<td><code>@ZT-35 @BDD-ZT-035</code></td>
 </tr>
 <tr>
 <td>Credential revocation</td>
 <td>checked per verification</td>
-<td>outcome TTL 120 s</td>
-<td>≤ renewal interval (≤ token lifetime 300 s) + 120 s</td>
+<td>outcome relied on 120 s</td>
+<td>≤ token lifetime + outcome reliance period; in force ≤ 300 s + 120 s</td>
+<td>backend and token store</td>
+<td><code>@ZT-51 @BDD-ZT-051</code></td>
 </tr>
 </tbody>
 </table>
+<ul>
+<li><strong>Trust list / measurement.</strong> The window bounds the locally held copy from the moment the
+  published list changes, not the time until it changes upstream: the trust list is not
+  provisioned by this project.</li>
+<li><strong>Connector issuer JWKS.</strong> The connector guard validates token signatures against the
+  connector's own published key set, so that is the artefact this row bounds. No requirement
+  governs that key set's freshness directly: the SRS names neither a key set nor its rotation. The
+  row carries the tag of the requirement whose behaviour depends on it. ZT-22 (SRS 3.1.1) requires
+  the access token a participant backend presents to be checked and, if valid, upstreamed; that
+  check is made against this key set, so a key set stale past a rotation makes it fail. The key
+  set itself is produced by the OAuth2 server that ZT-21 (SRS 3.1.1) mandates.</li>
+</ul>
               
             </div>
           </div><footer>

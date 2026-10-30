@@ -344,6 +344,18 @@ Scenario: Successful deployment [fixture release]
 <p>Only the row tag drives coverage. A tag shaped like a row id that matches no row in
 <code>features/annex-rows.txt</code> <strong>fails the run</strong> — a typo would otherwise leave the scenario passing
 while proving nothing about the row it was meant to cover.</p>
+<p>The plane-separation design check — <em>The plane-separation matrix is complete and consistent at
+both layers</em>, in <code>features/go/plane-separation-design.feature</code> — is one of those regression
+scenarios. It runs strict in CI and asserts that the matrices in the
+<a href="../architecture/#6-plane-separation-and-staleness-windows">plane-separation section</a> are complete
+and consistent: every path from the data plane to the management plane is disposed at both the
+network policy layer and the service mesh layer, in agreement with its verdict, and the catch-all
+row denies every management-plane destination without a row of its own. It reaches no network, so
+it carries no row tag and ZT-55 stays pending. The row is covered by the reachability scenario,
+not yet written, which runs when the matrix is executed against a cluster and asserts that a
+management-plane destination without a row is unreachable from the data plane at both layers. It
+is the scenario the section refers to when it says what the plane-separation test asserts for a
+destination it probes and does not find listed.</p>
 <h3 id="running-one-annex-row">Running one Annex row<a class="headerlink" href="#running-one-annex-row" title="Permanent link">&para;</a></h3>
 <pre><code class="language-bash">BDD_MODE=catalogue go test ./internal/bdd -godog.tags=@ZT-56   # a pending Go row
 npm run bdd:row -- @ZT-17                                      # a JavaScript row, strict:
