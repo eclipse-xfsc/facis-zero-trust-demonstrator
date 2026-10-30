@@ -21,9 +21,9 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"github.com/eclipse-xfsc/facis-zero-trust-demonstrator/internal/replay"
-	"github.com/eclipse-xfsc/facis-zero-trust-demonstrator/internal/transit"
 	"github.com/eclipse-xfsc/facis-zero-trust-demonstrator/services/token-store/internal/acquire"
 	"github.com/eclipse-xfsc/facis-zero-trust-demonstrator/services/token-store/internal/caller"
+	"github.com/eclipse-xfsc/facis-zero-trust-demonstrator/services/token-store/internal/keys"
 	"github.com/eclipse-xfsc/facis-zero-trust-demonstrator/services/token-store/internal/renew"
 	"github.com/eclipse-xfsc/facis-zero-trust-demonstrator/services/token-store/internal/substitute"
 
@@ -119,7 +119,9 @@ func New(ctx context.Context, cfg Config, log *slog.Logger) (*Server, error) {
 		keyStarted:  make(chan struct{}),
 	}
 	if a := cfg.Acquisition; a != nil {
-		readOnly := runtimeBao{cfg.OpenBao}
+		// Acquisition, substitution and renewal sign through a signer that never creates a key:
+		// a deleted key is reported, never replaced. Only startup (startKeys) may provision one.
+		readOnly := keys.ReadOnly{Lister: cfg.OpenBao}
 		acquirer := &acquire.Acquirer{DB: pool, Signer: readOnly, Secrets: cfg.OpenBao, KeyName: a.SigningKey,
 			Trusted: a.Trusted, Log: log, Prefix: a.KVPrefix}
 		s.substitute = &substitute.Service{DB: pool, Signer: readOnly, Secrets: cfg.OpenBao, Routes: *a, Log: log,
@@ -195,27 +197,22 @@ func (s *Server) httpServer(h http.Handler) *http.Server {
 // stop routing to the pod, so a caller sent here meanwhile is answered rather than refused; then
 // it drains both listeners at once, each within the shutdown timeout, and closes the pool. It
 // returns nil after a clean stop.
+//
+// With an acquisition config, Serve also resolves the store's signing keys (startKeys): until
+// they resolve the store is not ready, and a key that cannot resolve because of its configuration
+// stops the service with an error, so the misconfiguration is seen at startup and not at the
+// first call.
 func (s *Server) Serve(ctx context.Context) error {
 	maintainCtx, stopMaintaining := context.WithCancel(context.Background())
 	keyStarted := s.keyStarted
+	keyFault := make(chan error, 1)
 	go func() {
 		defer close(keyStarted)
 		if s.cfg.Acquisition == nil {
 			return
 		}
-		for {
-			attempt, cancel := context.WithTimeout(maintainCtx, 5*time.Second)
-			_, err := s.cfg.OpenBao.EnsureKey(attempt, s.cfg.Acquisition.SigningKey)
-			cancel()
-			if err == nil {
-				return
-			}
-			s.log.WarnContext(maintainCtx, "startup signing key unavailable")
-			select {
-			case <-maintainCtx.Done():
-				return
-			case <-time.After(time.Second):
-			}
+		if err := s.startKeys(maintainCtx); err != nil {
+			keyFault <- err
 		}
 	}()
 	defer func() { stopMaintaining(); <-keyStarted }()
@@ -247,6 +244,19 @@ func (s *Server) Serve(ctx context.Context) error {
 				cause = err
 			}
 		}
+	case err := <-keyFault:
+		// The keys cannot resolve as configured. Readiness answered starting until now, so nothing
+		// was routed to the pod and there is nothing to drain for; the listeners close and the
+		// error is the exit.
+		s.ready.drain()
+		ref := ""
+		var m *misconfigured
+		if errors.As(err, &m) {
+			ref = m.ref
+		}
+		s.log.ErrorContext(ctx, msgKeysMisconfigured, "key", s.cfg.Acquisition.SigningKey, "reason", reasonOf(err),
+			"key_ref", ref)
+		cause = err
 	case err := <-results:
 		pending--
 		if !errors.Is(err, http.ErrServerClosed) {
@@ -291,12 +301,4 @@ func (s *Server) Serve(ctx context.Context) error {
 	<-renewed
 	s.pool.Close()
 	return cause
-}
-
-// runtimeBao prevents acquisition and renewal from recreating a deleted key.
-// Only the separate startup provisioner is allowed to ensure a key exists.
-type runtimeBao struct{ OpenBao }
-
-func (b runtimeBao) EnsureKey(ctx context.Context, name string) (transit.KeyVersion, error) {
-	return b.LatestKey(ctx, name)
 }
