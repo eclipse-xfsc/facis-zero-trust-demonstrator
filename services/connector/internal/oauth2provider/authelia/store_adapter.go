@@ -2,7 +2,6 @@ package authelia
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"time"
@@ -11,6 +10,7 @@ import (
 	hoauth2 "authelia.com/provider/oauth2/handler/oauth2"
 	"authelia.com/provider/oauth2/handler/rfc7591"
 	"authelia.com/provider/oauth2/handler/rfc9449"
+	"authelia.com/provider/oauth2/storage"
 
 	"github.com/eclipse-xfsc/facis-zero-trust-demonstrator/services/connector/internal/oauth2provider"
 )
@@ -20,6 +20,7 @@ import (
 type storeAdapter struct {
 	stores   oauth2provider.Stores
 	strategy oauth2.ClientRegistrationStrategy
+	config   *oauth2.Config
 }
 
 var (
@@ -27,7 +28,61 @@ var (
 	_ hoauth2.AccessTokenStorage = (*storeAdapter)(nil)
 	_ rfc7591.Storage            = (*storeAdapter)(nil)
 	_ rfc9449.Storage            = (*storeAdapter)(nil)
+	_ storage.Transactional      = (*storeAdapter)(nil)
 )
+
+type (
+	inTxKey      struct{}
+	outcomeIDKey struct{}
+	grantKey     struct{}
+)
+
+// withGrant records the grant TokenHandler validated, which the token record keeps.
+func withGrant(ctx context.Context, grant string) context.Context {
+	return context.WithValue(ctx, grantKey{}, grant)
+}
+
+// BeginTX implements the library's storage.Transactional over Stores.Transactions. Every store call
+// made with the returned context, nonces and replay records excepted, is part of the transaction.
+func (s *storeAdapter) BeginTX(ctx context.Context) (context.Context, error) {
+	if s.stores.Transactions == nil {
+		return nil, errors.New("the stores offer no transactions")
+	}
+
+	ctx, err := s.stores.Transactions.BeginTx(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	return context.WithValue(ctx, inTxKey{}, true), nil
+}
+
+func (s *storeAdapter) Commit(ctx context.Context) error {
+	if !inTx(ctx) {
+		return errors.New("commit: no transaction")
+	}
+
+	return s.stores.Transactions.Commit(ctx)
+}
+
+func (s *storeAdapter) Rollback(ctx context.Context) error {
+	if !inTx(ctx) {
+		return errors.New("rollback: no transaction")
+	}
+
+	return s.stores.Transactions.Rollback(ctx)
+}
+
+func inTx(ctx context.Context) bool {
+	in, _ := ctx.Value(inTxKey{}).(bool)
+
+	return in
+}
+
+// withOutcomeID marks ctx as issuing a token on the outcome id, which the token record keeps.
+func withOutcomeID(ctx context.Context, id string) context.Context {
+	return context.WithValue(ctx, outcomeIDKey{}, id)
+}
 
 func (s *storeAdapter) GetClient(ctx context.Context, id string) (oauth2.Client, error) {
 	client, err := s.stores.Clients.GetClient(ctx, id)
@@ -107,9 +162,18 @@ func (s *storeAdapter) DeleteClientRegistrationTokenSession(ctx context.Context,
 // createToken persists what is needed to validate the token later. The
 // request form is deliberately left out: it can carry client credentials.
 func createToken(ctx context.Context, store oauth2provider.TokenStore, signature string, request oauth2.Requester) error {
-	session, err := json.Marshal(request.GetSession())
+	outcomeID, _ := ctx.Value(outcomeIDKey{}).(string)
+	grant, _ := ctx.Value(grantKey{}).(string)
+
+	// The grant comes from TokenHandler, the outcome from the grant handler: each is checked against
+	// the other, so neither alone can produce a verified-presentation token without its outcome.
+	if (grant == oauth2provider.VerifiedPresentationGrantType) != (outcomeID != "") {
+		return errors.New("a verified-presentation token needs its outcome id, and no other token may carry one")
+	}
+
+	session, expiresAt, err := encodeSession(request.GetSession(), outcomeID)
 	if err != nil {
-		return fmt.Errorf("encode session: %w", err)
+		return err
 	}
 
 	return store.CreateToken(ctx, signature, oauth2provider.TokenRecord{
@@ -121,6 +185,9 @@ func createToken(ctx context.Context, store oauth2provider.TokenStore, signature
 		RequestedAudience: request.GetRequestedAudience(),
 		GrantedAudience:   request.GetGrantedAudience(),
 		Session:           session,
+		ExpiresAt:         expiresAt,
+		OutcomeID:         outcomeID,
+		GrantType:         grant,
 	})
 }
 
@@ -136,8 +203,8 @@ func (s *storeAdapter) getToken(ctx context.Context, store oauth2provider.TokenS
 	}
 
 	if session != nil {
-		if err = json.Unmarshal(record.Session, session); err != nil {
-			return nil, fmt.Errorf("decode session: %w", err)
+		if err = decodeSession(record.Session, session); err != nil {
+			return nil, err
 		}
 	}
 
@@ -153,23 +220,26 @@ func (s *storeAdapter) getToken(ctx context.Context, store oauth2provider.TokenS
 	}, nil
 }
 
-// CheckAndSetDPoPProofUsed derives the replay key and delegates the atomic
-// check to the replay store.
+// CheckAndSetDPoPProofUsed hands the proof's identity to the replay store,
+// which performs the atomic check.
 //
-// The key is the proof's jti in the context of the URI and method it was
-// made for (RFC 9449 sections 4.2 and 11.1), widened by the proof key's
-// thumbprint and the nonce. A replayed proof is presented verbatim, so every
-// one of these fields is unchanged and widening cannot let a replay through.
-// The thumbprint keeps one client's jti values from colliding with
-// another's; the nonce lets a client answer a nonce challenge by re-signing
-// with the same jti.
+// The library passes the instant the proof stops being acceptable, which it
+// computes as iat + proof lifespan + clock skew, and not the iat itself. The
+// iat is recovered here from the same two settings, so a store that applies
+// a window of its own has the claim to work from. A conformance test pins
+// the derivation.
 func (s *storeAdapter) CheckAndSetDPoPProofUsed(ctx context.Context, jti, jkt, nonce, htm, htu string, exp time.Time) (bool, error) {
-	key, err := json.Marshal([]string{jkt, jti, htm, htu, nonce})
-	if err != nil {
-		return false, err
-	}
+	window := s.config.GetDPoPProofLifespan(ctx) + s.config.GetDPoPClockSkew(ctx)
 
-	used, err := s.stores.DPoPReplay.MarkUsed(ctx, string(key), exp)
+	used, err := s.stores.DPoPReplay.MarkUsed(ctx, oauth2provider.DPoPProofUse{
+		Thumbprint: jkt,
+		Method:     htm,
+		URI:        htu,
+		ID:         jti,
+		Nonce:      nonce,
+		IssuedAt:   exp.Add(-window),
+		NotAfter:   exp,
+	})
 	if err == nil && used {
 		noteReplay(ctx)
 	}

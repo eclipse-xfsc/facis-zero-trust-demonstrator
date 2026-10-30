@@ -26,7 +26,8 @@ dependency when a zone sets `openbao.enabled: true`. It is off by default; the k
 
 The chart version and the server version are different numbers: 0.28.3 is the Helm chart, v2.5.4 the
 OpenBao it ships. The OpenBao 2.7.0 image in `scripts/tools/pins.env` is a separate pin, used only by
-the token-store integration tests.
+the token store's lifecycle proof on kind, where it runs in dev mode as the key-value store the
+service's readiness asks for.
 
 The server listens without TLS inside the management plane. Transport protection between workloads
 is the mesh layer's ([ADR-0001](adr/0001-service-mesh-mode-istio-ambient-with-cilium.md)), and the

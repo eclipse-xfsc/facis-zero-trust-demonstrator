@@ -2,21 +2,33 @@ package authelia
 
 import (
 	"bytes"
+	"context"
+	"crypto/ecdsa"
+	"crypto/elliptic"
+	"crypto/rand"
 	"encoding/json"
 	"io"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
+	"os"
+	"slices"
 	"strings"
+	"sync"
 	"sync/atomic"
 	"testing"
 	"time"
 
+	"github.com/jackc/pgx/v5/pgxpool"
 	"golang.org/x/crypto/bcrypt"
+
+	"github.com/eclipse-xfsc/facis-zero-trust-demonstrator/internal/pgtest"
 
 	"github.com/eclipse-xfsc/facis-zero-trust-demonstrator/services/connector/internal/dpoptest"
 	"github.com/eclipse-xfsc/facis-zero-trust-demonstrator/services/connector/internal/oauth2provider"
 	"github.com/eclipse-xfsc/facis-zero-trust-demonstrator/services/connector/internal/oauth2provider/memstore"
+	"github.com/eclipse-xfsc/facis-zero-trust-demonstrator/services/connector/internal/oauth2provider/pgstore"
+	"github.com/eclipse-xfsc/facis-zero-trust-demonstrator/services/connector/internal/signing"
 )
 
 const (
@@ -28,25 +40,42 @@ const (
 // own, so no state is shared between tests.
 type harness struct {
 	t        *testing.T
+	cfg      oauth2provider.Config
 	stores   oauth2provider.Stores
 	provider oauth2provider.Provider
+	handler  *atomic.Value
+
+	// pool is the database behind the stores when they are PostgreSQL's, nil otherwise.
+	pool *pgxpool.Pool
+
+	// replay records what the provider hands to the replay store.
+	replay *recordingReplayStore
 
 	// clockOffset shifts the stores' clock forward, in nanoseconds.
 	clockOffset atomic.Int64
 
-	tokenURL    string
-	registerURL string
-	resourceURL string
+	// signed is true when the provider issues signed access tokens, which it does only to a DPoP
+	// proof and for an audience.
+	signed bool
+
+	// defaultAudience is what a token request names when the test names no audience, and what
+	// every seeded client is allowed: nothing for opaque tokens, resourceAudience for signed ones.
+	defaultAudience string
+
+	tokenURL     string
+	registerURL  string
+	resourceURL  string
+	challengeURL string
 }
 
 func newHarness(t *testing.T, configure func(*oauth2provider.Config)) *harness {
 	t.Helper()
 
-	h := &harness{t: t}
+	h := &harness{t: t, handler: &atomic.Value{}}
+	handler := h.handler
 
 	// The registration endpoint URL is part of the provider's configuration,
 	// so the server has to exist before the provider does.
-	var handler atomic.Value
 
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		handler.Load().(http.Handler).ServeHTTP(w, r)
@@ -56,6 +85,7 @@ func newHarness(t *testing.T, configure func(*oauth2provider.Config)) *harness {
 	h.tokenURL = server.URL + "/token"
 	h.registerURL = server.URL + "/register"
 	h.resourceURL = server.URL + "/resource"
+	h.challengeURL = server.URL + "/challenge"
 
 	cfg := oauth2provider.Config{
 		Secret: []byte("token-signing-secret-at-least-32-bytes!"),
@@ -71,28 +101,87 @@ func newHarness(t *testing.T, configure func(*oauth2provider.Config)) *harness {
 		},
 	}
 
+	switch kind := os.Getenv(tokensEnv); kind {
+	case "", "opaque":
+	case "jwt":
+		cfg.Issuer = server.URL
+		cfg.AccessTokenSigner = newTestSigner(t)
+	default:
+		t.Fatalf("%s=%q: want opaque or jwt", tokensEnv, kind)
+	}
+
 	if configure != nil {
 		configure(&cfg)
 	}
 
-	h.stores = memstore.New(func() time.Time {
-		return time.Now().Add(time.Duration(h.clockOffset.Load()))
-	})
+	h.cfg = cfg
+	h.signed = cfg.AccessTokenSigner != nil
 
-	provider, err := New(cfg, h.stores)
+	if h.signed {
+		h.defaultAudience = resourceAudience
+	}
+	h.stores, h.pool = newStores(t, h.now)
+
+	h.replay = &recordingReplayStore{inner: h.stores.DPoPReplay}
+	h.stores.DPoPReplay = h.replay
+
+	h.start()
+
+	return h
+}
+
+// start builds a provider on the harness's stores and serves it.
+func (h *harness) start() {
+	h.t.Helper()
+
+	built, err := New(h.cfg, h.stores)
 	if err != nil {
-		t.Fatalf("new provider: %v", err)
+		h.t.Fatalf("new provider: %v", err)
 	}
 
-	h.provider = provider
+	h.provider = built
+
+	// One clock for the provider and the stores, moved by advanceClock.
+	built.(*provider).clock.now = h.now
+	provider := built
 
 	mux := http.NewServeMux()
 	mux.Handle("/token", provider.TokenHandler())
 	mux.Handle("/register", provider.RegistrationHandler())
+	mux.Handle("/challenge", provider.ChallengeHandler())
 	mux.HandleFunc("/resource", h.serveResource)
-	handler.Store(http.Handler(mux))
+	h.handler.Store(http.Handler(mux))
+}
 
-	return h
+// restart replaces the provider with a new one on the same stores, as a process restart would:
+// nothing survives but what the stores hold.
+func (h *harness) restart() { h.start() }
+
+// recordingReplayStore passes every call through and keeps what it was given.
+type recordingReplayStore struct {
+	inner oauth2provider.DPoPReplayStore
+
+	mu   sync.Mutex
+	uses []oauth2provider.DPoPProofUse
+}
+
+func (s *recordingReplayStore) MarkUsed(ctx context.Context, use oauth2provider.DPoPProofUse) (bool, error) {
+	s.mu.Lock()
+	s.uses = append(s.uses, use)
+	s.mu.Unlock()
+
+	return s.inner.MarkUsed(ctx, use)
+}
+
+func (s *recordingReplayStore) last() oauth2provider.DPoPProofUse {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	if len(s.uses) == 0 {
+		return oauth2provider.DPoPProofUse{}
+	}
+
+	return s.uses[len(s.uses)-1]
 }
 
 // serveResource is a minimal protected resource.
@@ -123,6 +212,16 @@ func (h *harness) serveResource(w http.ResponseWriter, r *http.Request) {
 
 func (h *harness) advanceClock(d time.Duration) { h.clockOffset.Add(int64(d)) }
 
+func (h *harness) now() time.Time { return time.Now().Add(time.Duration(h.clockOffset.Load())) }
+
+func (h *harness) withDefaultAudience(audience []string) []string {
+	if h.defaultAudience == "" || slices.Contains(audience, h.defaultAudience) {
+		return audience
+	}
+
+	return append(slices.Clone(audience), h.defaultAudience)
+}
+
 // seedClient provisions a client directly, as an operator would.
 func (h *harness) seedClient(id string, dpopBound bool, scopes, audience []string) {
 	h.t.Helper()
@@ -137,7 +236,7 @@ func (h *harness) seedClient(id string, dpopBound bool, scopes, audience []strin
 		SecretHash: hash,
 		GrantTypes: []string{"client_credentials"},
 		Scopes:     scopes,
-		Audience:   audience,
+		Audience:   h.withDefaultAudience(audience),
 		DPoPBound:  dpopBound,
 	})
 	if err != nil {
@@ -198,6 +297,10 @@ func (h *harness) token(clientID, proof string, scopes []string, audience string
 		form.Set("scope", strings.Join(scopes, " "))
 	}
 
+	if audience == "" {
+		audience = h.defaultAudience
+	}
+
 	if audience != "" {
 		form.Set("audience", audience)
 	}
@@ -228,6 +331,13 @@ func (h *harness) tokenWithSecret(clientID, secret, proof string, form url.Value
 func (h *harness) register(authorization string, metadata map[string]any) result {
 	h.t.Helper()
 
+	return h.registerWithProof(authorization, "", metadata)
+}
+
+// registerWithProof is register with a DPoP proof, which may be empty.
+func (h *harness) registerWithProof(authorization, proof string, metadata map[string]any) result {
+	h.t.Helper()
+
 	body, err := json.Marshal(metadata)
 	if err != nil {
 		h.t.Fatal(err)
@@ -242,6 +352,10 @@ func (h *harness) register(authorization string, metadata map[string]any) result
 
 	if authorization != "" {
 		request.Header.Set("Authorization", authorization)
+	}
+
+	if proof != "" {
+		request.Header.Set("DPoP", proof)
 	}
 
 	return h.do(request)
@@ -285,4 +399,56 @@ func (h *harness) boundToken(key *dpoptest.Key) string {
 	}
 
 	return issued.str("access_token")
+}
+
+// storeEnv selects the stores the conformance suite runs against: unset or "mem" for the in-memory
+// stores, "pg" for PostgreSQL (with pgtest.DatabaseEnv naming the server). CI runs the package once
+// per value, so every conformance test is a test of both, replay detection included: on PostgreSQL it
+// is the zone's shared proof_jti record.
+const storeEnv = "CONNECTOR_TEST_STORE"
+
+func newStores(t *testing.T, now func() time.Time) (oauth2provider.Stores, *pgxpool.Pool) {
+	t.Helper()
+
+	mem := memstore.New(now)
+
+	switch kind := os.Getenv(storeEnv); kind {
+	case "", "mem":
+		return mem, nil
+	case "pg":
+		ctx := context.Background()
+
+		pool, err := pgxpool.New(ctx, pgtest.MigratedURL(t, "connector"))
+		if err != nil {
+			t.Fatalf("connecting: %v", err)
+		}
+		t.Cleanup(pool.Close)
+
+		return pgstore.New(pool, now), pool
+	default:
+		t.Fatalf("%s=%q: want mem or pg", storeEnv, kind)
+
+		return oauth2provider.Stores{}, nil
+	}
+}
+
+// tokensEnv selects the access tokens the conformance suite runs with: unset or "opaque" for opaque
+// tokens, "jwt" for RFC 9068 tokens signed by an in-process key. Every conformance test is a test of
+// both.
+const tokensEnv = "CONNECTOR_TEST_TOKENS"
+
+func newTestSigner(t *testing.T) *signing.Local {
+	t.Helper()
+
+	key, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	signer, err := signing.NewLocal(key)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	return signer
 }
