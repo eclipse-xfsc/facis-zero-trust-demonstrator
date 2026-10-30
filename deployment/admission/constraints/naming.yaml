@@ -2,6 +2,8 @@ apiVersion: constraints.gatekeeper.sh/v1beta1
 kind: K8sZtdNaming
 metadata:
   name: ztd-naming
+  annotations:
+    description: "Denies a workload or pod whose name is outside the convention (ADM-NAME-INVALID)."
 spec:
   enforcementAction: deny
   match:

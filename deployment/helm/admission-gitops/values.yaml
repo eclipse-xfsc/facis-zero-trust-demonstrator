@@ -1,0 +1,40 @@
+# Values of the admission-gitops chart. Every key is documented here and in README.md. The parent
+# Application passes git.* and trust.repositories; the rest are the defaults of a zone.
+
+# The Git source the children track: the repository this chart is read from, at the revision the zone
+# follows. A change merged on that revision reaches the cluster on the next reconciliation.
+git:
+  repoURL: https://github.com/eclipse-xfsc/facis-zero-trust-demonstrator.git
+  targetRevision: main
+
+# Argo CD's own namespace: where the Applications and the project live.
+argocd:
+  namespace: argocd
+
+# The cluster Argo CD reconciles into: its own, by the in-cluster address. A zone's Argo CD holds no
+# credentials for any other cluster.
+destination:
+  server: https://kubernetes.default.svc
+
+# Gatekeeper's namespace: where the exemptions Config lives, and the only namespace the project may
+# write to.
+gatekeeper:
+  namespace: gatekeeper-system
+
+# The trusted repository prefixes of the zone, patched into the allowed-repositories constraint: the
+# same value as the provider's trust.repositories (deployment/helm/admission). The file in Git names the
+# project's registry; a zone whose images live elsewhere passes its own.
+trust:
+  repositories:
+    - ghcr.io/eclipse-xfsc/facis-zero-trust-demonstrator
+
+# Retry of a failed sync. A constraint cannot be applied before Gatekeeper has established the CRD of
+# its template, so a template and its constraint merged together need the constraints Application to
+# try again after the templates Application has synced.
+sync:
+  retry:
+    limit: 10
+    backoff:
+      duration: 10s
+      factor: 2
+      maxDuration: 3m
