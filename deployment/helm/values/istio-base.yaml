@@ -1,0 +1,15 @@
+# Release `istio-base` of the zone: Istio's custom resource definitions and cluster-wide base
+# resources, installed as the upstream chart ships them, in templates/, so that this release
+# installs, upgrades and removes them.
+#   chart source      Istio 1.31.1 release archive, chart `base` 1.31.1
+#                     https://github.com/istio/istio/releases/download/1.31.1/istio-1.31.1-linux-amd64.tar.gz
+#                     (manifests/charts/base; the archive's sha256 is pinned in scripts/install-zone/install.sh)
+#   namespace         istio-system (created by the umbrella chart, never by this release)
+# Pinned in scripts/install-zone/install.sh and docs/dependencies.md. Every value set here is
+# listed with its reason in README.md next to this file.
+defaultRevision: default   # the istio-injection=enabled label the umbrella sets selects the default injector
+base:
+  # Istio renders its validation webhook "fail open" (Ignore) on the first install only and leaves
+  # the policy out on upgrades, so a second install would change the manifest. Fail, fixed: the
+  # webhook refuses an Istio resource it cannot validate (fail closed), and every run renders alike.
+  validationFailurePolicy: Fail
