@@ -1,0 +1,28 @@
+{{- /*
+The project confines the children: one source repository, Gatekeeper's namespace, and only the kinds the
+admission policy consists of. Wave -1: it exists before a child refers to it.
+*/ -}}
+apiVersion: argoproj.io/v1alpha1
+kind: AppProject
+metadata:
+  name: ztd-admission
+  namespace: {{ .Values.argocd.namespace }}
+  labels:
+    {{- include "admgitops.labels" . | nindent 4 }}
+  annotations:
+    argocd.argoproj.io/sync-wave: "-1"
+spec:
+  description: Admission policy of the zone, reconciled from Git
+  sourceRepos:
+    - {{ .Values.git.repoURL | quote }}
+  destinations:
+    - server: {{ .Values.destination.server | quote }}
+      namespace: {{ .Values.gatekeeper.namespace | quote }}
+  clusterResourceWhitelist:
+    - group: templates.gatekeeper.sh
+      kind: ConstraintTemplate
+    - group: constraints.gatekeeper.sh
+      kind: "*"
+  namespaceResourceWhitelist:
+    - group: config.gatekeeper.sh
+      kind: Config

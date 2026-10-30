@@ -120,6 +120,30 @@ jobs:
           FACIS_INTEROP_REGISTRY: localhost:5000
           COSIGN: ${{ runner.temp }}/bin/cosign
 
+  # The policy package (ZT-37) and its publication: the catalogue packaged reproducibly, pushed to a
+  # registry:2 on the runner as one layer of the media type Argo CD reads, signed with an ephemeral key
+  # and verified; a tampered push to the same tag leaves a digest the signature does not cover. No
+  # secret and no external push.
+  policy-package:
+    name: Policy package
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+
+      - name: Start a local registry and install the pinned cosign and oras
+        run: |
+          . scripts/tools/pins.env
+          docker run -d --name registry -p 127.0.0.1:5000:5000 "$REGISTRY_IMAGE"
+          scripts/tools/install.sh "$RUNNER_TEMP/bin" cosign oras
+
+      - name: Package, publish, pull back and tamper
+        env:
+          REGISTRY: localhost:5000
+          ORAS: ${{ runner.temp }}/bin/oras
+          COSIGN: ${{ runner.temp }}/bin/cosign
+        run: scripts/supplychain/policy-package_test.sh
+
   # The constraints that need nothing but the object (digest-only, allowed repositories, naming, the
   # namespace scope), tested offline with the pinned gator.
   gator:
@@ -158,6 +182,35 @@ jobs:
 
       - name: Run the admission catalogue
         run: BIN="$RUNNER_TEMP/bin" scripts/admission/kind-e2e.sh
+
+  # The admission reconciler (deployment/argocd, ZT-12): Argo CD on a kind cluster with Gatekeeper, handed
+  # the admission policy of the revision under test, fetched from the repository it came from. The
+  # checkout is that same revision (the pull request's head, not the merge commit), so the catalogue in
+  # the cluster can be compared with the files. Proves every Application Synced and Healthy, the zone's
+  # repository prefix patched in, a hand-edited constraint and a hand-edited child put back, and the
+  # sync status in the controller's metrics.
+  admission-gitops:
+    name: Admission reconciler (kind)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+
+      - name: Set up Helm
+        uses: azure/setup-helm@1a275c3b69536ee54be43f2070a358922e12c8d4 # v4
+        with:
+          version: v4.3.0
+
+      - name: Install the pinned tools
+        run: scripts/tools/install.sh "$RUNNER_TEMP/bin" kind kubectl gatekeeper-chart argocd-chart
+
+      - name: Run the reconciler scenarios
+        env:
+          REPO_URL: ${{ github.event.pull_request.head.repo.clone_url || format('{0}/{1}.git', github.server_url, github.repository) }}
+          REVISION: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: BIN="$RUNNER_TEMP/bin" scripts/argocd/kind-e2e.sh
 
   contracts:
     name: Contracts
@@ -287,8 +340,8 @@ jobs:
   release-charts:
     name: Release charts
     needs:
-      [tests, lint, images, admission-interop, gator, admission-kind, contracts, bdd, charts,
-       bdd-cluster, bdd-cluster-report]
+      [tests, lint, images, admission-interop, gator, admission-kind, admission-gitops, contracts, bdd,
+       charts, bdd-cluster, bdd-cluster-report]
     if: >-
       ${{ !cancelled() && github.event_name == 'release'
       && needs.tests.result == 'success'
@@ -297,6 +350,7 @@ jobs:
       && needs.admission-interop.result == 'success'
       && needs.gator.result == 'success'
       && needs.admission-kind.result == 'success'
+      && needs.admission-gitops.result == 'success'
       && needs.contracts.result == 'success'
       && needs.bdd.result == 'success'
       && needs.charts.result == 'success'
@@ -320,7 +374,7 @@ jobs:
       # against, so every package passes the server dry-run before it is attached.
       - name: Install the pinned tools
         run: |
-          scripts/tools/install.sh "$RUNNER_TEMP/bin" kind kubectl gatekeeper-chart cilium-crds
+          scripts/tools/install.sh "$RUNNER_TEMP/bin" kind kubectl gatekeeper-chart cilium-crds argocd-chart
           echo "$RUNNER_TEMP/bin" >> "$GITHUB_PATH"
 
       - name: Create the gate cluster with the CRDs the charts render against
@@ -329,8 +383,11 @@ jobs:
           kind create cluster --name ztd-gate --image "$KIND_NODE_IMAGE" --wait 180s
           tar -xzf "$RUNNER_TEMP/bin/gatekeeper-${GATEKEEPER_CHART_VERSION}.tgz" -C "$RUNNER_TEMP" gatekeeper/crds
           kubectl apply -f "$RUNNER_TEMP/gatekeeper/crds/provider-customresourcedefinition.yaml" -f "$RUNNER_TEMP/bin/cilium-crds/"
+          helm template argocd "$RUNNER_TEMP/bin/argo-cd-${ARGOCD_CHART_VERSION}.tgz" \
+            --show-only templates/crds/crd-application.yaml --show-only templates/crds/crd-appproject.yaml | kubectl apply -f -
           kubectl wait --for condition=established --timeout=60s crd/providers.externaldata.gatekeeper.sh \
-            crd/ciliumclusterwidenetworkpolicies.cilium.io crd/ciliumnetworkpolicies.cilium.io
+            crd/ciliumclusterwidenetworkpolicies.cilium.io crd/ciliumnetworkpolicies.cilium.io \
+            crd/applications.argoproj.io crd/appprojects.argoproj.io
 
       - name: Check and package the release charts
         run: scripts/ci/check-charts.sh --server-dry-run --package dist/charts --version "${GITHUB_REF_NAME#v}"

@@ -1,0 +1,40 @@
+{{- /*
+The constraints (deployment/admission/constraints, a kustomize base): wave 1, once the templates are
+in. The zone's trusted repository prefixes are patched into the allowed-repositories constraint, the
+one value of the catalogue that is a zone fact. SkipDryRunOnMissingResource: a constraint whose kind
+Gatekeeper has not established yet is applied when it has, by the retry, instead of failing the dry-run.
+*/ -}}
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: admission-constraints
+  namespace: {{ .Values.argocd.namespace }}
+  labels:
+    {{- include "admgitops.labels" . | nindent 4 }}
+  annotations:
+    argocd.argoproj.io/sync-wave: "1"
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+spec:
+  project: ztd-admission
+  source:
+    repoURL: {{ .Values.git.repoURL | quote }}
+    targetRevision: {{ .Values.git.targetRevision | quote }}
+    path: deployment/admission/constraints
+    kustomize:
+      patches:
+        - target:
+            group: constraints.gatekeeper.sh
+            kind: K8sZtdAllowedRepositories
+            name: ztd-allowed-repositories
+          patch: |-
+            - op: replace
+              path: /spec/parameters/repositories
+              value: {{ toJson .Values.trust.repositories }}
+  destination:
+    server: {{ .Values.destination.server | quote }}
+    namespace: {{ .Values.gatekeeper.namespace | quote }}
+  syncPolicy:
+    {{- include "admgitops.syncPolicy" . | nindent 4 }}
+    syncOptions:
+      - SkipDryRunOnMissingResource=true

@@ -4,7 +4,7 @@
 # linux/amd64 only: it is what CI runs on. Images are pinned by digest in pins.env, not installed here.
 #
 #   scripts/tools/install.sh [dir] [tool...]      tools: cosign syft grype gator gatekeeper-chart kind kubectl
-#                                                  cilium-crds
+#                                                  cilium-crds argocd-chart oras
 #                                                  (default: all)
 set -euo pipefail
 
@@ -14,7 +14,7 @@ here="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 dir="${1:-.tools/bin}"
 shift || true
 tools=("$@")
-[ ${#tools[@]} -gt 0 ] || tools=(cosign syft grype gator gatekeeper-chart kind kubectl)
+[ ${#tools[@]} -gt 0 ] || tools=(cosign syft grype gator gatekeeper-chart kind kubectl cilium-crds argocd-chart oras)
 mkdir -p "$dir"
 work="$(mktemp -d)"
 trap 'rm -rf "$work"' EXIT
@@ -45,10 +45,20 @@ for tool in "${tools[@]}"; do
       tar -xzf "$work/gator.tgz" -C "$work" gator
       install -m 0755 "$work/gator" "$dir/gator"
       ;;
+    oras)
+      fetch "https://github.com/oras-project/oras/releases/download/v${ORAS_VERSION}/oras_${ORAS_VERSION}_linux_amd64.tar.gz" "$ORAS_SHA256" oras.tgz
+      tar -xzf "$work/oras.tgz" -C "$work" oras
+      install -m 0755 "$work/oras" "$dir/oras"
+      ;;
     gatekeeper-chart)
       # The chart archive, verified, for `helm install <dir>/gatekeeper-<version>.tgz`.
       fetch "https://open-policy-agent.github.io/gatekeeper/charts/gatekeeper-${GATEKEEPER_CHART_VERSION}.tgz" "$GATEKEEPER_CHART_SHA256" gatekeeper.tgz
       install -m 0644 "$work/gatekeeper.tgz" "$dir/gatekeeper-${GATEKEEPER_CHART_VERSION}.tgz"
+      ;;
+    argocd-chart)
+      # The chart archive, verified, for `helm install <dir>/argo-cd-<version>.tgz` (scripts/argocd/install.sh).
+      fetch "https://github.com/argoproj/argo-helm/releases/download/argo-cd-${ARGOCD_CHART_VERSION}/argo-cd-${ARGOCD_CHART_VERSION}.tgz" "$ARGOCD_CHART_SHA256" argocd.tgz
+      install -m 0644 "$work/argocd.tgz" "$dir/argo-cd-${ARGOCD_CHART_VERSION}.tgz"
       ;;
     kind)
       fetch "https://github.com/kubernetes-sigs/kind/releases/download/${KIND_VERSION}/kind-linux-amd64" "$KIND_SHA256" kind

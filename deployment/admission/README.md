@@ -49,16 +49,36 @@ helm install gatekeeper gatekeeper-$GATEKEEPER_CHART_VERSION.tgz -n gatekeeper-s
   --set postInstall.probeWebhook.enabled=false --post-renderer ztd-webhook-scope --wait
 helm install admission deployment/helm/admission -n gatekeeper-system -f <provider values>
 kubectl apply -f deployment/admission/templates/
-kubectl apply -f deployment/admission/exemptions.yaml -f deployment/admission/constraints/
+kubectl apply -f deployment/admission/exemptions.yaml
+kubectl apply -k deployment/admission/constraints
 ```
+
+`scripts/admission/install.sh` runs this order with the checks that prove each step, and substitutes the
+zone's trusted repository prefix into the allowed-repositories constraint. From then on the policy is
+kept equal to Git by the reconciler in [deployment/argocd](../argocd/README.md): a merged change to the
+templates, the exemptions or the constraints reaches the cluster without a manual step, and a
+hand-edited constraint is put back.
 
 **Break-glass:** delete the `gatekeeper-validating-webhook-configuration` ValidatingWebhookConfiguration,
 then `helm uninstall gatekeeper -n gatekeeper-system`.
+
+## Publish
+
+The same three paths — `templates/`, `constraints/`, `exemptions.yaml` — are also published as one
+signed OCI artefact, the tarball package ZT-37 asks for, by `.github/workflows/policy-publish.yml`
+on every change merged to `main` (`scripts/supplychain/policy-package.sh` and `policy-publish.sh`;
+see [Policy package](../../docs/ci-cd.md#policy-package)). The package carries the files as they are
+here, the zone's repository prefix included as the catalogue names it: the consumer patches its own
+in, as the reconciler does from Git.
 
 ## Tests
 
 - `gator verify deployment/admission` — the constraints that need only the object
   ([suite.yaml](suite.yaml)); the `gator` job in CI.
+- `scripts/supplychain/policy-package_test.sh` — the package holds these files and nothing else, is
+  the same bytes from any checkout, and against a local registry is one layer, signed and verified,
+  the same digest when published again, with a tampered package published to the same tag by another
+  key left uncovered by the trusted signature; the `policy-package` job in CI.
 - `scripts/admission/kind-e2e.sh` — the whole catalogue in a real Gatekeeper on kind, with the
   provider and a local registry of test images signed with the release script and an ephemeral key:
   signed (admitted and Running), unsigned, untrusted key, mutable tag, each attestation missing,
