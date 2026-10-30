@@ -10,6 +10,9 @@
 //	token-store migrate status         report the database against the embedded migrations, as JSON
 //	token-store acquire --route NAME   acquire and activate one upstream token for a route (D10)
 //	token-store sweep-orphans          delete upstream token values that have no row and are older than 10 min
+//	token-store keys ensure            register the store's signing key: its latest transit version and thumbprint
+//	token-store keys rotate            move the store to the next key version and retire the previous one
+//	token-store keys status            list the registered key versions, as JSON
 //
 // The connection URL comes from --database-url or TOKEN_STORE_DATABASE_URL and is never logged;
 // the key-value store's URL from --openbao-url or TOKEN_STORE_OPENBAO_URL. Exit codes: 0 done or
@@ -47,6 +50,9 @@ const usage = `usage:
   token-store migrate status          report the database against the embedded migrations, as JSON
   token-store acquire --route NAME    acquire and activate one upstream token for the route; prints its id, never the token
   token-store sweep-orphans           delete upstream token values without a row, older than 10 min
+  token-store keys ensure             register the store's signing key (created in transit if missing); prints its reference and thumbprint
+  token-store keys rotate             next key version in transit, previous one retired with its tokens; transit signs with nothing older
+  token-store keys status             the registered key versions and transit's latest, as JSON
 
 flags of serve (each defaults to the TOKEN_STORE_* variable of the same name):
   --addr ADDR                   API listener (default :8080)
@@ -65,7 +71,7 @@ flags of every migrate command:
   --database-url URL   PostgreSQL connection URL (default: $TOKEN_STORE_DATABASE_URL)
   --timeout DURATION   deadline for the whole run, lock wait included (default 1m)
 
-flags of acquire and sweep-orphans (each defaults to the TOKEN_STORE_* variable named):
+flags of acquire, sweep-orphans and the keys commands (each defaults to the TOKEN_STORE_* variable named):
   --database-url URL          PostgreSQL connection URL ($TOKEN_STORE_DATABASE_URL)
   --openbao-url URL           OpenBao URL, http(s)://host[:port] ($TOKEN_STORE_OPENBAO_URL)
   --openbao-token-file PATH   file holding the OpenBao token, read on every call ($TOKEN_STORE_OPENBAO_TOKEN_FILE)
@@ -91,6 +97,8 @@ func run(args []string, stdout, stderr io.Writer) int {
 		return migrate(args[1:], stdout, stderr)
 	case "acquire", "sweep-orphans":
 		return acquireCmd(args[0], args[1:], stdout, stderr)
+	case "keys":
+		return keysCmd(args[1:], stdout, stderr)
 	case "help", "-h", "--help":
 		_, _ = fmt.Fprint(stdout, usage)
 		return exitOK

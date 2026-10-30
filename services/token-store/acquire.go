@@ -16,6 +16,7 @@ import (
 
 	"github.com/eclipse-xfsc/facis-zero-trust-demonstrator/internal/transit"
 	"github.com/eclipse-xfsc/facis-zero-trust-demonstrator/services/token-store/internal/acquire"
+	"github.com/eclipse-xfsc/facis-zero-trust-demonstrator/services/token-store/internal/keys"
 )
 
 type acquireOptions struct {
@@ -23,8 +24,9 @@ type acquireOptions struct {
 	timeout                                                      time.Duration
 }
 
-// parseAcquire reads the flags of acquire (sweep is true for sweep-orphans, which takes no route).
-// As for serve, the environment fills in after parsing, so no value is ever in the usage text.
+// parseAcquire reads the flags of acquire (sweep is true for sweep-orphans and the keys commands,
+// which take no route). As for serve, the environment fills in after parsing, so no value is ever
+// in the usage text.
 func parseAcquire(name string, sweep bool, args []string, env func(string) string, stderr io.Writer) (acquireOptions, error) {
 	var o acquireOptions
 	fs := flag.NewFlagSet("token-store "+name, flag.ContinueOnError)
@@ -70,6 +72,41 @@ func parseAcquire(name string, sweep bool, args []string, env func(string) strin
 	return o, nil
 }
 
+// store is what a one-shot command opens: the acquisition configuration, the transit client
+// reading the token file on every call, and the connection pool. what names the step that failed,
+// for the record; the error itself never carries a URL or a token.
+type store struct {
+	cfg  acquire.Loaded
+	tc   *transit.Client
+	pool *pgxpool.Pool
+	what string
+}
+
+func openStore(ctx context.Context, o acquireOptions) (store, error) {
+	var st store
+	cfg, err := acquire.LoadConfig(o.configFile)
+	if err != nil {
+		st.what = "loading the acquisition config"
+		return st, err
+	}
+	tokenFile := o.openBaoTokenFile
+	tc, err := transit.New(transit.Config{Addr: o.openBaoURL, Token: func(context.Context) (string, error) {
+		b, err := os.ReadFile(tokenFile)
+		return strings.TrimSpace(string(b)), err
+	}})
+	if err != nil {
+		st.what = "OpenBao client"
+		return st, err
+	}
+	pool, err := pgxpool.New(ctx, o.databaseURL)
+	if err != nil {
+		// pgx redacts the password of a URL it cannot parse; the message still stays generic.
+		st.what = "invalid database configuration"
+		return st, errors.New("the database URL could not be parsed")
+	}
+	return store{cfg: cfg, tc: tc, pool: pool}, nil
+}
+
 // acquireCmd runs acquire --route NAME, or sweep-orphans, once. acquire prints the activated
 // token's id and expiry as JSON, never the token.
 func acquireCmd(name string, args []string, stdout, stderr io.Writer) int {
@@ -85,33 +122,22 @@ func acquireCmd(name string, args []string, stdout, stderr io.Writer) int {
 	log := slog.New(slog.NewJSONHandler(stderr, nil)).With("service", "token-store")
 	ctx, cancel := context.WithTimeout(context.Background(), o.timeout)
 	defer cancel()
-
-	cfg, err := acquire.LoadConfig(o.configFile)
+	st, err := openStore(ctx, o)
 	if err != nil {
-		log.ErrorContext(ctx, "loading the acquisition config", "err", err)
+		log.ErrorContext(ctx, st.what, "err", err)
 		return exitFailed
 	}
+	defer st.pool.Close()
+	cfg, tc, pool := st.cfg, st.tc, st.pool
 	route, ok := cfg.Routes[o.route]
 	if !sweep && !ok {
 		log.ErrorContext(ctx, "no such route", "route", o.route)
 		return exitUsage
 	}
-	tokenFile := o.openBaoTokenFile
-	tc, err := transit.New(transit.Config{Addr: o.openBaoURL, Token: func(context.Context) (string, error) {
-		b, err := os.ReadFile(tokenFile)
-		return strings.TrimSpace(string(b)), err
-	}})
-	if err != nil {
-		log.ErrorContext(ctx, "OpenBao client", "err", err)
-		return exitFailed
-	}
-	pool, err := pgxpool.New(ctx, o.databaseURL)
-	if err != nil {
-		log.ErrorContext(ctx, "invalid database configuration")
-		return exitFailed
-	}
-	defer pool.Close()
-	a := &acquire.Acquirer{DB: pool, Signer: tc, Secrets: tc, KeyName: cfg.SigningKey, Trusted: cfg.Trusted, Log: log, Prefix: cfg.KVPrefix}
+	// As the service, acquire signs through a signer that never creates a key: a missing key is
+	// reported (keys ensure registers one), never made on the way to a grant.
+	a := &acquire.Acquirer{DB: pool, Signer: keys.ReadOnly{Lister: tc}, Secrets: tc, KeyName: cfg.SigningKey,
+		Trusted: cfg.Trusted, Log: log, Prefix: cfg.KVPrefix}
 
 	if sweep {
 		n, err := a.SweepOrphans(ctx)
