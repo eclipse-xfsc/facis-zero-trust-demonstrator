@@ -60,6 +60,7 @@ Direct dependencies of the Go module. Transitive dependencies are listed in the 
 | `github.com/cucumber/gherkin/go/v42` | v42.0.0 | MIT | parses the feature files for the Annex verbatim check (`cmd/bddpack`) |
 | `github.com/cucumber/messages/go/v34` | v34.2.0 | MIT | the Gherkin document model used with it |
 | `github.com/santhosh-tekuri/jsonschema/v6` | v6.0.3 | Apache-2.0 | validates SBOMs and mock attestations against their JSON Schemas at admission |
+| `github.com/jackc/pgx/v5` | v5.11.0 | MIT | PostgreSQL driver of the token store: the schema migrations today (`services/token-store`), the service's queries as they land |
 
 The admission check validates SBOMs against the official CycloneDX 1.5, 1.6 and 1.7 JSON Schemas and
 the schemas they reference (CycloneDX specification tag 1.7.2, Apache-2.0), vendored in
@@ -103,15 +104,6 @@ The JavaScript packages above are pinned by exact version with integrity hashes 
 | OpenBao | 2.7.0 (test service) | MPL-2.0 | token-store integration tests only; its use in the demonstrator is the declared licence exception |
 | OpenBao (Helm chart `openbao`) | chart 0.28.3, server v2.5.4 | MPL-2.0 | the umbrella's X.509 key-value store when a zone turns it on ([Secrets](secrets.md)); covered by the declared licence exception |
 | Docker Distribution registry | 2.8.3 (test service) | Apache-2.0 | a local registry for signing and verification tests in CI |
-
-## Go dependencies being added
-
-Added to the Go module together with the code that uses them; each goes through the licence gate like any
-other dependency.
-
-| Dependency | Version | Licence | Purpose |
-|---|---|---|---|
-| `github.com/jackc/pgx/v5` | v5.11.0 | MIT | PostgreSQL driver of the token store |
 
 The admission provider talks to OCI registries through a small first-party client built on the Go
 standard library rather than a general-purpose registry library, to keep its dependency set minimal.

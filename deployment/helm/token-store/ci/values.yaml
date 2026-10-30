@@ -1,0 +1,8 @@
+# Renders the chart in CI: a placeholder digest and the name of the Secret the lifecycle proof
+# creates before the install; never deployed as is.
+image:
+  digest: sha256:0000000000000000000000000000000000000000000000000000000000000000
+database:
+  existingSecret: token-store-database
+schema:
+  dropOnUninstall: true

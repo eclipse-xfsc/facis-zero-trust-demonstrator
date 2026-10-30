@@ -29,6 +29,7 @@ nav:
   - Keycloak integration: keycloak.md
   - Identity model: identity-model.md
   - Connector OAuth2 provider: oauth2-provider.md
+  - Token store: token-store.md
   - API documentation: api-docs.md
   - Interface contracts: contracts/index.md
   - TRAIN trust-list publishing: tspa-publish-api.md
