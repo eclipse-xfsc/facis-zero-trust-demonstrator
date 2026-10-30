@@ -1,0 +1,3 @@
+2026-10-30T11:48:41.314Z atls-probe: listening on 127.0.0.1:34621 through cmcd 127.0.0.1:54301, expecting spiffe://b/gateway
+time="2026-10-30T11:48:41Z" level=warning msg="atls handshake failed: verifier 127.0.0.1:34621: failed to attest 127.0.0.1:55544: attestation report verification failed" service=atls
+2026-10-30T11:48:41.522Z atls-probe: session 0 refused (ErrBindingMismatch): atls: attestation report not bound to this TLS session: the peer's report nonce does not match this TLS session's channel binding

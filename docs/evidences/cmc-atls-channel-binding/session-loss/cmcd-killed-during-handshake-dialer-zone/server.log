@@ -1,0 +1,9 @@
+2026-10-30T11:49:33.669Z atls-probe: listening on 127.0.0.1:37954 through cmcd 127.0.0.1:21243, expecting spiffe://b/gateway
+time="2026-10-30T11:49:33Z" level=info msg="Server-side aTLS connection complete" service=atls
+2026-10-30T11:49:33.840Z atls-probe: session 0 established with 127.0.0.1:37782: binding 96fe2be1523460b8d837f89c8bfe25e77649fed38a1e7b526a5a4b839c85e389, peer 4323e574ad7d863d2bab68507e7e45ab217d8e38c9b604f44bd4c8d423caa6dc, verdict success, valid until 2026-10-30T12:04:33Z
+time="2026-10-30T11:49:38Z" level=warning msg="atls handshake failed: verifier: failed to receive atls handshake response from 127.0.0.1:37790: failed to read response: failed to receive message: no length: read tcp 127.0.0.1:37954->127.0.0.1:37790: read: connection reset by peer" service=atls
+2026-10-30T11:49:38.392Z atls-probe: session 1 refused (ErrPeerAborted): atls: peer left before the attestation exchange completed: the peer left without completing the attestation exchange: atls handshake failed: 127.0.0.1:37954: failed to send handshake complete to 127.0.0.1:37790: failed to send: failed to write length to 127.0.0.1:37790: write tcp 127.0.0.1:37954->127.0.0.1:37790: write: broken pipe
+time="2026-10-30T11:49:38Z" level=info msg="Server-side aTLS connection complete" service=atls
+2026-10-30T11:49:38.764Z atls-probe: session 2 established with 127.0.0.1:47872: binding d95ae5ce64445936a5e01b9ea05988f6e35251af4aaf3d86772a56a8119ac2d9, peer 4323e574ad7d863d2bab68507e7e45ab217d8e38c9b604f44bd4c8d423caa6dc, verdict success, valid until 2026-10-30T12:04:38Z
+2026-10-30T11:49:38.766Z atls-probe: session 2 ended (peer-closed): read failed after 2ms: EOF
+2026-10-30T11:49:40.935Z atls-probe: session 0 ended (peer-closed): read failed after 7.095s: EOF

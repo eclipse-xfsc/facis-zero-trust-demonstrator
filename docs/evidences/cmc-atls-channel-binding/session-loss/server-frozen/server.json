@@ -1,0 +1,119 @@
+{
+  "schema": "atls-probe-record/v1",
+  "mode": "server",
+  "role": "listener",
+  "identities": [
+    "spiffe://a/gateway",
+    "localhost"
+  ],
+  "cert_fingerprint": "2beb34be8ebdc882d2de0dc58879fb758b6fce2a065d4147f4fcb4c601cb9aae",
+  "expected_peer_identity": "spiffe://b/gateway",
+  "cmcd_addr": "127.0.0.1:21243",
+  "listen_addr": "127.0.0.1:59583",
+  "hold_ms": 600000,
+  "interval_ms": 1000,
+  "started_at": "2026-10-30T11:49:41.197339095Z",
+  "started_at_unix_ms": 1793360981197,
+  "finished_at": "2026-10-30T11:50:07.350126253Z",
+  "exit_code": 0,
+  "outcome": "established",
+  "local_addr": "127.0.0.1:59583",
+  "peer_addr": "127.0.0.1:40836",
+  "established_at": "2026-10-30T11:49:41.423959057Z",
+  "established_at_unix_ms": 1793360981423,
+  "binding": "6b71a93d0ade1be75d1bff1bb4fe23d3ce7a0afa8a1aa686ae85d6e3860f88dd",
+  "binding_bytes": 32,
+  "peer_fingerprint": "4323e574ad7d863d2bab68507e7e45ab217d8e38c9b604f44bd4c8d423caa6dc",
+  "verdict": "success",
+  "attested_at": "2026-10-30T11:49:41.418411523Z",
+  "evidence_not_after": "2026-10-30T12:49:02Z",
+  "valid_until": "2026-10-30T12:04:41.418411523Z",
+  "ended_at": "2026-10-30T11:50:07.321921109Z",
+  "ended_at_unix_ms": 1793361007321,
+  "ended": "peer-closed",
+  "error": {
+    "op": "read",
+    "message": "EOF",
+    "kind": "transport",
+    "transport": "eof",
+    "detected_at": "2026-10-30T11:50:07.321903923Z",
+    "detected_at_unix_ms": 1793361007321,
+    "since_established_ms": 25896,
+    "since_last_peer_heartbeat_ms": 740
+  },
+  "heartbeats": {
+    "sent": 8,
+    "received": 26,
+    "last_received_at": "2026-10-30T11:50:06.581787784Z",
+    "last_received_at_unix_ms": 1793361006581,
+    "max_gap_ms": 19906
+  },
+  "application_bytes_sent": 208,
+  "application_bytes_received": 693,
+  "further_sessions": [
+    {
+      "outcome": "refused",
+      "local_addr": "127.0.0.1:59583",
+      "peer_addr": "127.0.0.1:38190",
+      "refusal": {
+        "sentinel": "ErrPlainTLS",
+        "message": "atls: peer does not speak attested TLS 1.3: the TLS 1.3 handshake failed: TLS handshake failed: EOF"
+      },
+      "refused_at": "2026-10-30T11:50:03.430858439Z",
+      "refused_at_unix_ms": 1793361003430,
+      "ended_at": "2026-10-30T11:50:03.430858439Z",
+      "ended_at_unix_ms": 1793361003430,
+      "ended": "refused",
+      "heartbeats": {
+        "sent": 0,
+        "received": 0,
+        "max_gap_ms": 0
+      },
+      "application_bytes_sent": 0,
+      "application_bytes_received": 0
+    },
+    {
+      "outcome": "established",
+      "local_addr": "127.0.0.1:59583",
+      "peer_addr": "127.0.0.1:38200",
+      "established_at": "2026-10-30T11:50:07.024359419Z",
+      "established_at_unix_ms": 1793361007024,
+      "binding": "02089c3f3508609c307c06f4ee74f311a62c3e759277a50e038b725d0a43a600",
+      "binding_bytes": 32,
+      "peer_fingerprint": "4323e574ad7d863d2bab68507e7e45ab217d8e38c9b604f44bd4c8d423caa6dc",
+      "verdict": "success",
+      "attested_at": "2026-10-30T11:50:06.888991659Z",
+      "evidence_not_after": "2026-10-30T12:49:02Z",
+      "valid_until": "2026-10-30T12:05:06.888991659Z",
+      "ended_at": "2026-10-30T11:50:07.039324563Z",
+      "ended_at_unix_ms": 1793361007039,
+      "ended": "peer-closed",
+      "error": {
+        "op": "read",
+        "message": "EOF",
+        "kind": "transport",
+        "transport": "eof",
+        "detected_at": "2026-10-30T11:50:07.039315078Z",
+        "detected_at_unix_ms": 1793361007039,
+        "since_established_ms": 1,
+        "since_last_peer_heartbeat_ms": 0
+      },
+      "heartbeats": {
+        "sent": 1,
+        "received": 1,
+        "last_received_at": "2026-10-30T11:50:07.038366128Z",
+        "last_received_at_unix_ms": 1793361007038,
+        "max_gap_ms": 0
+      },
+      "application_bytes_sent": 26,
+      "application_bytes_received": 26
+    }
+  ],
+  "environment": {
+    "commit": "1b1a7495e99030445ae30e392d63c911e9de3588",
+    "dirty": false,
+    "go_version": "go1.27.0",
+    "cmc_version": "v0.9.15",
+    "platform": "linux/amd64"
+  }
+}

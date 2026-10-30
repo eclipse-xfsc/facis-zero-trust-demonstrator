@@ -1,0 +1,9 @@
+2026-10-30T11:49:25.794Z atls-probe: listening on 127.0.0.1:20588 through cmcd 127.0.0.1:21243, expecting spiffe://b/gateway
+time="2026-10-30T11:49:25Z" level=info msg="Server-side aTLS connection complete" service=atls
+2026-10-30T11:49:25.925Z atls-probe: session 0 established with 127.0.0.1:38374: binding 210ac88efbbb4866468068fb58d5c656b55c8cc21279f939aa20182f39d985f1, peer 4323e574ad7d863d2bab68507e7e45ab217d8e38c9b604f44bd4c8d423caa6dc, verdict success, valid until 2026-10-30T12:04:25Z
+time="2026-10-30T11:49:30Z" level=warning msg="atls handshake failed: failed to fetch peer cache: failed to fetch peer cache: rpc error: code = Unavailable desc = connection error: desc = \"error reading server preface: connection reset by peer\"" service=atls
+2026-10-30T11:49:30.373Z atls-probe: session 1 refused (ErrAttesterUnavailable): atls: local attester unavailable: the local attester could not be reached or failed: atls handshake failed: 127.0.0.1:20588: attestation with peer 127.0.0.1:47822 failed: failed to fetch peer cache: failed to fetch peer cache: rpc error: code = Unavailable desc = connection error: desc = "error reading server preface: connection reset by peer"
+time="2026-10-30T11:49:30Z" level=info msg="Server-side aTLS connection complete" service=atls
+2026-10-30T11:49:30.886Z atls-probe: session 2 established with 127.0.0.1:47830: binding a671bbe940b4bf47765055cfc00eae5dc6b08b224b993e46b5fc09c6d376708b, peer 4323e574ad7d863d2bab68507e7e45ab217d8e38c9b604f44bd4c8d423caa6dc, verdict success, valid until 2026-10-30T12:04:30Z
+2026-10-30T11:49:30.919Z atls-probe: session 2 ended (peer-closed): read failed after 33ms: EOF
+2026-10-30T11:49:33.268Z atls-probe: session 0 ended (peer-closed): read failed after 7.342s: EOF

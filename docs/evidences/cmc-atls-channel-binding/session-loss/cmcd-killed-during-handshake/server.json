@@ -1,0 +1,119 @@
+{
+  "schema": "atls-probe-record/v1",
+  "mode": "server",
+  "role": "listener",
+  "identities": [
+    "spiffe://a/gateway",
+    "localhost"
+  ],
+  "cert_fingerprint": "2beb34be8ebdc882d2de0dc58879fb758b6fce2a065d4147f4fcb4c601cb9aae",
+  "expected_peer_identity": "spiffe://b/gateway",
+  "cmcd_addr": "127.0.0.1:21243",
+  "listen_addr": "127.0.0.1:20588",
+  "hold_ms": 600000,
+  "interval_ms": 1000,
+  "started_at": "2026-10-30T11:49:25.791471036Z",
+  "started_at_unix_ms": 1793360965791,
+  "finished_at": "2026-10-30T11:49:33.41402648Z",
+  "exit_code": 0,
+  "outcome": "established",
+  "local_addr": "127.0.0.1:20588",
+  "peer_addr": "127.0.0.1:38374",
+  "established_at": "2026-10-30T11:49:25.925312058Z",
+  "established_at_unix_ms": 1793360965925,
+  "binding": "210ac88efbbb4866468068fb58d5c656b55c8cc21279f939aa20182f39d985f1",
+  "binding_bytes": 32,
+  "peer_fingerprint": "4323e574ad7d863d2bab68507e7e45ab217d8e38c9b604f44bd4c8d423caa6dc",
+  "verdict": "success",
+  "attested_at": "2026-10-30T11:49:25.922205107Z",
+  "evidence_not_after": "2026-10-30T12:49:02Z",
+  "valid_until": "2026-10-30T12:04:25.922205107Z",
+  "ended_at": "2026-10-30T11:49:33.26891071Z",
+  "ended_at_unix_ms": 1793360973268,
+  "ended": "peer-closed",
+  "error": {
+    "op": "read",
+    "message": "EOF",
+    "kind": "transport",
+    "transport": "eof",
+    "detected_at": "2026-10-30T11:49:33.268864682Z",
+    "detected_at_unix_ms": 1793360973268,
+    "since_established_ms": 7342,
+    "since_last_peer_heartbeat_ms": 336
+  },
+  "heartbeats": {
+    "sent": 8,
+    "received": 8,
+    "last_received_at": "2026-10-30T11:49:32.932620151Z",
+    "last_received_at_unix_ms": 1793360972932,
+    "max_gap_ms": 1009
+  },
+  "application_bytes_sent": 208,
+  "application_bytes_received": 208,
+  "further_sessions": [
+    {
+      "outcome": "refused",
+      "local_addr": "127.0.0.1:20588",
+      "peer_addr": "127.0.0.1:47822",
+      "refusal": {
+        "sentinel": "ErrAttesterUnavailable",
+        "message": "atls: local attester unavailable: the local attester could not be reached or failed: atls handshake failed: 127.0.0.1:20588: attestation with peer 127.0.0.1:47822 failed: failed to fetch peer cache: failed to fetch peer cache: rpc error: code = Unavailable desc = connection error: desc = \"error reading server preface: connection reset by peer\""
+      },
+      "refused_at": "2026-10-30T11:49:30.373254892Z",
+      "refused_at_unix_ms": 1793360970373,
+      "ended_at": "2026-10-30T11:49:30.373254892Z",
+      "ended_at_unix_ms": 1793360970373,
+      "ended": "refused",
+      "heartbeats": {
+        "sent": 0,
+        "received": 0,
+        "max_gap_ms": 0
+      },
+      "application_bytes_sent": 0,
+      "application_bytes_received": 0
+    },
+    {
+      "outcome": "established",
+      "local_addr": "127.0.0.1:20588",
+      "peer_addr": "127.0.0.1:47830",
+      "established_at": "2026-10-30T11:49:30.886052123Z",
+      "established_at_unix_ms": 1793360970886,
+      "binding": "a671bbe940b4bf47765055cfc00eae5dc6b08b224b993e46b5fc09c6d376708b",
+      "binding_bytes": 32,
+      "peer_fingerprint": "4323e574ad7d863d2bab68507e7e45ab217d8e38c9b604f44bd4c8d423caa6dc",
+      "verdict": "success",
+      "attested_at": "2026-10-30T11:49:30.88349134Z",
+      "evidence_not_after": "2026-10-30T12:49:02Z",
+      "valid_until": "2026-10-30T12:04:30.88349134Z",
+      "ended_at": "2026-10-30T11:49:30.919831321Z",
+      "ended_at_unix_ms": 1793360970919,
+      "ended": "peer-closed",
+      "error": {
+        "op": "read",
+        "message": "EOF",
+        "kind": "transport",
+        "transport": "eof",
+        "detected_at": "2026-10-30T11:49:30.919816138Z",
+        "detected_at_unix_ms": 1793360970919,
+        "since_established_ms": 32,
+        "since_last_peer_heartbeat_ms": 0
+      },
+      "heartbeats": {
+        "sent": 1,
+        "received": 1,
+        "last_received_at": "2026-10-30T11:49:30.919689869Z",
+        "last_received_at_unix_ms": 1793360970919,
+        "max_gap_ms": 32
+      },
+      "application_bytes_sent": 26,
+      "application_bytes_received": 26
+    }
+  ],
+  "environment": {
+    "commit": "1b1a7495e99030445ae30e392d63c911e9de3588",
+    "dirty": false,
+    "go_version": "go1.27.0",
+    "cmc_version": "v0.9.15",
+    "platform": "linux/amd64"
+  }
+}

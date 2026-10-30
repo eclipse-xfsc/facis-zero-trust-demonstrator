@@ -40,6 +40,7 @@ its reasons, the requirements it answers, and what would reopen it.
 
 | ADR | Decision |
 |---|---|
+| [0010](0010-session-attestation-through-cmcd.md) | Session attestation through `cmcd` — pinned CMC behind the `internal/atls` interface |
 | [0011](0011-mock-tee-evidence-format-and-provisioning.md) | Mock TEE evidence — format, release artefact, and provisioning |
 
 ## Format

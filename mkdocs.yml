@@ -31,6 +31,7 @@ nav:
   - Connector OAuth2 provider: oauth2-provider.md
   - API documentation: api-docs.md
   - Interface contracts: contracts/index.md
+  - Attested channel control: attested-channel.md
   - TRAIN trust-list publishing: tspa-publish-api.md
   - BDD acceptance:
       - Harness and pack: bdd.md
@@ -49,6 +50,7 @@ nav:
       - 0003 OAuth2 surface in the Go connector: adr/0003-oauth2-authorisation-surface-in-the-go-connector.md
       - 0004 OpenBao as X.509 key-value store: adr/0004-openbao-as-x509-key-value-store.md
       - 0005 Three-cluster target environment: adr/0005-three-cluster-reading-of-the-target-environment.md
+      - 0010 Session attestation through cmcd: adr/0010-session-attestation-through-cmcd.md
       - 0011 Mock TEE evidence: adr/0011-mock-tee-evidence-format-and-provisioning.md
 
 markdown_extensions:

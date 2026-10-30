@@ -1,0 +1,9 @@
+2026-10-30T11:49:14.331Z atls-probe: listening on 127.0.0.1:28879 through cmcd 127.0.0.1:21243, expecting spiffe://b/gateway
+time="2026-10-30T11:49:14Z" level=info msg="Server-side aTLS connection complete" service=atls
+2026-10-30T11:49:14.531Z atls-probe: session 0 established with 127.0.0.1:42492: binding 8e05aa16d0210cfece19b799a551c3da1fca45ebadbc2f2dcd39c5cc1c4d7d19, peer 4323e574ad7d863d2bab68507e7e45ab217d8e38c9b604f44bd4c8d423caa6dc, verdict success, valid until 2026-10-30T12:04:14Z
+time="2026-10-30T11:49:25Z" level=warning msg="atls handshake failed: failed to fetch peer cache: failed to fetch peer cache: rpc error: code = Unavailable desc = connection error: desc = \"transport: Error while dialing: dial tcp 127.0.0.1:21243: connect: connection refused\"" service=atls
+2026-10-30T11:49:25.218Z atls-probe: session 1 refused (ErrAttesterUnavailable): atls: local attester unavailable: the local attester could not be reached or failed: atls handshake failed: 127.0.0.1:28879: attestation with peer 127.0.0.1:37574 failed: failed to fetch peer cache: failed to fetch peer cache: rpc error: code = Unavailable desc = connection error: desc = "transport: Error while dialing: dial tcp 127.0.0.1:21243: connect: connection refused"
+time="2026-10-30T11:49:25Z" level=info msg="Server-side aTLS connection complete" service=atls
+2026-10-30T11:49:25.524Z atls-probe: session 2 established with 127.0.0.1:37584: binding 0099eefc5fc85f26cbf15f42da8dd1ae19b0fa675cf4c621d074ab7678be5f30, peer 4323e574ad7d863d2bab68507e7e45ab217d8e38c9b604f44bd4c8d423caa6dc, verdict success, valid until 2026-10-30T12:04:25Z
+2026-10-30T11:49:25.525Z atls-probe: session 2 ended (peer-closed): read failed after 1ms: EOF
+2026-10-30T11:49:25.603Z atls-probe: session 0 ended (peer-closed): read failed after 11.053s: EOF

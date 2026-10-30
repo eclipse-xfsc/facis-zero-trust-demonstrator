@@ -1,0 +1,45 @@
+{
+  "schema": "atls-probe-record/v1",
+  "mode": "server",
+  "role": "listener",
+  "identities": [
+    "spiffe://a/gateway",
+    "localhost"
+  ],
+  "cert_fingerprint": "8f8264cb5b4670fcec450d798f0e1ed9a78dfefe0448591855b2fb70a62c27e5",
+  "expected_peer_identity": "spiffe://b/gateway",
+  "cmcd_addr": "127.0.0.1:54301",
+  "listen_addr": "127.0.0.1:34621",
+  "hold_ms": 0,
+  "interval_ms": 1000,
+  "started_at": "2026-10-30T11:48:41.313664769Z",
+  "started_at_unix_ms": 1793360921313,
+  "finished_at": "2026-10-30T11:48:41.522465526Z",
+  "exit_code": 2,
+  "outcome": "refused",
+  "local_addr": "127.0.0.1:34621",
+  "peer_addr": "127.0.0.1:55544",
+  "refusal": {
+    "sentinel": "ErrBindingMismatch",
+    "message": "atls: attestation report not bound to this TLS session: the peer's report nonce does not match this TLS session's channel binding"
+  },
+  "refused_at": "2026-10-30T11:48:41.52203396Z",
+  "refused_at_unix_ms": 1793360921522,
+  "ended_at": "2026-10-30T11:48:41.52203396Z",
+  "ended_at_unix_ms": 1793360921522,
+  "ended": "refused",
+  "heartbeats": {
+    "sent": 0,
+    "received": 0,
+    "max_gap_ms": 0
+  },
+  "application_bytes_sent": 0,
+  "application_bytes_received": 0,
+  "environment": {
+    "commit": "1b1a7495e99030445ae30e392d63c911e9de3588",
+    "dirty": false,
+    "go_version": "go1.27.0",
+    "cmc_version": "v0.9.15",
+    "platform": "linux/amd64"
+  }
+}
