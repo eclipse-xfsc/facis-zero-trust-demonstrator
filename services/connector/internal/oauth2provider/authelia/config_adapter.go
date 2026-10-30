@@ -1,11 +1,15 @@
 package authelia
 
 import (
+	"context"
 	"errors"
+	"fmt"
+	"strings"
 	"time"
 
 	"authelia.com/provider/oauth2"
 	"authelia.com/provider/oauth2/handler/rfc7591"
+	"authelia.com/provider/oauth2/token/jwt"
 
 	"github.com/eclipse-xfsc/facis-zero-trust-demonstrator/services/connector/internal/oauth2provider"
 )
@@ -13,6 +17,7 @@ import (
 const (
 	minSecretLength            = 32
 	defaultAccessTokenLifespan = time.Hour
+	defaultSignedTokenLifespan = 5 * time.Minute
 	tokenEntropy               = 32
 )
 
@@ -33,12 +38,35 @@ func newLibraryConfig(cfg oauth2provider.Config) (*oauth2.Config, error) {
 		return nil, errors.New("oauth2provider: Config.Registration.EndpointURL is required")
 	}
 
+	for registrar, scopes := range cfg.Registration.DelegableScopes {
+		for _, scope := range scopes {
+			// Registration authority is never delegable: it would let registered clients register
+			// further clients.
+			if registrar == "" || scope == "" || strings.ContainsAny(scope, " \t") || scope == oauth2provider.RegistrationScope {
+				return nil, fmt.Errorf("oauth2provider: Config.Registration.DelegableScopes: %q cannot delegate scope %q", registrar, scope)
+			}
+		}
+	}
+
+	if cfg.AccessTokenSigner != nil {
+		if cfg.Issuer == "" {
+			return nil, errors.New("oauth2provider: Config.Issuer is required with Config.AccessTokenSigner")
+		}
+
+		if err := checkSigner(cfg.AccessTokenSigner); err != nil {
+			return nil, err
+		}
+	}
+
 	lifespan := cfg.AccessTokenLifespan
 	if lifespan <= 0 {
 		lifespan = defaultAccessTokenLifespan
+		if cfg.AccessTokenSigner != nil {
+			lifespan = defaultSignedTokenLifespan
+		}
 	}
 
-	return &oauth2.Config{
+	config := &oauth2.Config{
 		GlobalSecret:        cfg.Secret,
 		AccessTokenLifespan: lifespan,
 		TokenEntropy:        tokenEntropy,
@@ -63,5 +91,23 @@ func newLibraryConfig(cfg oauth2provider.Config) (*oauth2.Config, error) {
 		RFC7591ClientRegistrationScopes:            []string{oauth2provider.RegistrationScope},
 		RFC7591ClientRegistrationGrantTypes:        cfg.Registration.GrantTypes,
 		RFC7591ClientRegistrationStrategy:          rfc7591.NewDefaultClientRegistrationStrategy(),
-	}, nil
+	}
+
+	if cfg.AccessTokenSigner != nil {
+		config.AccessTokenIssuer = cfg.Issuer
+
+		// RFC 9068 section 2.2.3: scope is one space-separated string, which is what the
+		// resource-side verifier reads. The library's default is a JSON list.
+		config.JWTScopeClaimKey = jwt.JWTScopeFieldString
+	}
+
+	// Checked on the library's getters, so that its defaults for a zero
+	// lifespan or skew are counted as well.
+	ctx := context.Background()
+	if window := config.GetDPoPProofLifespan(ctx) + config.GetDPoPClockSkew(ctx); window > oauth2provider.MaxDPoPProofWindow {
+		return nil, fmt.Errorf("oauth2provider: Config.DPoP.ProofLifespan plus Config.DPoP.ClockSkew is %s, more than the %s a proof may stay acceptable",
+			window, oauth2provider.MaxDPoPProofWindow)
+	}
+
+	return config, nil
 }

@@ -1,0 +1,5 @@
+# The bootstrap registrar provisions Participants; provision a separate registrar for the store.
+oauth:
+  exclusiveAudiences: [https://guard.facis.invalid, https://resource.facis.invalid]
+  allowAudienceMigration: false
+  registrarAudiences: [http://ztd-connector:8080/oauth2/register, https://guard.facis.invalid]
