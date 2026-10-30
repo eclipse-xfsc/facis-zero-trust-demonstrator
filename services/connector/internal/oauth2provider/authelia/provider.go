@@ -23,8 +23,10 @@ import (
 
 const accessTokenPrefix = "connector_%s_"
 
-// Provider implements oauth2provider.Provider.
-type Provider struct {
+// provider implements oauth2provider.Provider. It is unexported: callers
+// hold the contract interface, so the library it is built on can never be
+// reached through this package's API.
+type provider struct {
 	config   *oauth2.Config
 	store    *storeAdapter
 	strategy *hoauth2.HMACCoreStrategy
@@ -32,10 +34,10 @@ type Provider struct {
 	lib      oauth2.Provider
 }
 
-var _ oauth2provider.Provider = (*Provider)(nil)
+var _ oauth2provider.Provider = (*provider)(nil)
 
 // New returns a Provider backed by the given stores.
-func New(cfg oauth2provider.Config, stores oauth2provider.Stores) (*Provider, error) {
+func New(cfg oauth2provider.Config, stores oauth2provider.Stores) (oauth2provider.Provider, error) {
 	if stores.Clients == nil || stores.AccessTokens == nil || stores.RegistrationTokens == nil ||
 		stores.DPoPNonces == nil || stores.DPoPReplay == nil {
 		return nil, errors.New("oauth2provider: every store in Stores is required")
@@ -46,7 +48,7 @@ func New(cfg oauth2provider.Config, stores oauth2provider.Stores) (*Provider, er
 		return nil, err
 	}
 
-	store := &storeAdapter{stores: stores, strategy: config.RFC7591ClientRegistrationStrategy}
+	store := &storeAdapter{stores: stores, strategy: config.RFC7591ClientRegistrationStrategy, config: config}
 	strategy := hoauth2.NewHMACCoreStrategy(config, accessTokenPrefix)
 	dpop := rfc9449.NewDefaultStrategy(config, store)
 
@@ -60,11 +62,11 @@ func New(cfg oauth2provider.Config, stores oauth2provider.Stores) (*Provider, er
 
 	config.RFC7591ClientRegistrationEndpointAuthStrategy = rfc7591.NewDefaultEndpointAuthStrategy(config, store, strategy, strategy)
 
-	return &Provider{config: config, store: store, strategy: strategy, dpop: dpop, lib: lib}, nil
+	return &provider{config: config, store: store, strategy: strategy, dpop: dpop, lib: lib}, nil
 }
 
 // TokenHandler implements oauth2provider.Provider.
-func (p *Provider) TokenHandler() http.Handler {
+func (p *provider) TokenHandler() http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		ctx, outcome := withOutcome(r.Context())
 
@@ -91,7 +93,7 @@ func (p *Provider) TokenHandler() http.Handler {
 }
 
 // RegistrationHandler implements oauth2provider.Provider.
-func (p *Provider) RegistrationHandler() http.Handler {
+func (p *provider) RegistrationHandler() http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		ctx, outcome := withOutcome(r.Context())
 
@@ -120,7 +122,7 @@ func (p *Provider) RegistrationHandler() http.Handler {
 // ValidateResourceRequest implements oauth2provider.Provider. Only DPoP-bound
 // access tokens are accepted: a token without a key binding is refused, as
 // is a bound token presented under the Bearer scheme.
-func (p *Provider) ValidateResourceRequest(r *http.Request) (oauth2provider.ResourceAccess, error) {
+func (p *provider) ValidateResourceRequest(r *http.Request) (oauth2provider.ResourceAccess, error) {
 	ctx, outcome := withOutcome(r.Context())
 
 	token, _ := rfc9449.AccessTokenFromRequest(r)
@@ -161,7 +163,7 @@ func (p *Provider) ValidateResourceRequest(r *http.Request) (oauth2provider.Reso
 // mismatch and a bad ath as the same invalid proof error, so the proof is
 // parsed once more here purely to tell them apart. Nothing is accepted on
 // the strength of this second look.
-func (p *Provider) resourceError(ctx context.Context, r *http.Request, token, bound string, err error, outcome *outcome) *oauth2provider.Error {
+func (p *provider) resourceError(ctx context.Context, r *http.Request, token, bound string, err error, outcome *outcome) *oauth2provider.Error {
 	code := classify(err, outcome)
 	refusal := oauth2provider.NewError(code, http.StatusUnauthorized, err)
 
@@ -190,7 +192,7 @@ func (p *Provider) resourceError(ctx context.Context, r *http.Request, token, bo
 	return refusal
 }
 
-func (p *Provider) proofAlgorithms(ctx context.Context) []jose.SignatureAlgorithm {
+func (p *provider) proofAlgorithms(ctx context.Context) []jose.SignatureAlgorithm {
 	names := p.config.GetDPoPAllowedJWSAlgorithms(ctx)
 	algorithms := make([]jose.SignatureAlgorithm, 0, len(names))
 

@@ -4,6 +4,7 @@ package memstore
 
 import (
 	"context"
+	"encoding/json"
 	"sync"
 	"time"
 
@@ -22,7 +23,7 @@ func New(now func() time.Time) oauth2provider.Stores {
 		AccessTokens:       &tokenStore{tokens: map[string]oauth2provider.TokenRecord{}},
 		RegistrationTokens: &tokenStore{tokens: map[string]oauth2provider.TokenRecord{}},
 		DPoPNonces:         &expiringSet{now: now, entries: map[string]time.Time{}},
-		DPoPReplay:         &expiringSet{now: now, entries: map[string]time.Time{}},
+		DPoPReplay:         &replayStore{set: expiringSet{now: now, entries: map[string]time.Time{}}},
 	}
 }
 
@@ -113,7 +114,7 @@ func (s *tokenStore) DeleteToken(_ context.Context, signature string) error {
 	return nil
 }
 
-// expiringSet backs both the nonce store and the replay store.
+// expiringSet backs the nonce store and the replay store.
 type expiringSet struct {
 	mu      sync.Mutex
 	now     func() time.Time
@@ -139,20 +140,36 @@ func (s *expiringSet) IsNonceValid(_ context.Context, nonce string) (bool, error
 	return ok && s.now().Before(exp), nil
 }
 
-// MarkUsed checks and inserts under a single lock, which is what makes the
+// markUsed checks and inserts under a single lock, which is what makes the
 // replay check atomic.
-func (s *expiringSet) MarkUsed(_ context.Context, key string, exp time.Time) (bool, error) {
+func (s *expiringSet) markUsed(key string, exp time.Time) bool {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
 	if previous, ok := s.entries[key]; ok && s.now().Before(previous) {
-		return true, nil
+		return true
 	}
 
 	s.prune()
 	s.entries[key] = exp
 
-	return false, nil
+	return false
+}
+
+// replayStore keys a proof by every field that identifies it, the nonce
+// included, so a client can answer a nonce challenge by re-signing with the
+// same jti.
+type replayStore struct {
+	set expiringSet
+}
+
+func (s *replayStore) MarkUsed(_ context.Context, use oauth2provider.DPoPProofUse) (bool, error) {
+	key, err := json.Marshal([]string{use.Thumbprint, use.Method, use.URI, use.ID, use.Nonce})
+	if err != nil {
+		return false, err
+	}
+
+	return s.set.markUsed(string(key), use.NotAfter), nil
 }
 
 func (s *expiringSet) prune() {
