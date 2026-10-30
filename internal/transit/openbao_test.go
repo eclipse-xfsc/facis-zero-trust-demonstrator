@@ -166,3 +166,50 @@ func TestOpenBaoSecrets(t *testing.T) {
 	_ = c.Delete(ctx, a)
 	_ = c.Delete(ctx, b)
 }
+
+// Rotation through the client, then a minimum signing version: transit refuses the older version
+// for signing while its public key stays readable, so what it signed can still be verified.
+func TestOpenBaoMinSigningVersionRefusesOlderVersions(t *testing.T) {
+	c, raw := realClient(t)
+	ctx := context.Background()
+	name := unique("p3-rot-")
+	v1, err := c.EnsureKey(ctx, name)
+	if err != nil {
+		t.Fatal(err)
+	}
+	pub1, err := c.PublicKey(ctx, v1)
+	if err != nil {
+		t.Fatal(err)
+	}
+	v2, err := c.Rotate(ctx, name)
+	if err != nil || v2 != (KeyVersion{Name: name, Version: 2}) {
+		t.Fatalf("rotate: %+v %v", v2, err)
+	}
+	if latest, err := c.LatestKey(ctx, name); err != nil || latest != v2 {
+		t.Fatalf("latest after rotate: %+v %v", latest, err)
+	}
+	if err := c.SetMinSigningVersion(ctx, name, 2); err != nil {
+		t.Fatal(err)
+	}
+	input := []byte("eyJhbGciOiJFUzI1NiJ9.eyJzdWIiOiJ4In0")
+	// OpenBao reports the refusal as an error status (500 in 2.7.0, with "less than the minimum
+	// encryption key version" in the body); what matters is that no signature comes back.
+	var se *StatusError
+	if _, err := c.Sign(ctx, v1, input); !errors.As(err, &se) || se.Status < 400 {
+		t.Fatalf("signing with the retired version: %v", err)
+	}
+	sig, err := c.Sign(ctx, v2, input)
+	pub2, perr := c.PublicKey(ctx, v2)
+	if err != nil || perr != nil || !verify(pub2, input, sig) {
+		t.Fatalf("sign v2: %v %v", err, perr)
+	}
+	if again, err := c.PublicKey(ctx, v1); err != nil || !again.Equal(pub1) {
+		t.Fatalf("the retired version's public key must stay readable: %v", err)
+	}
+	if info, err := c.readKey(ctx, "test", name); err != nil || info.MinEncryptionVersion != 2 {
+		t.Fatalf("min_encryption_version: %+v %v", info, err)
+	}
+	if s := raw(http.MethodGet, "/v1/transit/export/signing-key/"+name, ""); s < 400 {
+		t.Fatalf("export answered %d", s)
+	}
+}

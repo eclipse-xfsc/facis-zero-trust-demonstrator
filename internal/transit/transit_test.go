@@ -163,6 +163,60 @@ func TestPublicKey(t *testing.T) {
 	if _, err := c.PublicKey(ctx, KeyVersion{Name: "k", Version: 1}); err == nil {
 		t.Fatal("symmetric key accepted")
 	}
+	// A key that became exportable is refused on this path too, not only by LatestKey.
+	answer = keyAnswer("ecdsa-p256", true, map[string]string{"1": pemOf(t, elliptic.P256())})
+	if _, err := c.PublicKey(ctx, KeyVersion{Name: "k", Version: 1}); !errors.Is(err, ErrUnsupportedKey) {
+		t.Fatalf("exportable key: %v, want ErrUnsupportedKey", err)
+	}
+}
+
+// KeyStatus reads the latest version and the signing floor; SetMinSigningVersion only raises it.
+func TestKeyStatusAndTheFloorOnlyRises(t *testing.T) {
+	configs := 0
+	c := newTestClient(t, func(w http.ResponseWriter, r *http.Request) {
+		switch {
+		case r.Method == http.MethodGet && r.URL.Path == "/v1/transit/keys/k":
+			_, _ = io.WriteString(w, `{"data":{"type":"ecdsa-p256","exportable":false,"allow_plaintext_backup":false,"latest_version":3,"min_encryption_version":2,"keys":{"3":{"public_key":"x"}}}}`)
+		case r.Method == http.MethodPost && r.URL.Path == "/v1/transit/keys/k/config":
+			configs++
+			w.WriteHeader(http.StatusNoContent)
+		default:
+			t.Errorf("unexpected request %s %s", r.Method, r.URL.Path)
+		}
+	})
+	ctx := context.Background()
+	latest, floor, err := c.KeyStatus(ctx, "k")
+	if err != nil || latest != (KeyVersion{Name: "k", Version: 3}) || floor != 2 {
+		t.Fatalf("status: %+v %d %v", latest, floor, err)
+	}
+	if err := c.SetMinSigningVersion(ctx, "k", 2); err != nil || configs != 0 {
+		t.Fatalf("a floor already at 2: %v, %d config writes", err, configs)
+	}
+	if err := c.SetMinSigningVersion(ctx, "k", 1); err != nil || configs != 0 {
+		t.Fatalf("a lower floor: %v, %d config writes; the floor never drops", err, configs)
+	}
+	if err := c.SetMinSigningVersion(ctx, "k", 3); err != nil || configs != 1 {
+		t.Fatalf("raising the floor: %v, %d config writes", err, configs)
+	}
+}
+
+// A token source that fails or yields nothing is ErrTokenSource, without its own text.
+func TestTokenSourceFailuresAreTyped(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) { w.WriteHeader(http.StatusOK) }))
+	t.Cleanup(srv.Close)
+	for name, src := range map[string]TokenSource{
+		"failing": func(context.Context) (string, error) { return "", errors.New(canarySecret) },
+		"empty":   staticToken(""),
+	} {
+		c, err := New(Config{Addr: srv.URL, Token: src})
+		if err != nil {
+			t.Fatal(err)
+		}
+		_, err = c.LatestKey(context.Background(), "k")
+		if !errors.Is(err, ErrTokenSource) || strings.Contains(err.Error(), canarySecret) {
+			t.Errorf("%s token source: %v", name, err)
+		}
+	}
 }
 
 func TestEnsureKeyRejectsForeignKey(t *testing.T) {
@@ -347,5 +401,82 @@ func TestTokenPerCall(t *testing.T) {
 	failing, _ := New(Config{Addr: srv.URL, Token: func(context.Context) (string, error) { return "", errors.New("no auth") }})
 	if _, err := failing.List(context.Background(), "a"); err == nil {
 		t.Fatal("token failure ignored")
+	}
+}
+
+func TestRotateAndMinSigningVersionRequests(t *testing.T) {
+	versions := map[string]string{"1": "x"}
+	var configBody map[string]any
+	c := newTestClient(t, func(w http.ResponseWriter, r *http.Request) {
+		switch {
+		case r.Method == http.MethodPost && r.URL.Path == "/v1/transit/keys/k/rotate":
+			versions["2"] = "y"
+			w.WriteHeader(http.StatusNoContent)
+		case r.Method == http.MethodPost && r.URL.Path == "/v1/transit/keys/k/config":
+			_ = json.NewDecoder(r.Body).Decode(&configBody)
+			w.WriteHeader(http.StatusNoContent)
+		case r.Method == http.MethodGet && r.URL.Path == "/v1/transit/keys/k":
+			_, _ = io.WriteString(w, keyAnswer("ecdsa-p256", false, versions))
+		default:
+			t.Errorf("unexpected request %s %s", r.Method, r.URL.Path)
+			w.WriteHeader(http.StatusTeapot)
+		}
+	})
+	ctx := context.Background()
+	kv, err := c.Rotate(ctx, "k")
+	if err != nil || kv != (KeyVersion{Name: "k", Version: 2}) {
+		t.Fatalf("rotate: %+v %v", kv, err)
+	}
+	if err := c.SetMinSigningVersion(ctx, "k", 2); err != nil {
+		t.Fatal(err)
+	}
+	if fmt.Sprint(configBody) != fmt.Sprint(map[string]any{"min_encryption_version": float64(2)}) {
+		t.Errorf("config body %v", configBody)
+	}
+	if err := c.SetMinSigningVersion(ctx, "k", 0); err == nil {
+		t.Error("minimum version 0 accepted")
+	}
+	if _, err := c.Rotate(ctx, "../k"); err == nil {
+		t.Error("invalid name accepted")
+	}
+}
+
+// An answer outside 2xx is a StatusError naming the operation and the status, nothing of the
+// body; a 404 still matches ErrNotFound; a key of another kind is ErrUnsupportedKey.
+func TestStatusErrorsAreTyped(t *testing.T) {
+	status := http.StatusForbidden
+	c := newTestClient(t, func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(status)
+		_, _ = fmt.Fprintf(w, `{"errors":["permission denied for %s"]}`, canarySecret)
+	})
+	ctx := context.Background()
+	_, err := c.EnsureKey(ctx, "k")
+	var se *StatusError
+	if !errors.As(err, &se) || se.Status != http.StatusForbidden || se.Op != "ensure key" {
+		t.Fatalf("403: %v", err)
+	}
+	if errors.Is(err, ErrNotFound) || strings.Contains(err.Error(), canarySecret) {
+		t.Fatalf("403: %v", err)
+	}
+	status = http.StatusNotFound
+	_, err = c.LatestKey(ctx, "k")
+	if !errors.Is(err, ErrNotFound) || !errors.As(err, &se) || se.Status != http.StatusNotFound {
+		t.Fatalf("404: %v", err)
+	}
+	status = http.StatusBadGateway
+	if err := c.SetMinSigningVersion(ctx, "k", 2); !errors.As(err, &se) || se.Status != http.StatusBadGateway {
+		t.Fatalf("502: %v", err)
+	}
+	for name, answer := range map[string]string{
+		"exportable": keyAnswer("ecdsa-p256", true, map[string]string{"1": "x"}),
+		"other type": keyAnswer("ecdsa-p384", false, map[string]string{"1": "x"}),
+	} {
+		c := newTestClient(t, func(w http.ResponseWriter, r *http.Request) { _, _ = io.WriteString(w, answer) })
+		if _, err := c.LatestKey(ctx, "k"); !errors.Is(err, ErrUnsupportedKey) {
+			t.Errorf("%s: %v", name, err)
+		}
+		if _, err := c.Rotate(ctx, "k"); !errors.Is(err, ErrUnsupportedKey) {
+			t.Errorf("%s after rotate: %v", name, err)
+		}
 	}
 }

@@ -80,7 +80,18 @@ var (
 	ErrExists          = errors.New("transit: secret exists")
 	ErrNotFound        = errors.New("transit: not found")
 	ErrVersionMismatch = errors.New("transit: signed with another key version")
+	// ErrUnsupportedKey is an existing key that is not what this package creates: another type,
+	// exportable, or with a plaintext backup allowed. It is never used, whatever its versions.
+	ErrUnsupportedKey = errors.New("transit: key is not a non-exportable ecdsa-p256 key")
+	// ErrTokenSource is a token source that failed or yielded nothing: the token file is missing,
+	// unreadable or empty. The source's own error is never wrapped.
+	ErrTokenSource = errors.New("transit: token source failed")
 )
+
+// ValidName reports whether n is a key name this package accepts: 1 to 128 characters from
+// [A-Za-z0-9._-], safe in a URL path and in a Ref. Configuration readers call it so a bad name
+// is refused when the configuration is read, not at the first request.
+func ValidName(n string) error { return validName(n) }
 
 // Client implements Signer and Secrets.
 type Client struct{ cfg Config }
@@ -158,12 +169,14 @@ func (c *Client) PublicKey(ctx context.Context, key KeyVersion) (*ecdsa.PublicKe
 	if err != nil {
 		return nil, err
 	}
-	if info.Type != keyType {
-		return nil, errors.New("transit: public key: not an ecdsa-p256 key")
+	// The same acceptance as every other reader: a key that became exportable is never used,
+	// not even for the public half the signing path resolves.
+	if err := info.accept("public key"); err != nil {
+		return nil, err
 	}
 	raw, ok := info.Keys[strconv.Itoa(key.Version)]
 	if !ok {
-		return nil, fmt.Errorf("transit: public key: %w", ErrNotFound)
+		return nil, &StatusError{Op: "public key", Status: http.StatusNotFound}
 	}
 	var v struct {
 		PublicKey string `json:"public_key"`
@@ -192,10 +205,72 @@ func (c *Client) LatestKey(ctx context.Context, name string) (KeyVersion, error)
 	if err != nil {
 		return KeyVersion{}, err
 	}
-	if info.Type != keyType || info.Exportable || info.AllowPlaintextBackup || info.LatestVersion < 1 {
-		return KeyVersion{}, errors.New("transit: latest key: existing key is not a non-exportable ecdsa-p256 key")
+	if err := info.accept("latest key"); err != nil {
+		return KeyVersion{}, err
 	}
 	return KeyVersion{Name: name, Version: info.LatestVersion}, nil
+}
+
+// KeyStatus is the key's latest version and its signing floor (min_encryption_version: transit
+// signs with no version below it; 0 before the first rotation). Read-only, with the same
+// acceptance as LatestKey.
+func (c *Client) KeyStatus(ctx context.Context, name string) (latest KeyVersion, floor int, err error) {
+	if err := validName(name); err != nil {
+		return KeyVersion{}, 0, err
+	}
+	info, err := c.readKey(ctx, "key status", name)
+	if err != nil {
+		return KeyVersion{}, 0, err
+	}
+	if err := info.accept("key status"); err != nil {
+		return KeyVersion{}, 0, err
+	}
+	return KeyVersion{Name: name, Version: info.LatestVersion}, info.MinEncryptionVersion, nil
+}
+
+// Rotate has transit create the next version of the key and returns it. Older versions stay:
+// their public keys remain readable and, until SetMinSigningVersion raises the floor, they still
+// sign. It is an operator's call (token-store keys rotate), never the service's.
+func (c *Client) Rotate(ctx context.Context, name string) (KeyVersion, error) {
+	if err := validName(name); err != nil {
+		return KeyVersion{}, err
+	}
+	if _, err := c.do(ctx, "rotate", http.MethodPost, c.transitPath("keys", name)+"/rotate", nil, nil); err != nil {
+		return KeyVersion{}, err
+	}
+	info, err := c.readKey(ctx, "rotate", name)
+	if err != nil {
+		return KeyVersion{}, err
+	}
+	if err := info.accept("rotate"); err != nil {
+		return KeyVersion{}, err
+	}
+	return KeyVersion{Name: name, Version: info.LatestVersion}, nil
+}
+
+// SetMinSigningVersion makes transit refuse to sign with any version below v (its
+// min_encryption_version, which governs encryption, signing and HMACs alike; OpenBao answers such
+// a request with an error status and no signature). It only ever raises the floor: a floor already
+// at or above v is left alone, so two rotations that overlap cannot lower it. Verification and the
+// public keys of older versions are untouched: min_decryption_version stays where it was, so what
+// a retired version signed can still be attributed.
+func (c *Client) SetMinSigningVersion(ctx context.Context, name string, v int) error {
+	if err := validName(name); err != nil {
+		return err
+	}
+	if v < 1 {
+		return errors.New("transit: minimum signing version must be 1 or more")
+	}
+	info, err := c.readKey(ctx, "key config", name)
+	if err != nil {
+		return err
+	}
+	if info.MinEncryptionVersion >= v {
+		return nil
+	}
+	body := map[string]any{"min_encryption_version": v}
+	_, err = c.do(ctx, "key config", http.MethodPost, c.transitPath("keys", name)+"/config", body, nil)
+	return err
 }
 
 func (c *Client) EnsureKey(ctx context.Context, name string) (KeyVersion, error) {
@@ -213,9 +288,8 @@ func (c *Client) EnsureKey(ctx context.Context, name string) (KeyVersion, error)
 	if err != nil {
 		return KeyVersion{}, err
 	}
-	// An existing key is accepted only if it is what this package would have created.
-	if info.Type != keyType || info.Exportable || info.AllowPlaintextBackup || info.LatestVersion < 1 {
-		return KeyVersion{}, errors.New("transit: ensure key: existing key is not a non-exportable ecdsa-p256 key")
+	if err := info.accept("ensure key"); err != nil {
+		return KeyVersion{}, err
 	}
 	return KeyVersion{Name: name, Version: info.LatestVersion}, nil
 }
