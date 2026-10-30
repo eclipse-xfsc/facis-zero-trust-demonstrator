@@ -1,0 +1,8 @@
+{
+  "expires": "2026-12-18",
+  "reason": "The HIGH/CRITICAL findings are packages of the Debian 12 base for which Debian's security tracker records no fix (statuses affected, fix_deferred and will_not_fix: 84 on 2026-10-20, none with a fixed version). The image needs Debian for NSD and for the ldns Python binding the zone manager signs with, which the upstream's own base lacks; nothing this project adds is excluded, and a finding that gains a fix stays under the gate.",
+  "tracking": "Confirmation of the exception by FACIS, the client, requested on 2026-10-20. Re-count at every move of the base digest; remove this file when the gate ignores unfixed findings as policy for every image, or when the image moves to a base whose security database only lists fixed findings.",
+  "skipDirs": [],
+  "skipFiles": [],
+  "ignoreUnfixed": true
+}

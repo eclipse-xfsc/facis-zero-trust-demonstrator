@@ -1,0 +1,112 @@
+{{- /*
+After install and upgrade, once the Deployment is ready, a hook Job (band "platform" of the umbrella's
+hook-weight scheme) reads the DS of the served key-signing key off the DNS Service and writes it into
+a ConfigMap. The DS is otherwise printed once, at the zone's first start, into a log nobody keeps.
+The Job runs with the keeper image, a service account that may write that one ConfigMap, and needs
+the management plane's egress lane to the Kubernetes API (networkPolicy.kubeApi of the umbrella).
+*/ -}}
+{{- if .Values.dsRecord.enabled }}
+{{- $name := printf "%s-record-ds" (include "tzm.name" .) }}
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: {{ $name }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "tzm.labels" . | nindent 4 }}
+  annotations:
+    {{- include "tzm.hook.annotations" . | nindent 4 }}
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: {{ $name }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "tzm.labels" . | nindent 4 }}
+  annotations:
+    {{- include "tzm.hook.annotations" . | nindent 4 }}
+rules:
+  - apiGroups: [""]
+    resources: ["configmaps"]
+    verbs: ["create"]
+  - apiGroups: [""]
+    resources: ["configmaps"]
+    resourceNames: [{{ .Values.dsRecord.configMap | quote }}]
+    verbs: ["get", "update"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: {{ $name }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "tzm.labels" . | nindent 4 }}
+  annotations:
+    {{- include "tzm.hook.annotations" . | nindent 4 }}
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: {{ $name }}
+subjects:
+  - kind: ServiceAccount
+    name: {{ $name }}
+    namespace: {{ .Release.Namespace }}
+---
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: {{ $name }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "tzm.labels" . | nindent 4 }}
+  annotations:
+    {{- include "tzm.hook.annotations" . | nindent 4 }}
+spec:
+  backoffLimit: 0
+  ttlSecondsAfterFinished: 3600
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: {{ $name }}
+        app.kubernetes.io/instance: {{ .Release.Name }}
+        {{- if .Values.mesh.optOut }}
+        istio.io/dataplane-mode: none
+        {{- end }}
+      {{- if .Values.mesh.optOut }}
+      annotations:
+        sidecar.istio.io/inject: "false"
+      {{- end }}
+    spec:
+      serviceAccountName: {{ $name }}
+      restartPolicy: Never
+      securityContext:
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: record-ds
+          image: {{ include "tzm.image" . | quote }}
+          imagePullPolicy: IfNotPresent
+          command: ["zone-keeper", "record-ds"]
+          env:
+            - name: TF_DOMAIN_NAME
+              value: {{ .Values.zone.name | quote }}
+            - name: DNS_SERVICE
+              value: {{ printf "%s-dns" (include "tzm.name" .) | quote }}
+            - name: DS_CONFIGMAP
+              value: {{ .Values.dsRecord.configMap | quote }}
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: [ALL]
+          volumeMounts:
+            - name: auth
+              mountPath: /usr/lib/zonemgr/auth.conf
+              subPath: auth.conf
+              readOnly: true
+      volumes:
+        - name: auth
+          secret:
+            secretName: {{ include "tzm.name" . }}-auth
+{{- end }}

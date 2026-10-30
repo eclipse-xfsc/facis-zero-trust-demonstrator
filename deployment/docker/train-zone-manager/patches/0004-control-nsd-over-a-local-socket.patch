@@ -1,0 +1,22 @@
+diff --git a/script.sh b/script.sh
+index 49b46f5..49ace81 100644
+--- a/script.sh
++++ b/script.sh
+@@ -23,15 +23,11 @@ server:
+ EOF
+ mv /tmp/server.conf /etc/nsd/nsd.conf.d/server.conf
+ 
++# A local socket: nothing listens on the network for control, and no key pair is needed.
+ cat > /tmp/remote.conf << EOF
+ remote-control:
+     control-enable: yes
+-    control-interface: 0.0.0.0
+-    control-port: 8952
+-    server-key-file: "/etc/nsd/nsd_server.key"
+-    server-cert-file: "/etc/nsd/nsd_server.pem"
+-    control-key-file: "/etc/nsd/nsd_control.key"
+-    control-cert-file: "/etc/nsd/nsd_control.pem"
++    control-interface: /run/nsd/nsd.ctl
+ EOF
+ mv /tmp/remote.conf /etc/nsd/nsd.conf.d/remote.conf
+ 

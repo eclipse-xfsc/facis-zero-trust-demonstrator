@@ -1,0 +1,75 @@
+{{- if .Values.networkPolicy.enabled }}
+---
+# DNS to the world: port 53, UDP and TCP, from any address, to the zone manager pod only. Under the
+# umbrella's default deny this is the one ingress the namespace gains. The API port is not here.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: {{ include "tzm.name" . }}-dns-ingress
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "tzm.labels" . | nindent 4 }}
+  annotations:
+    ztd.facis.io/allow-matrix: world-to-train-dns
+    ztd.facis.io/enforced-by: networkPolicy
+spec:
+  podSelector:
+    matchLabels:
+      {{- include "tzm.selector" . | nindent 6 }}
+  policyTypes: [Ingress]
+  ingress:
+    - from:
+        - ipBlock: { cidr: 0.0.0.0/0 }
+        - ipBlock: { cidr: "::/0" }
+      ports:
+        - { port: 53, protocol: UDP }
+        - { port: 53, protocol: TCP }
+{{- if .Values.networkPolicy.cilium }}
+---
+# Cilium does not match cluster nodes by address: a query that a LoadBalancer or NodePort lands on
+# another node arrives source-translated to that node's address and is dropped by the ipBlock above.
+# This admits the same two ports from the world and from the node entities; the union of the two
+# policies is what applies.
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: {{ include "tzm.name" . }}-dns-ingress
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "tzm.labels" . | nindent 4 }}
+spec:
+  endpointSelector:
+    matchLabels:
+      {{- include "tzm.selector" . | nindent 6 }}
+  ingress:
+    - fromEntities: [world, remote-node, host]
+      toPorts:
+        - ports:
+            - { port: "53", protocol: UDP }
+            - { port: "53", protocol: TCP }
+{{- end }}
+{{- if .Values.networkPolicy.issuerEgress.cidrs }}
+---
+# The API verifies bearer tokens against the OIDC issuer; when the issuer is outside the plane this
+# opens egress to it, and to nothing else.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: {{ include "tzm.name" . }}-issuer-egress
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "tzm.labels" . | nindent 4 }}
+spec:
+  podSelector:
+    matchLabels:
+      {{- include "tzm.selector" . | nindent 6 }}
+  policyTypes: [Egress]
+  egress:
+    - to:
+        {{- range .Values.networkPolicy.issuerEgress.cidrs }}
+        - ipBlock: { cidr: {{ . | quote }} }
+        {{- end }}
+      ports:
+        - { port: {{ .Values.networkPolicy.issuerEgress.port }}, protocol: TCP }
+{{- end }}
+{{- end }}
