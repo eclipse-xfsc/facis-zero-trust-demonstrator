@@ -7,16 +7,32 @@ import (
 	"context"
 	"crypto/ecdsa"
 	"crypto/elliptic"
-	"crypto/sha256"
-	"encoding/base64"
 	"errors"
 	"fmt"
 
+	"github.com/eclipse-xfsc/facis-zero-trust-demonstrator/internal/jose"
 	"github.com/eclipse-xfsc/facis-zero-trust-demonstrator/internal/transit"
 )
 
 // ErrMismatch is returned by Check when the referenced key is not the one the thumbprint names.
 var ErrMismatch = errors.New("keys: key reference does not match the thumbprint")
+
+// Lister reads a key's latest version and signing floor without creating it.
+type Lister interface {
+	transit.Signer
+	LatestKey(ctx context.Context, name string) (transit.KeyVersion, error)
+	KeyStatus(ctx context.Context, name string) (latest transit.KeyVersion, floor int, err error)
+}
+
+// ReadOnly is a Signer that never creates a key: EnsureKey reads the latest version instead. The
+// service and the acquire command sign through it, so a deleted or missing key is reported, never
+// replaced; only token-store keys ensure|rotate hold a client that may create or rotate.
+type ReadOnly struct{ Lister }
+
+// EnsureKey reads the latest version; a missing key is transit.ErrNotFound.
+func (r ReadOnly) EnsureKey(ctx context.Context, name string) (transit.KeyVersion, error) {
+	return r.LatestKey(ctx, name)
+}
 
 // Keys manages the zone's signing key, Name, through Signer.
 type Keys struct {
@@ -66,20 +82,11 @@ func (k Keys) thumbprint(ctx context.Context, kv transit.KeyVersion) (string, er
 	return Thumbprint(pub)
 }
 
-// Thumbprint is the RFC 7638 SHA-256 thumbprint of a P-256 public key, base64url without padding.
-//
-// A local copy until internal/jose is implemented; swap for jose.PublicJWK(pub).Thumbprint() then.
+// Thumbprint is the RFC 7638 SHA-256 thumbprint of a P-256 public key, base64url without padding:
+// the one encoding, internal/jose's, that rows, proofs and tokens are bound with.
 func Thumbprint(pub *ecdsa.PublicKey) (string, error) {
 	if pub == nil || pub.Curve != elliptic.P256() {
 		return "", errors.New("keys: not a P-256 public key")
 	}
-	b, err := pub.Bytes() // 0x04 || X || Y, each 32 bytes for P-256
-	if err != nil || len(b) != 65 {
-		return "", errors.New("keys: not a P-256 public key")
-	}
-	enc := base64.RawURLEncoding.EncodeToString
-	// Members in lexicographic order, no whitespace, as RFC 7638 section 3 requires.
-	canon := `{"crv":"P-256","kty":"EC","x":"` + enc(b[1:33]) + `","y":"` + enc(b[33:]) + `"}`
-	sum := sha256.Sum256([]byte(canon))
-	return enc(sum[:]), nil
+	return jose.PublicJWK(pub).Thumbprint()
 }

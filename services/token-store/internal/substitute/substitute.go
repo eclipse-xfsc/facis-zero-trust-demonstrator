@@ -231,8 +231,8 @@ func (s *Service) acquireOnDemand(ctx context.Context, req Request) (live, error
 // acquisitionFailed maps a failed acquisition to the contract: TOK-NO-UPSTREAM when the peer side
 // definitively gave no token (it refused the grant or the outcome, issued none it would answer for,
 // could not be reached, or the outcome source had none), TOK-STORE-UNAVAILABLE when the store's own
-// dependencies failed (database, transit, KV, activation) or the caller's deadline ended it, and for
-// anything not known to be the peer's answer.
+// dependencies failed (database, transit, KV, activation, a key retired during the grant) or the
+// caller's deadline ended it, and for anything not known to be the peer's answer.
 func (s *Service) acquisitionFailed(ctx context.Context, route string, err error) error {
 	code := ""
 	var e *acquire.Error

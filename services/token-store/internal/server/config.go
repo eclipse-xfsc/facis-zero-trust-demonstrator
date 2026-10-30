@@ -52,6 +52,8 @@ type Config struct {
 type OpenBao interface {
 	transit.Signer
 	LatestKey(context.Context, string) (transit.KeyVersion, error)
+	// KeyStatus is the key's latest version and its signing floor (transit's min_encryption_version).
+	KeyStatus(context.Context, string) (latest transit.KeyVersion, floor int, err error)
 	transit.Secrets
 }
 

@@ -17,6 +17,7 @@ import (
 	"net/url"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -35,6 +36,7 @@ import (
 	"github.com/eclipse-xfsc/facis-zero-trust-demonstrator/internal/tokenverify"
 	"github.com/eclipse-xfsc/facis-zero-trust-demonstrator/internal/transit"
 	"github.com/eclipse-xfsc/facis-zero-trust-demonstrator/services/token-store/internal/acquire/acquiretest"
+	"github.com/eclipse-xfsc/facis-zero-trust-demonstrator/services/token-store/internal/keys"
 	"github.com/eclipse-xfsc/facis-zero-trust-demonstrator/services/token-store/internal/testsupport"
 )
 
@@ -136,6 +138,7 @@ func (s *secrets) Create(ctx context.Context, path string, value []byte) error {
 }
 
 type env struct {
+	token   string // the test's own OpenBao token, a canary for the records
 	dsnA    string
 	t       *testing.T
 	ctx     context.Context
@@ -175,7 +178,10 @@ func newEnv(t *testing.T) *env {
 		t.Fatal(err)
 	}
 	t.Cleanup(poolB.Close)
-	kv, err := transit.New(transit.Config{Addr: addr, Token: func(context.Context) (string, error) { return token, nil }})
+	// The acquirer gets a token of its own, minted from the test token: a long random value that
+	// the canary test can look for in the records, which the two-letter CI token is not.
+	own := mintToken(t, addr, token)
+	kv, err := transit.New(transit.Config{Addr: addr, Token: func(context.Context) (string, error) { return own, nil }})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -187,7 +193,7 @@ func newEnv(t *testing.T) *env {
 	if err := os.WriteFile(secretFile, []byte(secret+"\n"), 0o600); err != nil {
 		t.Fatal(err)
 	}
-	e := &env{dsnA: dsnA, t: t, ctx: ctx, poolA: poolA, poolB: poolB, kv: kv, hook: &hook{}, clock: &clock{},
+	e := &env{token: own, dsnA: dsnA, t: t, ctx: ctx, poolA: poolA, poolB: poolB, kv: kv, hook: &hook{}, clock: &clock{},
 		logs: &testsupport.Buffer{}, issuer: issuer, bBase: bBase, secret: secret}
 	e.secrets = &secrets{Secrets: kv}
 	e.a = &Acquirer{
@@ -202,6 +208,30 @@ func newEnv(t *testing.T) *env {
 		ClientID: b.clientID, ClientSecretFile: secretFile,
 		Outcomes: Fixture{Issuer: vpIssuer, Kid: vpKid, Key: issuer, Claims: if03.Claims{Role: vpRole, Entitlement: vpEntitle}, Now: e.clock.Now}}
 	return e
+}
+
+// mintToken creates a child token of the test token with the same policies, so it is as able as
+// the test token and as random as any real credential. The test token must be allowed to create
+// child tokens (the default policy's auth/token/create; the dev root token in CI is).
+func mintToken(t *testing.T, addr, token string) string {
+	t.Helper()
+	req, _ := http.NewRequest(http.MethodPost, strings.TrimSuffix(addr, "/")+"/v1/auth/token/create",
+		strings.NewReader(`{"ttl":"30m","no_default_policy":false}`))
+	req.Header.Set("X-Vault-Token", token)
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		t.Fatal("minting a test token failed")
+	}
+	defer func() { _ = resp.Body.Close() }()
+	var out struct {
+		Auth struct {
+			ClientToken string `json:"client_token"`
+		} `json:"auth"`
+	}
+	if err := json.NewDecoder(resp.Body).Decode(&out); err != nil || len(out.Auth.ClientToken) < 24 {
+		t.Fatalf("minting a test token: status %d", resp.StatusCode)
+	}
+	return out.Auth.ClientToken
 }
 
 func (e *env) acquire() (Token, error) {
@@ -795,12 +825,23 @@ func TestCanaryNoCredentialInLogsErrorsOrAudit(t *testing.T) {
 	if len(needles) < 6 {
 		t.Fatalf("only %d canaries collected", len(needles))
 	}
+	// Key material and the OpenBao token are canaries too: the store's public key as transit
+	// returns it (PEM body) and as a JWK (its coordinates), and the token every call carries.
+	key, err := LoadKey(e.ctx, e.poolA, e.kv, e.a.KeyName)
+	if err != nil {
+		t.Fatal(err)
+	}
+	needles = append(needles, rawPublicKeyPEM(t, e.a.KeyName, 1), key.JWK().X, key.JWK().Y, e.token)
 	for _, n := range needles {
 		if n == "" {
 			continue
 		}
-		// Every credential is long and random; any 24-character piece of it would be a leak.
-		for i := 0; i+24 <= len(n); i += 24 {
+		// Every credential is long and random; any 24-character piece of it would be a leak. A
+		// needle too short for that would pass unsearched, so it is refused instead.
+		if len(n) < 24 {
+			t.Fatalf("a canary of %d characters cannot be searched safely", len(n))
+		}
+		for i := 0; i+24 <= len(n); i++ {
 			if strings.Contains(haystack, n[i:i+24]) {
 				t.Fatalf("a credential piece leaked into logs, errors or audit")
 			}
@@ -893,5 +934,406 @@ func TestAnUnknownCommitDoesNotOutliveTheCallersDeadline(t *testing.T) {
 				t.Errorf("the value of an unknown commit was not kept for the sweep: %v", err)
 			}
 		})
+	}
+}
+
+// rawPublicKeyPEM reads the PEM transit returns for version v of a key, as an operator would with
+// `bao read`, and returns its body without armour or line breaks: a canary for key material.
+func rawPublicKeyPEM(t *testing.T, name string, v int) string {
+	t.Helper()
+	req, _ := http.NewRequest(http.MethodGet, strings.TrimSuffix(os.Getenv("TRANSIT_TEST_ADDR"), "/")+"/v1/transit/keys/"+name, nil)
+	req.Header.Set("X-Vault-Token", os.Getenv("TRANSIT_TEST_TOKEN"))
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		t.Fatal("reading the key failed")
+	}
+	defer func() { _ = resp.Body.Close() }()
+	var out struct {
+		Data struct {
+			Keys map[string]struct {
+				PublicKey string `json:"public_key"`
+			} `json:"keys"`
+		} `json:"data"`
+	}
+	if err := json.NewDecoder(resp.Body).Decode(&out); err != nil {
+		t.Fatal(err)
+	}
+	var body strings.Builder
+	for _, line := range strings.Split(out.Data.Keys[strconv.Itoa(v)].PublicKey, "\n") {
+		if line != "" && !strings.HasPrefix(line, "-----") {
+			body.WriteString(line)
+		}
+	}
+	if body.Len() < 48 {
+		t.Fatalf("no PEM body for version %d of %s", v, name)
+	}
+	return body.String()
+}
+
+// rotateInDatabase is what token-store keys rotate records: the version in use retired, the new
+// one active, in one transaction.
+func (e *env) rotateInDatabase(oldRef string, kv transit.KeyVersion) {
+	e.t.Helper()
+	pub, err := e.kv.PublicKey(e.ctx, kv)
+	if err != nil {
+		e.t.Fatal(err)
+	}
+	jkt, err := keys.Thumbprint(pub)
+	if err != nil {
+		e.t.Fatal(err)
+	}
+	tx, err := e.poolA.Begin(context.Background())
+	if err != nil {
+		e.t.Fatal(err)
+	}
+	defer func() { _ = tx.Rollback(context.Background()) }()
+	if _, err := tx.Exec(context.Background(), `UPDATE signing_key SET state = 'retired', retired_at = now() WHERE key_ref = $1`, oldRef); err != nil {
+		e.t.Fatal(err)
+	}
+	if _, err := tx.Exec(context.Background(), `INSERT INTO signing_key (key_ref, jkt, alg, state) VALUES ($1, $2, 'ES256', 'active')`, kv.Ref(), jkt); err != nil {
+		e.t.Fatal(err)
+	}
+	if err := tx.Commit(context.Background()); err != nil {
+		e.t.Fatal(err)
+	}
+}
+
+// The active signing_key row decides which version mints. A rotation in transit alone changes
+// nothing; once keys rotate records it, the store signs with the new version and tokens bind to it.
+func TestLoadKeyFollowsTheActiveReferenceNotTransitLatest(t *testing.T) {
+	e := newEnv(t)
+	k1, err := LoadKey(e.ctx, e.poolA, e.kv, e.a.KeyName)
+	if err != nil {
+		t.Fatal(err)
+	}
+	v2, err := e.kv.Rotate(e.ctx, e.a.KeyName)
+	if err != nil || v2.Version != 2 {
+		t.Fatalf("rotate: %+v %v", v2, err)
+	}
+	again, err := LoadKey(e.ctx, e.poolA, e.kv, e.a.KeyName)
+	if err != nil || again.Ref() != k1.Ref() || again.JKT() != k1.JKT() {
+		t.Fatalf("after a transit rotation: %v %v; want the registered version %s", again, err, k1.Ref())
+	}
+	if n := count(t, e.poolA, `SELECT count(*) FROM signing_key WHERE state = 'active'`); n != 1 {
+		t.Fatalf("%d active rows after a transit rotation; want 1", n)
+	}
+	e.rotateInDatabase(k1.Ref(), v2)
+	k2, err := LoadKey(e.ctx, e.poolA, e.kv, e.a.KeyName)
+	if err != nil || k2.Ref() != v2.Ref() || k2.JKT() == k1.JKT() {
+		t.Fatalf("after keys rotate: %v %v; want %s", k2, err, v2.Ref())
+	}
+	tok := e.mustAcquire()
+	var ref string
+	if err := e.poolA.QueryRow(e.ctx, `SELECT key_ref FROM upstream_token WHERE token_id = $1`, tok.ID).Scan(&ref); err != nil || ref != v2.Ref() {
+		t.Fatalf("the new token is bound to %q, %v; want %s", ref, err, v2.Ref())
+	}
+}
+
+// A retired registered version, a malformed reference, or a key a read-only signer cannot find:
+// each is refused and nothing is created or repaired.
+func TestLoadKeyRefusesARetiredKey(t *testing.T) {
+	e := newEnv(t)
+	if _, err := LoadKey(e.ctx, e.poolA, e.kv, e.a.KeyName); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := e.poolA.Exec(e.ctx, `UPDATE signing_key SET state = 'retired', retired_at = now()`); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := LoadKey(e.ctx, e.poolA, e.kv, e.a.KeyName); !errors.Is(err, ErrKeyRetired) {
+		t.Fatalf("retired version: %v; want ErrKeyRetired", err)
+	}
+	if _, err := e.acquire(); err == nil {
+		t.Fatal("an acquisition minted with a retired key")
+	} else {
+		e.wantCode(err, CodeStore)
+	}
+	// Transit rotated meanwhile: still nothing is registered on the way to a grant; a key whose
+	// rows are all retired moves on only through keys rotate.
+	if _, err := e.kv.Rotate(e.ctx, e.a.KeyName); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := LoadKey(e.ctx, e.poolA, e.kv, e.a.KeyName); !errors.Is(err, ErrKeyRetired) {
+		t.Fatalf("retired rows with a newer transit version: %v; want ErrKeyRetired", err)
+	}
+	if n := count(t, e.poolA, `SELECT count(*) FROM signing_key WHERE state = 'active'`); n != 0 {
+		t.Fatalf("LoadKey registered %d active rows past retired ones", n)
+	}
+	readOnly := keys.ReadOnly{Lister: e.kv}
+	absent := "acq-ro-" + randHex(6)
+	if _, err := LoadKey(e.ctx, e.poolA, readOnly, absent); !errors.Is(err, transit.ErrNotFound) {
+		t.Fatalf("read-only signer, missing key: %v; want ErrNotFound", err)
+	}
+	if _, err := e.kv.LatestKey(e.ctx, absent); !errors.Is(err, transit.ErrNotFound) {
+		t.Fatalf("the read-only signer created the key: %v", err)
+	}
+	malformed := "acq-mal-" + randHex(6)
+	if _, err := e.poolA.Exec(e.ctx, `INSERT INTO signing_key (key_ref, jkt, alg, state) VALUES ($1, 'j', 'ES256', 'active')`,
+		"transit:"+malformed+":1"); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := LoadKey(e.ctx, e.poolA, e.kv, malformed); !errors.Is(err, ErrMalformedRef) {
+		t.Fatalf("malformed reference: %v; want ErrMalformedRef", err)
+	}
+	// The latest version's thumbprint registered under another reference: rows that contradict
+	// transit are a conflict, never repaired on the way to a grant.
+	conflict := "acq-conf-" + randHex(6)
+	kv, jkt, err := keys.Keys{Signer: e.kv, Name: conflict}.Ensure(e.ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := e.poolA.Exec(e.ctx, `INSERT INTO signing_key (key_ref, jkt, alg, state, retired_at) VALUES ($1, $2, 'ES256', 'retired', now())`,
+		"transit:elsewhere-"+randHex(4)+":v1", jkt); err != nil {
+		t.Fatal(err)
+	}
+	_, err = LoadKey(e.ctx, e.poolA, e.kv, conflict)
+	if !errors.Is(err, ErrKeyConflict) {
+		t.Fatalf("conflicting rows for %s: %v; want ErrKeyConflict", kv.Ref(), err)
+	}
+	if word, permanent := Reason(err); !permanent || word != ReasonMismatch {
+		t.Fatalf("Reason(conflict) = %s %v", word, permanent)
+	}
+}
+
+// Reason names every cause in the fixed vocabulary and tells a misconfiguration from an outage.
+func TestReasonWords(t *testing.T) {
+	for _, tc := range []struct {
+		err       error
+		word      string
+		permanent bool
+	}{
+		{keys.ErrMismatch, ReasonMismatch, true},
+		{ErrKeyConflict, ReasonMismatch, true},
+		{ErrMalformedRef, ReasonMalformed, true},
+		{ErrKeyRetired, ReasonRetired, true},
+		{transit.ErrUnsupportedKey, ReasonUnsupported, true},
+		{&transit.StatusError{Op: "x", Status: 404}, ReasonMissing, true},
+		{&transit.StatusError{Op: "x", Status: 403}, ReasonRefused, true},
+		{&transit.StatusError{Op: "x", Status: 429}, ReasonUnreachable, false},
+		{&transit.StatusError{Op: "x", Status: 503}, ReasonUnreachable, false},
+		{transit.ErrTokenSource, ReasonToken, false},
+		{&pgconn.PgError{Code: "42P01"}, ReasonDatabase, false},
+		{errors.New("dial tcp: connection refused"), ReasonUnreachable, false},
+		{context.DeadlineExceeded, ReasonUnreachable, false},
+	} {
+		if word, permanent := Reason(tc.err); word != tc.word || permanent != tc.permanent {
+			t.Errorf("Reason(%v) = %s %v; want %s %v", tc.err, word, permanent, tc.word, tc.permanent)
+		}
+	}
+}
+
+// The key is retired after the grant was sent and before the activation: the activation finds no
+// active row for the key it signed with, inserts nothing, deletes the value and audits
+// ACQ-KEY-RETIRED. The next acquisition signs with the new version.
+func TestActivationRefusesAKeyRetiredDuringTheGrant(t *testing.T) {
+	e := newEnv(t)
+	k1, err := LoadKey(e.ctx, e.poolA, e.kv, e.a.KeyName)
+	if err != nil {
+		t.Fatal(err)
+	}
+	v2, err := e.kv.Rotate(e.ctx, e.a.KeyName)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var once sync.Once
+	e.hook.set(func(h *hook) {
+		h.onResponse = func(b []byte) ([]byte, error) {
+			once.Do(func() { e.rotateInDatabase(k1.Ref(), v2) })
+			return b, nil
+		}
+	})
+	before := e.state()
+	_, err = e.acquire()
+	e.wantCode(err, CodeKeyRetired)
+	after := e.state()
+	if after.rows != before.rows || after.values != before.values {
+		t.Fatalf("state %+v -> %+v; want no row and no value", before, after)
+	}
+	if kind, code := e.lastAudit(); kind != "upstream.failed" || code != CodeKeyRetired {
+		t.Fatalf("audit %s %s", kind, code)
+	}
+	e.hook.set(func(h *hook) { h.onResponse = nil })
+	tok := e.mustAcquire()
+	var ref string
+	if err := e.poolA.QueryRow(e.ctx, `SELECT key_ref FROM upstream_token WHERE token_id = $1`, tok.ID).Scan(&ref); err != nil || ref != v2.Ref() {
+		t.Fatalf("the next token is bound to %q, %v; want %s", ref, err, v2.Ref())
+	}
+}
+
+// Rotate: the next version is active and the previous one retired with the tokens it minted;
+// transit no longer signs with the previous version; a version rotated outside the store is
+// adopted rather than rotated past; a key with nothing registered is registered, not rotated.
+func TestRotateRetiresThePreviousVersionAndItsTokens(t *testing.T) {
+	e := newEnv(t)
+	tok := e.mustAcquire()
+	k1, err := LoadKey(e.ctx, e.poolA, e.kv, e.a.KeyName)
+	if err != nil {
+		t.Fatal(err)
+	}
+	rot, err := Rotate(e.ctx, e.poolA, e.kv, e.a.KeyName)
+	if err != nil {
+		t.Fatal(err)
+	}
+	v2 := transit.KeyVersion{Name: e.a.KeyName, Version: 2}
+	if rot.Active != v2.Ref() || rot.Adopted || rot.MinSigningVersion != 2 || len(rot.Retired) != 1 || rot.Retired[0] != k1.Ref() || rot.UpstreamTokensRetired != 1 {
+		t.Fatalf("rotation %+v", rot)
+	}
+	var state string
+	var retiredAt *time.Time
+	if err := e.poolA.QueryRow(e.ctx, `SELECT state, retired_at FROM signing_key WHERE key_ref = $1`, k1.Ref()).Scan(&state, &retiredAt); err != nil || state != "retired" || retiredAt == nil {
+		t.Fatalf("previous version: %s %v %v", state, retiredAt, err)
+	}
+	if n := count(t, e.poolA, `SELECT count(*) FROM signing_key WHERE state = 'active'`); n != 1 {
+		t.Fatalf("%d active versions; want 1", n)
+	}
+	if err := e.poolA.QueryRow(e.ctx, `SELECT state FROM upstream_token WHERE token_id = $1`, tok.ID).Scan(&state); err != nil || state != "retired" {
+		t.Fatalf("the token minted under the retired version: %s %v", state, err)
+	}
+	if kind, _ := e.lastAudit(); kind != "key.rotated" {
+		t.Fatalf("audit %s", kind)
+	}
+	var se *transit.StatusError
+	if _, err := e.kv.Sign(e.ctx, k1.ref, []byte("eyJhbGciOiJFUzI1NiJ9.e30")); !errors.As(err, &se) || se.Status < 400 {
+		t.Fatalf("transit still signs with the retired version: %v", err)
+	}
+	next := e.mustAcquire()
+	var ref string
+	if err := e.poolA.QueryRow(e.ctx, `SELECT key_ref FROM upstream_token WHERE token_id = $1`, next.ID).Scan(&ref); err != nil || ref != v2.Ref() {
+		t.Fatalf("the next token is bound to %q, %v; want %s", ref, err, v2.Ref())
+	}
+
+	// A floor left below the active version (a rotation that committed before its floor was
+	// raised, or a key registered before this build): the next rotation raises it past the old
+	// versions as part of its own floor raise, nothing else.
+	req, _ := http.NewRequest(http.MethodPost, strings.TrimSuffix(os.Getenv("TRANSIT_TEST_ADDR"), "/")+"/v1/transit/keys/"+e.a.KeyName+"/config",
+		strings.NewReader(`{"min_encryption_version":1}`))
+	req.Header.Set("X-Vault-Token", os.Getenv("TRANSIT_TEST_TOKEN"))
+	if resp, err := http.DefaultClient.Do(req); err != nil || resp.StatusCode >= 300 {
+		t.Fatalf("lowering the floor by hand: %v", err)
+	} else {
+		_ = resp.Body.Close()
+	}
+
+	// Rotated outside the store: the next run adopts transit's latest version, and its floor
+	// raise covers the floor left behind above.
+	if _, err := e.kv.Rotate(e.ctx, e.a.KeyName); err != nil {
+		t.Fatal(err)
+	}
+	rot, err = Rotate(e.ctx, e.poolA, e.kv, e.a.KeyName)
+	v3 := transit.KeyVersion{Name: e.a.KeyName, Version: 3}
+	if err != nil || !rot.Adopted || rot.Active != v3.Ref() || rot.MinSigningVersion != 3 || len(rot.Retired) != 1 || rot.Retired[0] != v2.Ref() {
+		t.Fatalf("adoption: %+v %v", rot, err)
+	}
+	if latest, err := e.kv.LatestKey(e.ctx, e.a.KeyName); err != nil || latest != v3 {
+		t.Fatalf("adoption created a version: %+v %v", latest, err)
+	}
+
+	// Nothing registered: Rotate registers the latest version and retires nothing. A key transit
+	// does not have is refused, never created: that is keys ensure's.
+	fresh := "acq-fresh-" + randHex(6)
+	if _, err := e.kv.EnsureKey(e.ctx, fresh); err != nil {
+		t.Fatal(err)
+	}
+	rot, err = Rotate(e.ctx, e.poolA, e.kv, fresh)
+	if err != nil || !rot.Adopted || rot.Active != (transit.KeyVersion{Name: fresh, Version: 1}).Ref() || len(rot.Retired) != 0 {
+		t.Fatalf("fresh key: %+v %v", rot, err)
+	}
+	absent := "acq-absent-" + randHex(6)
+	if _, err := Rotate(e.ctx, e.poolA, e.kv, absent); !errors.Is(err, transit.ErrNotFound) {
+		t.Fatalf("rotate of a key transit does not have: %v; want ErrNotFound", err)
+	}
+	if _, err := e.kv.LatestKey(e.ctx, absent); !errors.Is(err, transit.ErrNotFound) {
+		t.Fatalf("rotate created the key: %v", err)
+	}
+	rows, err := KeyRows(e.ctx, e.poolA, e.a.KeyName)
+	if err != nil || len(rows) != 3 || rows[0].KeyRef != v3.Ref() || rows[0].State != "active" || rows[2].RetiredAt == nil {
+		t.Fatalf("key rows: %+v %v", rows, err)
+	}
+}
+
+// Every registered version retired (an operator retiring a compromised version by hand): Rotate
+// moves past them to a fresh version, as ErrKeyRetired says it does.
+func TestRotateMovesPastRetiredVersions(t *testing.T) {
+	e := newEnv(t)
+	if _, err := LoadKey(e.ctx, e.poolA, e.kv, e.a.KeyName); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := e.poolA.Exec(e.ctx, `UPDATE signing_key SET state = 'retired', retired_at = now()`); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := LoadKey(e.ctx, e.poolA, e.kv, e.a.KeyName); !errors.Is(err, ErrKeyRetired) {
+		t.Fatalf("before the rotation: %v; want ErrKeyRetired", err)
+	}
+	rot, err := Rotate(e.ctx, e.poolA, e.kv, e.a.KeyName)
+	v2 := transit.KeyVersion{Name: e.a.KeyName, Version: 2}
+	if err != nil || rot.Adopted || rot.Active != v2.Ref() || len(rot.Retired) != 0 || rot.MinSigningVersion != 2 {
+		t.Fatalf("rotation past retired versions: %+v %v", rot, err)
+	}
+	k, err := LoadKey(e.ctx, e.poolA, e.kv, e.a.KeyName)
+	if err != nil || k.Ref() != v2.Ref() {
+		t.Fatalf("after the rotation: %v %v", k, err)
+	}
+	e.mustAcquire()
+}
+
+// A floor raised above the registered version (a rotation that ended between the floor and the
+// commit, or a floor set by hand): the registered version resolves but cannot sign, and the next
+// Rotate adopts the version transit is at instead of rotating past it.
+func TestRotateRepairsAFloorAboveTheRegisteredVersion(t *testing.T) {
+	e := newEnv(t)
+	k1, err := LoadKey(e.ctx, e.poolA, e.kv, e.a.KeyName)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := e.kv.Rotate(e.ctx, e.a.KeyName); err != nil {
+		t.Fatal(err)
+	}
+	if err := e.kv.SetMinSigningVersion(e.ctx, e.a.KeyName, 2); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := LoadKey(e.ctx, e.poolA, e.kv, e.a.KeyName); !errors.Is(err, ErrKeyRetired) {
+		t.Fatalf("a version below the floor loaded: %v; want ErrKeyRetired", err)
+	}
+	if _, err := e.acquire(); err == nil {
+		t.Fatal("an acquisition signed with a version below the floor")
+	} else {
+		e.wantCode(err, CodeStore)
+	}
+	rot, err := Rotate(e.ctx, e.poolA, e.kv, e.a.KeyName)
+	v2 := transit.KeyVersion{Name: e.a.KeyName, Version: 2}
+	if err != nil || !rot.Adopted || rot.Active != v2.Ref() || len(rot.Retired) != 1 || rot.Retired[0] != k1.Ref() {
+		t.Fatalf("repair: %+v %v", rot, err)
+	}
+	if latest, err := e.kv.LatestKey(e.ctx, e.a.KeyName); err != nil || latest != v2 {
+		t.Fatalf("the repair rotated past the version transit was at: %+v %v", latest, err)
+	}
+	e.mustAcquire()
+}
+
+// A live token bound to a key that is no longer active (retired by hand, or by a rotation an older
+// build's activation overtook) would hold the route's one live slot until it expired; an
+// acquisition retires it with the expired rows and the route is served again.
+func TestAcquisitionReplacesATokenOfARetiredKey(t *testing.T) {
+	e := newEnv(t)
+	old := e.mustAcquire()
+	k1, err := LoadKey(e.ctx, e.poolA, e.kv, e.a.KeyName)
+	if err != nil {
+		t.Fatal(err)
+	}
+	v2, err := e.kv.Rotate(e.ctx, e.a.KeyName)
+	if err != nil {
+		t.Fatal(err)
+	}
+	e.rotateInDatabase(k1.Ref(), v2) // retires the key row only; the token stays live under it
+	var state string
+	if err := e.poolA.QueryRow(e.ctx, `SELECT state FROM upstream_token WHERE token_id = $1`, old.ID).Scan(&state); err != nil || state != "active" {
+		t.Fatalf("fixture: the old token is %s %v", state, err)
+	}
+	fresh := e.mustAcquire()
+	if err := e.poolA.QueryRow(e.ctx, `SELECT state FROM upstream_token WHERE token_id = $1`, old.ID).Scan(&state); err != nil || state != "retired" {
+		t.Fatalf("the token of the retired key: %s %v; want retired", state, err)
+	}
+	var ref string
+	if err := e.poolA.QueryRow(e.ctx, `SELECT key_ref FROM upstream_token WHERE token_id = $1`, fresh.ID).Scan(&ref); err != nil || ref != v2.Ref() {
+		t.Fatalf("the fresh token is bound to %q, %v; want %s", ref, err, v2.Ref())
 	}
 }

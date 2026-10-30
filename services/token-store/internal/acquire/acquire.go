@@ -53,6 +53,7 @@ const (
 	CodeCommitUnknown     = "ACQ-COMMIT-UNKNOWN"      // reconciliation could not settle it
 	CodeOrphan            = "ACQ-ORPHAN-DELETED"      // the sweep removed a value without a row
 	CodeClaimLost         = "ACQ-CLAIM-LOST"          // a renewal's fence no longer held: result discarded
+	CodeKeyRetired        = "ACQ-KEY-RETIRED"         // the store key was retired between the grant and the activation
 )
 
 // Error is a failed acquisition: a reason code and fixed text, never anything a peer sent.
@@ -87,7 +88,7 @@ type Token struct {
 // Acquirer acquires upstream tokens. Safe for concurrent use.
 type Acquirer struct {
 	DB         *pgxpool.Pool
-	Signer     transit.Signer
+	Signer     KeySigner // signs the store's proofs and tells the key's signing floor
 	Secrets    transit.Secrets
 	KeyName    string       // the store's transit key
 	Trusted    if03.Issuers // IF-03 issuers A accepts: the peer's verifier keys
@@ -187,7 +188,11 @@ func (at *attempt) run(ctx context.Context) (Token, error) {
 	}
 	key, err := LoadKey(ctx, a.DB, a.Signer, a.KeyName)
 	if err != nil {
-		return Token{}, fail(CodeStore, "store key unavailable")
+		// The cause stays on the error and in one record, in the reason vocabulary: a retired or
+		// mismatched key is a misconfiguration an operator must see, not a passing outage.
+		reason, _ := Reason(err)
+		a.log().WarnContext(ctx, "store key unavailable", "route", r.Name, "key", a.KeyName, "reason", reason)
+		return Token{}, fail(CodeStore, "store key unavailable ("+reason+")")
 	}
 	b := &connectorclient.Client{BaseURL: base, ClientID: r.ClientID, ClientSecret: secret, HTTP: a.HTTPClient, Now: a.now}
 
@@ -330,7 +335,20 @@ func (at *attempt) stage(ctx context.Context, tx pgx.Tx, key *Key, path string, 
 		at.tokenID, ms(statementTimeout), ms(idleTimeout)); err != nil {
 		return CodeActivationFailed, err
 	}
-	tag, err := tx.Exec(ctx, `UPDATE verified_outcome SET consumed_at = $3
+	// The key that signed the proof is held active for the rest of the transaction, before any
+	// token row is touched: the same order a rotation takes (the key's row, then the tokens bound
+	// to it), so the two never wait for each other in a cycle. A rotation that retires the key
+	// either waits for this activation and then retires its token, or came first and this
+	// activation finds no active row: ACQ-KEY-RETIRED, the value deleted.
+	tag, err := tx.Exec(ctx, `SELECT 1 FROM signing_key WHERE key_ref = $1 AND jkt = $2 AND state = 'active' FOR SHARE`,
+		key.Ref(), key.JKT())
+	if err != nil {
+		return CodeActivationFailed, err
+	}
+	if tag.RowsAffected() == 0 {
+		return CodeKeyRetired, errors.New("store key retired")
+	}
+	tag, err = tx.Exec(ctx, `UPDATE verified_outcome SET consumed_at = $3
 		WHERE outcome_id = $1 AND audience = $2 AND status = 'verified' AND consumed_at IS NULL AND expires_at > $3`,
 		at.outcomeID, at.r.Audience, now)
 	if err != nil {
@@ -352,8 +370,12 @@ func (at *attempt) stage(ctx context.Context, tx pgx.Tx, key *Key, path string, 
 			return CodeClaimLost, errors.New("renewal claim lost")
 		}
 	} else if _, err := tx.Exec(ctx, `UPDATE upstream_token SET state = 'retired', updated_at = $4
-		WHERE peer_zone = $1 AND audience = $2 AND tenant = $3 AND state IN ('active', 'renewing') AND expires_at <= $4`,
+		WHERE peer_zone = $1 AND audience = $2 AND tenant = $3 AND state IN ('active', 'renewing')
+		  AND (expires_at <= $4 OR key_ref NOT IN (SELECT key_ref FROM signing_key WHERE state = 'active'))`,
 		at.r.PeerZone, at.r.Audience, at.r.Tenant, now); err != nil {
+		// A live row bound to a key that is no longer active (retired by hand, by an older build's
+		// activation that a rotation overtook, or by migration 5) cannot be substituted and would
+		// hold the route's one live slot until it expired: it goes with the expired rows.
 		return CodeActivationFailed, err
 	}
 	if _, err := tx.Exec(ctx, `INSERT INTO upstream_token
@@ -380,6 +402,8 @@ func (at *attempt) rolledBack(ctx context.Context, path, code string) (Token, er
 		return Token{}, fail(code, "receipt not consumable")
 	case CodeClaimLost:
 		return Token{}, fail(code, "renewal claim lost; result discarded")
+	case CodeKeyRetired:
+		return Token{}, fail(code, "store key retired; result discarded")
 	}
 	return Token{}, fail(CodeActivationFailed, "activation rolled back")
 }

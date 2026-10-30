@@ -164,3 +164,34 @@ func TestLoadConfigRefusesSharedSigningKey(t *testing.T) {
 		}
 	}
 }
+
+// A key name transit would refuse is refused when the configuration is read, with the rule in the
+// message, so a bad name is a usage error at start rather than an outage retried forever.
+func TestLoadConfigRefusesABadKeyName(t *testing.T) {
+	dir := t.TempDir()
+	key, _ := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
+	pub, _ := x509.MarshalPKIXPublicKey(&key.PublicKey)
+	issuers := []any{map[string]any{"issuer": vpIssuer, "kid": vpKid, "public_key_file": writePEM(t, dir, "pub.pem", "PUBLIC KEY", pub)}}
+	load := func(signing, connector string) error {
+		cfg := map[string]any{"signing_key": signing, "trusted_issuers": issuers}
+		if connector != "" {
+			cfg["connector_signing_key"] = connector
+		}
+		raw, _ := json.Marshal(cfg)
+		path := filepath.Join(dir, "acquire.json")
+		_ = os.WriteFile(path, raw, 0o600)
+		_, err := LoadConfig(path)
+		return err
+	}
+	if err := load("ztd-token_store.1", ""); err != nil {
+		t.Fatalf("a valid name refused: %v", err)
+	}
+	for _, bad := range []string{"bad/name", "with space", "k:v1", "key\n", "..", strings.Repeat("k", 129)} {
+		if err := load(bad, ""); err == nil || !strings.Contains(err.Error(), "transit key name") {
+			t.Errorf("signing_key %q: %v", bad, err)
+		}
+		if err := load("good", bad); err == nil || !strings.Contains(err.Error(), "transit key name") {
+			t.Errorf("connector_signing_key %q: %v", bad, err)
+		}
+	}
+}
