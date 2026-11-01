@@ -19,8 +19,6 @@ spec:
     repoURL: {{ .Values.git.repoURL | quote }}
     targetRevision: {{ .Values.git.targetRevision | quote }}
     path: deployment/admission/templates
-    directory:
-      recurse: false
   destination:
     server: {{ .Values.destination.server | quote }}
     namespace: {{ .Values.gatekeeper.namespace | quote }}
