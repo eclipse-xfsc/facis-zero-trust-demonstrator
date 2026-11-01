@@ -48,6 +48,12 @@ next reconciliation, a constraint edited in the cluster is put back, and the syn
 as metrics. The layout, the lanes it needs and how it is operated are in
 [deployment/argocd/README.md](../deployment/argocd/README.md).
 
+To read the policy from the registry instead (ZT-12), where the publication workflow pushes it as a
+signed package, add `POLICY_REPOSITORY=<registry host>/<path of the package>` and
+`PULLER_IMAGE=<policy-puller image>@sha256:<digest>`: the installer adds the puller that verifies
+each package's signature before Argo CD reads it by digest
+([Policy from the registry](../deployment/argocd/README.md#policy-from-the-registry)).
+
 ### Through the ORCE workflow
 
 The same install, redeploy and uninstall run through ORCE with zero manual steps: a

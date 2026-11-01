@@ -117,6 +117,18 @@ a hand-edited child Application put back by its parent, and one `argocd_app_info
 disposable cluster is a change *merged* after the install reaching the cluster: that is the same
 reconciliation the self-heal exercises, and it is observed on the zones after a merge.
 
+The same job then proves the path from the registry ([Policy package](#policy-package), consumed as
+[Policy from the registry](../deployment/argocd/README.md#policy-from-the-registry)): the catalogue
+is published with the release scripts and an ephemeral key to a registry on the kind network, the
+zone is re-installed with `POLICY_REPOSITORY`, and every child reads the package by digest with the
+same content as the checkout. Then what the puller must refuse and must apply: a tampered package
+published to the channel tag with another key is refused and the zone is unchanged; a release signed
+with the trusted key is applied and its change is in the cluster; the channel tag moved back to the
+older release is refused as a rollback; a stopped registry changes nothing. Each refusal is checked
+on the parent Application's annotations and Events, where a zone's operator reads it. Last, the zone
+is re-installed without `POLICY_REPOSITORY`: the puller, the repository and its lane are gone, and
+every child reads Git again with the checkout's catalogue.
+
 ## Image signing
 
 The candidate job of `release.yml` builds every image under `deployment/docker/` for `linux/amd64`,
@@ -149,9 +161,10 @@ settings (once per package) before a cluster can admit them.
 ZT-12 and ZT-37 want the admission policy distributed through a registry, as tarball packages over
 OCI, published by a GitHub Action from a repository only authorised maintainers write to. Git stays
 where the policy is authored and reviewed; the registry becomes where a zone is meant to read it
-from. `policy-publish.yml` is that action; the zone's side, a reconciler that reads the registry and
-verifies the signature before it applies anything, is the step after this one, and until it lands
-the zones keep reading Git ([Admission reconciler](#admission-reconciler)).
+from. `policy-publish.yml` is that action; the zone's side is the puller of
+[Policy from the registry](../deployment/argocd/README.md#policy-from-the-registry), which verifies
+the signature before Argo CD applies anything, and a zone installed without a package repository
+keeps reading Git ([Admission reconciler](#admission-reconciler)).
 
 The package is the catalogue's cluster objects at their Git paths — `templates/`, `constraints/`
 (with its kustomization) and `exemptions.yaml`, nothing else — so an Application that reads the
@@ -164,8 +177,12 @@ the same commit publishes the same digest and the registry can be compared with 
 so the consumer needs no unpacking of its own — with the version, the commit and the source
 repository as manifest annotations, signs the manifest by digest with the profile of
 [Image signing](#image-signing) (interim key, no transparency log) and verifies the signature against
-the committed public key. The last line it prints is the digest reference, the one thing a consumer
-pins: a tag can be moved to other content, a digest cannot.
+the committed public key, and moves the channel tag `main` to the signed digest: the tag a zone's
+puller follows, since version tags have no order a consumer could pick the newest by. The last line
+it prints is the digest reference, the one thing a consumer pins: a tag can be moved to other
+content, a digest cannot, and the puller verifies what the tag points at, never the tag. The
+`created` annotation, the commit's time, is covered by the signature and orders the packages: a
+channel tag moved back to an older release is refused by the puller as a rollback.
 
 The workflow runs in the protected `release` environment, from `main` only — on a push that touches
 the catalogue, or by hand with a version; a manual run on any other ref fails in a first job that has

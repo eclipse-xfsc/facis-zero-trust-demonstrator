@@ -18,9 +18,7 @@ metadata:
 spec:
   project: ztd-admission
   source:
-    repoURL: {{ .Values.git.repoURL | quote }}
-    targetRevision: {{ .Values.git.targetRevision | quote }}
-    path: deployment/admission/constraints
+    {{- include "admgitops.source" (dict "ctx" . "path" "constraints") | nindent 4 }}
     kustomize:
       patches:
         - target:

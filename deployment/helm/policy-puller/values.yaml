@@ -1,0 +1,44 @@
+# The puller image, by digest only - the chart refuses a tag.
+image:
+  repository: ghcr.io/eclipse-xfsc/facis-zero-trust-demonstrator/policy-puller
+  digest: ""
+
+# The policy package the zone follows: its repository ("host/path", the one policy-publish.yml pushes
+# to) and the channel tag the workflow moves to each publication. Required.
+package:
+  repository: ""
+  tag: main
+
+# Argo CD's namespace and the parent Application whose values carry the digest. The puller runs in
+# that namespace, where the Application is and where the lanes to the API server and to DNS already
+# exist; the chart refuses any other release namespace.
+argocd:
+  namespace: argocd
+  application: ztd-admission
+
+# The trusted cosign public keys (PEM): a package is applied only when signed by one of them.
+trust:
+  publicKeys: ""
+
+# How often a pull runs. Each run is one Job that exits; runs never overlap, and a failed run is not
+# retried before the next one.
+schedule: "*/5 * * * *"
+
+# The egress lane to the registry: the puller reaches any address on this port and nothing else
+# beyond the namespace's own lanes. 443 for a registry on a public host; a test registry's port on kind.
+egress:
+  registryPort: 443
+
+# A plain-http registry host (host:port) - a local test registry only. Empty in any real deployment.
+insecurePlainHTTPRegistry: ""
+
+# A Secret in this namespace with username and password keys, for a registry that asks for a
+# credential on pull. Empty for a public repository.
+registryCredentialsSecret: ""
+
+resources:
+  requests:
+    cpu: 20m
+    memory: 32Mi
+  limits:
+    memory: 128Mi

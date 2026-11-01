@@ -347,9 +347,9 @@ func (v *Verifier) verify(ctx context.Context, ref Ref, policy *Policy) Result {
 
 func tagFor(digest, suffix string) string { return strings.Replace(digest, ":", "-", 1) + "." + suffix }
 
-// layers fetches the manifest at the cosign tag; a missing tag is "no layers", not an error.
-func (v *Verifier) layers(ctx context.Context, ref Ref, suffix string) ([]ociclient.Descriptor, error) {
-	m, err := v.client.ManifestByTag(ctx, ref.Registry, ref.Repository, tagFor(ref.Digest, suffix))
+// cosignLayers fetches the manifest at the cosign tag; a missing tag is "no layers", not an error.
+func cosignLayers(ctx context.Context, client *ociclient.Client, ref Ref, suffix string) ([]ociclient.Descriptor, error) {
+	m, err := client.ManifestByTag(ctx, ref.Registry, ref.Repository, tagFor(ref.Digest, suffix))
 	if errors.Is(err, ociclient.ErrNotFound) {
 		return nil, nil
 	}
@@ -393,7 +393,16 @@ func verifySig(keys []*ecdsa.PublicKey, digest [32]byte, sig []byte) bool {
 }
 
 func (v *Verifier) verifySignature(ctx context.Context, ref Ref, policy *Policy) Result {
-	layers, err := v.layers(ctx, ref, "sig")
+	return VerifySignature(ctx, v.client, ref, policy.Keys)
+}
+
+// VerifySignature is the signature check of the profile on its own: ref carries a cosign signature
+// (the ".sig" tag) by one of keys, bound to this digest and this repository. It is what VerifyImage
+// checks first, exported for an artefact that is not an image - a policy package, which has no
+// platform and no attestations. A registry that cannot be reached is CodeProviderDown, never
+// CodeUnsigned: unreachable is not the same as unsigned.
+func VerifySignature(ctx context.Context, client *ociclient.Client, ref Ref, keys []*ecdsa.PublicKey) Result {
+	layers, err := cosignLayers(ctx, client, ref, "sig")
 	if err != nil {
 		return down(err)
 	}
@@ -408,14 +417,14 @@ func (v *Verifier) verifySignature(ctx context.Context, ref Ref, policy *Policy)
 		if err != nil || len(sig) == 0 {
 			continue
 		}
-		payload, err := v.client.Blob(ctx, ref.Registry, ref.Repository, l.Digest)
+		payload, err := client.Blob(ctx, ref.Registry, ref.Repository, l.Digest)
 		if err != nil {
 			if errors.Is(err, ociclient.ErrNotFound) || errors.Is(err, ociclient.ErrDigestMismatch) || errors.Is(err, ociclient.ErrTooLarge) {
 				continue
 			}
 			return down(err)
 		}
-		if !verifySig(policy.Keys, sha256.Sum256(payload), sig) {
+		if !verifySig(keys, sha256.Sum256(payload), sig) {
 			continue
 		}
 		var ss simpleSigning
@@ -460,7 +469,7 @@ func pae(payloadType string, payload []byte) []byte {
 // reported with the invalid code. Any one layer that passes is enough (a re-attested image carries
 // its earlier attestations too).
 func (v *Verifier) verifyAttestation(ctx context.Context, ref Ref, policy *Policy, want, missing, invalid string, validate func(json.RawMessage) error) (json.RawMessage, Result) {
-	layers, err := v.layers(ctx, ref, "att")
+	layers, err := cosignLayers(ctx, v.client, ref, "att")
 	if err != nil {
 		return nil, down(err)
 	}

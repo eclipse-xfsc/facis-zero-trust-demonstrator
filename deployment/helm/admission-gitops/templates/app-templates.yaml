@@ -16,9 +16,7 @@ metadata:
 spec:
   project: ztd-admission
   source:
-    repoURL: {{ .Values.git.repoURL | quote }}
-    targetRevision: {{ .Values.git.targetRevision | quote }}
-    path: deployment/admission/templates
+    {{- include "admgitops.source" (dict "ctx" . "path" "templates") | nindent 4 }}
   destination:
     server: {{ .Values.destination.server | quote }}
     namespace: {{ .Values.gatekeeper.namespace | quote }}

@@ -121,8 +121,11 @@ jobs:
           COSIGN_INTERIM_KEY: ${{ secrets.COSIGN_INTERIM_KEY }}
           COSIGN_PASSWORD: ${{ secrets.COSIGN_INTERIM_PASSWORD }}
           SOURCE_URL: ${{ github.server_url }}/${{ github.repository }}
+          # The channel tag the zones' pullers follow, moved to the signed digest; only main publishes.
+          CHANNEL: main
         run: |
-          # The commit's own time as the created annotation: the same commit publishes the same digest.
+          # The commit's own time as the created annotation: the same commit publishes the same digest,
+          # and the puller orders packages by it, so a tag moved back to an older one is refused.
           CREATED="$(git show -s --format=%cI HEAD)" scripts/supplychain/policy-publish.sh \
             package/admission.tar.gz "$REPOSITORY" "$VERSION" "$GITHUB_SHA" | tee package/publish.log
           echo "reference=$(tail -n1 package/publish.log)" >> "$GITHUB_OUTPUT"
