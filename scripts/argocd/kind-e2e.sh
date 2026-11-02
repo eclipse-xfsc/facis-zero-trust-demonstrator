@@ -38,7 +38,7 @@ host_reg=127.0.0.1:5002         # the same registry from this machine, for uploa
 policy_repo=ztd/policy/admission
 # The publish runs in a container on the kind network, so the signature names the registry as the
 # cluster does: the puller checks the signature's reference against the repository it verifies.
-toolbox=golang:1.27@sha256:007a316059246276cb214df93950be77837545dc78007a73e0291a4963d5d3bf
+toolbox=golang:1.27@sha256:f24164268fc1e741bbdc0066dbadcf1c8426c5a8489f0729c02c3905a53032fd
 work="$(mktemp -d)"
 export KUBECONFIG="$work/kubeconfig"
 # The webhook-scope post-renderer is a Helm plugin; it lives in this run's own Helm directory.
