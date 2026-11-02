@@ -1,0 +1,56 @@
+# The per-node meshed stand-in of the mesh identity proof (scripts/verify-mesh-identity/verify.sh,
+# sections 5 and 10). Rendered once per node the SPIRE agent DaemonSet runs on, with the node's name in
+# place of __NODE__ and the data-plane namespace in place of __DATA__: a meshed pod mesh-on-<node>,
+# placed on that node by a required node affinity, its Service and its own ServiceAccount
+# mesh-on-<node>. The pod carries the identity label, so the zone injects its proxy with a
+# SPIRE-issued certificate; its own service account gives each node's stand-in its own SPIFFE ID
+# (spiffe://<trust domain>/ns/<data plane>/sa/mesh-on-<node>), so that a cross-node call shows which
+# caller sent it and which receiver answered. Its app container serves HTTP and echoes
+# request headers (agnhost netexec /header); its curl container calls the stand-in of the next node.
+# The placement spreads the proof over every node on purpose, like the per-node SVID stand-ins; it
+# holds no pod to istiod's node. Nothing here is part of a zone: the proof removes the pods, the
+# Services and the ServiceAccounts, by their label app.kubernetes.io/name=mesh-on-node, with the other
+# stand-ins in every case.
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: mesh-on-__NODE__
+  namespace: __DATA__
+  labels: { app.kubernetes.io/name: mesh-on-node }
+---
+apiVersion: v1
+kind: Pod
+metadata:
+  name: mesh-on-__NODE__
+  namespace: __DATA__
+  labels:
+    app.kubernetes.io/name: mesh-on-node
+    app.kubernetes.io/instance: mesh-on-__NODE__
+    spiffe.io/spire-managed-identity: "true"
+spec:
+  terminationGracePeriodSeconds: 2   # sleep ignores SIGTERM; the stand-ins hold no state
+  serviceAccountName: mesh-on-__NODE__
+  affinity:
+    nodeAffinity:
+      requiredDuringSchedulingIgnoredDuringExecution:
+        nodeSelectorTerms:
+          - matchExpressions:
+              - { key: kubernetes.io/hostname, operator: In, values: [__NODE__] }
+  containers:
+    - name: app
+      image: registry.k8s.io/e2e-test-images/agnhost:2.53
+      args: [netexec, --http-port=8080]
+      ports: [{ containerPort: 8080 }]
+    - name: curl
+      image: docker.io/curlimages/curl:8.10.1@sha256:d9b4541e214bcd85196d6e92e2753ac6d0ea699f0af5741f8c6cccbfcf00ef4b
+      command: [sleep, "3600"]
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: mesh-on-__NODE__
+  namespace: __DATA__
+  labels: { app.kubernetes.io/name: mesh-on-node }
+spec:
+  selector: { app.kubernetes.io/instance: mesh-on-__NODE__ }
+  ports: [{ name: http, port: 8080 }]
