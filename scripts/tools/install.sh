@@ -4,7 +4,7 @@
 # linux/amd64 only: it is what CI runs on. Images are pinned by digest in pins.env, not installed here.
 #
 #   scripts/tools/install.sh [dir] [tool...]      tools: cosign syft grype gator gatekeeper-chart kind kubectl
-#                                                  cilium-crds
+#                                                  cilium-crds cilium-cli
 #                                                  (default: all)
 set -euo pipefail
 
@@ -57,6 +57,11 @@ for tool in "${tools[@]}"; do
     kubectl)
       fetch "https://dl.k8s.io/release/${KUBECTL_VERSION}/bin/linux/amd64/kubectl" "$KUBECTL_SHA256" kubectl
       install -m 0755 "$work/kubectl" "$dir/kubectl"
+      ;;
+    cilium-cli)
+      fetch "https://github.com/cilium/cilium-cli/releases/download/${CILIUM_CLI_VERSION}/cilium-linux-amd64.tar.gz" "$CILIUM_CLI_SHA256" cilium.tgz
+      tar -xzf "$work/cilium.tgz" -C "$work" cilium
+      install -m 0755 "$work/cilium" "$dir/cilium"
       ;;
     cilium-crds)
       # The CRD manifests, verified, for `kubectl apply -f <dir>/cilium-crds/`.

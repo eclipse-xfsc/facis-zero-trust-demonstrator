@@ -1,0 +1,90 @@
+# Release `jaeger` of the demonstrator cluster: the central trace store, the upstream Jaeger chart
+# (Jaeger v2, all-in-one) in the backends' namespace (ztd-observability).
+#   chart source      https://jaegertracing.github.io/helm-charts, chart jaeger, version and sha256
+#                     pinned in scripts/tools/pins.env
+#   image             JAEGER_IMAGE in scripts/tools/pins.env, set by the installer
+# It receives the zones' traces by OTLP from the receiving collector and keeps them in Badger on a
+# persistent volume of the cluster's storage class (installer facts: size and class), for 30 days. It
+# answers a lookup by trace id and a search by service and by the `zone` tag. The query interface
+# (16686) is a ClusterIP Service: reached with cluster access only, never on the public entry.
+jaeger:
+  image:
+    repository: ""               # installer: JAEGER_IMAGE
+    tag: ""
+    digest: ""
+  extraVolumes:
+    - name: badger-data
+      persistentVolumeClaim:
+        claimName: jaeger-badger-data
+  extraVolumeMounts:
+    - name: badger-data
+      mountPath: /badger
+  podSecurityContext:
+    runAsUser: 10001
+    runAsGroup: 10001
+    fsGroup: 10001
+    runAsNonRoot: true
+    seccompProfile:
+      type: RuntimeDefault
+  securityContext:
+    allowPrivilegeEscalation: false
+    readOnlyRootFilesystem: true
+    capabilities:
+      drop: ["ALL"]
+  podAnnotations: {}
+  resources:
+    requests: { cpu: 50m, memory: 128Mi }
+    limits: { memory: 512Mi }
+  service:
+    type: ClusterIP
+storage:
+  type: badger
+extraObjects:
+  - apiVersion: v1
+    kind: PersistentVolumeClaim
+    metadata:
+      name: jaeger-badger-data
+    spec:
+      accessModes: [ReadWriteOnce]
+      storageClassName: ""       # installer: zone.storageClass
+      resources:
+        requests:
+          storage: ""            # installer: observabilityBackends.volumes.jaeger
+userconfig:
+  service:
+    extensions: [jaeger_storage, jaeger_query, healthcheckv2]
+    pipelines:
+      traces:
+        receivers: [otlp]
+        processors: [batch]
+        exporters: [jaeger_storage_exporter]
+  extensions:
+    healthcheckv2:
+      use_v2: true
+      http:
+        endpoint: 0.0.0.0:13133
+    jaeger_query:
+      storage:
+        traces: badger_main
+    jaeger_storage:
+      backends:
+        badger_main:
+          badger:
+            directories:
+              keys: /badger/keys
+              values: /badger/values
+            ephemeral: false
+            ttl:
+              spans: 720h
+  receivers:
+    otlp:
+      protocols:
+        grpc:
+          endpoint: 0.0.0.0:4317
+        http:
+          endpoint: 0.0.0.0:4318
+  processors:
+    batch: {}
+  exporters:
+    jaeger_storage_exporter:
+      trace_storage: badger_main
