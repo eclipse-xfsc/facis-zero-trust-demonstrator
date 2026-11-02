@@ -1,0 +1,88 @@
+# Zone B, the participant cluster of zone B on the T-Systems Open Sovereign Cloud (Gardener, three
+# worker nodes, Cilium installed and upgraded by the provider). Recorded 2026-10-10 from the live
+# cluster with the kubeconfig the client provided (context zerotrust-b), each fact with the command
+# that reads it. Facts, not choices: change them only when the cluster changes. The API server's
+# address and the provider's project domain stay out of the repository.
+#
+# The trust domain is the one value here that is not read off the cluster, and it is INTERIM.
+# Convention: one name per zone under the DNS zone delegated to the trust framework, never a
+# delegated zone of its own; the final name is zone-b.<zone>, where <zone> is the delegated
+# trust-framework zone, confirmed by the Technical Design Authority. Until then the zone runs on
+# zone-b.trust.invalid: the .invalid top-level domain is reserved and can never resolve or be
+# delegated, so the interim name cannot be mistaken for a real one. The name is fixed in the SPIRE
+# root CA at install, so a zone installed with the interim value is re-installed with the final one
+# (a new SPIRE CA, new SVIDs) once the delegation lands.
+zone:
+  name: zone-b
+  kubernetesVersion: v1.34.7      # kubectl version -o json | jq -r .serverVersion.gitVersion; 1.33 or later for native sidecars (ADR-0009)
+  storageClass: default           # kubectl get storageclass: default (csi.onmetal.de), the cluster's default class
+  loadBalancer:
+    type: cloud                   # the provider provisions Services of type LoadBalancer; not yet exercised here
+  trustDomain: zone-b.trust.invalid   # INTERIM, see the header; re-installed with zone-b.<zone> when it is named
+
+# Istio in sidecar mode, the mesh decision of ADR-0009.
+mesh:
+  mode: sidecar
+
+# kubectl -n kube-system get ds cilium: Cilium 1.18.8, installed and upgraded by the provider, with
+# cni-exclusive=false already set (kubectl -n kube-system get cm cilium-config). Verified, never
+# installed or reconfigured by the zone.
+cni:
+  cilium:
+    enabled: true
+
+# The control planes of the identity path and of the mesh: management-plane namespaces under the
+# default deny, without the mesh label (no sidecar for SPIRE or istiod).
+planes:
+  extra:
+    - { name: spire-system, plane: management, mesh: false }
+    - { name: istio-system, plane: management, mesh: false }
+  # The provider's webhook kubernetes-service-host.resources.gardener.cloud (kubectl get
+  # mutatingwebhookconfiguration gardener-resource-manager-shoot) sets KUBERNETES_SERVICE_HOST in
+  # every new pod to the API server's public name, which Cilium sees as world, not as the
+  # kube-apiserver entity of the kubeApi lane. This label, Gardener's opt-out, keeps the pods of the
+  # zone's namespaces on the kubernetes Service, so that they reach the API through the lane.
+  namespaceLabels:
+    apiserver-proxy.networking.gardener.cloud/inject: disable
+
+networkPolicy:
+  # CoreDNS in kube-system carries k8s-app=kube-dns (the chart default; kubectl -n kube-system get
+  # pods -l k8s-app=kube-dns) and listens on 8053, the targetPort of the kube-dns Service (kubectl -n
+  # kube-system get svc kube-dns): the DNS bypass names that port, as a network policy matches the
+  # pod's port, not the Service's.
+  dns:
+    ports: [8053]
+  #
+  # The API lane: the endpoint slice of the kubernetes Service lists port 443 (kubectl get
+  # endpointslices -n default -l kubernetes.io/service-name=kubernetes). Under Cilium the lane and the
+  # openings below are Cilium entity policies; no IP-based rule is written (the security baseline
+  # forbids IP-based policies), so no address is recorded here.
+  kubeApi:
+    enabled: true
+    cidrs: []
+    ports: [443]
+  meshControlPlane:
+    enabled: true
+  # The API server runs outside the cluster and reaches in-cluster webhooks through the provider's
+  # vpn-shoot pod (kubectl -n kube-system get deploy vpn-shoot; not on the host network). When that
+  # pod runs on the webhook pod's node, Cilium sees the call as coming from it, not from an entity,
+  # so the opening names it by its namespace and labels (no address).
+  controlPlaneWebhooks:
+    enabled: true
+    fromEndpoints:
+      - k8s:io.kubernetes.pod.namespace: kube-system
+        app: vpn-shoot
+        type: tunnel
+  identityServer:
+    enabled: true
+
+# The secret store, release ztd-openbao (deployment/helm/ztd-openbao), installed by
+# scripts/install-zone/install.sh after zone-policy with this zone's storage class (zone.storageClass)
+# and the umbrella's management namespace. TEMPORARY pin: the provider's pod network masquerades
+# cross-node pod traffic, so a meshed pod on another node than istiod never passes its proxy's
+# readiness; the installer pins the OpenBao server and both of its jobs to istiod's node (required
+# node affinity on kubernetes.io/hostname). The server's volume (WaitForFirstConsumer) binds on that
+# node. The pin falls when the provider's network is fixed, the criterion that gates mesh enrolment
+# on this cluster (docs/environments/osc.md, "The node pin of OpenBao").
+openbao:
+  pinToMeshNode: true
