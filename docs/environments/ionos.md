@@ -42,7 +42,7 @@ kubectl get storageclass
 **Verify:** every node is `Ready`, and both daemonsets report as many ready pods as desired.
 
 The common baseline ([Environments](index.md)) names Cilium with `cni.exclusive=false`, for the
-service mesh ([ADR-0001](../adr/0001-service-mesh-mode-istio-ambient-with-cilium.md)). This cluster
+service mesh ([ADR-0009](../adr/0009-service-mesh-mode-istio-sidecar-with-cilium.md)). This cluster
 runs no mesh and no demonstration workload, so its provider CNI is kept; whether the visualization
 stage needs the mesh here is decided with that stage.
 
