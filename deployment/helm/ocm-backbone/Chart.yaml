@@ -1,0 +1,16 @@
+apiVersion: v2
+name: ocm-backbone
+description: >-
+  The stores the OCM W-Stack wallet lane of a zone shares: one Cassandra node with the `ocm`
+  keyspace the W-Stack services migrate into, and one NATS server for their messaging. Installed
+  once per zone into the management-plane namespace laid down by the ztd umbrella chart, before
+  the first ocm-wallet release.
+type: application
+version: 0.1.0
+appVersion: "cassandra-5.0.5-nats-2.12.1"
+keywords:
+  - facis
+  - zero-trust
+  - ocm
+sources:
+  - https://github.com/eclipse-xfsc/facis-zero-trust-demonstrator

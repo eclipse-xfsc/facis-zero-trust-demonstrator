@@ -1,0 +1,17 @@
+# Renders the chart in CI: placeholder digests, a tenant and the names of the Secrets the proof
+# creates before the install; never deployed as is.
+tenant:
+  id: zone-a
+  host: wallet-a.ztd.test
+images:
+  signer: { digest: sha256:0000000000000000000000000000000000000000000000000000000000000000 }
+  vaultPlugin: { digest: sha256:0000000000000000000000000000000000000000000000000000000000000000 }
+  storage: { digest: sha256:0000000000000000000000000000000000000000000000000000000000000000 }
+  retrieval: { digest: sha256:0000000000000000000000000000000000000000000000000000000000000000 }
+  edge: { digest: sha256:0000000000000000000000000000000000000000000000000000000000000000 }
+  hook: { digest: sha256:0000000000000000000000000000000000000000000000000000000000000000 }
+openbao:
+  existingSecret: ztd-openbao-ocm-wallet-a
+edge:
+  tls:
+    existingSecret: ocm-wallet-a-tls

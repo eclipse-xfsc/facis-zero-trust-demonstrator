@@ -1,0 +1,67 @@
+{{- /*
+The keyspace the W-Stack services migrate into, created once the node answers. A post-install and
+post-upgrade hook in the platform band: with --wait --wait-for-jobs the node is ready before it
+runs, and CREATE KEYSPACE IF NOT EXISTS makes every run the same. It runs the Cassandra image for
+its cqlsh and is labelled as part of the lane, so the chart's own policy admits it to CQL.
+*/ -}}
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: {{ printf "%s-keyspace" (include "backbone.cassandra" .) }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "backbone.labels" . | nindent 4 }}
+    app.kubernetes.io/component: keyspace
+  annotations:
+    helm.sh/hook: post-install,post-upgrade
+    helm.sh/hook-weight: {{ .Values.hooks.weight | quote }}
+    helm.sh/hook-delete-policy: before-hook-creation,hook-succeeded
+spec:
+  backoffLimit: 6
+  template:
+    metadata:
+      labels:
+        {{- include "backbone.labels" . | nindent 8 }}
+        app.kubernetes.io/component: keyspace
+      annotations:
+        # A one-shot pod: a sidecar would keep it from completing under a sidecar mesh.
+        sidecar.istio.io/inject: "false"
+    spec:
+      serviceAccountName: {{ include "backbone.cassandra" . }}
+      automountServiceAccountToken: false
+      enableServiceLinks: false
+      restartPolicy: OnFailure
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 999
+        runAsGroup: 999
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: keyspace
+          image: "{{ .Values.images.cassandra.repository }}@{{ .Values.images.cassandra.digest }}"
+          imagePullPolicy: IfNotPresent
+          command: ["/bin/sh", "-ec"]
+          args:
+            - |
+              host={{ printf "%s-0.%s.%s.svc" (include "backbone.cassandra" .) (include "backbone.cassandra" .) .Release.Namespace | quote }}
+              cqlsh "$host" 9042 -e "CREATE KEYSPACE IF NOT EXISTS {{ .Values.cassandra.keyspace }} WITH replication = {'class': 'SimpleStrategy', 'replication_factor': 1};"
+              cqlsh "$host" 9042 -e "DESCRIBE KEYSPACE {{ .Values.cassandra.keyspace }}" | head -1
+          env:
+            - name: HOME
+              value: /tmp
+          resources:
+            requests: { cpu: 50m, memory: 128Mi }
+            limits: { memory: 512Mi }
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: [ALL]
+          volumeMounts:
+            - name: tmp
+              mountPath: /tmp
+      volumes:
+        - name: tmp
+          emptyDir:
+            sizeLimit: 64Mi

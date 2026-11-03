@@ -1,0 +1,138 @@
+{{- include "backbone.validate" . -}}
+{{- $sel := dict "component" "cassandra" | merge (dict "Release" .Release "Values" .Values "Chart" .Chart) -}}
+---
+# The node's address, headless: the StatefulSet's pod name resolves through it, and the W-Stack
+# services dial the same name on 9042.
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "backbone.cassandra" . }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "backbone.labels" . | nindent 4 }}
+    app.kubernetes.io/component: cassandra
+spec:
+  clusterIP: None
+  publishNotReadyAddresses: true
+  selector:
+    {{- include "backbone.selector" $sel | nindent 4 }}
+  ports:
+    - name: cql
+      port: 9042
+      targetPort: cql
+    - name: intra-node
+      port: 7000
+      targetPort: intra-node
+---
+# One node, its data on a claim that outlives the release. The image's entrypoint writes the
+# node's addresses into its configuration at start, so the root filesystem stays writable; the
+# process runs as the image's cassandra user.
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: {{ include "backbone.cassandra" . }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "backbone.labels" . | nindent 4 }}
+    app.kubernetes.io/component: cassandra
+spec:
+  serviceName: {{ include "backbone.cassandra" . }}
+  replicas: 1
+  podManagementPolicy: OrderedReady
+  persistentVolumeClaimRetentionPolicy:
+    whenDeleted: Retain
+    whenScaled: Retain
+  selector:
+    matchLabels:
+      {{- include "backbone.selector" $sel | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "backbone.labels" . | nindent 8 }}
+        app.kubernetes.io/component: cassandra
+    spec:
+      serviceAccountName: {{ include "backbone.cassandra" . }}
+      automountServiceAccountToken: false
+      enableServiceLinks: false
+      terminationGracePeriodSeconds: 60
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 999
+        runAsGroup: 999
+        fsGroup: 999
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: cassandra
+          image: "{{ .Values.images.cassandra.repository }}@{{ .Values.images.cassandra.digest }}"
+          imagePullPolicy: IfNotPresent
+          env:
+            - name: CASSANDRA_CLUSTER_NAME
+              value: {{ .Values.cassandra.clusterName | quote }}
+            - name: CASSANDRA_NUM_TOKENS
+              value: {{ .Values.cassandra.numTokens | quote }}
+            - name: CASSANDRA_SEEDS
+              value: {{ printf "%s-0.%s.%s.svc" (include "backbone.cassandra" .) (include "backbone.cassandra" .) .Release.Namespace | quote }}
+            - name: CASSANDRA_DC
+              value: dc1
+            - name: CASSANDRA_RACK
+              value: rack1
+            - name: CASSANDRA_ENDPOINT_SNITCH
+              value: GossipingPropertyFileSnitch
+            - name: MAX_HEAP_SIZE
+              value: {{ .Values.cassandra.heap.max | quote }}
+            - name: HEAP_NEWSIZE
+              value: {{ .Values.cassandra.heap.new | quote }}
+          ports:
+            - name: cql
+              containerPort: 9042
+            - name: intra-node
+              containerPort: 7000
+          # Ready only while CQL answers; the start of a node takes minutes, so the startup probe
+          # gives it cassandra.startupSeconds before liveness counts.
+          startupProbe:
+            exec:
+              command: ["/bin/sh", "-c", "cqlsh 127.0.0.1 9042 -e 'SELECT release_version FROM system.local' >/dev/null"]
+            periodSeconds: 10
+            timeoutSeconds: 10
+            failureThreshold: {{ div (add (int .Values.cassandra.startupSeconds) 9) 10 }}
+          readinessProbe:
+            exec:
+              command: ["/bin/sh", "-c", "cqlsh 127.0.0.1 9042 -e 'SELECT release_version FROM system.local' >/dev/null"]
+            periodSeconds: 15
+            timeoutSeconds: 10
+          livenessProbe:
+            tcpSocket:
+              port: cql
+            periodSeconds: 30
+            timeoutSeconds: 5
+          resources:
+            {{- toYaml .Values.cassandra.resources | nindent 12 }}
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: [ALL]
+          volumeMounts:
+            - name: data
+              mountPath: /var/lib/cassandra
+  volumeClaimTemplates:
+    - metadata:
+        name: data
+        labels:
+          {{- include "backbone.labels" . | nindent 10 }}
+          app.kubernetes.io/component: cassandra
+      spec:
+        accessModes: [ReadWriteOnce]
+        storageClassName: {{ .Values.cassandra.storage.className | quote }}
+        resources:
+          requests:
+            storage: {{ .Values.cassandra.storage.size }}
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: {{ include "backbone.cassandra" . }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "backbone.labels" . | nindent 4 }}
+automountServiceAccountToken: false

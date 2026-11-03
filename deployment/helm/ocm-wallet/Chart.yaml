@@ -1,0 +1,21 @@
+apiVersion: v2
+name: ocm-wallet
+description: >-
+  One organisation's OCM W-Stack wallet: the signer with its keys in the zone's OpenBao transit
+  engine, the credential storage and the credential retrieval services on the zone's Cassandra and
+  NATS (ocm-backbone), and the edge that serves the organisation's did:web document over TLS.
+  One release is one tenant and one DID. Installed into the management-plane namespace of a zone
+  laid down by the ztd umbrella chart, after ocm-backbone.
+type: application
+version: 0.1.0
+appVersion: "signer-2.3.9-storage-1.3.3-retrieval-1.1.7"
+keywords:
+  - facis
+  - zero-trust
+  - ocm
+  - wallet
+sources:
+  - https://github.com/eclipse-xfsc/facis-zero-trust-demonstrator
+  - https://github.com/eclipse-xfsc/crypto-provider-service
+  - https://github.com/eclipse-xfsc/credential-storage-service
+  - https://github.com/eclipse-xfsc/oid4-vci-credential-retrieval-service

@@ -1,0 +1,87 @@
+name: OCM wallet lane
+
+# The OCM W-Stack wallet lane (deployment/helm/ocm-backbone, deployment/helm/ocm-wallet) on a
+# throwaway kind cluster laid out like a zone: the umbrella with OpenBao issuing one service token
+# per wallet, the backbone, two wallets, their did:web documents, a stored credential, the restarts
+# and the reinstall. The cases are in scripts/verify-ocm-wallet/verify.sh; the records are published
+# as an artifact and never committed.
+on:
+  pull_request:
+    paths:
+      - 'deployment/helm/ocm-backbone/**'
+      - 'deployment/helm/ocm-wallet/**'
+      - 'deployment/helm/ztd/**'
+      - 'scripts/verify-ocm-wallet/**'
+      - 'scripts/secrets/kind-api-lane.sh'
+      - 'scripts/secrets/unseal.sh'
+      - 'scripts/ci/check-charts.sh'
+      - 'scripts/tools/pins.env'
+      - 'scripts/tools/install.sh'
+      - 'features/fixtures/xfsc/issue/allow.json'
+      - '.github/workflows/ocm-wallet.yml'
+  push:
+    branches: [main]
+    paths:
+      - 'deployment/helm/ocm-backbone/**'
+      - 'deployment/helm/ocm-wallet/**'
+      - 'deployment/helm/ztd/**'
+      - 'scripts/verify-ocm-wallet/**'
+      - 'scripts/secrets/kind-api-lane.sh'
+      - 'scripts/secrets/unseal.sh'
+      - 'scripts/ci/check-charts.sh'
+      - 'scripts/tools/pins.env'
+      - 'scripts/tools/install.sh'
+      - 'features/fixtures/xfsc/issue/allow.json'
+      - '.github/workflows/ocm-wallet.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+# One run per ref: a newer push replaces a run of the same PR.
+concurrency:
+  group: ocm-wallet-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  lane:
+    name: Wallet lane on kind
+    runs-on: ubuntu-24.04
+    # Above the proof's own waits; a run that hits this is a resource problem, and the summary and the
+    # records are published anyway (always).
+    timeout-minutes: 60
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+
+      - name: Set up Helm
+        uses: azure/setup-helm@1a275c3b69536ee54be43f2070a358922e12c8d4 # v4
+        with:
+          version: v4.3.0
+
+      - name: Install the pinned kind and kubectl
+        run: scripts/tools/install.sh "$RUNNER_TEMP/bin" kind kubectl
+
+      # The records go to the runner's temp directory, outside the checkout.
+      - name: Run the lane on kind
+        run: BIN="$RUNNER_TEMP/bin" scripts/verify-ocm-wallet/verify.sh --out "$RUNNER_TEMP/evidence"
+
+      - name: Write the verdict to the job summary
+        if: always()
+        run: |
+          {
+            echo '```'
+            cat "$RUNNER_TEMP/evidence/verdict.txt" 2>/dev/null || echo "no verdict: the proof did not reach its exit trap (see the step log)"
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Publish the records
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: ocm-wallet-lane
+          path: ${{ runner.temp }}/evidence/
+
+      - name: The proof leaves the repository unchanged
+        if: always()
+        run: git status --porcelain | grep . && { echo "the proof changed tracked or added untracked files"; exit 1; } || true

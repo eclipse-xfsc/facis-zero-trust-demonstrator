@@ -1,0 +1,138 @@
+{{- /*
+The signer and its engine in one pod. The engine (the W-Stack's OpenBao plugin) is the only
+container that holds the token; it listens on 50051 for the signer next to it and for the storage
+service, which signs through it too. The signer serves the DID document, the JWKS and the signing
+endpoints on 8080 and answers the lane's signing requests on NATS.
+*/ -}}
+{{- $c := dict "Release" .Release "Values" .Values "Chart" .Chart "component" "signer" -}}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "wallet.component" $c }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "wallet.labels" . | nindent 4 }}
+    app.kubernetes.io/component: signer
+spec:
+  selector:
+    {{- include "wallet.selector" $c | nindent 4 }}
+  ports:
+    - name: http
+      port: 8080
+      targetPort: http
+    - name: crypto
+      port: 50051
+      targetPort: 50051  # by number: the port is declared on the sidecar init container
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "wallet.component" $c }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "wallet.labels" . | nindent 4 }}
+    app.kubernetes.io/component: signer
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      {{- include "wallet.selector" $c | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "wallet.podLabels" $c | nindent 8 }}
+    spec:
+      serviceAccountName: {{ include "wallet.component" $c }}
+      automountServiceAccountToken: false
+      enableServiceLinks: false
+      securityContext:
+        runAsNonRoot: true
+        seccompProfile:
+          type: RuntimeDefault
+      # The engine is a native sidecar: it starts first and must answer on 50051 before the signer
+      # starts, so the signer and the storage service never dial an engine that is not there yet.
+      initContainers:
+        - name: engine
+          image: {{ include "wallet.image" (dict "Values" .Values "image" "vaultPlugin") | quote }}
+          imagePullPolicy: IfNotPresent
+          env:
+            - name: CRYPTO_PROVIDER_HASHICORP_VAULT_ADDRESS
+              value: 0.0.0.0:50051
+            # The upstream plugin reads this misspelt name (viper key VAULT_ADRESS); do not "fix" it.
+            - name: VAULT_ADRESS
+              value: {{ .Values.openbao.address | quote }}
+            - name: VAULT_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.openbao.existingSecret | quote }}
+                  key: {{ .Values.openbao.secretKey | quote }}
+            - name: LOG_LEVEL
+              value: {{ .Values.logLevel | quote }}
+          restartPolicy: Always
+          ports:
+            - name: crypto
+              containerPort: 50051
+          startupProbe:
+            tcpSocket:
+              port: crypto
+            periodSeconds: 2
+            failureThreshold: 60
+          readinessProbe:
+            tcpSocket:
+              port: crypto
+            periodSeconds: 5
+          livenessProbe:
+            tcpSocket:
+              port: crypto
+            periodSeconds: 15
+          resources:
+            {{- toYaml .Values.resources.vaultPlugin | nindent 12 }}
+          securityContext:
+            runAsUser: 1000
+            runAsGroup: 1000
+            {{- include "wallet.containerSecurity" . | nindent 12 }}
+      containers:
+        - name: signer
+          image: {{ include "wallet.image" (dict "Values" .Values "image" "signer") | quote }}
+          imagePullPolicy: IfNotPresent
+          env:
+            - name: HTTP_HOST
+              value: 0.0.0.0
+            - name: HTTP_PORT
+              value: "8080"
+            - name: METRICS_ADDR
+              value: ":2112"
+            - name: CRYPTO_GRPC_ADDR
+              value: 127.0.0.1:50051
+            - name: ENGINE_TIMEOUT
+              value: "60"
+            - name: PROTOCOL
+              value: nats
+            - name: NATS_HOST
+              value: {{ .Values.backbone.natsUrl | quote }}
+            - name: NATS_TOPIC
+              value: {{ printf "%s.signer" (include "wallet.prefix" .) | quote }}
+            - name: LOG_LEVEL
+              value: {{ .Values.logLevel | quote }}
+          ports:
+            - name: http
+              containerPort: 8080
+            - name: metrics
+              containerPort: 2112
+          readinessProbe:
+            httpGet:
+              path: /readiness
+              port: http
+            periodSeconds: 5
+          livenessProbe:
+            httpGet:
+              path: /liveness
+              port: http
+            periodSeconds: 15
+          resources:
+            {{- toYaml .Values.resources.signer | nindent 12 }}
+          securityContext:
+            runAsUser: 65532
+            runAsGroup: 65532
+            {{- include "wallet.containerSecurity" . | nindent 12 }}

@@ -18,9 +18,12 @@ names the first of those two layers the *Kubernetes network policy layer*, a lay
 resource kind: in the zones it is enforced by Cilium, through Kubernetes `NetworkPolicy` objects
 and, where a source is not a pod, `CiliumNetworkPolicy` objects. In this section *NetworkPolicy*
 names that layer. The management-plane components whose placement is not yet recorded,
-TRAIN (TCR and TSPA), the TSA policy engine and OCM, are drawn outside both zones under the same
-rule until their placement is decided; the four provisional rows of the allow matrix are theirs. A
-workload without an SVID or running an unsigned image cannot join or start.
+TRAIN (TCR and TSPA), the TSA policy engine and OCM's verification service, are drawn outside both
+zones under the same rule until their placement is decided; the four provisional rows of the allow
+matrix are theirs. OCM's wallet lane (the organisation's signer, credential storage and credential
+retrieval, with its `did:web` document) is placed: it runs in each zone's management plane
+([OCM wallet](ocm-wallet.md), ADR-0014), and the diagram will show it once the verification service
+is placed with it. A workload without an SVID or running an unsigned image cannot join or start.
 
 ![Diagram 03, trust boundaries: zone-a and zone-b are separate SPIFFE trust domains, each holding its data plane and the management-plane components placed in it (SPIRE server, OpenTelemetry Collector, cmcd), with data-plane calls into that management plane denied by default except along the allow-matrix paths and the declared xDS opening; the zones meet only through the attested channel and a TRAIN verdict; TRAIN, the TSA policy engine and OCM are drawn outside both zones under the same rule; anything without an SVID or with an unsigned image is denied](diagrams/03-trust-boundaries.svg)
 
@@ -64,7 +67,7 @@ source — not who supplies the service; see the allow matrix below.
 | Policy Engine | TSA policy engine (Trust Services API) | Client-supplied | [External XFSC components](dependencies.md#external-xfsc-components) |
 | TRAIN | TCR (trust-list resolution); TSPA (trust-list publication) | Client-supplied | [External XFSC components](dependencies.md#external-xfsc-components); [TSPA in the ZT-35 flow](tspa-publish-api.md#3-what-tspa-is-in-the-zt-35-flow) |
 | SPIRE control plane | SPIRE server and its controller-manager | Project-built | [Workload identity](environments/osc.md#3-workload-identity) |
-| OCM | OCM W-Stack, used by the backend as the credential verification service | Client-supplied | [External XFSC components](dependencies.md#external-xfsc-components) |
+| OCM | OCM W-Stack: the wallet lane (signer, credential storage, credential retrieval, one release per organisation, in the zone's management plane) is packaged and run by the project from the published XFSC images; the verification service the backend calls is the next slice | Client-supplied software, project-packaged | [OCM wallet](ocm-wallet.md); [External XFSC components](dependencies.md#external-xfsc-components) |
 | Observability stack | OpenTelemetry Collector, read through Prometheus and Jaeger | Project-built | [Operations](environments/osc.md#operations) |
 | Attestation | cmcd, the per-zone CMC daemon, and its enrolment server (estserver) | Project-built | [Specifications](specifications.md); [trust boundary between the zones](environments/osc.md#7-the-trust-boundary-between-the-zones) |
 
