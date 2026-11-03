@@ -99,6 +99,13 @@ def live_credentials():
     found = {k: data[k] for k in ("unseal-key", "verify-token", "root-token") if data.get(k)}
     if "verify-token" in found:
         found["fixture-kv-value"] = fixture_value(found["verify-token"])
+    # The service tokens the bootstrap issued (openbaoBootstrap.serviceTokens), one Secret each.
+    q = kubectl("-n", MGMT_NS, "get", "secret", "-l", "ztd.facis.io/service-token", "-o", "json", check=False)
+    if q.returncode == 0:
+        for item in json.loads(q.stdout).get("items", []):
+            tok = item.get("data", {}).get("openbao-token")
+            if tok:
+                found["service-token:" + item["metadata"]["name"]] = base64.b64decode(tok).decode()
     return found
 
 
@@ -249,7 +256,8 @@ def main():
         live = live_credentials()
         values = needles(dict(live, canary=canary))
         record["credentials"] = {"searched": sorted(values), "heldInSecrets": sorted(
-            [f"{MGMT_NS}/secret/ztd-openbao-bootstrap:{k}" for k in live if k != "fixture-kv-value"] +
+            [f"{MGMT_NS}/secret/{k.split(':', 1)[1]}:openbao-token" if k.startswith("service-token:")
+             else f"{MGMT_NS}/secret/ztd-openbao-bootstrap:{k}" for k in live if k != "fixture-kv-value"] +
             [f"{DATA_NS}/secret/{PROBE}:credential"])}
 
         logs, scope, errors = collect_logs(namespaces_excluded=(LEAK_NS,))
