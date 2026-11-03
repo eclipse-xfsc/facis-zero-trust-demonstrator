@@ -36,3 +36,6 @@ kubeconfig*
 
 # Pinned tools installed by scripts/tools/install.sh
 .tools/
+
+# Python bytecode from the scripts
+__pycache__/

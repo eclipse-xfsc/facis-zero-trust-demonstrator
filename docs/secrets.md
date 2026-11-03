@@ -47,20 +47,78 @@ safe to repeat:
 | initialised, no Secret | fails: it never re-initialises |
 | sealed | unseals with the stored key |
 | `state=initialized` | enables kv-v2 and transit, creates the fixture transit key `ztd-fixture` and the fixture KV value `secret/ztd-fixture/canary`, the policy `ztd-verify` and a periodic verification token (768 h); checks the token; sets `state=configured` |
-| `state=configured`, root token still present | revokes it if it is still valid, then removes it from the Secret |
-| `state=configured` | renews the verification token and exits |
+| `state=initialized`, continued | for every entry of `openbaoBootstrap.serviceTokens`: enables that entry's two transit engines (`<transitMount>` and `<transitMount>-storage`), writes its policy and issues its periodic token into its own Secret (see [Service tokens](#service-tokens)) |
+| `state=configured`, root token still present | issues the service tokens still missing, then revokes the root token if it is still valid and removes it from the Secret |
+| `state=configured` | renews the verification token, checks and renews every service token (fails if one is missing or expired), and exits |
 
 After a successful run the Secret holds the unseal key, the verification token and the state; the root
 token is revoked. The Job name carries a hash of its script and values: it reruns when the bootstrap
-changes, and an unchanged upgrade renders the same manifest. Credentials reach `curl` through header
-and body files in a memory volume, never on a command line, and the Job's log names states and HTTP
-codes only.
+changes, and an unchanged upgrade renders the same manifest. Credentials reach `curl` through header and body files in a memory volume, never on a command line,
+and the Job's log names states and HTTP codes only.
 
 The `ztd-verify` policy can read `sys/mounts/*`, read `secret/data/ztd-fixture/*`, use the
 `ztd-fixture` transit key, and look up and renew itself. Nothing else.
 
 The Job's Role may create Secrets in the management namespace — Kubernetes RBAC cannot limit `create`
-to one name — and may read and patch only `ztd-openbao-bootstrap`.
+to one name — and may read and patch only `ztd-openbao-bootstrap` and the service-token Secrets it
+issues. The entries must be distinct (names, engines, and no engine that is another entry's
+`-storage` engine), must not name a reserved or shared engine (`transit`, `secret`, `sys`, `auth`,
+`identity`, `cubbyhole`), and need the bundled OpenBao: with `openbaoExternal.address` nothing would
+issue them, so the chart refuses the combination.
+
+### Service tokens
+
+A component that signs with OpenBao transit (the OCM wallet's signer is the first) gets its own
+engine, policy and token from the bootstrap, declared in the zone file:
+
+```yaml
+openbaoBootstrap:
+  serviceTokens:
+    - name: ocm-wallet          # Secret ztd-openbao-ocm-wallet, policy ztd-svc-ocm-wallet
+      transitMount: ocm/zone-a  # the component's own transit engine
+      period: 768h              # default
+```
+
+For each entry the bootstrap enables two transit engines, `transitMount` and `transitMount-storage`
+(left alone when they exist; engines cannot nest, so the second is a sibling), writes the policy
+`ztd-svc-<name>` and issues a periodic orphan token with it into the Secret
+`ztd-openbao-<name>` (key `openbao-token`) of the management namespace; the component's chart mounts
+that Secret and never sees any other token. The policy allows, on the identity engine: listing, reading,
+creating and updating keys, signing and verifying; reading the engine's mount configuration and the
+mount table (the signer lists both); on the storage engine the same plus encryption and decryption
+(the W-Stack's storage service keeps one symmetric key per account there, which must never appear
+in the DID document); and looking up and renewing the token itself.
+Key export is denied explicitly in both engines, and the per-key configuration in the identity
+engine, so the identity key can never be made exportable or deletable (the storage service sets the
+configuration of the data keys it creates); nothing outside the two engines (`secret/`, `transit/`,
+another component's engine, `sys/`) is reachable. Two components never share an engine: a DID document lists every key of
+its engine, so an engine is one identity.
+
+Tokens are periodic orphan tokens without the `default` policy (the policy names `lookup-self`,
+`renew-self`, `revoke-self` and `capabilities-self` itself), issued while the root token exists
+(`state=initialized`); every later bootstrap run checks that the stored token answers and carries
+the policy `ztd-svc-<name>` (a foreign token in the Secret is not accepted), renews it, and fails
+rather than replaces it when OpenBao does not answer. A token minted but not stored is revoked
+before the Job dies. The Secret also records `policy-sha256`, the hash of the policy text the token
+was issued under: when a chart version changes the policy and the root token is gone, the bootstrap
+fails with a message naming the recovery instead of renewing a token under the stale policy. On the
+identity engine the token may create, read and use keys but never rotate, trim or import them. An entry **added to a zone that is already bootstrapped**
+therefore needs the recovery below once: the bootstrap fails with "service token … is missing or
+expired and the root token is gone" until a root token is put back. A rebuilt environment needs
+nothing: the entries are values, and the first bootstrap issues them all.
+
+**Recovery (new or expired service token, expired verification token).** Generate a root token with
+the unseal key (`bao operator generate-root`, inside the OpenBao pod, the key on standard input as
+`scripts/secrets/unseal.sh` does), write it to the bootstrap Secret's `root-token` key, and run the
+bootstrap again (delete the bootstrap Job and `helm upgrade`, or upgrade with a changed
+`openbaoBootstrap`). Then restart the component's pods, which read their token at start.
+
+**Removing an entry.** Deleting an entry from `serviceTokens` does not revoke its token or delete its
+policy, engines or Secret (the chart cannot without the root token). Decommission by hand with the
+recovery's root token: revoke the token, delete the policy and the Secret, and, only when the
+identity is retired for good, disable the two engines. The Job issues what is missing, renews what exists and revokes the root
+token again. For the verification token alone the manual route still works: issue a new periodic
+token with the `ztd-verify` policy and write it to `verify-token`.
 
 **Network.** The Job reaches the Kubernetes API from the management plane. Under Cilium the chart opens
 that lane itself, as a `CiliumNetworkPolicy` to the `kube-apiserver` entity for the Job's pods only, so
@@ -70,16 +128,15 @@ lane must be open (on kind, `scripts/secrets/kind-api-lane.sh` prints it from th
 ### Verification
 
 The `platform`-band hook `ztd-verify-openbao` runs after every install and upgrade, in the management
-namespace, with the verification token from a Secret volume and no Kubernetes API access. It fails the
-release unless the server is initialised and unsealed, `secret/` is KV version 2 and `transit/` is
-transit; with the bundled server it also reads the fixture value (printing a 12-character hash of it,
-never the value) and round-trips the fixture transit key. It renews the token, so the token does not
-expire while the release is upgraded or verified at least once every 32 days. The Job stays until the
-next run replaces it, so its log can be collected.
+namespace, with the verification token from a Secret volume and no Kubernetes API access. It fails
+the release unless the server is initialised and unsealed, `secret/` is KV version 2 and `transit/`
+is transit; with the bundled server it also reads the fixture value (printing a 12-character hash of
+it, never the value), round-trips the fixture transit key and checks that every service token's two
+engines exist. It renews the verification token. The hook never holds a service token: each
+component renews its own (the wallet chart's daily `<release>-renew` CronJob), and every bootstrap
+run checks and renews them too. The Job stays until the next run replaces it, so its log can be collected.
 
-**Token expiry.** If the verification token expires, the hook fails. Recovery: generate a root token
-with the unseal key (`bao operator generate-root`), issue a new periodic token with the `ztd-verify`
-policy, write it to the Secret's `verify-token`, and revoke the root token again.
+**Token expiry.** If a token expires, the hook fails. Recovery: see [Service tokens](#service-tokens).
 
 ### After a restart: manual unseal
 

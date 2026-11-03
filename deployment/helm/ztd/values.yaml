@@ -159,8 +159,21 @@ openbao:
 # issues a narrow periodic verification token and revokes the root token. It talks to the
 # Kubernetes API from the management plane, so networkPolicy.kubeApi must be open there.
 # After a restart the server is sealed until it is unsealed by hand (scripts/secrets/unseal.sh).
+#
+# serviceTokens: the components that sign with OpenBao transit, one entry each. For every entry the
+# bootstrap enables two transit engines, `transitMount` (the component's identity keys) and
+# `transitMount`-storage (its data keys: encryption too), writes the policy `ztd-svc-<name>` limited
+# to those two (key export is denied in both, the per-key config in the identity engine) and issues a periodic orphan token into the Secret `ztd-openbao-<name>` (key `openbao-token`)
+# of the management namespace, which the component's chart mounts. Tokens are issued while the root
+# token still exists, so an entry added to a zone that is already bootstrapped needs the recovery in
+# docs/secrets.md once; every later run checks and renews them. Names: lowercase letters, digits and
+# hyphens; "bootstrap" is taken.
 openbaoBootstrap:
   image: docker.io/curlimages/curl:8.10.1@sha256:d9b4541e214bcd85196d6e92e2753ac6d0ea699f0af5741f8c6cccbfcf00ef4b
+  serviceTokens: []
+  # - name: ocm-wallet          # Secret ztd-openbao-ocm-wallet, policy ztd-svc-ocm-wallet
+  #   transitMount: ocm/zone-a  # the component's own transit engine
+  #   period: 768h              # renewed daily by the component itself and by every bootstrap run (default)
 
 # An OpenBao the umbrella does not own, such as the one the XFSC ArgoCD deployment installs. When
 # `address` is set, openbao.enabled must be false: nothing is installed or initialised, and only the
