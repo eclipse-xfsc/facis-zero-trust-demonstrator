@@ -48,6 +48,19 @@ The demonstrator integrates XFSC components rather than reimplementing them: the
 for policy evaluation, the Organisation Credential Manager for wallets, TRAIN for trust anchoring,
 and ORCE for orchestration. Versions are pinned at deployment and recorded with the release.
 
+The OCM W-Stack wallet lane ([OCM wallet](ocm-wallet.md)) runs these published XFSC images, by
+digest, from the XFSC Harbor on the client's registry host; the digests are in
+`scripts/tools/pins.env`. All are Apache-2.0.
+
+| Image | Version | Role |
+|---|---|---|
+| `tsa/signer` (crypto-provider-service) | 2.3.9 | the wallet's signer: DID document, JWKS, signing and verification |
+| `tsa/crypto-provider-hashicorp-vault-plugin` | 2.0.6 | the signer's engine against OpenBao transit |
+| `ocm-wstack/storage-service` | 1.3.3 | the wallet's credential store |
+| `ocm-wstack/credential-retrieval-service` | 1.1.7 | OID4VCI on the holder's side |
+| `library/cassandra`, `library/nats` (Docker Hub) | 5.0.5, 2.12.1 | the zone's stores behind the lane |
+| `nginxinc/nginx-unprivileged` (Docker Hub) | 1.29 | the edge that serves the did:web document |
+
 ## Go dependencies
 
 Direct dependencies of the Go module. Transitive dependencies are listed in the SBOM.

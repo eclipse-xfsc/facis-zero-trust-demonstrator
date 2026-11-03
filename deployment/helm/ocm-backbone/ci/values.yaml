@@ -1,0 +1,9 @@
+# Renders the chart in CI: placeholder digests and kind's storage class; never deployed as is.
+images:
+  cassandra:
+    digest: sha256:0000000000000000000000000000000000000000000000000000000000000000
+  nats:
+    digest: sha256:0000000000000000000000000000000000000000000000000000000000000000
+cassandra:
+  storage:
+    className: standard

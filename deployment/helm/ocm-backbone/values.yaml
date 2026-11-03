@@ -1,0 +1,50 @@
+# Both images by digest only - the chart refuses a tag. Cassandra 5.0.5 and NATS 2.12.1 from Docker
+# Hub, as the W-Stack's own compose files run them (tags in the comments; the digests are the
+# multi-architecture index digests).
+images:
+  cassandra:
+    repository: docker.io/library/cassandra   # 5.0.5
+    digest: ""
+  nats:
+    repository: docker.io/library/nats        # 2.12.1-alpine
+    digest: ""
+
+# One Cassandra node. The W-Stack migrations create their tables in the keyspace `ocm` (the name is
+# fixed in their CQL), so the chart creates that keyspace once, replication factor 1, by a hook Job
+# after the node is ready. The claim outlives the release: the StatefulSet keeps its volume on
+# deletion and on scale-down, so a helm uninstall leaves the credentials where they are and a
+# reinstall finds them. The heap is sized for one node on a small cluster; a zone raises it.
+cassandra:
+  clusterName: ocm
+  keyspace: ocm
+  numTokens: 16
+  heap:
+    max: 1G
+    new: 200M
+  storage:
+    className: ""
+    size: 5Gi
+  startupSeconds: 300
+  resources:
+    requests: { cpu: 250m, memory: 1536Mi }
+    limits: { memory: 2560Mi }
+
+# One NATS server, core NATS only: the W-Stack flows are request/reply and publish/subscribe over
+# CloudEvents, and durable state is Cassandra's. The monitoring port answers the probes.
+nats:
+  resources:
+    requests: { cpu: 20m, memory: 64Mi }
+    limits: { memory: 256Mi }
+
+# Hooks on the umbrella's hook-weight scheme (docs/umbrella-chart.md): the keyspace Job runs in the
+# platform band, 40 to 59.
+hooks:
+  weight: 45
+
+# Network layer. The umbrella's default deny covers the namespace; this chart opens CQL (9042) and
+# NATS (4222) to the pods of the OCM lane, the ones labelled app.kubernetes.io/part-of=ocm in this
+# namespace, and nothing to any other namespace. Inside the namespace it narrows nothing while the
+# umbrella's intra-plane lane is on (networkPolicy.intraPlane, the default): the label matters in a
+# zone that turns that lane off.
+networkPolicy:
+  enabled: true

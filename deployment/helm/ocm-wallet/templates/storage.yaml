@@ -1,0 +1,133 @@
+{{- /*
+The credential storage service: the wallet's store in the zone's Cassandra, its tables created by
+its own migrations at start (the keyspace is ocm-backbone's), store requests from NATS and the
+API on 8080. It signs and encrypts through the engine in the signer's pod, with its keys in an
+engine of its own beside the tenant's (<mount>-storage): one symmetric key per account, which must
+never appear in the DID document.
+*/ -}}
+{{- $c := dict "Release" .Release "Values" .Values "Chart" .Chart "component" "storage" -}}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "wallet.component" $c }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "wallet.labels" . | nindent 4 }}
+    app.kubernetes.io/component: storage
+spec:
+  selector:
+    {{- include "wallet.selector" $c | nindent 4 }}
+  ports:
+    - name: http
+      port: 8080
+      targetPort: http
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "wallet.component" $c }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "wallet.labels" . | nindent 4 }}
+    app.kubernetes.io/component: storage
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      {{- include "wallet.selector" $c | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "wallet.podLabels" $c | nindent 8 }}
+    spec:
+      serviceAccountName: {{ include "wallet.component" $c }}
+      automountServiceAccountToken: false
+      enableServiceLinks: false
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+        runAsGroup: 1000
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: storage
+          image: {{ include "wallet.image" (dict "Values" .Values "image" "storage") | quote }}
+          imagePullPolicy: IfNotPresent
+          env:
+            - name: STORAGESERVICE_LOG_LEVEL
+              value: {{ .Values.logLevel | quote }}
+            - name: STORAGESERVICE_LISTEN_ADDR
+              value: 0.0.0.0
+            - name: STORAGESERVICE_LISTEN_PORT
+              value: "8080"
+            - name: STORAGESERVICE_PROFILE
+              value: API
+            - name: STORAGESERVICE_MODE
+              value: DIRECT
+            - name: STORAGESERVICE_COUNTRY
+              value: {{ .Values.retrieval.country | quote }}
+            - name: STORAGESERVICE_REGION
+              value: {{ .Values.retrieval.region | quote }}
+            # The upstream reads the hosts under two spellings (its env tag and its config key).
+            - name: STORAGESERVICE_CASSANDRA_HOSTS
+              value: {{ .Values.backbone.cassandraHosts | quote }}
+            - name: STORAGESERVICE_CASSANDRA_HOST
+              value: {{ .Values.backbone.cassandraHosts | quote }}
+            - name: STORAGESERVICE_CASSANDRA_KEYSPACE
+              value: {{ .Values.backbone.keyspace | quote }}
+            {{- if .Values.backbone.credentialsSecret }}
+            - name: STORAGESERVICE_CASSANDRA_USER
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.backbone.credentialsSecret | quote }}
+                  key: username
+            - name: STORAGESERVICE_CASSANDRA_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.backbone.credentialsSecret | quote }}
+                  key: password
+            {{- end }}
+            - name: STORAGESERVICE_NATS_URL
+              value: {{ .Values.backbone.natsUrl | quote }}
+            - name: STORAGESERVICE_NATS_STORAGETOPIC
+              value: {{ printf "%s.storage" (include "wallet.prefix" .) | quote }}
+            - name: STORAGESERVICE_NATS_QUEUEGROUP
+              value: {{ include "wallet.component" $c | quote }}
+            - name: STORAGESERVICE_NATS_REQUEST_TIMEOUT
+              value: 10s
+            # Its own engine beside the tenant's (<mount>-storage, created by the umbrella's bootstrap):
+            # the service keeps one symmetric key per account there, and the DID document lists only
+            # the tenant's engine (the plugin's namespace is the engine path, the group stays empty).
+            - name: STORAGESERVICE_CRYPTO_NAMESPACE
+              value: {{ include "wallet.storageMount" . | quote }}
+            - name: STORAGESERVICE_CRYPTO_GROUP
+              value: ""
+            - name: STORAGESERVICE_CRYPTO_SIGNKEY
+              value: storage
+            - name: STORAGESERVICE_CRYPTO_GRPC_ADDR
+              value: {{ printf "%s:50051" (include "wallet.component" (dict "Release" .Release "component" "signer")) | quote }}
+            - name: STORAGESERVICE_MIGRATIONS_ENABLED
+              value: "true"
+            # Seconds the service waits for the engine at start (upstream default 10).
+            - name: ENGINE_TIMEOUT
+              value: "60"
+          ports:
+            - name: http
+              containerPort: 8080
+          readinessProbe:
+            httpGet:
+              path: /v1/metrics/health
+              port: http
+            periodSeconds: 5
+            initialDelaySeconds: 5
+          livenessProbe:
+            httpGet:
+              path: /v1/metrics/health
+              port: http
+            periodSeconds: 15
+            initialDelaySeconds: 30
+          resources:
+            {{- toYaml .Values.resources.storage | nindent 12 }}
+          securityContext:
+            {{- include "wallet.containerSecurity" . | nindent 12 }}

@@ -1,0 +1,39 @@
+{{- if .Values.mesh.enabled }}
+{{- /*
+With the zone's sidecar mesh: mutual TLS between the lane's pods, STRICT, except the edge's TLS
+port, which the world reaches without a sidecar and which nginx secures itself.
+*/ -}}
+{{- range $c := list "signer" "storage" "retrieval" }}
+---
+apiVersion: security.istio.io/v1
+kind: PeerAuthentication
+metadata:
+  name: {{ include "wallet.component" (dict "Release" $.Release "component" $c) }}
+  namespace: {{ $.Release.Namespace }}
+  labels:
+    {{- include "wallet.labels" $ | nindent 4 }}
+spec:
+  selector:
+    matchLabels:
+      {{- include "wallet.selector" (dict "Release" $.Release "component" $c) | nindent 6 }}
+  mtls:
+    mode: STRICT
+{{- end }}
+---
+apiVersion: security.istio.io/v1
+kind: PeerAuthentication
+metadata:
+  name: {{ include "wallet.component" (dict "Release" .Release "component" "edge") }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "wallet.labels" . | nindent 4 }}
+spec:
+  selector:
+    matchLabels:
+      {{- include "wallet.selector" (dict "Release" .Release "component" "edge") | nindent 6 }}
+  mtls:
+    mode: STRICT
+  portLevelMtls:
+    8443:
+      mode: PERMISSIVE
+{{- end }}

@@ -1,0 +1,6 @@
+ocm-wallet {{ .Chart.Version }} for tenant {{ .Values.tenant.id }} in {{ .Release.Namespace }}:
+  DID            {{ include "wallet.did" . }}
+  document       https://{{ .Values.tenant.host }}/.well-known/did.json  (Service {{ include "wallet.component" (dict "Release" .Release "component" "edge") }}, {{ .Values.edge.service.type }})
+  transit engine {{ include "wallet.mount" . }}/  key {{ include "wallet.key" . }}  (token Secret {{ .Values.openbao.existingSecret }})
+  NATS subjects  {{ include "wallet.prefix" . }}.offering / .storage / .signer on {{ .Values.backbone.natsUrl }}
+  mesh {{ ternary "STRICT PeerAuthentications on" "off (no PeerAuthentication rendered)" .Values.mesh.enabled }} · network policies {{ ternary "on" "OFF" .Values.networkPolicy.enabled }}{{ if .Values.networkPolicy.cilium }} (+ Cilium node entities){{ end }} · identity label {{ ternary "on" "OFF" .Values.identity.spireManagedIdentity }}
