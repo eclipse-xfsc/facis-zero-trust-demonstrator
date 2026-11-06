@@ -1,0 +1,31 @@
+# The token-store image, by digest only - the chart refuses a tag.
+image:
+  repository: ghcr.io/eclipse-xfsc/facis-zero-trust-demonstrator/token-store
+  digest: ""
+
+# The PostgreSQL the store owns. The chart does not run the database and never carries its
+# credential: the connection URL lives in a Secret of the release namespace, created before the
+# install, and the migration Jobs read it from there.
+database:
+  # Required: the Secret holding the connection URL.
+  existingSecret: ""
+  # The key of the connection URL in that Secret.
+  secretKey: url
+
+schema:
+  # Revert every migration on uninstall (helm uninstall runs `migrate down --to 0`), leaving an
+  # empty schema. Off by default: a production database outlives the release. On in ci/values.yaml.
+  dropOnUninstall: false
+  # Hook weight of the migration Jobs, inside the platform band (40-59) of the umbrella chart's
+  # hook-weight scheme.
+  hookWeight: 41
+  # The Job's whole run, lock wait included, and how often Kubernetes retries a failed pod.
+  timeout: 2m
+  backoffLimit: 2
+
+resources:
+  requests:
+    cpu: 50m
+    memory: 64Mi
+  limits:
+    memory: 128Mi
