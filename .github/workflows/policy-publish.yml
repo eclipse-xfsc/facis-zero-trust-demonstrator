@@ -1,0 +1,149 @@
+name: Policy package
+
+# The publication of the admission policy (ZT-12, ZT-37): the catalogue under deployment/admission -
+# templates, constraints, exemptions - packaged as one tar.gz layer of an OCI artefact, pushed to the
+# policy registry, signed by digest with the interim key and verified against the committed public
+# key: the signing profile of the candidate images (scripts/supplychain/). A zone that reads the
+# registry instead of Git reads this artefact.
+#
+# Restricted and logged: the job runs in the protected release environment, only from main - on a push
+# that touches the catalogue, or by hand with a version - and only once the gator suite has passed on
+# the catalogue it packages. A run started by hand on any other ref stops before the environment and
+# its secrets: a tag it published would name a catalogue nobody reviewed. The run and its approval are
+# the log of who published what; the summary prints the digest, and the manifest's annotations name
+# the commit it came from.
+#
+# The registry is POLICY_REGISTRY (a repository variable, for example harbor.example.org/facis/policy)
+# with the POLICY_REGISTRY_USER and POLICY_REGISTRY_PASSWORD secrets of a robot account allowed to push
+# there; the publish script hands them to oras and cosign itself, with no `docker login` (see the
+# script). While none is configured, the package goes to this repository's GHCR namespace with the job
+# token, as the candidate images do; GHCR creates the package private, and it is made public once in
+# the package settings before a cluster can read it anonymously.
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: Version of the package (default 0.0.0-<commit>)
+        required: false
+        type: string
+  push:
+    branches: [main]
+    paths:
+      - deployment/admission/templates/**
+      - deployment/admission/constraints/**
+      - deployment/admission/exemptions.yaml
+
+permissions:
+  contents: read
+
+concurrency:
+  group: policy-package
+  cancel-in-progress: false
+
+defaults:
+  run:
+    # bash with pipefail: a failing publish piped into tee fails the step.
+    shell: bash
+
+jobs:
+  # Only main publishes. This job needs no environment, so a run from another ref never reaches the key.
+  ref:
+    name: Only main publishes
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check the ref
+        run: |
+          [ "$GITHUB_REF" = refs/heads/main ] ||
+            { echo "::error::$GITHUB_REF is not refs/heads/main: the policy package is published from main only"; exit 1; }
+
+  publish:
+    name: Package, push and sign
+    needs: [ref]
+    runs-on: ubuntu-latest
+    # The interim signing key lives only in this protected environment's secrets.
+    environment: release
+    permissions:
+      contents: read
+      packages: write # pushes the package and its signature to GHCR
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+
+      - name: Install the pinned tools
+        run: |
+          scripts/tools/install.sh "$RUNNER_TEMP/bin" gator cosign oras
+          echo "$RUNNER_TEMP/bin" >> "$GITHUB_PATH"
+
+      # Nothing is packaged unless the catalogue passes its own suite.
+      - name: Verify the constraint suite
+        run: gator verify -v deployment/admission
+
+      # Before anything is pushed: the key must be present and match the committed public key.
+      - name: Check the signing key
+        env:
+          COSIGN_INTERIM_KEY: ${{ secrets.COSIGN_INTERIM_KEY }}
+          COSIGN_PASSWORD: ${{ secrets.COSIGN_INTERIM_PASSWORD }}
+        run: scripts/supplychain/check-key.sh
+
+      # The policy registry when one is configured, else GHCR (names are lower case; the owner may not be).
+      - name: Registry
+        id: registry
+        env:
+          POLICY_REGISTRY: ${{ vars.POLICY_REGISTRY }}
+        run: |
+          if [ -n "$POLICY_REGISTRY" ]; then
+            echo "repository=$POLICY_REGISTRY/admission" >> "$GITHUB_OUTPUT"
+          else
+            echo "repository=ghcr.io/${GITHUB_REPOSITORY,,}/policy/admission" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Version
+        id: version
+        env:
+          INPUT_VERSION: ${{ inputs.version }}
+        run: echo "version=${INPUT_VERSION:-0.0.0-${GITHUB_SHA::12}}" >> "$GITHUB_OUTPUT"
+
+      - name: Package the catalogue
+        run: |
+          mkdir -p package
+          scripts/supplychain/policy-package.sh deployment/admission package/admission.tar.gz
+
+      # Values from inputs and outputs reach the shell as environment variables, never as text in it.
+      - name: Push, sign and verify by digest
+        id: publish
+        env:
+          REPOSITORY: ${{ steps.registry.outputs.repository }}
+          VERSION: ${{ steps.version.outputs.version }}
+          # The robot account of the policy registry, or the job token for GHCR.
+          REGISTRY_USER: ${{ vars.POLICY_REGISTRY != '' && secrets.POLICY_REGISTRY_USER || github.actor }}
+          REGISTRY_PASSWORD: ${{ vars.POLICY_REGISTRY != '' && secrets.POLICY_REGISTRY_PASSWORD || github.token }}
+          COSIGN_KEY: env://COSIGN_INTERIM_KEY
+          COSIGN_INTERIM_KEY: ${{ secrets.COSIGN_INTERIM_KEY }}
+          COSIGN_PASSWORD: ${{ secrets.COSIGN_INTERIM_PASSWORD }}
+          SOURCE_URL: ${{ github.server_url }}/${{ github.repository }}
+        run: |
+          # The commit's own time as the created annotation: the same commit publishes the same digest.
+          CREATED="$(git show -s --format=%cI HEAD)" scripts/supplychain/policy-publish.sh \
+            package/admission.tar.gz "$REPOSITORY" "$VERSION" "$GITHUB_SHA" | tee package/publish.log
+          echo "reference=$(tail -n1 package/publish.log)" >> "$GITHUB_OUTPUT"
+
+      - name: Summary
+        if: always()
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
+          REFERENCE: ${{ steps.publish.outputs.reference }}
+        run: |
+          {
+            echo "### Policy package (interim key - not the client trust chain)"
+            echo "- version: \`$VERSION\`"
+            echo "- commit: \`$GITHUB_SHA\`"
+            echo "- published by: $GITHUB_ACTOR"
+            if [ -n "$REFERENCE" ]; then echo "- reference: \`$REFERENCE\`"; fi
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Keep the package and the log
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: policy-package
+          path: package/

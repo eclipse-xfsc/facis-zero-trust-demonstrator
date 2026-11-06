@@ -1,0 +1,29 @@
+{{- /*
+The exemptions (deployment/admission/exemptions.yaml, Gatekeeper's Config): the one file of that
+directory that is a cluster object; the chart values and the gator suite beside it are not.
+*/ -}}
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: admission-exemptions
+  namespace: {{ .Values.argocd.namespace }}
+  labels:
+    {{- include "admgitops.labels" . | nindent 4 }}
+  annotations:
+    argocd.argoproj.io/sync-wave: "0"
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+spec:
+  project: ztd-admission
+  source:
+    repoURL: {{ .Values.git.repoURL | quote }}
+    targetRevision: {{ .Values.git.targetRevision | quote }}
+    path: deployment/admission
+    directory:
+      recurse: false
+      include: exemptions.yaml
+  destination:
+    server: {{ .Values.destination.server | quote }}
+    namespace: {{ .Values.gatekeeper.namespace | quote }}
+  syncPolicy:
+    {{- include "admgitops.syncPolicy" . | nindent 4 }}

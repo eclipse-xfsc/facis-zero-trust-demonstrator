@@ -2,6 +2,8 @@ apiVersion: constraints.gatekeeper.sh/v1beta1
 kind: K8sZtdAllowedRepositories
 metadata:
   name: ztd-allowed-repositories
+  annotations:
+    description: "Denies an image outside the trusted repository prefixes of the zone (ADM-REGISTRY-DENIED)."
 spec:
   enforcementAction: deny
   match:
