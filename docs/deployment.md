@@ -51,6 +51,29 @@ hook-weight scheme and the evidence are in [Umbrella chart](umbrella-chart.md) a
 [Workload identity](workload-identity.md), and chart values are documented with each chart under
 `deployment/helm/`.
 
+### Admission policy from Git
+
+Gatekeeper, the provider and the policy catalogue install with `scripts/admission/install.sh`
+([deployment/admission](../deployment/admission/README.md)). From then on the catalogue is kept equal
+to Git by an Argo CD in the zone, installed after it:
+
+```bash
+BIN=<dir with the Argo CD chart> TRUST_REPOSITORY=<the zone's trusted repository prefix> CILIUM=1 \
+NAMESPACE_LABELS=apiserver-proxy.networking.gardener.cloud/inject=disable \
+scripts/argocd/install.sh
+```
+
+A change merged to `deployment/admission/` on the revision the zone follows reaches the cluster on the
+next reconciliation, a constraint edited in the cluster is put back, and the sync status is exported
+as metrics. The layout, the lanes it needs and how it is operated are in
+[deployment/argocd/README.md](../deployment/argocd/README.md).
+
+To read the policy from the registry instead (ZT-12), where the publication workflow pushes it as a
+signed package, add `POLICY_REPOSITORY=<registry host>/<path of the package>` and
+`PULLER_IMAGE=<policy-puller image>@sha256:<digest>`: the installer adds the puller that verifies
+each package's signature before Argo CD reads it by digest
+([Policy from the registry](../deployment/argocd/README.md#policy-from-the-registry)).
+
 ### Through the ORCE workflow
 
 The same install, redeploy and uninstall run through ORCE with zero manual steps: a

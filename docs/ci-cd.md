@@ -19,7 +19,8 @@ and is declared as such in [Specification changes](specifications.md#readings-an
 | `.github/workflows/sbom.yml` | schedule, release, manual, `candidate/**` push | Generates, checks and signs a CycloneDX SBOM for every release that lacks a verifying one, and attaches both |
 | `.github/workflows/docs.yml` | push to `main` affecting `docs/`, manual | Builds the MkDocs site and publishes it to the `gh-pages` branch |
 | `.github/workflows/workflow-hygiene.yml` | every pull request, manual | Fails the pull request when an action is not pinned to a commit or a token scope is too wide |
-| `.github/workflows/ci.yml` | every pull request, push to `main`, published release, manual | Go lint and tests, image build with the Linux assertion and a Trivy scan, chart lint and dry-run render; on a published release, the chart gate once more and the chart packaging and publication (see [Chart release](#chart-release)) |
+| `.github/workflows/ci.yml` | every pull request, push to `main`, published release, manual | Go lint and tests, image build with the Linux assertion and a Trivy scan, chart lint and dry-run render, the admission catalogue and the admission reconciler each on a kind cluster (see [Admission reconciler](#admission-reconciler)), the policy package against a local registry (see [Policy package](#policy-package)); on a published release, the chart gate once more and the chart packaging and publication (see [Chart release](#chart-release)) |
+| `.github/workflows/policy-publish.yml` | push to `main` touching the admission catalogue, manual | Packages the admission policy catalogue as one OCI artefact, pushes it to the policy registry, signs it by digest with the interim key and verifies the signature (see [Policy package](#policy-package)) |
 | `.github/workflows/release.yml` | manual, push to a `candidate/**` branch | Release candidate: the chart gate (see [Chart gate](#chart-gate)), then builds, pushes, signs and attests every image by digest and verifies each one (see [Image signing](#image-signing)); beside it the secrets baseline (see [Secrets](secrets.md#the-baseline-proof-tdr-bdd-08)) |
 | `.github/workflows/measurement-determinism.yml` | pull request and push to `main` touching the check, manual | Measures one fixture on a hosted runner, in a container, and on a deliberately divergent checkout, and requires the normalised measurement to be the same on all three |
 | `.github/workflows/policy-hook.yml` | pull requests touching the policy-hook probe, its script, the pinned Envoy image or the policy fixtures; manual | Runs the guard policy-hook proofs (`scripts/verify-policy-hook/verify.sh`) against Envoy from the pinned image, uploads the records as an artefact and writes the verdict and the latency numbers to the job summary |
@@ -83,7 +84,8 @@ propose in `eclipse-xfsc/dev-ops`.
 
 No release candidate is built unless every chart passes (TDR-BDD-11). The `chart-gate` job of
 `release.yml` creates a disposable kind cluster, installs the CRDs the charts render against (Cilium's
-network policies and Gatekeeper's external-data `Provider`, pinned in `scripts/tools/pins.env`), and
+network policies, Gatekeeper's external-data `Provider` and Argo CD's `Application` and `AppProject`,
+each from a chart or manifest pinned in `scripts/tools/pins.env`), and
 runs the row in cluster mode: `scripts/ci/check-charts.sh --server-dry-run` lints, renders and
 dry-runs every chart against that API server, and two deliberately broken charts under
 `features/fixtures/broken-charts/` must be refused by the check each targets — one by `helm lint`,
@@ -102,6 +104,33 @@ as in the pull-request job, the script records the server dry-run as not run, ne
 The gate and the secrets baseline (TDR-BDD-08) run on a disposable cluster in `release.yml`, which
 decides both rows with a sheet of its own; the pull-request sheet and the client-target sheets list
 them as not run.
+
+## Admission reconciler
+
+The `admission-gitops` job proves the path from Git to the cluster that
+[deployment/argocd](../deployment/argocd/README.md) builds: a kind cluster with Gatekeeper and the
+pinned Argo CD, handed the admission policy of the revision under test by `scripts/argocd/install.sh`,
+fetched from the repository the revision came from (the pull request's head repository and commit, or
+the pushed commit). The job checks out that same commit, not the merge commit, so the catalogue the
+cluster converged to can be compared file by file with the checkout. It then proves what the zones
+rely on: every Application `Synced/Healthy`, the zone's repository prefix patched into the
+allowed-repositories constraint, a hand-edited constraint put back (`scripts/argocd/drift-check.sh`),
+a hand-edited child Application put back by its parent, and one `argocd_app_info` series with
+`sync_status="Synced"` per Application in the controller's metrics. What it cannot prove on a
+disposable cluster is a change *merged* after the install reaching the cluster: that is the same
+reconciliation the self-heal exercises, and it is observed on the zones after a merge.
+
+The same job then proves the path from the registry ([Policy package](#policy-package), consumed as
+[Policy from the registry](../deployment/argocd/README.md#policy-from-the-registry)): the catalogue
+is published with the release scripts and an ephemeral key to a registry on the kind network, the
+zone is re-installed with `POLICY_REPOSITORY`, and every child reads the package by digest with the
+same content as the checkout. Then what the puller must refuse and must apply: a tampered package
+published to the channel tag with another key is refused and the zone is unchanged; a release signed
+with the trusted key is applied and its change is in the cluster; the channel tag moved back to the
+older release is refused as a rollback; a stopped registry changes nothing. Each refusal is checked
+on the parent Application's annotations and Events, where a zone's operator reads it. Last, the zone
+is re-installed without `POLICY_REPOSITORY`: the puller, the repository and its lane are gone, and
+every child reads Git again with the checkout's catalogue.
 
 ## Image signing
 
@@ -159,6 +188,61 @@ The interim key is replaced by the client key with the rest of the signing chain
 `release` environment; for the run that a published release starts — which runs on the tag — to reach
 it, the environment must admit the release tags (`v*`) as well as `main` and `candidate/*`. That is a
 repository setting; until it is applied, the monthly or a manual run signs new releases.
+
+## Policy package
+
+ZT-12 and ZT-37 want the admission policy distributed through a registry, as tarball packages over
+OCI, published by a GitHub Action from a repository only authorised maintainers write to. Git stays
+where the policy is authored and reviewed; the registry becomes where a zone is meant to read it
+from. `policy-publish.yml` is that action; the zone's side is the puller of
+[Policy from the registry](../deployment/argocd/README.md#policy-from-the-registry), which verifies
+the signature before Argo CD applies anything, and a zone installed without a package repository
+keeps reading Git ([Admission reconciler](#admission-reconciler)).
+
+The package is the catalogue's cluster objects at their Git paths — `templates/`, `constraints/`
+(with its kustomization) and `exemptions.yaml`, nothing else — so an Application that reads the
+package names the path it names in Git, and the zone's repository prefix is still patched in by the
+consumer, never written into the package. `scripts/supplychain/policy-package.sh` builds it
+reproducibly: the same files give the same bytes, whatever the checkout's owner, times and modes, so
+the same commit publishes the same digest and the registry can be compared with Git.
+`scripts/supplychain/policy-publish.sh` then pushes it with ORAS as one layer of media type
+`application/vnd.oci.image.layer.v1.tar+gzip` — the one shape Argo CD reads from an `oci://` source,
+so the consumer needs no unpacking of its own — with the version, the commit and the source
+repository as manifest annotations, signs the manifest by digest with the profile of
+[Image signing](#image-signing) (interim key, no transparency log) and verifies the signature against
+the committed public key, and moves the channel tag `main` to the signed digest: the tag a zone's
+puller follows, since version tags have no order a consumer could pick the newest by. The last line
+it prints is the digest reference, the one thing a consumer pins: a tag can be moved to other
+content, a digest cannot, and the puller verifies what the tag points at, never the tag. The
+`created` annotation, the commit's time, is covered by the signature and orders the packages: a
+channel tag moved back to an older release is refused by the puller as a rollback.
+
+The workflow runs in the protected `release` environment, from `main` only — on a push that touches
+the catalogue, or by hand with a version; a manual run on any other ref fails in a first job that has
+no environment, so an unreviewed branch never reaches the key or the registry — and packages nothing
+until `gator verify` has passed on the catalogue and the signing key has been checked against the
+public key. The run is the log of the publication — who started it, who approved the environment,
+the digest in the run summary — and the annotations tie the artefact to its commit. The registry is
+the repository variable `POLICY_REGISTRY` (for example `harbor.example.org/facis/policy`) with the
+`POLICY_REGISTRY_USER` and `POLICY_REGISTRY_PASSWORD` secrets of a robot account, as
+`CHART_REGISTRY` is for the charts. The publish script hands that credential to ORAS and cosign
+through a Docker config private to the run, with no `docker login`: a login first asks the registry
+for a token with no scope, which a Harbor robot account granted its repositories by scope can be
+refused while the push itself is not. While no registry is configured the package goes to
+`ghcr.io/<owner>/<repository>/policy/admission` with the job token, where GHCR creates it private,
+so it is made public once in the package settings before a cluster can read it anonymously. The
+interim key is not the client trust chain; it is replaced by the client key and Harbor.
+
+`scripts/supplychain/policy-package_test.sh` holds the two scripts to this in the `policy-package`
+job, against a `registry:2` on the runner and ephemeral keys: the package holds the cluster objects
+and nothing else, two checkouts give the same bytes, a catalogue missing a member is refused, the
+artefact is one layer of the media type above, the same bytes published again are the same digest,
+pulling the signed digest back gives the bytes that were packaged, a signature by another key is
+refused, and a tampered package published to the same tag with another key moves the tag to a digest
+the trusted key never signed while the signed digest still verifies. Each refusal is checked for its
+reason, so a registry that cannot be reached is a failure, not a refusal. The registry asks for no
+credential, so the suite proves that the credential file the script writes is one the tools read,
+not that it authenticates; the first run against the policy registry proves that.
 
 ## Chart release
 

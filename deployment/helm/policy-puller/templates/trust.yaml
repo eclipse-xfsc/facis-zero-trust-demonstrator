@@ -1,0 +1,10 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "puller.name" . }}-trust
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "puller.labels" . | nindent 4 }}
+data:
+  cosign.pub: |
+    {{- .Values.trust.publicKeys | nindent 4 }}
