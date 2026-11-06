@@ -8,5 +8,9 @@
 // subpackage (see the authelia subpackage) and is the only place such a
 // library may be imported. That boundary is enforced by a test.
 //
-// The API is unstable and subject to change.
+// This is version 1 of the contract. The rest of the connector programs
+// against it, and an implementation is chosen by importing a subpackage, so
+// a change to the library is a new subpackage rather than a change here.
+// Additions are ordinary changes; removing or altering an existing
+// declaration is a breaking change, made deliberately and reviewed as such.
 package oauth2provider
