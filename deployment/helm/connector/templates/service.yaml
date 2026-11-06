@@ -1,0 +1,13 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: ztd-connector
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "connector.labels" . | nindent 4 }}
+spec:
+  type: ClusterIP
+  selector:
+    {{- include "connector.selector" . | nindent 4 }}
+  ports:
+    - {name: http, port: 8080, targetPort: http}

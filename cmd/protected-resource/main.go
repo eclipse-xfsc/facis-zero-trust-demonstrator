@@ -35,7 +35,7 @@ func main() {
 		close(shutdownDone)
 	}()
 
-	logger.Info("protected resource starting", "address", config.Address, "mode", config.Mode)
+	logger.Info("protected resource starting", "address", config.Address, "mode", config.ServingMode())
 	serveErr := server.ListenAndServe()
 	if errors.Is(serveErr, http.ErrServerClosed) {
 		if shutdownErr := <-shutdownDone; shutdownErr != nil {

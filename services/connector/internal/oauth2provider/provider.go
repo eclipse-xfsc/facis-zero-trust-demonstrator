@@ -10,6 +10,10 @@ type Provider interface {
 	// RegistrationHandler serves the RFC 7591 client registration endpoint.
 	RegistrationHandler() http.Handler
 
+	// ChallengeHandler serves the challenge endpoint of the
+	// verified-presentation grant.
+	ChallengeHandler() http.Handler
+
 	// ValidateResourceRequest authenticates a request to a protected
 	// resource that presents a DPoP-bound access token. It returns an
 	// *Error carrying a reason code when the request must be refused.

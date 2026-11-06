@@ -3,6 +3,7 @@ package protectedresource
 import (
 	"context"
 	"errors"
+	"slices"
 	"time"
 )
 
@@ -31,6 +32,18 @@ const (
 	ReasonAdapterFailure     = "SAMPLE_ADAPTER_FAILURE"
 	ReasonAlternativeSuccess = "SAMPLE_ALTERNATIVE_RESOURCE_RETURNED"
 	ReasonAlternativeSlow    = "SAMPLE_ALTERNATIVE_SLOW_RESOURCE_RETURNED"
+)
+
+// Token mode reasons: the response is chosen by the caller's token scopes (see scopedResult).
+const (
+	ReasonReportReturned     = "RESOURCE_REPORT_RETURNED"
+	ReasonSummaryReturned    = "RESOURCE_SUMMARY_RETURNED"
+	ReasonScopeInsufficient  = "RESOURCE_SCOPE_INSUFFICIENT"
+	ReasonScenarioNotAllowed = "RESOURCE_SCENARIO_NOT_ALLOWED"
+	ReasonIdentityMissing    = "RESOURCE_IDENTITY_MISSING"
+
+	ScopeReportRead    = "report:read"
+	ScopeReportSummary = "report:summary"
 )
 
 var ErrResourceNotFound = errors.New("sample resource not found")
@@ -128,33 +141,42 @@ func (a *AlternativeAdapter) Request(ctx context.Context, request ResourceReques
 		result.ReasonCode = ReasonAlternativeSuccess
 	}
 	result.Explanation = "The deterministic alternative sample report was returned; no authorization or credential verification was performed."
-	result.SafeData = map[string]any{
-		"resource": "sample-report",
-		"action":   "read",
-		"report": map[string]any{
-			"id":      "FACIS-SAMPLE-REPORT-ALT-001",
-			"title":   "FACIS alternative deterministic sample report",
-			"content": "Alternative local sample data for F09 / WP09 / ZT-77 adapter testing only.",
-		},
-	}
+	result.SafeData = demoSeed.AlternativeReport.safeData()
 	return result, nil
 }
 
 func sampleSuccess(reasonCode, explanation string) ResourceResult {
 	return ResourceResult{
 		Outcome: OutcomeSuccess, ReasonCode: reasonCode, Explanation: explanation,
-		SafeData: map[string]any{
-			"resource": "sample-report",
-			"action":   "read",
-			"report": map[string]any{
-				"id":      "FACIS-SAMPLE-REPORT-001",
-				"title":   "FACIS deterministic sample report",
-				"content": "Local sample data for F04 / WP09 / ZT-75 testing only.",
-			},
-		},
+		SafeData: demoSeed.Report.safeData(),
 	}
 }
 
 func emptySafeData() map[string]any {
 	return map[string]any{}
+}
+
+// scopedResult is the token-mode scope table: report:read returns the full report, report:summary (without
+// report:read) the summary, anything else 403. The token was already verified by the RequestVerifier.
+func scopedResult(scopes []string) ResourceResult {
+	switch {
+	case slices.Contains(scopes, ScopeReportRead):
+		return ResourceResult{
+			Outcome: OutcomeSuccess, ReasonCode: ReasonReportReturned,
+			Explanation: "The seeded report was returned for the report:read scope.",
+			SafeData:    demoSeed.Report.safeData(),
+		}
+	case slices.Contains(scopes, ScopeReportSummary):
+		return ResourceResult{
+			Outcome: OutcomeSuccess, ReasonCode: ReasonSummaryReturned,
+			Explanation: "The seeded report summary was returned for the report:summary scope.",
+			SafeData:    demoSeed.Summary.safeData(),
+		}
+	default:
+		return ResourceResult{
+			Outcome: OutcomeDenied, ReasonCode: ReasonScopeInsufficient,
+			Explanation: "The token carries neither report:read nor report:summary.",
+			SafeData:    emptySafeData(),
+		}
+	}
 }
