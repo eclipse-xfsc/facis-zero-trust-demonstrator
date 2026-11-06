@@ -134,6 +134,11 @@ issuance consumes it. The outcome is an object, never a boolean.
 
 - Every component logs JSON to stdout; security-relevant events use the IF-01 event schema, so the
   same record feeds the UI, the collector and the acceptance evidence.
+- A mesh-layer denial is recorded as the destination proxy's access log, not yet as an IF-01 event:
+  one JSON line with both SPIFFE IDs (`source`, `destination`), the authority, the code and the
+  decision detail, read from the proxy container (`kubectl logs <pod> -c istio-proxy`;
+  [Workload identity](workload-identity.md#mesh-authorization)). Its form as a security-state
+  event is pending the observability work.
 - `correlation_id` is the guard's `x-request-id` (see the header rules below) and joins the events
   of one request across components; W3C trace context (`traceparent`) links the spans.
 - Acceptance evidence — reports, logs and the manifest — is described in

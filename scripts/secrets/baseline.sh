@@ -1,7 +1,11 @@
 #!/usr/bin/env bash
-# The secret-handling baseline on a disposable cluster (FZTD-72, TDR-BDD-08; docs/secrets.md):
-#   1. install the umbrella with the kind zone file (OpenBao on), the API lane read off the cluster and
-#      kind's own CNI, and wait for the bootstrap Job and the verification hooks;
+# The secret-handling baseline on a disposable cluster (TDR-BDD-08; docs/secrets.md):
+#   1. install the umbrella with the kind zone file, the API lane read off the cluster and kind's own
+#      CNI, without a mesh (mesh.mode none: no injection label, as no istiod is installed, and the
+#      umbrella's control-plane openings, which need Cilium, are not rendered), then OpenBao as its own
+#      release, ztd-openbao (deployment/helm/ztd-openbao, its kind values, no Cilium lane), each
+#      waiting for its jobs: the bootstrap Job and the verification hooks. The pods start without a
+#      proxy (the identity label is inert);
 #   2. scan every log and ConfigMap (scripts/secrets/canary_scan.py) before anything is replaced, as the
 #      restart deletes the first OpenBao pod and the upgrade replaces the verification hook;
 #   3. restart OpenBao: it must come back sealed and not ready, be unsealed by hand
@@ -17,17 +21,24 @@ set -euo pipefail
 
 evidence=$1 target=$2 run=$3
 root="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
-chart="$root/deployment/helm/ztd"
+umbrella="$root/deployment/helm/ztd"
+store="$root/deployment/helm/ztd-openbao"
 mkdir -p "$evidence"
 lane=$(mktemp)
 trap 'rm -f "$lane"' EXIT
 "$root/scripts/secrets/kind-api-lane.sh" > "$lane"
 
 helm repo add openbao https://openbao.github.io/openbao-helm >/dev/null 2>&1 || true
-helm dependency build "$chart" >/dev/null
+helm dependency build "$store" >/dev/null
+"$root/scripts/ci/verify-chart-dependencies.sh" "$store"
+# up: the umbrella, then the store into the management namespace the umbrella created. A second up
+# with the same values renders the same bootstrap Job name, so no bootstrap runs; the verification
+# hook runs on every upgrade.
 up() {
-  helm upgrade --install ztd "$chart" -n ztd-system --create-namespace -f "$chart/ci/values.yaml" -f "$lane" \
-    --set cni.cilium.enabled=false --wait --wait-for-jobs --timeout 8m >/dev/null
+  helm upgrade --install ztd "$umbrella" -n ztd-system --create-namespace -f "$umbrella/ci/values.yaml" -f "$lane" \
+    --set cni.cilium.enabled=false --set mesh.mode=none --wait --wait-for-jobs --timeout 8m >/dev/null
+  helm upgrade --install ztd-openbao "$store" -n ztd-mgmt -f "$store/ci/values.yaml" \
+    --set cilium.enabled=false --wait --wait-for-jobs --timeout 8m >/dev/null
 }
 fixture_hash() {
   kubectl -n ztd-mgmt logs job/ztd-verify-openbao | sed -n 's/.*fixture KV value readable (sha256 \([0-9a-f]*\)).*/\1/p'

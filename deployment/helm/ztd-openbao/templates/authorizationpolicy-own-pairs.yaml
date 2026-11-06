@@ -1,0 +1,46 @@
+{{- /*
+The release's own pairs at the mesh layer. The zone-policy release denies every mesh request by
+default (an empty ALLOW policy in the mesh root namespace), so the release admits the calls between
+its own pods itself, following the rule that each release brings the allow rules it needs: the
+bootstrap Job and the verification hook reach the server on its API port (8200, the upstream
+chart's listener), each by its own SPIFFE identity
+(<trust domain>/ns/<management namespace>/sa/<service account>), and no other identity reaches the
+server. Rendered only under a mesh (mesh.mode not none) and with the bundled server: without a mesh
+there is no AuthorizationPolicy CRD (the secrets baseline on kind's own CNI), and an external
+OpenBao is not in the zone's mesh. Identities only: no path, method, host or address. Each rule
+carries the path's L7 owner (ztd.facis.io/l7-owner): the server's sidecar under mesh.mode sidecar,
+none under any other mode (no per-pod proxy, and the parked ambient deploys no waypoint).
+*/ -}}
+{{- if and (ne (toString .Values.mesh.mode) "none") (eq (include "ztd-openbao.bundled" .) "true") }}
+{{- $td := required "ztd-openbao: trustDomain is required when mesh.mode is not none (zone fact zone.trustDomain; scripts/install-zone fills it)" .Values.trustDomain }}
+{{- $ns := .Values.managementNamespace }}
+{{- $server := ternary .Release.Name (printf "%s-openbao" .Release.Name) (contains "openbao" .Release.Name) }}
+{{- range $account := list "ztd-openbao-bootstrap" "ztd-verify-openbao" }}
+---
+apiVersion: security.istio.io/v1
+kind: AuthorizationPolicy
+metadata:
+  name: allow-{{ $account }}-to-server
+  namespace: {{ $ns }}
+  labels:
+    {{- include "ztd-openbao.labels" $ | nindent 4 }}
+  annotations:
+    ztd.facis.io/pair: {{ printf "%s-to-server" $account }}
+    ztd.facis.io/l7-owner: {{ ternary "sidecar" "none" (eq (toString $.Values.mesh.mode) "sidecar") | quote }}
+spec:
+  # The server pods of the upstream chart: its name label, this release and the server component.
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: openbao
+      app.kubernetes.io/instance: {{ $.Release.Name }}
+      component: server
+  action: ALLOW
+  rules:
+    - from:
+        - source:
+            principals: [{{ printf "%s/ns/%s/sa/%s" $td $ns $account | quote }}]
+      to:
+        - operation:
+            ports: ["8200"]
+{{- end }}
+{{- end }}

@@ -1,0 +1,183 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "zone-policy chart values",
+  "type": "object",
+  "required": ["trustDomain", "spire", "mesh", "registration", "peerAuthentication", "proxySocketPolicy", "l7OwnerPolicy", "checks", "pairs", "planes", "denialLog"],
+  "properties": {
+    "trustDomain": {
+      "type": "string",
+      "description": "The zone's SPIFFE trust domain (zone.trustDomain of the zone file).",
+      "minLength": 1,
+      "maxLength": 255,
+      "pattern": "^[a-z0-9]([-a-z0-9_]*[a-z0-9])?(\\.[a-z0-9]([-a-z0-9_]*[a-z0-9])?)*$"
+    },
+    "spire": {
+      "type": "object",
+      "required": ["namespace", "className", "serverStatefulSet", "agentDaemonSet", "bundleConfigMap", "controllerManagerConfigMap"],
+      "properties": {
+        "namespace": { "$ref": "#/$defs/name" },
+        "className": { "type": "string", "minLength": 1 },
+        "serverStatefulSet": { "$ref": "#/$defs/name" },
+        "agentDaemonSet": { "$ref": "#/$defs/name" },
+        "bundleConfigMap": { "$ref": "#/$defs/name" },
+        "controllerManagerConfigMap": { "$ref": "#/$defs/name" }
+      }
+    },
+    "mesh": {
+      "type": "object",
+      "required": ["namespace", "configMap"],
+      "properties": {
+        "namespace": { "$ref": "#/$defs/name" },
+        "configMap": { "$ref": "#/$defs/name" }
+      }
+    },
+    "registration": {
+      "type": "object",
+      "required": ["name", "identityLabel", "planeLabel"],
+      "properties": {
+        "name": { "$ref": "#/$defs/name" },
+        "identityLabel": {
+          "type": "object",
+          "required": ["key", "value"],
+          "properties": { "key": { "type": "string", "minLength": 1 }, "value": { "type": "string", "minLength": 1 } }
+        },
+        "planeLabel": { "type": "string", "minLength": 1 }
+      }
+    },
+    "peerAuthentication": {
+      "type": "object",
+      "required": ["mode"],
+      "properties": { "mode": { "type": "string", "enum": ["STRICT"] } }
+    },
+    "proxySocketPolicy": {
+      "type": "object",
+      "required": ["name", "volume", "mountPath", "driver", "statusPort", "proxyImage"],
+      "properties": {
+        "name": { "$ref": "#/$defs/name" },
+        "volume": { "$ref": "#/$defs/name" },
+        "mountPath": { "type": "string", "pattern": "^/[A-Za-z0-9._/-]+$" },
+        "driver": { "type": "string", "pattern": "^[a-z0-9]([-a-z0-9.]*[a-z0-9])?$" },
+        "statusPort": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 65535,
+          "description": "The proxy's status port, the one inbound port excluded from the capture; must equal the istiod release's global.proxy.statusPort."
+        },
+        "proxyImage": {
+          "type": "string",
+          "pattern": "^[^\\s'/]+/[^\\s']+@sha256:[0-9a-f]{64}$",
+          "description": "The injected proxy's whole image reference, pinned by digest; must equal the istiod release's global.proxy.image."
+        }
+      }
+    },
+    "l7OwnerPolicy": {
+      "type": "object",
+      "description": "The admission policy that refuses, in plane namespaces and cluster-wide, Cilium policies that send traffic to Cilium's L7 proxy and Cilium Envoy configurations: the mesh's sidecar is the L7 owner of those paths.",
+      "required": ["enabled", "name"],
+      "additionalProperties": false,
+      "properties": {
+        "enabled": { "type": "boolean" },
+        "name": {
+          "type": "string",
+          "pattern": "^[a-z0-9]([-a-z0-9]*[a-z0-9])?$",
+          "maxLength": 51,
+          "description": "Name of the policy and of its namespaced binding; the cluster-wide binding is <name>-clusterwide."
+        }
+      }
+    },
+    "checks": {
+      "type": "object",
+      "required": ["enabled", "image", "timeoutSeconds"],
+      "properties": {
+        "enabled": { "type": "boolean" },
+        "image": { "type": "string", "pattern": "@sha256:[0-9a-f]{64}$" },
+        "timeoutSeconds": { "type": "integer", "minimum": 10, "maximum": 1800 }
+      }
+    },
+    "pairs": {
+      "type": "array",
+      "description": "The declared pairs; each renders one AuthorizationPolicy allow-<name> in the destination's namespace.",
+      "items": { "$ref": "#/$defs/pair" }
+    },
+    "planes": {
+      "type": "object",
+      "required": ["management", "data"],
+      "properties": {
+        "management": { "type": "object", "required": ["namespace"], "properties": { "namespace": { "$ref": "#/$defs/optionalName" } } },
+        "data": { "type": "object", "required": ["namespace"], "properties": { "namespace": { "$ref": "#/$defs/optionalName" } } }
+      }
+    },
+    "denialLog": {
+      "type": "object",
+      "required": ["provider"],
+      "properties": {
+        "provider": { "$ref": "#/$defs/name", "description": "The istiod release's access-log provider that the denial Telemetry enables." }
+      }
+    }
+  },
+  "$defs": {
+    "name": { "type": "string", "pattern": "^[a-z0-9]([-a-z0-9]*[a-z0-9])?$", "maxLength": 63 },
+    "optionalName": { "type": "string", "pattern": "^([a-z0-9]([-a-z0-9]*[a-z0-9])?)?$", "maxLength": 63 },
+    "planeName": { "type": "string", "enum": ["management", "data"] },
+    "pair": {
+      "type": "object",
+      "required": ["name", "from", "to"],
+      "additionalProperties": false,
+      "properties": {
+        "name": {
+          "type": "string",
+          "pattern": "^[a-z0-9]([-a-z0-9]*[a-z0-9])?$",
+          "maxLength": 57,
+          "description": "The rule is allow-<name>, a Kubernetes name of at most 63 characters."
+        },
+        "from": { "$ref": "#/$defs/pairSource" },
+        "to": { "$ref": "#/$defs/pairDestination" },
+        "l7Owner": {
+          "type": "string",
+          "enum": ["sidecar", "none"],
+          "description": "The single L7 enforcement owner of the pair's path (the umbrella's allowMatrix row's l7Owner, copied by scripts/install-zone), rendered as the annotation ztd.facis.io/l7-owner of allow-<name>. Default sidecar: an intra-plane pair joins two injected pods of one plane namespace."
+        }
+      }
+    },
+    "pairSource": {
+      "type": "object",
+      "description": "The caller: a plane or a namespace, and either the service account of its SPIFFE ID or wholePlane (every workload of that namespace); never both, never neither.",
+      "additionalProperties": false,
+      "properties": {
+        "plane": { "$ref": "#/$defs/planeName" },
+        "namespace": { "$ref": "#/$defs/name" },
+        "serviceAccount": { "$ref": "#/$defs/name" },
+        "wholePlane": { "const": true }
+      },
+      "allOf": [
+        { "oneOf": [{ "required": ["plane"] }, { "required": ["namespace"] }] },
+        { "oneOf": [{ "required": ["serviceAccount"] }, { "required": ["wholePlane"] }] }
+      ]
+    },
+    "pairDestination": {
+      "type": "object",
+      "description": "The destination: a plane or a namespace, the pod labels that select it, and optionally its ports.",
+      "additionalProperties": false,
+      "required": ["podSelector"],
+      "properties": {
+        "plane": { "$ref": "#/$defs/planeName" },
+        "namespace": { "$ref": "#/$defs/name" },
+        "podSelector": { "type": "object", "minProperties": 1, "additionalProperties": { "type": "string" } },
+        "ports": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "type": "object",
+            "required": ["port"],
+            "additionalProperties": false,
+            "properties": {
+              "port": { "type": "integer", "minimum": 1, "maximum": 65535 },
+              "protocol": { "type": "string", "enum": ["TCP"], "description": "The mesh authorizes TCP only." }
+            }
+          }
+        }
+      },
+      "oneOf": [{ "required": ["plane"] }, { "required": ["namespace"] }]
+    }
+  }
+}

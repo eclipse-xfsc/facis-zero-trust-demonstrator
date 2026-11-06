@@ -33,7 +33,7 @@ and nobody hand-rolls their own:
 | `Go tests` | Calls the shared `go-test.yml`, which runs the tests of every Go module it finds | yes |
 | `Go lint` | `golangci-lint run ./...`, with a pinned golangci-lint built by the Go version `go.mod` names | yes |
 | `Image build and scan` | Builds each context under `deployment/docker/` for `linux/amd64`, asserts the built image's OS, then scans it with Trivy for HIGH and CRITICAL vulnerabilities | yes |
-| `Chart lint and render` | `scripts/ci/check-charts.sh`: `helm lint` and a `helm template` render of every chart under `deployment/helm/` and `features/fixtures/charts/`, dependencies built from `Chart.lock`; then `scripts/ci/check-charts_test.sh`, the cases that hold the script to refusing a package when a chart fails | yes |
+| `Chart lint and render` | `scripts/ci/check-charts.sh`: `helm lint` and a `helm template` render of every chart under `deployment/helm/` and `features/fixtures/charts/`, dependencies built from `Chart.lock` and their archives checked against the sha256 committed in the chart's `dependencies.sha256` (`scripts/ci/verify-chart-dependencies.sh`); then `scripts/ci/check-charts_test.sh`, the cases that hold the script to refusing a package when a chart fails. Two checks then read the policies the umbrella, `zone-policy` and `ztd-openbao` render with every shipped zone file and the CI zone file (render path `scripts/ci/render-zones.sh`), each with its test: `scripts/ci/check-policy-addresses.sh`, no IP address in a policy (ZT-25), and `scripts/ci/check-policy-l7-owner.sh`, no Cilium policy with a port field that sends traffic to Cilium's L7 proxy (an `http`, `kafka`, `l7` or `l7proto` rule, `listener`, `serverNames`, `terminatingTLS`, `originatingTLS`), no Cilium Envoy configuration, and every rendered allow-matrix policy carrying its single L7 owner `ztd.facis.io/l7-owner` (SRS 2.3.3, Table 4; ADR-0009) | yes |
 | `Release charts` | On a published release only, once every other gate job of the workflow has passed: runs the chart gate with its server dry-run on a disposable cluster, packages the charts under `deployment/helm/` at the release version, attaches them to the release with their checksums and, when a registry is configured, pushes them as OCI chart artefacts — see [Chart release](#chart-release) | yes — a release whose gates fail ships no chart |
 
 ZT-13 requires Linux images. The pipeline reads the OS back off the built image with
@@ -99,6 +99,24 @@ as in the pull-request job, the script records the server dry-run as not run, ne
 The gate and the secrets baseline (TDR-BDD-08) run on a disposable cluster in `release.yml`, which
 decides both rows with a sheet of its own; the pull-request sheet and the client-target sheets list
 them as not run.
+
+## Cilium upgrades
+
+The mesh relies on the Istio CNI plugin chained after Cilium on every node, and ADR-0001 and ADR-0009
+require that order to be checked again after every Cilium upgrade. The pipeline only renders, so the
+check is a proof run on a disposable kind cluster: `scripts/verify-cni-chaining-upgrade/verify.sh`
+installs the zone over Cilium at the zones' version, upgrades Cilium with `helm upgrade --reset-then-reuse-values` (the release's own values over the new chart's defaults),
+and checks before and after the upgrade the chain on every node, `cni-exclusive=false`, an allow-matrix
+lane served through the proxies and the default deny; after the upgrade also a pod created after it,
+which must hold a SPIRE-issued certificate for its own SPIFFE ID and be served on its lane
+([the proof](https://github.com/eclipse-xfsc/facis-zero-trust-demonstrator/tree/main/scripts/verify-cni-chaining-upgrade)).
+Run it, and keep its run directory with the change, whenever the pinned Cilium version
+(`CILIUM_CRDS_VERSION` in `scripts/tools/pins.env`, the default of `scripts/dev/kind-cilium-up.sh`) or
+the zones' version changes. On the participant clusters the provider upgrades Cilium; there the mesh
+identity proof detects the upgrade at its next run, failing when the running Cilium differs from the
+zone file's `cni.cilium.version`, and its chain section is the re-check after the recorded version is
+updated
+([OSC environment](environments/osc.md#1-cni-verify-the-providers-cilium)).
 
 ## Image signing
 

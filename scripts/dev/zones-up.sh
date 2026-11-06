@@ -34,9 +34,13 @@ for zone in zone-a zone-b; do
   chmod 600 "$kubeconfig"
   version="$(kubectl --kubeconfig "$kubeconfig" version -o json \
     | python3 -c 'import sys,json;print(json.load(sys.stdin)["serverVersion"]["gitVersion"])')"
+  image="$(kubectl --kubeconfig "$kubeconfig" -n kube-system get ds cilium \
+    -o jsonpath='{.spec.template.spec.containers[0].image}')"
+  image="${image%%@*}"; cilium="${image##*:}"; cilium="${cilium#v}"
   cat >"$out/$zone.yaml" <<VALUES
-# Local zone, written by scripts/dev/zones-up.sh. Not a target cluster. kubernetesVersion is read
-# from the cluster; the other values are the fixed local defaults of a kind zone.
+# Local zone, written by scripts/dev/zones-up.sh. Not a target cluster. kubernetesVersion and the
+# Cilium version are read from the cluster; the other values are the fixed local defaults of a kind
+# zone.
 zone:
   name: $zone
   kubernetesVersion: $version
@@ -45,6 +49,10 @@ zone:
     type: none
 mesh:
   mode: ambient
+cni:
+  cilium:
+    enabled: true
+    version: $cilium
 VALUES
 done
 

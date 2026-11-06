@@ -7,10 +7,11 @@ Feature: Management plane and data plane separation — design conformance
     "Architecture diagram clearly shows plane separation."
   The scenario below proves none of them against a running system. It proves that the
   specification in section 6 of the architecture document, from which the network test is
-  written, is complete and consistent: every path from the data plane to the management plane
+  written, is consistent and, but for the one gap the section declares itself (istiod's xDS port,
+  which no row disposes yet), complete: every path from the data plane to the management plane
   is disposed at both the network policy layer and the service mesh layer, in agreement with its
-  verdict, and no management-plane destination is left without a disposition. That is the second
-  criterion as the design states it. ZT-55 itself is its own pending scenario in
+  verdict, and no other management-plane destination is left without a disposition. That is the
+  second criterion as the design states it. ZT-55 itself is its own pending scenario in
   plane-separation.feature; it is covered when the matrix is executed against a cluster.
 
   Scenario: The plane-separation matrix is complete and consistent at both layers

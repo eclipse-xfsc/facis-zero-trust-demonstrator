@@ -71,7 +71,7 @@ It writes to `.dev/zones/` (not in Git):
 | File | Holds |
 |---|---|
 | `kubeconfig-zone-a`, `kubeconfig-zone-b` | Cluster-admin on the local zone |
-| `zone-a.yaml`, `zone-b.yaml` | The zone values file for the umbrella chart: `kubernetesVersion` read from the cluster, the rest the fixed defaults of a kind zone |
+| `zone-a.yaml`, `zone-b.yaml` | The zone values file for the umbrella chart: `kubernetesVersion` and `cni.cilium.version` read from the cluster, the rest the fixed defaults of a kind zone |
 | `zone-a.peer.env`, `zone-b.peer.env` | `PEER_ZONE` and `PEER_ADDRESS`: where the other zone is reached |
 
 Needs `kind`, `kubectl`, `helm`, `cilium`, `python3` and Docker. The four nodes used 3.5 GB of memory
