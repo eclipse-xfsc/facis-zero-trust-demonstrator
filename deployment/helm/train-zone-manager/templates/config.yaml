@@ -1,0 +1,36 @@
+{{- include "tzm.validate" . -}}
+{{- $z := .Values.zone -}}
+---
+# The zone configuration script.sh reads at first start (the upstream's config.conf, as environment).
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "tzm.name" . }}-zone
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "tzm.labels" . | nindent 4 }}
+data:
+  TF_DOMAIN_NAME: {{ $z.name | quote }}
+  TF_DOMAIN_IP: {{ $z.address | quote }}
+  PRIMARY_SERVER_NSD: {{ printf "%s.%s" $z.servers.primary $z.name | quote }}
+  PRIMARY_SERVER_IP: {{ include "tzm.serverAddress" (dict "root" . "name" $z.servers.primary) | quote }}
+  SECONDARY_SERVER_1_NSD: {{ printf "%s.%s" $z.servers.secondary1 $z.name | quote }}
+  SECONDARY_SERVER_1_IP: {{ include "tzm.serverAddress" (dict "root" . "name" $z.servers.secondary1) | quote }}
+  SECONDARY_SERVER_2_NSD: {{ printf "%s.%s" $z.servers.secondary2 $z.name | quote }}
+  SECONDARY_SERVER_2_IP: {{ include "tzm.serverAddress" (dict "root" . "name" $z.servers.secondary2) | quote }}
+---
+# auth.conf: the API's OIDC settings. The upstream executes the file as Python, so every value is
+# written quoted here; the chart never passes a value through unquoted.
+apiVersion: v1
+kind: Secret
+metadata:
+  name: {{ include "tzm.name" . }}-auth
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "tzm.labels" . | nindent 4 }}
+type: Opaque
+stringData:
+  auth.conf: |
+    ISSUER_URL = {{ .Values.api.issuerUrl | quote }}
+    CLIENT_ID = {{ .Values.api.clientId | quote }}
+    ALLOW_UNSAFE_SSL = {{ ternary "true" "false" .Values.api.allowUnsafeSsl | quote }}
