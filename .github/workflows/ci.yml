@@ -381,9 +381,24 @@ jobs:
           changed=$(git status --porcelain docs/evidences/mesh-mode-upstream-state)
           [ -z "$changed" ] || { echo "the checker's test changed the evidence: $changed" >&2; exit 1; }
 
-  # The release set of charts. release.yml builds and signs the candidate images and creates no
-  # release; this job delivers the charts when one is published, and only once every gate of this
-  # workflow has passed - a gate job added above is added to needs here. The lifecycle jobs are
+  # The release set (scripts/supplychain/release-set.sh): what the release job of release.yml relies
+  # on to create a release only from a complete set, against sets the test writes - a complete set
+  # gives the manifest and the notes that list every artefact with its digest, the same bytes for the
+  # same set, and each piece missing or at another version is refused.
+  release-set:
+    name: Release set
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+
+      - name: Test the release set check
+        run: scripts/supplychain/release-set_test.sh
+
+  # The charts of a release published by hand on GitHub. A release the release workflow creates
+  # from a tag carries its charts already and starts no workflow (GitHub's rule for the events of a
+  # workflow's own token); this job delivers them when one is published by hand, and only once every
+  # gate of this workflow has passed - a gate job added above is added to needs here. The lifecycle jobs are
   # among them: they may be skipped (BDD_CLUSTER_ENABLED off) but never failed or cancelled, which
   # the default condition cannot express, so the results are checked one by one. The chart gate of
   # release.yml (TDR-BDD-11) runs on candidate branches, not on the published release, so this job
@@ -398,7 +413,7 @@ jobs:
     name: Release charts
     needs:
       [tests, lint, images, admission-interop, gator, admission-kind, contracts, bdd, charts,
-       bdd-cluster, bdd-cluster-report]
+       release-set, bdd-cluster, bdd-cluster-report]
     if: >-
       ${{ !cancelled() && github.event_name == 'release'
       && needs.tests.result == 'success'
@@ -410,6 +425,7 @@ jobs:
       && needs.contracts.result == 'success'
       && needs.bdd.result == 'success'
       && needs.charts.result == 'success'
+      && needs.release-set.result == 'success'
       && contains(fromJSON('["success", "skipped"]'), needs.bdd-cluster.result)
       && contains(fromJSON('["success", "skipped"]'), needs.bdd-cluster-report.result) }}
     runs-on: ubuntu-latest

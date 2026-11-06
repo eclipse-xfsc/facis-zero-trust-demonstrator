@@ -19,8 +19,8 @@ and is declared as such in [Specification changes](specifications.md#readings-an
 | `.github/workflows/sbom.yml` | schedule, release, manual, `candidate/**` push | Generates, checks and signs a CycloneDX SBOM for every release that lacks a verifying one, and attaches both |
 | `.github/workflows/docs.yml` | push to `main` affecting `docs/`, manual | Builds the MkDocs site and publishes it to the `gh-pages` branch |
 | `.github/workflows/workflow-hygiene.yml` | every pull request, manual | Fails the pull request when an action is not pinned to a commit or a token scope is too wide |
-| `.github/workflows/ci.yml` | every pull request, push to `main`, published release, manual | Go lint and tests, image build with the Linux assertion and a Trivy scan, chart lint and dry-run render; on a published release, the chart gate once more and the chart packaging and publication (see [Chart release](#chart-release)) |
-| `.github/workflows/release.yml` | manual, push to a `candidate/**` branch | Release candidate: the chart gate (see [Chart gate](#chart-gate)), then builds, pushes, signs and attests every image by digest and verifies each one (see [Image signing](#image-signing)); beside it the secrets baseline (see [Secrets](secrets.md#the-baseline-proof-tdr-bdd-08)) |
+| `.github/workflows/ci.yml` | every pull request, push to `main`, published release, manual | Go lint and tests, image build with the Linux assertion and a Trivy scan, chart lint and dry-run render, the release set check; on a release published by hand, the chart gate once more and the chart packaging and publication (see [Chart release](#chart-release)) |
+| `.github/workflows/release.yml` | manual, push to a `candidate/**` branch, push of a tag `v*` | Release candidate: the chart gate (see [Chart gate](#chart-gate)), then builds, pushes, signs and attests every image by digest and verifies each one (see [Image signing](#image-signing)); beside it the secrets baseline (see [Secrets](secrets.md#the-baseline-proof-tdr-bdd-08)). On a tag, the release: the charts packaged at the tag's version, the repository SBOM signed, the BDD suite run, and the GitHub release created with every artefact and the notes that list each one with its digest (see [Release](#release)) |
 | `.github/workflows/measurement-determinism.yml` | pull request and push to `main` touching the check, manual | Measures one fixture on a hosted runner, in a container, and on a deliberately divergent checkout, and requires the normalised measurement to be the same on all three |
 | `.github/workflows/policy-hook.yml` | pull requests touching the policy-hook probe, its script, the pinned Envoy image or the policy fixtures; manual | Runs the guard policy-hook proofs (`scripts/verify-policy-hook/verify.sh`) against Envoy from the pinned image, uploads the records as an artefact and writes the verdict and the latency numbers to the job summary |
 
@@ -35,7 +35,8 @@ and nobody hand-rolls their own:
 | `Go lint` | `golangci-lint run ./...`, with a pinned golangci-lint built by the Go version `go.mod` names | yes |
 | `Image build and scan` | Builds each context under `deployment/docker/` for `linux/amd64`, asserts the built image's OS, then scans it with Trivy for HIGH and CRITICAL vulnerabilities | yes |
 | `Chart lint and render` | `scripts/ci/check-charts.sh`: `helm lint` and a `helm template` render of every chart under `deployment/helm/` and `features/fixtures/charts/`, dependencies built from `Chart.lock`; then `scripts/ci/check-charts_test.sh`, the cases that hold the script to refusing a package when a chart fails | yes |
-| `Release charts` | On a published release only, once every other gate job of the workflow has passed: runs the chart gate with its server dry-run on a disposable cluster, packages the charts under `deployment/helm/` at the release version, attaches them to the release with their checksums and, when a registry is configured, pushes them as OCI chart artefacts — see [Chart release](#chart-release) | yes — a release whose gates fail ships no chart |
+| `Release set` | `scripts/supplychain/release-set_test.sh`: the cases that hold the release's set check to refusing a set with a piece missing or at another version, and to listing every artefact with its digest — see [Release](#release) | yes |
+| `Release charts` | On a release published by hand only, once every other gate job of the workflow has passed: runs the chart gate with its server dry-run on a disposable cluster, packages the charts under `deployment/helm/` at the release version, attaches them to the release with their checksums and, when a registry is configured, pushes them as OCI chart artefacts — see [Chart release](#chart-release). A release the release workflow creates carries its charts already | yes — a release whose gates fail ships no chart |
 
 ZT-13 requires Linux images. The pipeline reads the OS back off the built image with
 `docker image inspect` and fails if it is anything but `linux/amd64`, rather than trusting the
@@ -88,11 +89,12 @@ runs the row in cluster mode: `scripts/ci/check-charts.sh --server-dry-run` lint
 dry-runs every chart against that API server, and two deliberately broken charts under
 `features/fixtures/broken-charts/` must be refused by the check each targets — one by `helm lint`,
 one only by the server dry-run (it ships a resource whose API the cluster does not serve). The step
-also checks that the `candidate` job needs the gate. The `candidate` job has `needs: [chart-gate]`;
-any later job that publishes charts or promotes a release must need it too, or run it again: the
-`Release charts` job of `ci.yml` runs on a published release, which no candidate run is tied to, so
-it creates the same disposable cluster and runs the same script with `--server-dry-run` before it
-packages anything (see [Chart release](#chart-release)).
+also checks that the `candidate` job needs the gate. The `candidate` job has `needs: [chart-gate]`,
+and so has the `release` job; any later job that publishes charts or creates a release must need it
+too, or run it again. On a release tag the gate job itself packages the charts, on the cluster it
+just ran on (see [Release](#release)); the `Release charts` job of `ci.yml` runs on a release
+published by hand, which no gate run is tied to, so it creates the same disposable cluster and runs
+the same script with `--server-dry-run` before it packages anything (see [Chart release](#chart-release)).
 
 A server dry-run renders the chart, discovers the API and its schemas and checks existing resources.
 It does not run admission webhooks or hooks, and proves nothing about the release at runtime: that is
@@ -145,7 +147,9 @@ module at the release tag, and `sbom.json.sig`, its signature. For each release,
 
 A release counts as done only when both assets are attached and the signature verifies. A release with
 no SBOM, an unsigned one, a half-finished upload or a pair that does not verify is regenerated from its
-tag on the next run; the monthly run, or one started by hand, covers every release.
+tag on the next run; the monthly run, or one started by hand, covers every release. A release the
+[release workflow](#release) creates carries the pair from the start, written by the same script with
+the same key, so this workflow finds it verifying and leaves it.
 
 To verify a release's SBOM:
 
@@ -163,15 +167,17 @@ repository setting; until it is applied, the monthly or a manual run signs new r
 ## Chart release
 
 The Technical Development Requirements deliver the Helm charts with each release. The candidate
-stage above creates no tag and no release; the charts are delivered when a release is published, by
-the `Release charts` job of `ci.yml`, and only after every gate job of that workflow has passed —
-the lifecycle jobs included, which may be skipped while the repository variable is off but not
-failed or cancelled. The job then runs the [chart gate](#chart-gate) once more, on a disposable kind
-cluster of its own with the same CRDs: `release.yml` runs on candidate branches and `ci.yml` on the
-published release, no candidate run is tied to the tag, and a published chart must not skip the
-server dry-run. Lint, render and the server dry-run are the gate in front of the package, so a chart
-that fails any of them is never released, which is the rule of Annex A row TDR-BDD-11. The
-pull-request job, the release gate and the release job run the same `scripts/ci/check-charts.sh`,
+stage above creates no tag and no release; the charts are delivered by the [release](#release) stage
+of `release.yml`, which the push of a release tag starts: its chart gate packages them, at the tag's
+version, on the cluster it just proved them on, and the release job attaches them to the release it
+creates. A release published by hand on GitHub gets its charts from the `Release charts` job of
+`ci.yml` instead, and only after every gate job of that workflow has passed — the lifecycle jobs
+included, which may be skipped while the repository variable is off but not failed or cancelled.
+That job runs the [chart gate](#chart-gate) once more, on a disposable kind cluster of its own with
+the same CRDs: no gate run is tied to a release published by hand, and a published chart must not
+skip the server dry-run. Lint, render and the server dry-run are the gate in front of the package,
+so a chart that fails any of them is never released, which is the rule of Annex A row TDR-BDD-11.
+The pull-request job, the release gate and both release jobs run the same `scripts/ci/check-charts.sh`,
 which checks every chart first and packages only when all of them pass, so the gate a pull request
 clears is the gate the release is held to. Each package is then checked again as its source was,
 with the chart's own values: the version now differs from `Chart.yaml`, and a template that reads
@@ -190,15 +196,79 @@ release as assets.
 
 Publication to a registry stays off until one exists. When the repository variable `CHART_REGISTRY`
 names the OCI path for charts (for example `harbor.example.org/facis/charts`) and the secrets
-`CHART_REGISTRY_USER` and `CHART_REGISTRY_PASSWORD` hold a robot account allowed to push there, the
-job also pushes every package with `helm push` and prints the digest of each into the run summary.
-That digest is what a zone file pins: the lifecycle workflow accepts a chart only as a local path or
-as an `oci://` reference pinned by digest.
+`CHART_REGISTRY_USER` and `CHART_REGISTRY_PASSWORD` hold a robot account allowed to push there, both
+release jobs also push every package with `helm push` and print the digest of each into the run
+summary; the release job records it in the manifest as well. That digest is what a zone file pins:
+the lifecycle workflow accepts a chart only as a local path or as an `oci://` reference pinned by
+digest.
 
 Locally, `scripts/ci/check-charts.sh` runs the same check, and
 `scripts/ci/check-charts.sh --package dist --version 0.0.0-local` the same packaging, for a look at
 what a release would ship; with a cluster in the current kube context, `--server-dry-run` adds the
 gate's dry-run to both.
+
+## Release
+
+A release is one push of a tag `vX.Y.Z` (or `vX.Y.Z-prerelease`) by a maintainer. The tag starts
+`release.yml` as a candidate branch does, and that run becomes the release: the [chart gate](#chart-gate),
+the images and the [secrets baseline](secrets.md#the-baseline-proof-tdr-bdd-08) run as on a candidate,
+with the tag's version as the image tag, and the `release` job then gathers everything the run
+produced and creates the GitHub release from it. One version, the tag's, is carried by every
+artefact: the charts are packaged at it (`--version` and `--app-version`), the images are tagged with
+it, and the release job checks that each image's version tag still names the digest that was signed
+before anything is listed.
+
+The release job, in order:
+
+1. `scripts/supplychain/repo-sbom.sh` — the [repository SBOM](#release-sbom), signed and verified, with
+   the script and the key `sbom.yml` uses;
+2. the BDD suite for the tag, as the `bdd` job of `ci.yml` runs it on a pull request, with one
+   difference: the two rows this run proved on a cluster, TDR-BDD-08 and TDR-BDD-11, come from the
+   audit's and the gate's reports instead of the dry-run listing — a listing beside a real report
+   keeps a row from passing ([BDD acceptance](bdd.md#the-traceability-sheet)). `bddreport
+   --require-complete` then merges every report of the run into one sheet;
+3. the chart push, when `CHART_REGISTRY` is set ([Chart release](#chart-release)), each digest
+   recorded;
+4. `scripts/supplychain/release-set.sh` — the set, checked: every image reference is a digest and has
+   the SBOM attested to it, bound to that digest as admission binds it; every chart package is at the
+   version and in `SHA256SUMS`; the repository SBOM has its signature; the mock attestation and the
+   cucumber-JSON are there, with the sheet merged from them. A piece missing or at another version
+   refuses the set, and no release is created. The script writes `release-manifest.json` — every
+   asset with its SHA-256, and the images and charts with what each digest belongs to — and
+   `RELEASE_NOTES.md`, the same list for the release page with the commands that check it;
+5. the manifest signed with the interim key (`cosign sign-blob`, the profile of the images) and
+   verified;
+6. `gh release create`, with the notes and every asset. A rerun completes or replaces the release
+   with its own set: an asset of the same name is overwritten, one the set does not carry is removed.
+
+The release carries: the chart packages and their `SHA256SUMS`; `sbom.json` and `sbom.json.sig`;
+one `<image>.cdx.json` per image and `mock-attestation.json`; the cucumber-JSON of every run as
+`bdd-*.json`, with `bdd-traceability.md` and `.csv`; `release-manifest.json` and its `.sig`. The
+images themselves are in the registry, listed in the notes and the manifest by digest.
+`scripts/supplychain/release-set_test.sh` holds the script to the refusals above, against sets it
+writes itself; the `Release set` job of `ci.yml` runs it on every pull request.
+
+To consume a release:
+
+```bash
+gh release download vX.Y.Z
+sha256sum -c SHA256SUMS
+cosign verify-blob --key docs/contracts/keys/interim-cosign.pub --insecure-ignore-tlog=true \
+  --signature release-manifest.json.sig release-manifest.json
+jq -r '.images[].reference' release-manifest.json   # what a zone file pins
+```
+
+Two rules of GitHub shape this. A release created with the workflow's own token starts no other
+workflow (`workflow_dispatch` and `repository_dispatch` are the exceptions), so the `Release charts`
+job of `ci.yml`, `sbom.yml` and the lifecycle jobs do not run for it: the charts and the SBOM are
+delivered by the release job with the same scripts, and the lifecycle rows (TDR-BDD-01..04, 06) stay
+with the runs on `main` and on demand. And the `release` environment, which holds the key, admits
+only the refs it is configured for: for a tag run to reach it the environment must admit `v*`, the
+same repository setting the [release SBOM](#release-sbom) needs; without it the run stops at the
+images job, before an image is pushed.
+
+A release published by hand on GitHub is not the set: `ci.yml` attaches its charts and `sbom.yml`
+its SBOM, but no image is built for it and no notes list it.
 
 ## Lifecycle scenarios on the client targets
 
@@ -255,9 +325,10 @@ The repository's default workflow token is read-only — an administrator settin
 ruleset above. Every workflow then declares its own top-level `permissions:` block rather than
 relying on that default, and a job that needs more than read access grants it at the job level with
 a comment naming the reason: `docs.yml` writes to `gh-pages`, `sbom.yml` uploads the SBOM onto a
-release, the release candidate job pushes images and signatures to GHCR (`packages: write`), and the
-`Release charts` job attaches the packaged charts to a release. Wildcard scopes (`write-all`) are
-never used.
+release, the release candidate job pushes images and signatures to GHCR (`packages: write`), the
+release job creates the release with its set (`contents: write`) and reads the image manifests back
+(`packages: read`), and the `Release charts` job attaches the packaged charts to a release. Wildcard
+scopes (`write-all`) are never used.
 
 ### Action pinning
 
