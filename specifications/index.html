@@ -73,6 +73,8 @@
                   </li>
                   <li class="toctree-l1"><a class="reference internal" href="../environments/application-workloads/">Application workloads</a>
                   </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../environments/capabilities/">Capability sheets</a>
+                  </li>
               </ul>
               <ul>
                 <li class="toctree-l1"><a class="reference internal" href="../packaging/">Packaging and containers</a>
@@ -150,6 +152,8 @@
               <p class="caption"><span class="caption-text">Architecture decisions</span></p>
               <ul>
                   <li class="toctree-l1"><a class="reference internal" href="../adr/">Overview</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../adr/decision-ledger/">Decision ledger</a>
                   </li>
                   <li class="toctree-l1"><a class="reference internal" href="../adr/tdr-decisions/">TDR decisions ADR 001–006</a>
                   </li>
@@ -252,7 +256,7 @@ the decision.</p>
 </tr>
 <tr>
 <td>TDR, OSS microservice repository — <code>.github/workflows</code>: the Eclipse Dash licence scanner and the build workflows are referenced from the standard organisation workflows</td>
-<td>The Go tests reference the shared <code>go-test.yml</code>. The licence scan and the release SBOM run as workflows in this repository that do what the shared ones do — the same Eclipse Dash tool with the same review arguments, the same <code>cyclonedx-gomod</code> version and the same rule of attaching an SBOM to every release — with the pinned actions and declared permissions this repository requires of its own workflows</td>
+<td>The Go tests reference the shared <code>go-test.yml</code>. The licence scan and the release SBOM run as workflows in this repository that do what the shared ones do — the same Eclipse Dash tool with the same review arguments, and the same rule of attaching an SBOM to every release, which here is generated with the pinned Syft, checked and signed (see <a href="../ci-cd/#release-sbom">CI/CD</a>) — with the pinned actions and declared permissions this repository requires of its own workflows</td>
 <td>The shared scanner sets up Go 1.21 and the shared SBOM generator Go 1.23.8, with no input to change either, and an older Go refuses a module whose <code>go</code> directive is newer — this module declares Go 1.27. The scanner's Go step only builds a module list it never uses; the Eclipse Dash tool reads <code>go.sum</code> directly. The shared scanner also fetches its jar through a redirect that now answers 404 with an HTML page, which surfaces as <code>invalid or corrupt jarfile</code></td>
 <td><a href="../ci-cd/#go-version">CI/CD — Go version</a> · declared here, pending confirmation; the two workflows go back to references once the shared ones accept a Go version or read <code>go.mod</code></td>
 </tr>

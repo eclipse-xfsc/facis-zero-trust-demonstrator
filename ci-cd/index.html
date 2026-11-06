@@ -73,6 +73,8 @@
                   </li>
                   <li class="toctree-l1"><a class="reference internal" href="../environments/application-workloads/">Application workloads</a>
                   </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../environments/capabilities/">Capability sheets</a>
+                  </li>
               </ul>
               <ul>
                 <li class="toctree-l1"><a class="reference internal" href="../packaging/">Packaging and containers</a>
@@ -134,6 +136,8 @@
     </li>
     <li class="toctree-l2"><a class="reference internal" href="#image-signing">Image signing</a>
     </li>
+    <li class="toctree-l2"><a class="reference internal" href="#release-sbom">Release SBOM</a>
+    </li>
     <li class="toctree-l2"><a class="reference internal" href="#chart-release">Chart release</a>
     </li>
     <li class="toctree-l2"><a class="reference internal" href="#lifecycle-scenarios-on-the-client-targets">Lifecycle scenarios on the client targets</a>
@@ -182,6 +186,8 @@
               <p class="caption"><span class="caption-text">Architecture decisions</span></p>
               <ul>
                   <li class="toctree-l1"><a class="reference internal" href="../adr/">Overview</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../adr/decision-ledger/">Decision ledger</a>
                   </li>
                   <li class="toctree-l1"><a class="reference internal" href="../adr/tdr-decisions/">TDR decisions ADR 001–006</a>
                   </li>
@@ -249,8 +255,8 @@ and is declared as such in <a href="../specifications/#readings-and-additions">S
 </tr>
 <tr>
 <td><code>.github/workflows/sbom.yml</code></td>
-<td>schedule, release, manual</td>
-<td>Generates a CycloneDX SBOM for every release that has none and attaches it</td>
+<td>schedule, release, manual, <code>candidate/**</code> push</td>
+<td>Generates, checks and signs a CycloneDX SBOM for every release that lacks a verifying one, and attaches both</td>
 </tr>
 <tr>
 <td><code>.github/workflows/docs.yml</code></td>
@@ -372,10 +378,12 @@ OAuth2 provider is built on, requires Go 1.27.</p>
 </tr>
 </tbody>
 </table>
-<p>The last two are why the licence scan and the SBOM run locally. The local jobs do what the shared
-ones do — the same Eclipse Dash tool with the same review arguments, the same <code>cyclonedx-gomod</code>
-version and the same rule of attaching an SBOM to every release that lacks one — with the pinned
-actions and declared permissions this repository requires of its own workflows. They can go back to
+<p>The last two are why the licence scan and the SBOM run locally. The licence job does what the shared
+one does — the same Eclipse Dash tool with the same review arguments — and the SBOM job keeps the
+shared rule of attaching an SBOM to every release that lacks one, with the pinned actions and declared
+permissions this repository requires of its own workflows. The SBOM job goes further than the shared
+one: it uses the pinned Syft, the same tool as the image SBOMs, checks the result and signs it (see
+<a href="#release-sbom">Release SBOM</a>). They can go back to
 being references once the shared workflows accept a Go version or read <code>go.mod</code>; that is a change to
 propose in <code>eclipse-xfsc/dev-ops</code>.</p>
 <h2 id="chart-gate">Chart gate<a class="headerlink" href="#chart-gate" title="Permanent link">&para;</a></h2>
@@ -422,6 +430,30 @@ the committed public key, so a missing environment, secret or key file stops the
 is pushed. GHCR creates new packages as private; the job verifies them with its own token, but a
 cluster pulls and verifies anonymously, so the candidate packages must be made public in the package
 settings (once per package) before a cluster can admit them.</p>
+<h2 id="release-sbom">Release SBOM<a class="headerlink" href="#release-sbom" title="Permanent link">&para;</a></h2>
+<p><code>sbom.yml</code> gives every published release two assets: <code>sbom.json</code>, the CycloneDX inventory of the Go
+module at the release tag, and <code>sbom.json.sig</code>, its signature. For each release, <code>scripts/supplychain/repo-sbom.sh</code>:</p>
+<ol>
+<li>scans the tag's checkout with the pinned Syft, Go module only (the images have their own SBOMs);</li>
+<li>checks it with <code>go run ./cmd/sbomcheck</code>: valid CycloneDX against the schemas admission uses, and every
+   module the tag's tidy <code>go.mod</code> requires present at the required version, replacements resolved. With
+   module graph pruning a tidy <code>go.mod</code> lists every module that supplies a package to any build or test, on
+   any platform and build tag, so transitive dependencies are included;</li>
+<li>signs it with <code>cosign sign-blob</code> and the interim key, in the profile the images use (key-based, no
+   transparency log), and verifies the signature before anything is uploaded.</li>
+</ol>
+<p>A release counts as done only when both assets are attached and the signature verifies. A release with
+no SBOM, an unsigned one, a half-finished upload or a pair that does not verify is regenerated from its
+tag on the next run; the monthly run, or one started by hand, covers every release.</p>
+<p>To verify a release's SBOM:</p>
+<pre><code class="language-bash">gh release download &lt;tag&gt; --pattern 'sbom.json*'
+cosign verify-blob --key docs/contracts/keys/interim-cosign.pub --insecure-ignore-tlog=true \
+  --signature sbom.json.sig sbom.json
+</code></pre>
+<p>The interim key is replaced by the client key with the rest of the signing chain. The key lives in the
+<code>release</code> environment; for the run that a published release starts — which runs on the tag — to reach
+it, the environment must admit the release tags (<code>v*</code>) as well as <code>main</code> and <code>candidate/*</code>. That is a
+repository setting; until it is applied, the monthly or a manual run signs new releases.</p>
 <h2 id="chart-release">Chart release<a class="headerlink" href="#chart-release" title="Permanent link">&para;</a></h2>
 <p>The Technical Development Requirements deliver the Helm charts with each release. The candidate
 stage above creates no tag and no release; the charts are delivered when a release is published, by

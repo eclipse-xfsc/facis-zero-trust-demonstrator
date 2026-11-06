@@ -73,6 +73,8 @@
                   </li>
                   <li class="toctree-l1"><a class="reference internal" href="../environments/application-workloads/">Application workloads</a>
                   </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../environments/capabilities/">Capability sheets</a>
+                  </li>
               </ul>
               <ul>
                 <li class="toctree-l1"><a class="reference internal" href="../packaging/">Packaging and containers</a>
@@ -133,6 +135,10 @@
                 <li class="toctree-l1 current"><a class="reference internal current" href="#">OSS dependencies</a>
     <ul class="current">
     <li class="toctree-l2"><a class="reference internal" href="#licence-compliance">Licence compliance</a>
+        <ul>
+    <li class="toctree-l3"><a class="reference internal" href="#pending-eclipse-ip-review">Pending Eclipse IP review</a>
+    </li>
+        </ul>
     </li>
     <li class="toctree-l2"><a class="reference internal" href="#licence-exceptions">Licence exceptions</a>
         <ul>
@@ -164,6 +170,8 @@
               <p class="caption"><span class="caption-text">Architecture decisions</span></p>
               <ul>
                   <li class="toctree-l1"><a class="reference internal" href="../adr/">Overview</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../adr/decision-ledger/">Decision ledger</a>
                   </li>
                   <li class="toctree-l1"><a class="reference internal" href="../adr/tdr-decisions/">TDR decisions ADR 001–006</a>
                   </li>
@@ -208,13 +216,21 @@
 <p>Third-party components the demonstrator depends on, and the upstream projects it integrates with
 but does not own.</p>
 <h2 id="licence-compliance">Licence compliance<a class="headerlink" href="#licence-compliance" title="Permanent link">&para;</a></h2>
-<p>Every dependency clears Eclipse Dash before it ships. The scan runs on every pull request and a
-dependency Dash marks <code>restricted</code> blocks the merge; anything Dash cannot clear automatically goes
+<p>Every dependency clears Eclipse Dash before it ships. The scan runs on every pull request, and a
+dependency Dash marks <code>restricted</code> fails the licence gate — which blocks the merge once the gate is a
+required check of the <code>main</code> ruleset (<a href="../ci-cd/#branch-protection">CI/CD</a>); anything Dash cannot clear automatically goes
 to the Eclipse IP team for review. See <a href="../ci-cd/">CI/CD</a>.</p>
 <p>A dependency under a licence the project cannot accept is replaced, not waived. The exception below
 is the only other route, and it is not a way to waive the rule.</p>
 <p>Generated inventories — the CycloneDX SBOM and the Dash summary — are published with each release
 and are the authoritative list. This page records the components chosen and why.</p>
+<h3 id="pending-eclipse-ip-review">Pending Eclipse IP review<a class="headerlink" href="#pending-eclipse-ip-review" title="Permanent link">&para;</a></h3>
+<p>Dependencies Dash cannot clear yet. They are not exceptions: each stays here until Eclipse approves it,
+and is removed then. None is pending: the last two, <code>golang.org/x/text</code> v0.42.0
+(<a href="https://gitlab.eclipse.org/eclipsefdn/emo-team/iplab/-/work_items/32075">iplab #32075</a>) and
+<code>github.com/santhosh-tekuri/jsonschema/v6</code> v6.0.3
+(<a href="https://gitlab.eclipse.org/eclipsefdn/emo-team/iplab/-/work_items/32387">iplab #32387</a>), were approved
+by 23 October 2026.</p>
 <h2 id="licence-exceptions">Licence exceptions<a class="headerlink" href="#licence-exceptions" title="Permanent link">&para;</a></h2>
 <p>When a component under a non-Apache-2.0-compatible licence is <strong>prescribed by the requirements</strong> and
 therefore cannot be replaced, the Technical Development Requirements oblige us to inform the client

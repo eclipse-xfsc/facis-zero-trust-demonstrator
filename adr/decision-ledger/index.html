@@ -1,0 +1,425 @@
+<!DOCTYPE html>
+<html class="writer-html5" lang="en" >
+<head>
+    <meta charset="utf-8" />
+    <meta http-equiv="X-UA-Compatible" content="IE=edge" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+      <link rel="shortcut icon" href="../../img/favicon.ico" />
+    <title>Decision ledger - FACIS Zero Trust Demonstrator</title>
+    <link rel="stylesheet" href="../../css/theme.css" />
+    <link rel="stylesheet" href="../../css/theme_extra.css" />
+        <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.8.0/styles/github.min.css" />
+    
+      <script>
+        // Current page data
+        var mkdocs_page_name = "Decision ledger";
+        var mkdocs_page_input_path = "adr/decision-ledger.md";
+        var mkdocs_page_url = null;
+      </script>
+    
+    <!--[if lt IE 9]>
+      <script src="../../js/html5shiv.min.js"></script>
+    <![endif]-->
+      <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.8.0/highlight.min.js"></script>
+      <script>hljs.highlightAll();</script> 
+</head>
+
+<body class="wy-body-for-nav" role="document">
+
+  <div class="wy-grid-for-nav">
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side stickynav">
+    <div class="wy-side-scroll">
+      <div class="wy-side-nav-search">
+          <a href="../.." class="icon icon-home"> FACIS Zero Trust Demonstrator
+        </a><div role="search">
+  <form id ="rtd-search-form" class="wy-form" action="../../search.html" method="get">
+      <input type="text" name="q" placeholder="Search docs" aria-label="Search docs" title="Type search term here" />
+  </form>
+</div>
+      </div>
+
+      <div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../..">Home</a>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../../features/">Features and journeys</a>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../../architecture/">Architecture</a>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../../usage/">Using the demonstrator</a>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../../deployment/">Deployment</a>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../../umbrella-chart/">Umbrella chart</a>
+                </li>
+              </ul>
+              <p class="caption"><span class="caption-text">Environments</span></p>
+              <ul>
+                  <li class="toctree-l1"><a class="reference internal" href="../../environments/">Overview</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../environments/osc/">T-Systems OSC</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../environments/ionos/">IONOS Cloud</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../environments/application-workloads/">Application workloads</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../environments/capabilities/">Capability sheets</a>
+                  </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../../packaging/">Packaging and containers</a>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../../flows/">Orchestrated flows</a>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../../scenarios/">Scenario decisions</a>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../../keycloak/">Keycloak integration</a>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../../identity-model/">Identity model</a>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../../oauth2-provider/">Connector OAuth2 provider</a>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../../api-docs/">API documentation</a>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../../contracts/">Interface contracts</a>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../../tspa-publish-api/">TRAIN trust-list publishing</a>
+                </li>
+              </ul>
+              <p class="caption"><span class="caption-text">BDD acceptance</span></p>
+              <ul>
+                  <li class="toctree-l1"><a class="reference internal" href="../../bdd/">Harness and pack</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../bdd-catalogue/">Catalogue</a>
+                  </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../../ci-cd/">CI/CD</a>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../../secrets/">Secrets</a>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../../troubleshooting/">Troubleshooting</a>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../../dependencies/">OSS dependencies</a>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../../licenses/">Licenses</a>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../../specifications/">Specification changes</a>
+                </li>
+              </ul>
+              <p class="caption"><span class="caption-text">Architecture decisions</span></p>
+              <ul class="current">
+                  <li class="toctree-l1"><a class="reference internal" href="../">Overview</a>
+                  </li>
+                  <li class="toctree-l1 current"><a class="reference internal current" href="#">Decision ledger</a>
+    <ul class="current">
+    <li class="toctree-l2"><a class="reference internal" href="#decisions">Decisions</a>
+    </li>
+    <li class="toctree-l2"><a class="reference internal" href="#open-items">Open items</a>
+    </li>
+    </ul>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../tdr-decisions/">TDR decisions ADR 001–006</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../0001-service-mesh-mode-istio-ambient-with-cilium/">0001 Service mesh mode</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../0002-gatekeeper-external-data-provider-for-cosign-verification/">0002 Gatekeeper external data provider</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../0003-oauth2-authorisation-surface-in-the-go-connector/">0003 OAuth2 surface in the Go connector</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../0004-openbao-as-x509-key-value-store/">0004 OpenBao as X.509 key-value store</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../0005-three-cluster-reading-of-the-target-environment/">0005 Three-cluster target environment</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../0011-mock-tee-evidence-format-and-provisioning/">0011 Mock TEE evidence</a>
+                  </li>
+              </ul>
+      </div>
+    </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap">
+      <nav class="wy-nav-top" role="navigation" aria-label="Mobile navigation menu">
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="../..">FACIS Zero Trust Demonstrator</a>
+        
+      </nav>
+      <div class="wy-nav-content">
+        <div class="rst-content"><div role="navigation" aria-label="breadcrumbs navigation">
+  <ul class="wy-breadcrumbs">
+    <li><a href="../.." class="icon icon-home" aria-label="Docs"></a></li>
+          <li class="breadcrumb-item">Architecture decisions</li>
+      <li class="breadcrumb-item active">Decision ledger</li>
+    <li class="wy-breadcrumbs-aside">
+          <a href="https://github.com/eclipse-xfsc/facis-zero-trust-demonstrator/edit/main/docs/adr/decision-ledger.md" class="icon icon-github"> Edit on GitHub</a>
+    </li>
+  </ul>
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+            <div class="section" itemprop="articleBody">
+              
+                <h1 id="decision-ledger">Decision ledger<a class="headerlink" href="#decision-ledger" title="Permanent link">&para;</a></h1>
+<p>Every architecture decision of the demonstrator, where it is recorded, its status, and the evidence
+behind it. A decision is settled only when its record is merged with status Accepted; a record in an
+open pull request, or a number allocated and not yet written, is listed as such and is not presented
+as settled. Status as of 8 October 2026.</p>
+<h2 id="decisions">Decisions<a class="headerlink" href="#decisions" title="Permanent link">&para;</a></h2>
+<p>Numbers are allocated in planning (<a href="../">Architecture decisions</a>). The planning records of
+9 September 2026, kept with the delivery plan rather than in this repository, allocated 0007–0015;
+where this ledger says "planning record", that is its source, and the decision still needs a record
+here before it counts as settled.</p>
+<table>
+<thead>
+<tr>
+<th>Decision</th>
+<th>Number</th>
+<th>Record</th>
+<th>Status</th>
+<th>Spike and evidence</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Service mesh mode</td>
+<td>0001</td>
+<td><a href="../0001-service-mesh-mode-istio-ambient-with-cilium/">Istio Ambient with Cilium</a></td>
+<td>Accepted (governing); proposed to be superseded by 0009</td>
+<td>Mesh feasibility gate (WP05)</td>
+</tr>
+<tr>
+<td>Service mesh mode, fallback</td>
+<td>0009</td>
+<td>Istio sidecar with Cilium — in pull request #20</td>
+<td>Proposed, supersedes 0001</td>
+<td>Mesh identity evidence in pull request #20</td>
+</tr>
+<tr>
+<td>Admission: cosign verification provider</td>
+<td>0002</td>
+<td><a href="../0002-gatekeeper-external-data-provider-for-cosign-verification/">Gatekeeper external data provider</a></td>
+<td>Accepted (governing)</td>
+<td>First-party provider in <code>services/admission-provider</code>; CI admission jobs</td>
+</tr>
+<tr>
+<td>Admission provider: fork or first-party</td>
+<td>0014</td>
+<td>not written</td>
+<td>Settled by 0002: built first-party, no separate record needed</td>
+<td>as 0002</td>
+</tr>
+<tr>
+<td>OAuth2 authorisation surface</td>
+<td>0003</td>
+<td><a href="../0003-oauth2-authorisation-surface-in-the-go-connector/">In the Go connector</a></td>
+<td>Accepted (governing)</td>
+<td>DCR and DPoP spike</td>
+</tr>
+<tr>
+<td>vp_token to access-token mechanism</td>
+<td>0007</td>
+<td>not written</td>
+<td>Superseded by 0003</td>
+<td>—</td>
+</tr>
+<tr>
+<td>OAuth2 library behind the provider contract</td>
+<td>—</td>
+<td>pull request #19, filed as 0012</td>
+<td>Proposed</td>
+<td>Library evaluation in pull request #19. <strong>Number conflict:</strong> 0012 is allocated to the policy artefact chains</td>
+</tr>
+<tr>
+<td>Key material store</td>
+<td>0004</td>
+<td><a href="../0004-openbao-as-x509-key-value-store/">OpenBao</a></td>
+<td>Accepted, pending the client's licence decision (F-07)</td>
+<td>Secrets baseline in pull request #16</td>
+</tr>
+<tr>
+<td>Connector token store</td>
+<td>0013</td>
+<td>not written</td>
+<td>Planning record: design decided, storage engine proposed; not yet recorded here</td>
+<td>—</td>
+</tr>
+<tr>
+<td>Target environment</td>
+<td>0005</td>
+<td><a href="../0005-three-cluster-reading-of-the-target-environment/">Three-cluster reading</a></td>
+<td>Accepted (governing), recorded assumption</td>
+<td>—</td>
+</tr>
+<tr>
+<td>Guard proxy and policy hook (Envoy, ext_authz)</td>
+<td>0008</td>
+<td>not written</td>
+<td>Planning record: decided; not yet recorded here, waits for the ext_authz spike</td>
+<td>ext_authz spike, not started</td>
+</tr>
+<tr>
+<td>Session attestation through <code>cmcd</code></td>
+<td>0010</td>
+<td>pull request #17</td>
+<td>Proposed</td>
+<td>Channel-binding evidence in pull request #17</td>
+</tr>
+<tr>
+<td>Mock TEE evidence</td>
+<td>0011</td>
+<td><a href="../0011-mock-tee-evidence-format-and-provisioning/">Format and provisioning</a></td>
+<td>Accepted for the format; provisioning items open</td>
+<td>Mock-attestation samples in <code>docs/contracts/samples</code></td>
+</tr>
+<tr>
+<td>Policy artefact chains (Gatekeeper and TSA)</td>
+<td>0012</td>
+<td>not written</td>
+<td>Planning record: decided. The client has since answered that infrastructure policies load into Gatekeeper before TSA exists and software policies go through TSA; not yet recorded here</td>
+<td>—</td>
+</tr>
+<tr>
+<td>Interface registry (IF-01 to IF-08)</td>
+<td>0015</td>
+<td>not written</td>
+<td>Implemented as the registry in <a href="../../api-docs/">API documentation</a></td>
+<td>Contract checks in CI</td>
+</tr>
+<tr>
+<td>TRAIN launch-digest carrier</td>
+<td>—</td>
+<td>none</td>
+<td>Open: no entry field exists. Asked of the client, who has defined no variant and asked us to propose one; our proposal is a <code>Type</code>/<code>Value</code> list (<a href="../../specifications/">Specification changes</a>), not yet confirmed</td>
+<td>TSPA API verification</td>
+</tr>
+<tr>
+<td>Observability without Grafana</td>
+<td>—</td>
+<td><a href="../../specifications/">Specification changes</a></td>
+<td>Declared deviation: the SRS's alternative clause is taken (Grafana is AGPL-3.0)</td>
+<td>—</td>
+</tr>
+<tr>
+<td>Gateway API scope: a <code>GatewayClass</code>-scoped operator</td>
+<td>—</td>
+<td><a href="../../specifications/">Specification changes</a></td>
+<td>Declared reading, pending the client's confirmation</td>
+<td>—</td>
+</tr>
+<tr>
+<td>Licence scan and release SBOM as workflows in this repository</td>
+<td>—</td>
+<td><a href="../../specifications/">Specification changes</a>, <a href="../../ci-cd/">CI/CD</a></td>
+<td>Declared deviation: the shared organisation workflows cannot build this module</td>
+<td>—</td>
+</tr>
+<tr>
+<td>TDR ADR 001–006</td>
+<td>—</td>
+<td><a href="../tdr-decisions/">TDR decisions</a></td>
+<td>Binding (prescribed)</td>
+<td>—</td>
+</tr>
+</tbody>
+</table>
+<h2 id="open-items">Open items<a class="headerlink" href="#open-items" title="Permanent link">&para;</a></h2>
+<ul>
+<li><strong>Number conflict:</strong> pull request #19 files the OAuth2 library record as 0012, which planning
+  allocated to the policy artefact chains. One of the two takes a new number before either merges.</li>
+<li><strong>Records to write:</strong> 0008 (after the ext_authz spike), 0012 (with the client's answer on the policy
+  split), 0013 (when the storage engine is chosen).</li>
+<li><strong>TRAIN launch-digest carrier:</strong> asked of the client, who asked us to propose one; the proposal waits
+  for confirmation and then needs a record.</li>
+<li><strong>Deviations declared to the client (F-05):</strong> the package sent on 11 September 2026 has not been
+  located, so this ledger is not yet compared with it. Until it is, the deviation status in
+  <a href="../../specifications/#deviation-status">Specification changes</a> stands unchanged.</li>
+</ul>
+              
+            </div>
+          </div><footer>
+    <div class="rst-footer-buttons" role="navigation" aria-label="Footer Navigation">
+        <a href="../" class="btn btn-neutral float-left" title="Overview"><span class="icon icon-circle-arrow-left"></span> Previous</a>
+        <a href="../tdr-decisions/" class="btn btn-neutral float-right" title="TDR decisions ADR 001–006">Next <span class="icon icon-circle-arrow-right"></span></a>
+    </div>
+
+  <hr/>
+
+  <div role="contentinfo">
+    <!-- Copyright etc -->
+      <p>Apache-2.0</p>
+  </div>
+
+  Built with <a href="https://www.mkdocs.org/">MkDocs</a> using a <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a> provided by <a href="https://readthedocs.org">Read the Docs</a>.
+</footer>
+          
+        </div>
+      </div>
+
+    </section>
+
+  </div>
+
+  <div class="rst-versions" role="note" aria-label="Versions">
+  <span class="rst-current-version" data-toggle="rst-current-version">
+    
+        <span>
+          <a href="https://github.com/eclipse-xfsc/facis-zero-trust-demonstrator" class="fa fa-github" style="color: #fcfcfc"> GitHub</a>
+        </span>
+    
+    
+      <span><a href="../" style="color: #fcfcfc">&laquo; Previous</a></span>
+    
+    
+      <span><a href="../tdr-decisions/" style="color: #fcfcfc">Next &raquo;</a></span>
+    
+  </span>
+</div>
+    <script src="../../js/jquery-3.6.0.min.js"></script>
+    <script>var base_url = "../..";</script>
+    <script src="../../js/theme_extra.js"></script>
+    <script src="../../js/theme.js"></script>
+      <script src="../../search/main.js"></script>
+    <script>
+        jQuery(function () {
+            SphinxRtdTheme.Navigation.enable(true);
+        });
+    </script>
+
+</body>
+</html>
