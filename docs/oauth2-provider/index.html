@@ -100,6 +100,10 @@
                 <li class="toctree-l1 current"><a class="reference internal current" href="#">Connector OAuth2 provider</a>
     <ul class="current">
     <li class="toctree-l2"><a class="reference internal" href="#architecture">Architecture</a>
+        <ul>
+    <li class="toctree-l3"><a class="reference internal" href="#changing-the-library-version">Changing the library version</a>
+    </li>
+        </ul>
     </li>
     <li class="toctree-l2"><a class="reference internal" href="#client-registration">Client registration</a>
     </li>
@@ -114,6 +118,10 @@
     <li class="toctree-l2"><a class="reference internal" href="#limitations">Limitations</a>
     </li>
     </ul>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../policy-hook/">Guard policy hook</a>
                 </li>
               </ul>
               <ul>
@@ -177,7 +185,11 @@
                   </li>
                   <li class="toctree-l1"><a class="reference internal" href="../adr/0005-three-cluster-reading-of-the-target-environment/">0005 Three-cluster target environment</a>
                   </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../adr/0008-envoy-ext-authz-as-the-guard-policy-hook/">0008 Guard policy hook</a>
+                  </li>
                   <li class="toctree-l1"><a class="reference internal" href="../adr/0011-mock-tee-evidence-format-and-provisioning/">0011 Mock TEE evidence</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../adr/0016-oauth2-library-behind-the-connector-provider-contract/">0016 OAuth2 library</a>
                   </li>
               </ul>
       </div>
@@ -207,6 +219,10 @@
                 <h1 id="connector-oauth2-provider">Connector OAuth2 provider<a class="headerlink" href="#connector-oauth2-provider" title="Permanent link">&para;</a></h1>
 <p>The connector issues its own OAuth 2.0 tokens instead of delegating to the identity provider
 (see the <a href="../adr/0003-oauth2-authorisation-surface-in-the-go-connector/">architecture decision on the OAuth2 surface</a>).
+The library it is built on, and why, is recorded in the
+<a href="../adr/0016-oauth2-library-behind-the-connector-provider-contract/">decision on the OAuth2 library</a>;
+the endpoints as other components see them are defined in the
+<a href="../contracts/if02-connector.v1.openapi.yaml">connector contract</a>.
 This page describes the part of that authorization surface that exists today: dynamic client
 registration and DPoP-bound access tokens.</p>
 <table>
@@ -257,7 +273,7 @@ and is invisible to everything else.</p>
 </tr>
 <tr>
 <td><code>oauth2provider/authelia</code></td>
-<td>The implementation. The only package allowed to import the library.</td>
+<td>The implementation. The only package allowed to import the library; its exported API names no library type.</td>
 </tr>
 <tr>
 <td><code>oauth2provider/memstore</code></td>
@@ -272,7 +288,29 @@ and is invisible to everything else.</p>
 <p>The boundary is enforced, not just intended: a test inspects the imports every package declares and
 fails if anything other than the adapter imports the library. It checks direct imports, since every
 consumer of the adapter depends on the library transitively and legitimately.</p>
-<p>The contract's API is unstable and subject to change.</p>
+<p>The adapter's own API is checked as well: a second test type-checks the adapter and follows every
+type a caller can reach from an exported identifier - through aliases, pointers, containers, type
+arguments, and the exported fields and methods of unexported types on the way - and fails if any of
+them is declared by the library, since that would hand the type to a caller without any import. The
+check is itself tested against packages that hide the library behind an unexported alias, field,
+method or interface. The adapter exports one function, <code>New</code>, which returns the contract's
+<code>Provider</code> interface.</p>
+<p>This is version 1 of the contract. Additions are ordinary changes; removing or altering an existing
+declaration is a breaking change and is reviewed as one. Choosing a different library means a new
+adapter package, not a change to the contract.</p>
+<p>The freeze is checked as well. <code>api_v1.txt</code>, next to the contract, lists its exported API one
+identifier per line, and a test regenerates the listing from the package and fails on any difference,
+so the contract cannot change in passing. A struct field's line carries its position, so reordering
+two fields of one type, which would silently swap them for a caller building the struct
+positionally, is a difference too. To change it on purpose, describe the change here and
+regenerate the listing:</p>
+<pre><code class="language-bash">OAUTH2PROVIDER_API_UPDATE=1 go test -run TestContractAPIIsFrozen ./services/connector/internal/oauth2provider
+</code></pre>
+<h3 id="changing-the-library-version">Changing the library version<a class="headerlink" href="#changing-the-library-version" title="Permanent link">&para;</a></h3>
+<p>The pinned version is the one the conformance tests were run against, and a test fails when <code>go.mod</code>
+names another. To move to a new release: bump the version, run <code>go test -race ./...</code>, and if it
+passes, update the version the test expects, the entry in <a href="../dependencies/">OSS dependencies</a>, and
+the <a href="../adr/0016-oauth2-library-behind-the-connector-provider-contract/">decision on the OAuth2 library</a>.</p>
 <h2 id="client-registration">Client registration<a class="headerlink" href="#client-registration" title="Permanent link">&para;</a></h2>
 <p>Registration is <strong>not open</strong>. The registration endpoint is itself a protected resource: it takes an
 access token, issued by the token endpoint like any other, that</p>
@@ -322,7 +360,9 @@ with a proof that</p>
 <p>Error responses keep the members the OAuth 2.0 specifications define and add a <code>reason</code> member with a
 machine-readable code, in line with the project's <a href="../api-docs/#conventions">error conventions</a>. The
 codes are derived from the library's OAuth 2.0 error names and from facts the adapter establishes
-itself, never from message text.</p>
+itself, never from message text. They are the values the
+<a href="../contracts/if02-connector.v1.openapi.yaml">connector contract</a> publishes for <code>reason</code>, and a test
+fails if the two lists differ.</p>
 <table>
 <thead>
 <tr>
@@ -401,7 +441,7 @@ itself, never from message text.</p>
 </tr>
 <tr>
 <td><code>DPoP.ProofLifespan</code>, <code>DPoP.ClockSkew</code></td>
-<td>The freshness window.</td>
+<td>The freshness window. Together at most 90 seconds, the longest the token store keeps a replay record; a larger sum is refused at start-up.</td>
 </tr>
 <tr>
 <td><code>DPoP.NonceLifespan</code></td>
@@ -428,6 +468,11 @@ itself, never from message text.</p>
 <p>Persistence is supplied through small interfaces — clients, access tokens, registration tokens, DPoP
 nonces and DPoP replay state. Stores are handed token signatures, never usable tokens, and the
 request form is not persisted because it can carry client credentials.</p>
+<p>The replay store receives a proof's identity as separate values — key thumbprint, method, normalized
+target URI, <code>jti</code> and nonce — together with the proof's <code>iat</code> and the instant it stops being
+acceptable. It decides atomically whether the proof was seen before; two uses are the same proof
+when thumbprint, method, URI and <code>jti</code> are equal, and a store may also distinguish by nonce, as the
+in-memory one does.</p>
 <h2 id="running-the-conformance-tests">Running the conformance tests<a class="headerlink" href="#running-the-conformance-tests" title="Permanent link">&para;</a></h2>
 <pre><code class="language-sh">go test ./services/connector/...
 go test -race ./services/connector/...
@@ -441,17 +486,22 @@ stores' clock, so no test waits for time to pass. Test names state the rule they
 <li>The only stores are in-memory; nothing survives a restart.</li>
 <li>Only the <code>client_credentials</code> grant and <code>client_secret_basic</code> client authentication are wired.
   Client authentication by signed assertion is refused.</li>
-<li>Registration management (RFC 7592) and token introspection are not exposed.</li>
+<li>Registration management (RFC 7592) and token introspection are not exposed. A registration
+  response nevertheless carries a registration access token and a client configuration URI, which
+  lead nowhere yet.</li>
+<li>Access tokens are opaque and validated by lookup, so a protected resource can only validate them
+  through the connector. Signed tokens carrying the key binding, validated against a published key
+  set, are the decided direction and not implemented yet.</li>
 <li>The proof URI is reconstructed from the request. Behind a proxy the scheme is taken from
   <code>X-Forwarded-Proto</code>, so that header must be set by a trusted hop only.</li>
-<li>The currently evaluated <code>authelia.com/provider/oauth2</code> v0.3.2 requires Go 1.27.x.</li>
+<li>The pinned <code>authelia.com/provider/oauth2</code> v0.3.2 requires Go 1.27.x.</li>
 </ul>
               
             </div>
           </div><footer>
     <div class="rst-footer-buttons" role="navigation" aria-label="Footer Navigation">
         <a href="../identity-model/" class="btn btn-neutral float-left" title="Identity model"><span class="icon icon-circle-arrow-left"></span> Previous</a>
-        <a href="../api-docs/" class="btn btn-neutral float-right" title="API documentation">Next <span class="icon icon-circle-arrow-right"></span></a>
+        <a href="../policy-hook/" class="btn btn-neutral float-right" title="Guard policy hook">Next <span class="icon icon-circle-arrow-right"></span></a>
     </div>
 
   <hr/>
@@ -482,7 +532,7 @@ stores' clock, so no test waits for time to pass. Test names state the rule they
       <span><a href="../identity-model/" style="color: #fcfcfc">&laquo; Previous</a></span>
     
     
-      <span><a href="../api-docs/" style="color: #fcfcfc">Next &raquo;</a></span>
+      <span><a href="../policy-hook/" style="color: #fcfcfc">Next &raquo;</a></span>
     
   </span>
 </div>

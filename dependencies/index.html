@@ -101,6 +101,10 @@
                 </li>
               </ul>
               <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../policy-hook/">Guard policy hook</a>
+                </li>
+              </ul>
+              <ul>
                 <li class="toctree-l1"><a class="reference internal" href="../api-docs/">API documentation</a>
                 </li>
               </ul>
@@ -185,7 +189,11 @@
                   </li>
                   <li class="toctree-l1"><a class="reference internal" href="../adr/0005-three-cluster-reading-of-the-target-environment/">0005 Three-cluster target environment</a>
                   </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../adr/0008-envoy-ext-authz-as-the-guard-policy-hook/">0008 Guard policy hook</a>
+                  </li>
                   <li class="toctree-l1"><a class="reference internal" href="../adr/0011-mock-tee-evidence-format-and-provisioning/">0011 Mock TEE evidence</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../adr/0016-oauth2-library-behind-the-connector-provider-contract/">0016 OAuth2 library</a>
                   </li>
               </ul>
       </div>
@@ -304,6 +312,18 @@ and ORCE for orchestration. Versions are pinned at deployment and recorded with 
 <td>v6.0.3</td>
 <td>Apache-2.0</td>
 <td>validates SBOMs and mock attestations against their JSON Schemas at admission</td>
+</tr>
+<tr>
+<td><code>github.com/envoyproxy/go-control-plane/envoy</code></td>
+<td>v1.37.0</td>
+<td>Apache-2.0</td>
+<td>the Envoy <code>ext_authz</code> and <code>ext_proc</code> API types the guard policy hook is served through (<code>cmd/policy-hook-probe</code>); only its <code>envoyhook</code> package may import them</td>
+</tr>
+<tr>
+<td><code>google.golang.org/grpc</code></td>
+<td>v1.83.2</td>
+<td>Apache-2.0</td>
+<td>gRPC transport of the policy hook's Envoy services</td>
 </tr>
 </tbody>
 </table>

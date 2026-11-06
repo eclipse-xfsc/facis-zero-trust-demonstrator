@@ -1,0 +1,524 @@
+<!DOCTYPE html>
+<html class="writer-html5" lang="en" >
+<head>
+    <meta charset="utf-8" />
+    <meta http-equiv="X-UA-Compatible" content="IE=edge" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+      <link rel="shortcut icon" href="../../img/favicon.ico" />
+    <title>0008 Guard policy hook - FACIS Zero Trust Demonstrator</title>
+    <link rel="stylesheet" href="../../css/theme.css" />
+    <link rel="stylesheet" href="../../css/theme_extra.css" />
+        <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.8.0/styles/github.min.css" />
+    
+      <script>
+        // Current page data
+        var mkdocs_page_name = "0008 Guard policy hook";
+        var mkdocs_page_input_path = "adr/0008-envoy-ext-authz-as-the-guard-policy-hook.md";
+        var mkdocs_page_url = null;
+      </script>
+    
+    <!--[if lt IE 9]>
+      <script src="../../js/html5shiv.min.js"></script>
+    <![endif]-->
+      <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.8.0/highlight.min.js"></script>
+      <script>hljs.highlightAll();</script> 
+</head>
+
+<body class="wy-body-for-nav" role="document">
+
+  <div class="wy-grid-for-nav">
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side stickynav">
+    <div class="wy-side-scroll">
+      <div class="wy-side-nav-search">
+          <a href="../.." class="icon icon-home"> FACIS Zero Trust Demonstrator
+        </a><div role="search">
+  <form id ="rtd-search-form" class="wy-form" action="../../search.html" method="get">
+      <input type="text" name="q" placeholder="Search docs" aria-label="Search docs" title="Type search term here" />
+  </form>
+</div>
+      </div>
+
+      <div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../..">Home</a>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../../features/">Features and journeys</a>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../../architecture/">Architecture</a>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../../usage/">Using the demonstrator</a>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../../deployment/">Deployment</a>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../../umbrella-chart/">Umbrella chart</a>
+                </li>
+              </ul>
+              <p class="caption"><span class="caption-text">Environments</span></p>
+              <ul>
+                  <li class="toctree-l1"><a class="reference internal" href="../../environments/">Overview</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../environments/osc/">T-Systems OSC</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../environments/ionos/">IONOS Cloud</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../environments/application-workloads/">Application workloads</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../environments/capabilities/">Capability sheets</a>
+                  </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../../packaging/">Packaging and containers</a>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../../flows/">Orchestrated flows</a>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../../scenarios/">Scenario decisions</a>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../../keycloak/">Keycloak integration</a>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../../identity-model/">Identity model</a>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../../oauth2-provider/">Connector OAuth2 provider</a>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../../policy-hook/">Guard policy hook</a>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../../api-docs/">API documentation</a>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../../contracts/">Interface contracts</a>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../../tspa-publish-api/">TRAIN trust-list publishing</a>
+                </li>
+              </ul>
+              <p class="caption"><span class="caption-text">BDD acceptance</span></p>
+              <ul>
+                  <li class="toctree-l1"><a class="reference internal" href="../../bdd/">Harness and pack</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../bdd-catalogue/">Catalogue</a>
+                  </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../../ci-cd/">CI/CD</a>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../../secrets/">Secrets</a>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../../troubleshooting/">Troubleshooting</a>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../../dependencies/">OSS dependencies</a>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../../licenses/">Licenses</a>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../../specifications/">Specification changes</a>
+                </li>
+              </ul>
+              <p class="caption"><span class="caption-text">Architecture decisions</span></p>
+              <ul class="current">
+                  <li class="toctree-l1"><a class="reference internal" href="../">Overview</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../decision-ledger/">Decision ledger</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../tdr-decisions/">TDR decisions ADR 001–006</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../0001-service-mesh-mode-istio-ambient-with-cilium/">0001 Service mesh mode</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../0002-gatekeeper-external-data-provider-for-cosign-verification/">0002 Gatekeeper external data provider</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../0003-oauth2-authorisation-surface-in-the-go-connector/">0003 OAuth2 surface in the Go connector</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../0004-openbao-as-x509-key-value-store/">0004 OpenBao as X.509 key-value store</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../0005-three-cluster-reading-of-the-target-environment/">0005 Three-cluster target environment</a>
+                  </li>
+                  <li class="toctree-l1 current"><a class="reference internal current" href="#">0008 Guard policy hook</a>
+    <ul class="current">
+    <li class="toctree-l2"><a class="reference internal" href="#context">Context</a>
+    </li>
+    <li class="toctree-l2"><a class="reference internal" href="#decision">Decision</a>
+        <ul>
+    <li class="toctree-l3"><a class="reference internal" href="#1-the-hook-is-ext_authz">1. The hook is ext_authz</a>
+    </li>
+    <li class="toctree-l3"><a class="reference internal" href="#2-the-hook-is-transport-neutral-so-the-switch-to-ext_proc-is-a-configuration-change">2. The hook is transport-neutral, so the switch to ext_proc is a configuration change</a>
+    </li>
+    <li class="toctree-l3"><a class="reference internal" href="#3-failure-behaviour-and-the-bound-on-a-call">3. Failure behaviour and the bound on a call</a>
+    </li>
+    <li class="toctree-l3"><a class="reference internal" href="#4-measured-latency-and-the-proposed-budget">4. Measured latency and the proposed budget</a>
+    </li>
+        </ul>
+    </li>
+    <li class="toctree-l2"><a class="reference internal" href="#consequences">Consequences</a>
+    </li>
+    <li class="toctree-l2"><a class="reference internal" href="#open-items">Open items</a>
+    </li>
+    <li class="toctree-l2"><a class="reference internal" href="#references">References</a>
+    </li>
+    </ul>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../0011-mock-tee-evidence-format-and-provisioning/">0011 Mock TEE evidence</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../0016-oauth2-library-behind-the-connector-provider-contract/">0016 OAuth2 library</a>
+                  </li>
+              </ul>
+      </div>
+    </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap">
+      <nav class="wy-nav-top" role="navigation" aria-label="Mobile navigation menu">
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="../..">FACIS Zero Trust Demonstrator</a>
+        
+      </nav>
+      <div class="wy-nav-content">
+        <div class="rst-content"><div role="navigation" aria-label="breadcrumbs navigation">
+  <ul class="wy-breadcrumbs">
+    <li><a href="../.." class="icon icon-home" aria-label="Docs"></a></li>
+          <li class="breadcrumb-item">Architecture decisions</li>
+      <li class="breadcrumb-item active">0008 Guard policy hook</li>
+    <li class="wy-breadcrumbs-aside">
+          <a href="https://github.com/eclipse-xfsc/facis-zero-trust-demonstrator/edit/main/docs/adr/0008-envoy-ext-authz-as-the-guard-policy-hook.md" class="icon icon-github"> Edit on GitHub</a>
+    </li>
+  </ul>
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+            <div class="section" itemprop="articleBody">
+              
+                <h1 id="adr-0008-envoy-ext_authz-as-the-guards-policy-hook">ADR-0008: Envoy ext_authz as the guard's policy hook<a class="headerlink" href="#adr-0008-envoy-ext_authz-as-the-guards-policy-hook" title="Permanent link">&para;</a></h1>
+<ul>
+<li><strong>Status:</strong> Proposed. One dependent item remains open: the guard's deployable adapter (see Open
+  items).</li>
+<li><strong>Date:</strong> 2026-10-09</li>
+<li><strong>Deciders:</strong> Delivery team, from the policy-hook verification of October 2026. Confirmation by
+  the deciders of the OAuth2-surface decision is pending.</li>
+<li><strong>Requirement basis:</strong> ZT-19, ZT-20</li>
+<li><strong>Related:</strong> <a href="../0003-oauth2-authorisation-surface-in-the-go-connector/">OAuth2 authorisation surface in the Go connector</a>
+  — the tokens the guard authenticates before it asks policy are the connector's. The mesh-mode
+  record (0009, allocated, in review) decides the Envoy the hook attaches to; the policy artefact
+  chains record (0012, allocated, not yet written) decides where the policy bundles the engine
+  evaluates come from. Neither is touched here.</li>
+<li><strong>Where it is implemented:</strong> <code>cmd/policy-hook-probe</code> (the hook as verified, and the proofs),
+  <code>scripts/verify-policy-hook/</code> (the script that runs them and the Envoy bootstraps), run on every
+  pull request by <code>.github/workflows/policy-hook.yml</code>, whose artefact and job summary are the
+  records; <a href="../../policy-hook/">Guard policy hook</a> (the behaviour).</li>
+</ul>
+<h2 id="context">Context<a class="headerlink" href="#context" title="Permanent link">&para;</a></h2>
+<p>The guard is the Envoy proxy in front of every protected resource. For every request it must
+obtain a policy decision — Rego evaluated by the policy engine, with the policy input and decision
+the interface registry fixes as IF-05 — and act on it: forward the request with the upstream
+credential substituted, or refuse it with a reason code and, when a presentation is required, the
+OID4VP link. A refusal has to be answered to the caller with a status, headers and a body; an
+allow has to change the request's headers before it is routed; and a policy service that cannot be
+reached must mean refusal, never passage.</p>
+<p>Envoy offers two filters for an external decision. <code>ext_authz</code> makes one call per request in the
+header phase and takes back either header mutations for the forwarded request or a complete
+response for the caller; its failure behaviour is a setting of the filter. <code>ext_proc</code> opens a
+stream per request over which the processor may act on any phase — request and response headers,
+bodies, trailers — with header mutations and immediate responses; it is newer, gRPC-only, and
+richer than the hook needs. One had to be chosen for the guard, the other kept reachable, and the
+failure behaviour and the cost of the hook established before the guard and the policy adapter
+are built on it.</p>
+<h2 id="decision">Decision<a class="headerlink" href="#decision" title="Permanent link">&para;</a></h2>
+<h3 id="1-the-hook-is-ext_authz">1. The hook is <code>ext_authz</code><a class="headerlink" href="#1-the-hook-is-ext_authz" title="Permanent link">&para;</a></h3>
+<p>The guard asks its policy decision through Envoy's <code>ext_authz</code> filter over gRPC
+(<code>envoy.service.auth.v3.Authorization</code>): one <code>Check</code> per request, before routing.</p>
+<p><strong>Reasons</strong></p>
+<ol>
+<li>Everything the hook has to do happens in the header phase, and <code>ext_authz</code> does all of it.
+   On an allow the filter applies the hook's header mutation: <code>Authorization</code> and <code>DPoP</code> replaced
+   by the token store's values, the caller's forwarding and <code>x-facis-*</code> headers removed, a
+   generated request id set. On a deny the filter answers the caller with the hook's status,
+   headers and body — the reason code and the OID4VP link included. Both are proven against
+   Envoy v1.36.10 (the header-mutation and deny-response proofs).</li>
+<li>Failing closed is a setting, not code: <code>failure_mode_allow: false</code>, <code>status_on_error</code> and a
+   timeout on the call. A local reply of the bootstrap gives the caller a reason code,
+   <code>POL-PDP-UNAVAILABLE</code>, even when the hook itself is gone. Proven under load with the hook
+   killed and with the hook frozen: every request started after the strike was refused with 503
+   and the reason code, none outlived the timeout plus a few milliseconds, and the restarted hook
+   was used again at once (the fail-closed proof).</li>
+<li>It is the hook the mesh exposes. Istio attaches <code>ext_authz</code> to sidecars, gateways and
+   waypoints through an <code>AuthorizationPolicy</code> with the <code>CUSTOM</code> action and an extension provider
+   in the mesh configuration, without an <code>EnvoyFilter</code>; <code>ext_proc</code> has no such attachment and
+   needs an <code>EnvoyFilter</code>, which the mesh-mode record would have to allow for.</li>
+<li>Its cost is small and no higher than <code>ext_proc</code>'s. The measured added latency is in section 4.</li>
+</ol>
+<p><strong>Costs accepted</strong></p>
+<ul>
+<li>Policy sees headers only: a request body is not part of the policy input. Nothing in the
+  interface registry needs it.</li>
+<li>No action in the response phase. The upstream nonce challenge the API documentation describes
+  (a <code>DPoP-Nonce</code> answer from the upstream, retried once with a new proof) cannot be handled inside
+  <code>ext_authz</code>; where it lives is an open item.</li>
+<li>One decision per request, taken before routing, from the headers Envoy presents; the hook does
+  not see the route the request will take.</li>
+</ul>
+<p><strong>Rejected alternatives</strong></p>
+<ul>
+<li><code>ext_proc</code> as the hook now. It carries the same decisions identically (section 2) at the same
+  cost, but needs an <code>EnvoyFilter</code> on the mesh and brings phases the hook does not use. It stays
+  the documented alternative.</li>
+<li>A Lua or Wasm filter inside the proxy: policy logic in the proxy, in another language than the
+  services, with no Go test harness and no contract fixtures to drive it.</li>
+<li>A Go reverse proxy as the guard, in place of Envoy: a second proxy in the request path, and the
+  mesh's Envoy would no longer be the single L7 enforcement owner of the path that the mesh-mode
+  decisions require.</li>
+</ul>
+<h3 id="2-the-hook-is-transport-neutral-so-the-switch-to-ext_proc-is-a-configuration-change">2. The hook is transport-neutral, so the switch to <code>ext_proc</code> is a configuration change<a class="headerlink" href="#2-the-hook-is-transport-neutral-so-the-switch-to-ext_proc-is-a-configuration-change" title="Permanent link">&para;</a></h3>
+<p>The hook's core turns one request into one outcome — the headers to set and remove, or the
+status, headers and body to answer — and one package translates that outcome into the messages of
+each filter. The hook serves both services on one listener.</p>
+<p><strong>Reasons.</strong> The decision then does not depend on the filter that carries it. The filter-parity
+proof sends the contract's policy-input fixtures through an <code>ext_authz</code> bootstrap and through an
+<code>ext_proc</code> bootstrap and records that status, headers, body and the headers the upstream received
+are identical for every case, and that the two bootstraps are identical outside the filter block
+between the markers <code># policy-hook-filter: begin</code> and <code>end</code> (the filter-parity proof and its <code>filter-switch.diff</code>).
+Moving the guard to <code>ext_proc</code> is that block, re-verified by the same proofs.</p>
+<p><strong>Costs accepted.</strong> The hook carries the <code>ext_proc</code> service and its tests although the guard does
+not use it; the Envoy API types of both filters are a dependency of the module (kept inside one
+package by a test).</p>
+<p><strong>Rejected alternative.</strong> Deciding <code>ext_authz</code> and writing only its translation. The switch would
+then be a rewrite under time pressure, not a configuration change, and the claim that the two are
+interchangeable would rest on reading rather than on a run.</p>
+<h3 id="3-failure-behaviour-and-the-bound-on-a-call">3. Failure behaviour and the bound on a call<a class="headerlink" href="#3-failure-behaviour-and-the-bound-on-a-call" title="Permanent link">&para;</a></h3>
+<p>A hook call is bounded at 0.25 s on the Envoy side (<code>grpc_service.timeout</code>, and
+<code>message_timeout</code> under <code>ext_proc</code>), with <code>failure_mode_allow: false</code>; when the call fails or
+exceeds the bound, Envoy refuses the request with the local reply: 503, <code>Content-Type:
+application/json</code>, <code>x-facis-reason-code: POL-PDP-UNAVAILABLE</code> and the body
+<code>{"error": "policy_unavailable", "reason_code": "POL-PDP-UNAVAILABLE"}</code>, selected by the response
+code details <code>ext_authz_error</code> or <code>ext_proc_error</code> so that it applies to a hook failure and to
+nothing else. The hook bounds its own decision at 0.15 s, below Envoy's bound, so that a slow
+engine is refused by the hook, with a decision event, rather than by Envoy, which emits none.</p>
+<p><strong>Reasons.</strong> The caller always receives a reason code, whichever side refuses. The Envoy-side
+bound is what holds when the hook is frozen (connections open, nothing answered): the proof shows
+those requests refused at the bound, and a dead hook refused at once on the connection reset.
+Both values are proposed; the deployment may tune them, within the rule that the hook's bound
+stays below Envoy's.</p>
+<p><strong>Costs accepted.</strong> A refusal Envoy makes on its own has no decision event; it is in Envoy's
+access log and in the filter's counters (<code>ext_authz.error</code>). The observability work has to carry
+it to the feed, or the panel shows the guard as unavailable from the counters.</p>
+<h3 id="4-measured-latency-and-the-proposed-budget">4. Measured latency and the proposed budget<a class="headerlink" href="#4-measured-latency-and-the-proposed-budget" title="Permanent link">&para;</a></h3>
+<p>The latency proof sends the same allowed request, with substitution, through three bootstraps
+that differ in the filter block only — no hook, <code>ext_authz</code>, <code>ext_proc</code> — 2000 times each after
+a warm-up, at concurrency 1 and 8, and records the percentiles of each and the hook's added
+latency, the difference to the no-hook run. The hook decides from fixtures, so the figures are
+the cost of the hook and its transport; the engine's own evaluation time is not in them.</p>
+<p>Local run (Darwin arm64, Docker 28.5.1, Envoy v1.36.10, 2026-10-09; <code>latency.json</code> of that run):</p>
+<table>
+<thead>
+<tr>
+<th>Bootstrap</th>
+<th>Concurrency</th>
+<th>p50 ms</th>
+<th>p95 ms</th>
+<th>p99 ms</th>
+<th>max ms</th>
+<th>added p50 ms</th>
+<th>added p99 ms</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>baseline</td>
+<td>1</td>
+<td>0.373</td>
+<td>0.584</td>
+<td>0.974</td>
+<td>4.115</td>
+<td>—</td>
+<td>—</td>
+</tr>
+<tr>
+<td>baseline</td>
+<td>8</td>
+<td>0.877</td>
+<td>1.555</td>
+<td>2.216</td>
+<td>14.48</td>
+<td>—</td>
+<td>—</td>
+</tr>
+<tr>
+<td>ext-authz</td>
+<td>1</td>
+<td>0.638</td>
+<td>1</td>
+<td>1.455</td>
+<td>13.205</td>
+<td>0.265</td>
+<td>0.481</td>
+</tr>
+<tr>
+<td>ext-authz</td>
+<td>8</td>
+<td>1.433</td>
+<td>2.188</td>
+<td>3.15</td>
+<td>16.489</td>
+<td>0.556</td>
+<td>0.934</td>
+</tr>
+<tr>
+<td>ext-proc</td>
+<td>1</td>
+<td>0.634</td>
+<td>1.296</td>
+<td>2.352</td>
+<td>14.174</td>
+<td>0.261</td>
+<td>1.378</td>
+</tr>
+<tr>
+<td>ext-proc</td>
+<td>8</td>
+<td>1.327</td>
+<td>1.819</td>
+<td>2.19</td>
+<td>2.734</td>
+<td>0.45</td>
+<td>-0.026</td>
+</tr>
+</tbody>
+</table>
+<p>The numbers that count are those of a Linux host: a local run on macOS measures Envoy through
+Docker Desktop's port forwarding. The pull-request workflow runs the proof on a hosted Linux
+runner and writes its numbers to the job summary; they replace the local table above when the
+record is accepted. The records of a run are not committed: the workflow's artefact holds them.</p>
+<p><strong>Proposed budget.</strong> The hook adds at most 1 ms at p50 and 5 ms at p99 to a request at the
+guard, at the demonstrator's load of at most eight concurrent requests per guard, engine
+evaluation excluded. The budget is proposed from the measurement, is to be confirmed with the
+Linux figure, and is what the target-cluster run of the guard is measured against.</p>
+<h2 id="consequences">Consequences<a class="headerlink" href="#consequences" title="Permanent link">&para;</a></h2>
+<ul>
+<li>Positive: the guard's policy hook is one call in the header phase with the semantics the
+  interface registry fixes — proven against a real Envoy, not inferred — and the policy adapter
+  can be built on a core that is already tested against the contract fixtures and both filters.</li>
+<li>Positive: the failure behaviour is a bootstrap setting with a reason code for the caller, so a
+  policy outage is a refusal that the UI can name.</li>
+<li>Negative: the proofs pin Envoy v1.36.10, whose upstream line leaves support on 2026-10-14. A
+  bump is a change of the pin in <code>scripts/tools/pins.env</code> re-verified by the same proofs; what
+  matters more is the Envoy the mesh ships, against which the hook is verified again when it is
+  attached (the mesh-mode record names the Istio release).</li>
+<li>Negative: policy decides on headers only, and the response phase is out of the hook's reach;
+  the upstream nonce retry needs another home.</li>
+<li>Negative: two Envoy API modules and gRPC enter the module and the licence scan; a test keeps
+  the Envoy types inside one package.</li>
+</ul>
+<p><strong>What would reopen this decision:</strong> a policy that needs the request body; a need to act on the
+response phase that the guard's router cannot meet; a measured p99 above the budget on the target
+cluster; Envoy or the mesh withdrawing or restricting <code>ext_authz</code> extension providers; or the
+mesh's waypoint moving to a proxy that attaches policy differently.</p>
+<h2 id="open-items">Open items<a class="headerlink" href="#open-items" title="Permanent link">&para;</a></h2>
+<ul>
+<li><strong>The deployable adapter.</strong> This record proves the hook; the hook runs as the verification
+  binary only, and nothing here is the guard's adapter. The guard's
+  adapter needs the policy engine client behind the same decider interface, the token store
+  client for substitution, the guard's own token check feeding the policy input, the extension
+  provider in the mesh configuration with the <code>AuthorizationPolicy</code> that attaches it, and an
+  image. It belongs to the guard and policy work.</li>
+<li><strong>The upstream nonce retry.</strong> The API documentation's once-only retry with a new proof is not
+  an <code>ext_authz</code> capability; the router's retry policy or the adapter's own upstream call are the
+  candidates.</li>
+<li><strong>The Linux figure.</strong> Section 4 quotes a local run until the pull-request workflow has run; the
+  summary of that run supplies the numbers to enter.</li>
+<li><strong>Refusals Envoy makes alone.</strong> They have no decision event; the observability work decides how
+  the feed learns of them.</li>
+</ul>
+<h2 id="references">References<a class="headerlink" href="#references" title="Permanent link">&para;</a></h2>
+<ul>
+<li>Envoy: the <code>ext_authz</code> HTTP filter, the <code>ext_proc</code> HTTP filter, local reply configuration, and
+  the CEL expression filter over response code details</li>
+<li>Istio: external authorization through <code>AuthorizationPolicy</code> <code>CUSTOM</code> and extension providers</li>
+<li>RFC 9449 — OAuth 2.0 Demonstrating Proof of Possession (DPoP); OpenID for Verifiable
+  Presentations</li>
+<li><a href="../../policy-hook/">Guard policy hook</a> — the behaviour as verified and how to run the proofs</li>
+<li><a href="../../api-docs/">API documentation</a> — the policy interface, the reason-code registry and the
+  header rules the hook applies</li>
+</ul>
+              
+            </div>
+          </div><footer>
+    <div class="rst-footer-buttons" role="navigation" aria-label="Footer Navigation">
+        <a href="../0005-three-cluster-reading-of-the-target-environment/" class="btn btn-neutral float-left" title="0005 Three-cluster target environment"><span class="icon icon-circle-arrow-left"></span> Previous</a>
+        <a href="../0011-mock-tee-evidence-format-and-provisioning/" class="btn btn-neutral float-right" title="0011 Mock TEE evidence">Next <span class="icon icon-circle-arrow-right"></span></a>
+    </div>
+
+  <hr/>
+
+  <div role="contentinfo">
+    <!-- Copyright etc -->
+      <p>Apache-2.0</p>
+  </div>
+
+  Built with <a href="https://www.mkdocs.org/">MkDocs</a> using a <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a> provided by <a href="https://readthedocs.org">Read the Docs</a>.
+</footer>
+          
+        </div>
+      </div>
+
+    </section>
+
+  </div>
+
+  <div class="rst-versions" role="note" aria-label="Versions">
+  <span class="rst-current-version" data-toggle="rst-current-version">
+    
+        <span>
+          <a href="https://github.com/eclipse-xfsc/facis-zero-trust-demonstrator" class="fa fa-github" style="color: #fcfcfc"> GitHub</a>
+        </span>
+    
+    
+      <span><a href="../0005-three-cluster-reading-of-the-target-environment/" style="color: #fcfcfc">&laquo; Previous</a></span>
+    
+    
+      <span><a href="../0011-mock-tee-evidence-format-and-provisioning/" style="color: #fcfcfc">Next &raquo;</a></span>
+    
+  </span>
+</div>
+    <script src="../../js/jquery-3.6.0.min.js"></script>
+    <script>var base_url = "../..";</script>
+    <script src="../../js/theme_extra.js"></script>
+    <script src="../../js/theme.js"></script>
+      <script src="../../search/main.js"></script>
+    <script>
+        jQuery(function () {
+            SphinxRtdTheme.Navigation.enable(true);
+        });
+    </script>
+
+</body>
+</html>

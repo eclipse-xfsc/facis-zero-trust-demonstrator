@@ -1,0 +1,446 @@
+<!DOCTYPE html>
+<html class="writer-html5" lang="en" >
+<head>
+    <meta charset="utf-8" />
+    <meta http-equiv="X-UA-Compatible" content="IE=edge" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+      <link rel="shortcut icon" href="../img/favicon.ico" />
+    <title>Guard policy hook - FACIS Zero Trust Demonstrator</title>
+    <link rel="stylesheet" href="../css/theme.css" />
+    <link rel="stylesheet" href="../css/theme_extra.css" />
+        <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.8.0/styles/github.min.css" />
+    
+      <script>
+        // Current page data
+        var mkdocs_page_name = "Guard policy hook";
+        var mkdocs_page_input_path = "policy-hook.md";
+        var mkdocs_page_url = null;
+      </script>
+    
+    <!--[if lt IE 9]>
+      <script src="../js/html5shiv.min.js"></script>
+    <![endif]-->
+      <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.8.0/highlight.min.js"></script>
+      <script>hljs.highlightAll();</script> 
+</head>
+
+<body class="wy-body-for-nav" role="document">
+
+  <div class="wy-grid-for-nav">
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side stickynav">
+    <div class="wy-side-scroll">
+      <div class="wy-side-nav-search">
+          <a href=".." class="icon icon-home"> FACIS Zero Trust Demonstrator
+        </a><div role="search">
+  <form id ="rtd-search-form" class="wy-form" action="../search.html" method="get">
+      <input type="text" name="q" placeholder="Search docs" aria-label="Search docs" title="Type search term here" />
+  </form>
+</div>
+      </div>
+
+      <div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="..">Home</a>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../features/">Features and journeys</a>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../architecture/">Architecture</a>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../usage/">Using the demonstrator</a>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../deployment/">Deployment</a>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../umbrella-chart/">Umbrella chart</a>
+                </li>
+              </ul>
+              <p class="caption"><span class="caption-text">Environments</span></p>
+              <ul>
+                  <li class="toctree-l1"><a class="reference internal" href="../environments/">Overview</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../environments/osc/">T-Systems OSC</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../environments/ionos/">IONOS Cloud</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../environments/application-workloads/">Application workloads</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../environments/capabilities/">Capability sheets</a>
+                  </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../packaging/">Packaging and containers</a>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../flows/">Orchestrated flows</a>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../scenarios/">Scenario decisions</a>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../keycloak/">Keycloak integration</a>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../identity-model/">Identity model</a>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../oauth2-provider/">Connector OAuth2 provider</a>
+                </li>
+              </ul>
+              <ul class="current">
+                <li class="toctree-l1 current"><a class="reference internal current" href="#">Guard policy hook</a>
+    <ul class="current">
+    <li class="toctree-l2"><a class="reference internal" href="#the-request-path">The request path</a>
+    </li>
+    <li class="toctree-l2"><a class="reference internal" href="#what-the-hook-does-with-a-request">What the hook does with a request</a>
+    </li>
+    <li class="toctree-l2"><a class="reference internal" href="#when-the-hook-cannot-answer">When the hook cannot answer</a>
+    </li>
+    <li class="toctree-l2"><a class="reference internal" href="#ext_proc-the-same-hook-on-the-other-filter">ext_proc: the same hook on the other filter</a>
+    </li>
+    <li class="toctree-l2"><a class="reference internal" href="#running-the-verification">Running the verification</a>
+    </li>
+    <li class="toctree-l2"><a class="reference internal" href="#boundaries-that-tests-hold">Boundaries that tests hold</a>
+    </li>
+    <li class="toctree-l2"><a class="reference internal" href="#not-here-yet">Not here yet</a>
+    </li>
+    </ul>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../api-docs/">API documentation</a>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../contracts/">Interface contracts</a>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../tspa-publish-api/">TRAIN trust-list publishing</a>
+                </li>
+              </ul>
+              <p class="caption"><span class="caption-text">BDD acceptance</span></p>
+              <ul>
+                  <li class="toctree-l1"><a class="reference internal" href="../bdd/">Harness and pack</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../bdd-catalogue/">Catalogue</a>
+                  </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../ci-cd/">CI/CD</a>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../secrets/">Secrets</a>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../troubleshooting/">Troubleshooting</a>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../dependencies/">OSS dependencies</a>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../licenses/">Licenses</a>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../specifications/">Specification changes</a>
+                </li>
+              </ul>
+              <p class="caption"><span class="caption-text">Architecture decisions</span></p>
+              <ul>
+                  <li class="toctree-l1"><a class="reference internal" href="../adr/">Overview</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../adr/decision-ledger/">Decision ledger</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../adr/tdr-decisions/">TDR decisions ADR 001–006</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../adr/0001-service-mesh-mode-istio-ambient-with-cilium/">0001 Service mesh mode</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../adr/0002-gatekeeper-external-data-provider-for-cosign-verification/">0002 Gatekeeper external data provider</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../adr/0003-oauth2-authorisation-surface-in-the-go-connector/">0003 OAuth2 surface in the Go connector</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../adr/0004-openbao-as-x509-key-value-store/">0004 OpenBao as X.509 key-value store</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../adr/0005-three-cluster-reading-of-the-target-environment/">0005 Three-cluster target environment</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../adr/0008-envoy-ext-authz-as-the-guard-policy-hook/">0008 Guard policy hook</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../adr/0011-mock-tee-evidence-format-and-provisioning/">0011 Mock TEE evidence</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../adr/0016-oauth2-library-behind-the-connector-provider-contract/">0016 OAuth2 library</a>
+                  </li>
+              </ul>
+      </div>
+    </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap">
+      <nav class="wy-nav-top" role="navigation" aria-label="Mobile navigation menu">
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="..">FACIS Zero Trust Demonstrator</a>
+        
+      </nav>
+      <div class="wy-nav-content">
+        <div class="rst-content"><div role="navigation" aria-label="breadcrumbs navigation">
+  <ul class="wy-breadcrumbs">
+    <li><a href=".." class="icon icon-home" aria-label="Docs"></a></li>
+      <li class="breadcrumb-item active">Guard policy hook</li>
+    <li class="wy-breadcrumbs-aside">
+          <a href="https://github.com/eclipse-xfsc/facis-zero-trust-demonstrator/edit/main/docs/policy-hook.md" class="icon icon-github"> Edit on GitHub</a>
+    </li>
+  </ul>
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+            <div class="section" itemprop="articleBody">
+              
+                <h1 id="guard-policy-hook">Guard policy hook<a class="headerlink" href="#guard-policy-hook" title="Permanent link">&para;</a></h1>
+<p>The guard is the Envoy proxy in front of every protected resource. On each request it asks a
+policy hook whether to forward the request, and with which headers, or to refuse it, and with
+what answer. The hook asks the policy engine with the policy input of
+<a href="../api-docs/">IF-05</a> and acts on its decision; on an allow that carries the substitution
+obligation it asks the token store for the upstream credential
+(<a href="../contracts/token-store.v1.openapi.yaml">token store API</a>). Which Envoy filter carries that call,
+and why, is recorded in the
+<a href="../adr/0008-envoy-ext-authz-as-the-guard-policy-hook/">decision on the policy hook</a>: <code>ext_authz</code>,
+with <code>ext_proc</code> as the alternative that differs in the filter block only.</p>
+<p>This page describes the hook as it is verified today — against a real Envoy from the pinned image,
+deciding from the contract fixtures, with a stand-in token store — and how to run that
+verification. The guard's deployment, the policy engine client and the token store are later work;
+what is fixed here is the behaviour at the hook.</p>
+<h2 id="the-request-path">The request path<a class="headerlink" href="#the-request-path" title="Permanent link">&para;</a></h2>
+<pre><code class="language-text">caller ── TLS ──▶ guard (Envoy) ── ext_authz ──▶ policy hook ── IF-05 ──▶ policy engine
+                      │                              │
+                      │                              └── substitute ──▶ token store
+                      └── forward, with the hook's headers ──▶ upstream
+</code></pre>
+<p>One call per request, before routing. The hook answers in one of three ways:</p>
+<table>
+<thead>
+<tr>
+<th>Decision</th>
+<th>What Envoy does</th>
+<th>Status</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>allow</td>
+<td>forwards the request with the hook's header mutation applied</td>
+<td>the upstream's</td>
+</tr>
+<tr>
+<td>deny</td>
+<td>answers the caller itself with the hook's status, headers and body</td>
+<td>the one the reason-code registry gives the code: 403 <code>POL-RULE-DENY</code>, 401 <code>POL-PRESENTATION-REQUIRED</code></td>
+</tr>
+<tr>
+<td>no answer: the hook is unreachable, resets, or exceeds its timeout</td>
+<td>refuses the request itself (<code>failure_mode_allow: false</code>) with a local reply the bootstrap defines</td>
+<td>503 <code>POL-PDP-UNAVAILABLE</code></td>
+</tr>
+</tbody>
+</table>
+<h2 id="what-the-hook-does-with-a-request">What the hook does with a request<a class="headerlink" href="#what-the-hook-does-with-a-request" title="Permanent link">&para;</a></h2>
+<p>The hook's core (<code>cmd/policy-hook-probe/internal/hook</code>) is transport-neutral: it turns one request
+into one outcome, and one package (<code>internal/envoyhook</code>) translates that outcome into the messages
+of either filter. A
+decision therefore does not depend on which filter carries it, which is what the filter-parity
+proof confirms.</p>
+<ol>
+<li><strong>Correlation.</strong> The hook generates a request id and replaces any inbound <code>x-request-id</code>. The
+   id is the <code>correlation_id</code> of the policy input and of the decision event.</li>
+<li><strong>Authentication result.</strong> The caller's <code>Authorization</code> and <code>DPoP</code> headers are turned into the
+   <code>token</code> member of the policy input — present or not, and if present its <code>client_id</code>, <code>jkt</code>,
+   <code>scope</code>, <code>aud</code> and <code>proof_valid</code>. The verification uses fixed tokens; the guard's own token
+   check feeds this in the deployed hook.</li>
+<li><strong>Policy input.</strong> <code>correlation_id</code>, the caller's SPIFFE ID (from the connection when the
+   transport authenticated one, else the configured source), the method, path without query and
+   host, the token, and <code>tenant</code> (<code>null</code> when there is none). The input is what the contract
+   fixtures hold, member for member.</li>
+<li><strong>Decision.</strong> The decision is validated against the rules of the decision schema before it is
+   acted on. One that does not validate, an error from the engine, or a decision later than the
+   hook's own bound (150 ms by default) all become a 503 <code>POL-PDP-UNAVAILABLE</code> refusal.</li>
+<li><strong>Allow.</strong> The hook sets <code>x-request-id</code>, and with the <code>substitute_upstream_token</code> obligation
+   sets <code>Authorization</code> and <code>DPoP</code> to the token store's values, asked for exactly the upstream
+   method and <code>https://&lt;published host&gt;&lt;route path&gt;</code>. It removes <code>X-Forwarded-For</code>,
+   <code>X-Forwarded-Host</code>, <code>X-Forwarded-Proto</code>, <code>Forwarded</code> and every <code>x-facis-*</code> header of the caller,
+   and the caller's <code>Authorization</code> and <code>DPoP</code> when nothing is substituted; <code>traceparent</code> and
+   <code>tracestate</code> pass through. These are the rules of
+   <a href="../api-docs/#header-propagation-guard-to-gateway">Header propagation, guard to gateway</a>. A
+   substitution the token store refuses is a refusal to the caller with the store's code and
+   status (<code>TOK-NO-UPSTREAM</code> 409, for example); a store that cannot be reached is
+   <code>TOK-STORE-UNAVAILABLE</code> 503. The request is then not forwarded.</li>
+<li><strong>Deny.</strong> The caller receives the status of the reason code, <code>Content-Type: application/json</code>,
+   <code>x-facis-reason-code</code> with the code, <code>x-request-id</code>, and a body:</li>
+</ol>
+<p><code>json
+   {"error": "insufficient_entitlement", "reason_code": "POL-RULE-DENY", "rule_id": "data.facis.guard.deny_no_entitlement"}
+   {"error": "presentation_required", "reason_code": "POL-PRESENTATION-REQUIRED", "oid4vp_link": "https://zone-a.example/present?challenge=fx"}</code></p>
+<p>The body is the decision's <code>deny_body</code> plus the reason code and, for a rule denial, the rule.
+   The OID4VP link travels only with <code>POL-PRESENTATION-REQUIRED</code>: the decision schema requires it
+   there and the hook passes on what the decision carries.
+7. <strong>Event.</strong> One <a href="../api-docs/">IF-01</a> <code>decision</code> event per request, as a JSON line: <code>allowed</code>,
+   or <code>denied</code> with the reason code and the rule. It carries no token.</p>
+<h2 id="when-the-hook-cannot-answer">When the hook cannot answer<a class="headerlink" href="#when-the-hook-cannot-answer" title="Permanent link">&para;</a></h2>
+<p>Envoy, not the hook, refuses the request then. The bootstrap sets <code>failure_mode_allow: false</code>, a
+0.25 s bound on the call, and a local reply for the filter's error: status 503, <code>Content-Type:
+application/json</code>, <code>x-facis-reason-code: POL-PDP-UNAVAILABLE</code> and the body
+<code>{"error": "policy_unavailable", "reason_code": "POL-PDP-UNAVAILABLE"}</code>. The reply is selected by a
+CEL filter on the response code details (<code>ext_authz_error</code> or <code>ext_proc_error</code>), so it applies to
+both filters and to nothing else. A hook whose process died is refused at once, on the connection
+reset; one that stopped answering with its connections open is refused when the bound elapses.
+The fail-closed proof shows both, under load, and that the hook is used again as soon as it
+listens again — Envoy keeps no state about it.</p>
+<p>The Envoy-side bound is the one that holds. The hook's own 150 ms bound on a decision exists so
+that a slow engine is reported as <code>POL-PDP-UNAVAILABLE</code> by the hook, with a decision event, rather
+than by Envoy's local reply, which emits none.</p>
+<h2 id="ext_proc-the-same-hook-on-the-other-filter">ext_proc: the same hook on the other filter<a class="headerlink" href="#ext_proc-the-same-hook-on-the-other-filter" title="Permanent link">&para;</a></h2>
+<p>The hook serves both <code>envoy.service.auth.v3.Authorization</code> (ext_authz) and
+<code>envoy.service.ext_proc.v3.ExternalProcessor</code> (ext_proc) on one listener. Under ext_proc only the
+request-headers phase is decided; every other phase Envoy is configured not to send, and would be
+passed through unchanged. An allow is a header mutation and <code>CONTINUE</code>; a deny is an immediate
+response with the same status, headers and body.</p>
+<p>Switching the guard from one to the other is a change of the filter block of its bootstrap, between
+the markers <code># policy-hook-filter: begin</code> and <code># policy-hook-filter: end</code>:</p>
+<pre><code class="language-yaml"># ext_authz
+- name: envoy.filters.http.ext_authz
+  typed_config:
+    &quot;@type&quot;: type.googleapis.com/envoy.extensions.filters.http.ext_authz.v3.ExtAuthz
+    transport_api_version: V3
+    failure_mode_allow: false
+    status_on_error: { code: ServiceUnavailable }
+    grpc_service:
+      envoy_grpc: { cluster_name: policy-hook }
+      timeout: 0.25s
+</code></pre>
+<pre><code class="language-yaml"># ext_proc
+- name: envoy.filters.http.ext_proc
+  typed_config:
+    &quot;@type&quot;: type.googleapis.com/envoy.extensions.filters.http.ext_proc.v3.ExternalProcessor
+    failure_mode_allow: false
+    message_timeout: 0.25s
+    processing_mode:
+      request_header_mode: SEND
+      response_header_mode: SKIP
+      request_body_mode: NONE
+      response_body_mode: NONE
+      request_trailer_mode: SKIP
+      response_trailer_mode: SKIP
+    grpc_service:
+      envoy_grpc: { cluster_name: policy-hook }
+      timeout: 0.25s
+</code></pre>
+<p>Nothing else changes: not the hook, not the policy input, not the decisions, not the local reply.
+The filter-parity proof renders both bootstraps, sends the contract's input fixtures through each
+and records that status, headers, body and the headers the upstream received are identical, and
+that the two bootstraps are identical outside the markers (<code>filter-switch.diff</code> is the whole
+difference).</p>
+<h2 id="running-the-verification">Running the verification<a class="headerlink" href="#running-the-verification" title="Permanent link">&para;</a></h2>
+<p>The proofs live in <code>cmd/policy-hook-probe</code> and the script that runs them in
+<code>scripts/verify-policy-hook/verify.sh</code>. The script builds the probe, pulls the pinned Envoy image
+when needed, starts the echo upstream and the hook as processes and Envoy as one container,
+drives requests through Envoy, checks the records it wrote and leaves them, with <code>verdict.txt</code>
+and <code>environment.json</code>, in a folder git ignores:</p>
+<pre><code class="language-sh">scripts/verify-policy-hook/verify.sh                 # about two minutes; writes .dev/policy-hook-evidence/
+scripts/verify-policy-hook/verify.sh --out DIR       # writes elsewhere
+scripts/verify-policy-hook/verify.sh --verify DIR    # only re-checks existing records
+</code></pre>
+<p>The variables and the records are listed in <code>scripts/README.md</code>. No record is committed: the
+workflow <code>.github/workflows/policy-hook.yml</code> runs the script on a Linux runner for every pull
+request that touches it, uploads the records as an artefact and writes the verdict to the job
+summary. The latency numbers to quote are those, since a local run on macOS measures Envoy through
+Docker Desktop's port forwarding.</p>
+<p>The hook can also be run on its own, deciding from the fixtures, to point another Envoy at it:</p>
+<pre><code class="language-sh">go run ./cmd/policy-hook-probe serve --listen 127.0.0.1:9001 --fixtures docs/contracts/fixtures \
+  --ops 127.0.0.1:9002
+</code></pre>
+<p><code>DPoP fx-token-read</code> is the entitled token (allow, with substitution), <code>DPoP fx-token-none</code> the
+token without the entitlement (rule denial), no token asks for a presentation.</p>
+<h2 id="boundaries-that-tests-hold">Boundaries that tests hold<a class="headerlink" href="#boundaries-that-tests-hold" title="Permanent link">&para;</a></h2>
+<ul>
+<li>Only <code>internal/envoyhook</code> imports the Envoy API; the core, the harness and the fixtures see
+  <code>hook.Outcome</code> alone (<code>TestEnvoyAPIIsImportedOnlyByEnvoyhook</code>).</li>
+<li>The statuses the hook answers with are the ones the reason-code registry gives each code
+  (<code>TestStatusesMatchTheRegistry</code>).</li>
+<li>The decision events the hook writes validate against the IF-01 event schema, and the decision
+  rules the hook applies accept every valid decision fixture and refuse every invalid one.</li>
+<li>The three bootstraps differ only between the markers.</li>
+</ul>
+<h2 id="not-here-yet">Not here yet<a class="headerlink" href="#not-here-yet" title="Permanent link">&para;</a></h2>
+<p>This page and the proofs establish the hook's behaviour; the hook runs as a verification binary
+only. The guard's deployable adapter — the policy engine
+client, the token store client, the guard's own token check feeding the policy input, and the
+Helm wiring that attaches the filter to the mesh's Envoy — is recorded as open in the
+<a href="../adr/0008-envoy-ext-authz-as-the-guard-policy-hook/">decision on the policy hook</a>.</p>
+              
+            </div>
+          </div><footer>
+    <div class="rst-footer-buttons" role="navigation" aria-label="Footer Navigation">
+        <a href="../oauth2-provider/" class="btn btn-neutral float-left" title="Connector OAuth2 provider"><span class="icon icon-circle-arrow-left"></span> Previous</a>
+        <a href="../api-docs/" class="btn btn-neutral float-right" title="API documentation">Next <span class="icon icon-circle-arrow-right"></span></a>
+    </div>
+
+  <hr/>
+
+  <div role="contentinfo">
+    <!-- Copyright etc -->
+      <p>Apache-2.0</p>
+  </div>
+
+  Built with <a href="https://www.mkdocs.org/">MkDocs</a> using a <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a> provided by <a href="https://readthedocs.org">Read the Docs</a>.
+</footer>
+          
+        </div>
+      </div>
+
+    </section>
+
+  </div>
+
+  <div class="rst-versions" role="note" aria-label="Versions">
+  <span class="rst-current-version" data-toggle="rst-current-version">
+    
+        <span>
+          <a href="https://github.com/eclipse-xfsc/facis-zero-trust-demonstrator" class="fa fa-github" style="color: #fcfcfc"> GitHub</a>
+        </span>
+    
+    
+      <span><a href="../oauth2-provider/" style="color: #fcfcfc">&laquo; Previous</a></span>
+    
+    
+      <span><a href="../api-docs/" style="color: #fcfcfc">Next &raquo;</a></span>
+    
+  </span>
+</div>
+    <script src="../js/jquery-3.6.0.min.js"></script>
+    <script>var base_url = "..";</script>
+    <script src="../js/theme_extra.js"></script>
+    <script src="../js/theme.js"></script>
+      <script src="../search/main.js"></script>
+    <script>
+        jQuery(function () {
+            SphinxRtdTheme.Navigation.enable(true);
+        });
+    </script>
+
+</body>
+</html>

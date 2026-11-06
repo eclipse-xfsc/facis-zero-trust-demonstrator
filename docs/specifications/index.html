@@ -101,6 +101,10 @@
                 </li>
               </ul>
               <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../policy-hook/">Guard policy hook</a>
+                </li>
+              </ul>
+              <ul>
                 <li class="toctree-l1"><a class="reference internal" href="../api-docs/">API documentation</a>
                 </li>
               </ul>
@@ -167,7 +171,11 @@
                   </li>
                   <li class="toctree-l1"><a class="reference internal" href="../adr/0005-three-cluster-reading-of-the-target-environment/">0005 Three-cluster target environment</a>
                   </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../adr/0008-envoy-ext-authz-as-the-guard-policy-hook/">0008 Guard policy hook</a>
+                  </li>
                   <li class="toctree-l1"><a class="reference internal" href="../adr/0011-mock-tee-evidence-format-and-provisioning/">0011 Mock TEE evidence</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../adr/0016-oauth2-library-behind-the-connector-provider-contract/">0016 OAuth2 library</a>
                   </li>
               </ul>
       </div>
@@ -228,7 +236,7 @@ the decision.</p>
 <td>ZT-21, ZT-22 — DCR, OID4VP-derived tokens, DPoP-bound storage, with Keycloak as identity provider</td>
 <td>The OAuth2 authorisation surface is implemented in the Go Connector; Keycloak is used unmodified for realm, client, role and scope management</td>
 <td>Keycloak's DPoP support is preview and OID4VCI experimental; the authoritative decision stays on the enforcement path rather than depending on preview features</td>
-<td><a href="../adr/0003-oauth2-authorisation-surface-in-the-go-connector/">ADR-0003</a></td>
+<td><a href="../adr/0003-oauth2-authorisation-surface-in-the-go-connector/">ADR-0003</a> · <a href="../adr/0016-oauth2-library-behind-the-connector-provider-contract/">ADR-0016</a></td>
 </tr>
 <tr>
 <td>ZT-11 — key material stored in OpenBao</td>

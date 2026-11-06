@@ -1,0 +1,403 @@
+<!DOCTYPE html>
+<html class="writer-html5" lang="en" >
+<head>
+    <meta charset="utf-8" />
+    <meta http-equiv="X-UA-Compatible" content="IE=edge" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+      <link rel="shortcut icon" href="../../img/favicon.ico" />
+    <title>0016 OAuth2 library - FACIS Zero Trust Demonstrator</title>
+    <link rel="stylesheet" href="../../css/theme.css" />
+    <link rel="stylesheet" href="../../css/theme_extra.css" />
+        <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.8.0/styles/github.min.css" />
+    
+      <script>
+        // Current page data
+        var mkdocs_page_name = "0016 OAuth2 library";
+        var mkdocs_page_input_path = "adr/0016-oauth2-library-behind-the-connector-provider-contract.md";
+        var mkdocs_page_url = null;
+      </script>
+    
+    <!--[if lt IE 9]>
+      <script src="../../js/html5shiv.min.js"></script>
+    <![endif]-->
+      <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.8.0/highlight.min.js"></script>
+      <script>hljs.highlightAll();</script> 
+</head>
+
+<body class="wy-body-for-nav" role="document">
+
+  <div class="wy-grid-for-nav">
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side stickynav">
+    <div class="wy-side-scroll">
+      <div class="wy-side-nav-search">
+          <a href="../.." class="icon icon-home"> FACIS Zero Trust Demonstrator
+        </a><div role="search">
+  <form id ="rtd-search-form" class="wy-form" action="../../search.html" method="get">
+      <input type="text" name="q" placeholder="Search docs" aria-label="Search docs" title="Type search term here" />
+  </form>
+</div>
+      </div>
+
+      <div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../..">Home</a>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../../features/">Features and journeys</a>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../../architecture/">Architecture</a>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../../usage/">Using the demonstrator</a>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../../deployment/">Deployment</a>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../../umbrella-chart/">Umbrella chart</a>
+                </li>
+              </ul>
+              <p class="caption"><span class="caption-text">Environments</span></p>
+              <ul>
+                  <li class="toctree-l1"><a class="reference internal" href="../../environments/">Overview</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../environments/osc/">T-Systems OSC</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../environments/ionos/">IONOS Cloud</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../environments/application-workloads/">Application workloads</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../environments/capabilities/">Capability sheets</a>
+                  </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../../packaging/">Packaging and containers</a>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../../flows/">Orchestrated flows</a>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../../scenarios/">Scenario decisions</a>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../../keycloak/">Keycloak integration</a>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../../identity-model/">Identity model</a>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../../oauth2-provider/">Connector OAuth2 provider</a>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../../policy-hook/">Guard policy hook</a>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../../api-docs/">API documentation</a>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../../contracts/">Interface contracts</a>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../../tspa-publish-api/">TRAIN trust-list publishing</a>
+                </li>
+              </ul>
+              <p class="caption"><span class="caption-text">BDD acceptance</span></p>
+              <ul>
+                  <li class="toctree-l1"><a class="reference internal" href="../../bdd/">Harness and pack</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../bdd-catalogue/">Catalogue</a>
+                  </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../../ci-cd/">CI/CD</a>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../../secrets/">Secrets</a>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../../troubleshooting/">Troubleshooting</a>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../../dependencies/">OSS dependencies</a>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../../licenses/">Licenses</a>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../../specifications/">Specification changes</a>
+                </li>
+              </ul>
+              <p class="caption"><span class="caption-text">Architecture decisions</span></p>
+              <ul class="current">
+                  <li class="toctree-l1"><a class="reference internal" href="../">Overview</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../decision-ledger/">Decision ledger</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../tdr-decisions/">TDR decisions ADR 001–006</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../0001-service-mesh-mode-istio-ambient-with-cilium/">0001 Service mesh mode</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../0002-gatekeeper-external-data-provider-for-cosign-verification/">0002 Gatekeeper external data provider</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../0003-oauth2-authorisation-surface-in-the-go-connector/">0003 OAuth2 surface in the Go connector</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../0004-openbao-as-x509-key-value-store/">0004 OpenBao as X.509 key-value store</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../0005-three-cluster-reading-of-the-target-environment/">0005 Three-cluster target environment</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../0008-envoy-ext-authz-as-the-guard-policy-hook/">0008 Guard policy hook</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../0011-mock-tee-evidence-format-and-provisioning/">0011 Mock TEE evidence</a>
+                  </li>
+                  <li class="toctree-l1 current"><a class="reference internal current" href="#">0016 OAuth2 library</a>
+    <ul class="current">
+    <li class="toctree-l2"><a class="reference internal" href="#context">Context</a>
+    </li>
+    <li class="toctree-l2"><a class="reference internal" href="#decision">Decision</a>
+        <ul>
+    <li class="toctree-l3"><a class="reference internal" href="#1-the-library">1. The library</a>
+    </li>
+    <li class="toctree-l3"><a class="reference internal" href="#2-the-version">2. The version</a>
+    </li>
+    <li class="toctree-l3"><a class="reference internal" href="#3-the-boundary">3. The boundary</a>
+    </li>
+    <li class="toctree-l3"><a class="reference internal" href="#4-what-the-contract-fixes-towards-other-components">4. What the contract fixes towards other components</a>
+    </li>
+    <li class="toctree-l3"><a class="reference internal" href="#5-access-token-format">5. Access-token format</a>
+    </li>
+        </ul>
+    </li>
+    <li class="toctree-l2"><a class="reference internal" href="#consequences">Consequences</a>
+    </li>
+    <li class="toctree-l2"><a class="reference internal" href="#open-items">Open items</a>
+    </li>
+    <li class="toctree-l2"><a class="reference internal" href="#references">References</a>
+    </li>
+    </ul>
+                  </li>
+              </ul>
+      </div>
+    </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap">
+      <nav class="wy-nav-top" role="navigation" aria-label="Mobile navigation menu">
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="../..">FACIS Zero Trust Demonstrator</a>
+        
+      </nav>
+      <div class="wy-nav-content">
+        <div class="rst-content"><div role="navigation" aria-label="breadcrumbs navigation">
+  <ul class="wy-breadcrumbs">
+    <li><a href="../.." class="icon icon-home" aria-label="Docs"></a></li>
+          <li class="breadcrumb-item">Architecture decisions</li>
+      <li class="breadcrumb-item active">0016 OAuth2 library</li>
+    <li class="wy-breadcrumbs-aside">
+          <a href="https://github.com/eclipse-xfsc/facis-zero-trust-demonstrator/edit/main/docs/adr/0016-oauth2-library-behind-the-connector-provider-contract.md" class="icon icon-github"> Edit on GitHub</a>
+    </li>
+  </ul>
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+            <div class="section" itemprop="articleBody">
+              
+                <h1 id="adr-0016-oauth2-library-behind-the-connectors-provider-contract">ADR-0016: OAuth2 library behind the connector's provider contract<a class="headerlink" href="#adr-0016-oauth2-library-behind-the-connectors-provider-contract" title="Permanent link">&para;</a></h1>
+<ul>
+<li><strong>Status:</strong> Proposed. One dependent item remains open: moving issuance to signed access tokens
+  (see Open items).</li>
+<li><strong>Date:</strong> 2026-10-05</li>
+<li><strong>Deciders:</strong> Delivery team, from the OAuth2 library evaluation of September 2026 and its
+  follow-up comparison of library versions. Confirmation by the deciders of ADR-0003 is pending.</li>
+<li><strong>Requirement basis:</strong> ZT-21, ZT-22</li>
+<li><strong>Related:</strong> <a href="../0003-oauth2-authorisation-surface-in-the-go-connector/">ADR-0003</a> — the OAuth2
+  authorisation surface is implemented in the Go connector. This record settles how; it does not
+  touch whether.</li>
+</ul>
+<h2 id="context">Context<a class="headerlink" href="#context" title="Permanent link">&para;</a></h2>
+<p>ADR-0003 places Dynamic Client Registration and DPoP-bound token issuance in the connector, which
+means the connector has to implement RFC 7591 and RFC 9449 or build on a library that does. Both are
+security protocols with many refusal cases — method and URI binding, a freshness window, replay under
+concurrency, server nonces, key binding at the resource — and code of that kind is expensive to own.</p>
+<p>Two Go libraries were candidates. <code>authelia.com/provider/oauth2</code> is a maintained fork of <code>ory/fosite</code>
+that ships both RFCs, and is pre-1.0. <code>ory/fosite</code> is the original; it has neither RFC, and its last
+release is from December 2024.</p>
+<p>Whichever library is used, its types must not spread through the connector: a pre-1.0 dependency
+changes, and the cost of a change has to stay in one place.</p>
+<h2 id="decision">Decision<a class="headerlink" href="#decision" title="Permanent link">&para;</a></h2>
+<h3 id="1-the-library">1. The library<a class="headerlink" href="#1-the-library" title="Permanent link">&para;</a></h3>
+<p>The connector's OAuth2 surface is built on <strong><code>authelia.com/provider/oauth2</code> v0.3.2</strong> (Apache-2.0).</p>
+<p>A conformance suite over real HTTP passes on it under the race detector: method and URI binding, the
+freshness window, sequential and concurrent replay (of one hundred simultaneous presentations of one
+proof exactly one is accepted), the server-nonce round trip, key binding, <code>ath</code> and scheme checks at
+the resource, and the registration rules. The suite is in
+<code>services/connector/internal/oauth2provider/authelia</code>.</p>
+<p>The same suite was run against an adapter written on <code>ory/fosite</code>. It passed, but only after the
+whole of RFC 9449 and RFC 7591 had been written by hand — about six hundred lines of security-protocol
+code that the project would then own and maintain, on a library that is no longer released. That
+adapter is the documented fallback and is not part of the repository.</p>
+<h3 id="2-the-version">2. The version<a class="headerlink" href="#2-the-version" title="Permanent link">&para;</a></h3>
+<p>v0.3.0 is the first release with client registration; v0.3.2 was current when the evaluation started.
+The suite passes unchanged on v0.3.0, v0.3.2 and v0.3.3. v0.3.2 is what was reviewed and merged, and
+v0.3.3 (2026-09-19) adds features the connector does not use, so the pin stays.</p>
+<p>Every one of the three requires a current Go: v0.3.2 and v0.3.3 declare Go 1.27, and v0.3.0, although
+it declares Go 1.25, depends on a <code>golang.org/x/crypto</code> that needs Go 1.26. What that means for the
+module and its pipeline is in <a href="../../ci-cd/#go-version">CI/CD — Go version</a>.</p>
+<p>A test fails when <code>go.mod</code> pins any other version than the one the suite was verified against, so a
+bump is a deliberate act: run the suite on the new release, then update the test, the dependency
+table and this record.</p>
+<h3 id="3-the-boundary">3. The boundary<a class="headerlink" href="#3-the-boundary" title="Permanent link">&para;</a></h3>
+<p>The library sits behind a contract the project owns, <code>services/connector/internal/oauth2provider</code>:
+the <code>Provider</code> interface, the configuration, the client record, the store interfaces and the
+reason codes. The contract imports no OAuth2 library. One adapter package,
+<code>oauth2provider/authelia</code>, is the only importer.</p>
+<p>Three tests hold that boundary:</p>
+<ul>
+<li>no package other than the adapter imports the library, test files included;</li>
+<li>no library type is reachable from the adapter's exported API, through aliases or the exported
+  fields and methods of unexported types included — it exports one constructor, which returns the
+  contract's <code>Provider</code>;</li>
+<li>the contract's exported API, struct field order included, equals a committed listing, so a change
+  to it cannot happen in passing.</li>
+</ul>
+<p>The contract is at version 1. An addition is an ordinary change; a removal or a changed signature is
+a breaking one and is reviewed as such. Replacing the library means a second adapter package on the
+same contract.</p>
+<h3 id="4-what-the-contract-fixes-towards-other-components">4. What the contract fixes towards other components<a class="headerlink" href="#4-what-the-contract-fixes-towards-other-components" title="Permanent link">&para;</a></h3>
+<ul>
+<li><strong>Reason codes.</strong> The contract's codes are the values of the <code>reason</code> member in the connector's
+  published interface (<a href="../../contracts/if02-connector.v1.openapi.yaml">IF-02</a>), and a test keeps the
+  two lists equal. The library reports a replayed proof, a key mismatch and a bad <code>ath</code> under one
+  OAuth error; the adapter tells them apart from facts it establishes itself, never from message
+  text.</li>
+<li><strong>Replay detection.</strong> The library leaves atomic replay detection to storage. The contract hands
+  the replay store the proof's identity as separate values — key thumbprint, method, normalized
+  target URI, <code>jti</code>, nonce — with the proof's <code>iat</code> and the instant it stops being acceptable, which
+  is the shape the zone's token store offers
+  (<a href="../../contracts/token-store.v1.openapi.yaml">token store API</a>). The library passes only the expiry;
+  the adapter derives the <code>iat</code> from the same two settings the library used, and a test pins that
+  derivation.</li>
+<li><strong>Freshness window.</strong> The connector's DPoP configuration — proof lifespan and clock skew — is the
+  single source of the window in which a proof is acceptable. The replay store applies no window of
+  its own: it keeps a record until the instant it is handed, which is the instant the proof stops
+  being acceptable, so the two cannot disagree and retuning the window is one change in one place.
+  The token store's API takes that instant as <code>not_after</code> and, given it, does not apply the default
+  window it otherwise would. The store accepts a <code>not_after</code> at most 90 seconds after the <code>iat</code>, so
+  the contract carries the same bound: a configuration whose proof lifespan and clock skew add up to
+  more is refused when the provider is built, not at the first token request.</li>
+<li><strong>Persistence.</strong> Stores are handed token signatures, never usable tokens; the request form is not
+  persisted, because it can carry client credentials; client secrets are stored as bcrypt hashes.</li>
+</ul>
+<h3 id="5-access-token-format">5. Access-token format<a class="headerlink" href="#5-access-token-format" title="Permanent link">&para;</a></h3>
+<p>Access tokens are to be <strong>signed tokens</strong> (RFC 9068, <code>typ: at+jwt</code>) carrying the key binding as
+<code>cnf.jkt</code>, so that a protected resource validates the signature against the connector's published
+key set and the DPoP proof against the token, without a call back to the connector.</p>
+<p>The pinned library does this: with its signed-token strategy switched on, a DPoP-bound client
+receives a token of that form whose <code>cnf.jkt</code> equals the proof key's thumbprint, and the library's
+resource-side proof check accepts it. This was run against v0.3.2.</p>
+<p>The adapter does not issue such tokens yet. It issues opaque tokens validated by lookup, which is
+what the conformance suite covers today. Moving to signed tokens adds to the contract — a signing
+key in the configuration and a handler for the key set — and changes nothing that exists in it.</p>
+<h2 id="consequences">Consequences<a class="headerlink" href="#consequences" title="Permanent link">&para;</a></h2>
+<ul>
+<li>Positive: both RFCs come from one maintained library with its own test corpus, so the
+  security-protocol code the project owns stays small and reviewable.</li>
+<li>Positive: the connector's behaviour at its published interface is tested, not inferred — status per
+  reason, the <code>WWW-Authenticate</code> challenges, key-bound registration tokens.</li>
+<li>Negative: the library is pre-1.0 and releases breaking changes — three bursts between May and
+  September 2026, from a single maintainer. Mitigation: the boundary above, the version guard, and
+  the adapter's use of the library's concrete configuration type rather than its extensible
+  interfaces, which is what absorbed the breaks so far.</li>
+<li>Negative: the whole module follows the library's Go requirement, and the shared organisation
+  workflows cannot process it. Recorded, with the departure it causes, in
+  <a href="../../specifications/">Specification changes</a> and <a href="../../ci-cd/#go-version">CI/CD</a>.</li>
+<li>Trigger to revisit: the library stops being maintained, or a release breaks the adapter in a way
+  it cannot absorb. Either leads to the fallback adapter on the same contract.</li>
+</ul>
+<h2 id="open-items">Open items<a class="headerlink" href="#open-items" title="Permanent link">&para;</a></h2>
+<ul>
+<li><strong>Signed access tokens.</strong> Decision 5 is not implemented. It belongs to the token-issuance and
+  resource-side validation work, together with where the signing key is held and how it rotates;
+  the staleness matrix in the architecture already budgets for a key set cached by the guard. Until
+  then the adapter's tokens can only be validated through the connector.</li>
+</ul>
+<h2 id="references">References<a class="headerlink" href="#references" title="Permanent link">&para;</a></h2>
+<ul>
+<li>RFC 7591 — OAuth 2.0 Dynamic Client Registration; RFC 9449 — DPoP; RFC 7638 — JWK thumbprint;
+  RFC 9068 — JWT profile for OAuth 2.0 access tokens</li>
+<li><a href="../../oauth2-provider/">Connector OAuth2 provider</a> — the behaviour as tested, the configuration
+  and how to change the library version</li>
+<li><code>authelia.com/provider/oauth2</code> v0.3.2 — the pinned release; <code>ory/fosite</code> v0.49.0 — the fallback
+  measured against</li>
+<li>The evaluation's working material, held with the delivery team outside this repository — the
+  release-by-release API comparison and the fallback measurement</li>
+</ul>
+              
+            </div>
+          </div><footer>
+    <div class="rst-footer-buttons" role="navigation" aria-label="Footer Navigation">
+        <a href="../0011-mock-tee-evidence-format-and-provisioning/" class="btn btn-neutral float-left" title="0011 Mock TEE evidence"><span class="icon icon-circle-arrow-left"></span> Previous</a>
+    </div>
+
+  <hr/>
+
+  <div role="contentinfo">
+    <!-- Copyright etc -->
+      <p>Apache-2.0</p>
+  </div>
+
+  Built with <a href="https://www.mkdocs.org/">MkDocs</a> using a <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a> provided by <a href="https://readthedocs.org">Read the Docs</a>.
+</footer>
+          
+        </div>
+      </div>
+
+    </section>
+
+  </div>
+
+  <div class="rst-versions" role="note" aria-label="Versions">
+  <span class="rst-current-version" data-toggle="rst-current-version">
+    
+        <span>
+          <a href="https://github.com/eclipse-xfsc/facis-zero-trust-demonstrator" class="fa fa-github" style="color: #fcfcfc"> GitHub</a>
+        </span>
+    
+    
+      <span><a href="../0011-mock-tee-evidence-format-and-provisioning/" style="color: #fcfcfc">&laquo; Previous</a></span>
+    
+    
+  </span>
+</div>
+    <script src="../../js/jquery-3.6.0.min.js"></script>
+    <script>var base_url = "../..";</script>
+    <script src="../../js/theme_extra.js"></script>
+    <script src="../../js/theme.js"></script>
+      <script src="../../search/main.js"></script>
+    <script>
+        jQuery(function () {
+            SphinxRtdTheme.Navigation.enable(true);
+        });
+    </script>
+
+</body>
+</html>

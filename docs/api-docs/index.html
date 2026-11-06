@@ -100,6 +100,10 @@
                 <li class="toctree-l1"><a class="reference internal" href="../oauth2-provider/">Connector OAuth2 provider</a>
                 </li>
               </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../policy-hook/">Guard policy hook</a>
+                </li>
+              </ul>
               <ul class="current">
                 <li class="toctree-l1 current"><a class="reference internal current" href="#">API documentation</a>
     <ul class="current">
@@ -189,7 +193,11 @@
                   </li>
                   <li class="toctree-l1"><a class="reference internal" href="../adr/0005-three-cluster-reading-of-the-target-environment/">0005 Three-cluster target environment</a>
                   </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../adr/0008-envoy-ext-authz-as-the-guard-policy-hook/">0008 Guard policy hook</a>
+                  </li>
                   <li class="toctree-l1"><a class="reference internal" href="../adr/0011-mock-tee-evidence-format-and-provisioning/">0011 Mock TEE evidence</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../adr/0016-oauth2-library-behind-the-connector-provider-contract/">0016 OAuth2 library</a>
                   </li>
               </ul>
       </div>
@@ -309,8 +317,8 @@ and DPoP replay detection for the connector and the guard.</p>
 </tbody>
 </table>
 <p>Upstream APIs are referenced and pinned, never redefined here: Envoy <code>ext_authz</code>
-(<code>envoy/service/auth/v3</code>), Keycloak OIDC, SPIFFE Workload API, the attested-TLS library, and the
-XFSC services' own APIs.</p>
+(<code>envoy/service/auth/v3</code>) and <code>ext_proc</code> (<code>envoy/service/ext_proc/v3</code>), Keycloak OIDC, SPIFFE
+Workload API, the attested-TLS library, and the XFSC services' own APIs.</p>
 <h2 id="reason-codes">Reason codes<a class="headerlink" href="#reason-codes" title="Permanent link">&para;</a></h2>
 <p>Every refusal names a code from one registry, <a href="../contracts/reason-codes.json">reason-codes.json</a>
 (schema: <a href="../contracts/reason-codes.v1.schema.json">reason-codes.v1.schema.json</a>). A family names the
@@ -544,6 +552,8 @@ engine (IF-05), and forwards an allowed request towards the zone's gateway. What
 </tr>
 </tbody>
 </table>
+<p>How the guard's policy hook applies these rules on an allow, what it answers on a deny, and the
+proofs of both are in <a href="../policy-hook/">Guard policy hook</a>.</p>
 <h2 id="if-07-attested-channel-control">IF-07 — attested channel control<a class="headerlink" href="#if-07-attested-channel-control" title="Permanent link">&para;</a></h2>
 <p>Not frozen: the channel's control surface is defined by the attested-channel component when it is
 built. What is fixed now:</p>
@@ -606,7 +616,7 @@ operator uses.</p>
             </div>
           </div><footer>
     <div class="rst-footer-buttons" role="navigation" aria-label="Footer Navigation">
-        <a href="../oauth2-provider/" class="btn btn-neutral float-left" title="Connector OAuth2 provider"><span class="icon icon-circle-arrow-left"></span> Previous</a>
+        <a href="../policy-hook/" class="btn btn-neutral float-left" title="Guard policy hook"><span class="icon icon-circle-arrow-left"></span> Previous</a>
         <a href="../contracts/" class="btn btn-neutral float-right" title="Interface contracts">Next <span class="icon icon-circle-arrow-right"></span></a>
     </div>
 
@@ -635,7 +645,7 @@ operator uses.</p>
         </span>
     
     
-      <span><a href="../oauth2-provider/" style="color: #fcfcfc">&laquo; Previous</a></span>
+      <span><a href="../policy-hook/" style="color: #fcfcfc">&laquo; Previous</a></span>
     
     
       <span><a href="../contracts/" style="color: #fcfcfc">Next &raquo;</a></span>
