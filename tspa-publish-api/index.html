@@ -133,7 +133,7 @@
     </li>
         </ul>
     </li>
-    <li class="toctree-l2"><a class="reference internal" href="#8-running-it-locally-what-was-needed-beyond-upstreams-compose">8. Running it locally (what was needed beyond upstream's compose)</a>
+    <li class="toctree-l2"><a class="reference internal" href="#8-running-it-locally-what-was-needed-beyond-upstreams-chart">8. Running it locally (what was needed beyond upstream's chart)</a>
         <ul>
     <li class="toctree-l3"><a class="reference internal" href="#runtime-observations-worth-knowing-before-the-client-instance">Runtime observations worth knowing before the client instance</a>
     </li>
@@ -518,28 +518,48 @@ UUID. So "upload the hash to TRAIN on deployment" cannot be a single PUT. The pi
 <li><strong>Expect the list to exist:</strong> <code>PUT .../tsp</code> returns 404 if <code>/init/json/{fw}/trust-list</code> was never run; list
    creation is a one-time federation-setup step, not a per-deploy step.</li>
 </ol>
-<h2 id="8-running-it-locally-what-was-needed-beyond-upstreams-compose">8. Running it locally (what was needed beyond upstream's compose)<a class="headerlink" href="#8-running-it-locally-what-was-needed-beyond-upstreams-compose" title="Permanent link">&para;</a></h2>
-<p><code>docker compose up -d --build</code> from the TSPA repo root, plus <code>scripts/verify-tspa-api/docker-compose.override.yml</code>, which:
-1. sets <code>SPRING_APPLICATION_JSON</code> on <code>tspa-service</code> to point <code>issuer-uri</code> at the compose Keycloak
-   (<code>http://keycloak:8080/realms/gxfs-dev-test</code>), switch <code>trustlist.vc.signer.type</code> to <code>INTERNAL</code>
-   (upstream default is an external TSA signer) and set <code>zonemanager.query.status=false</code>;
-2. pins Keycloak to <code>26.0</code> and disables its curl-based healthcheck (no curl in the image);
-3. <strong>Build trap:</strong> the trust-list model classes (<code>eu.xfsc.train.tspa.model.trustlist.*</code>) live in a separate repo,
+<h2 id="8-running-it-locally-what-was-needed-beyond-upstreams-chart">8. Running it locally (what was needed beyond upstream's chart)<a class="headerlink" href="#8-running-it-locally-what-was-needed-beyond-upstreams-chart" title="Permanent link">&para;</a></h2>
+<p>A kind cluster with upstream's Helm chart (<code>deployment/helm/tspa-service</code>), installed by
+<code>scripts/verify-tspa-api/kind-up.sh</code> with <code>values-kind.yaml</code>, which:
+1. points <code>issuer-uri</code> at the local Keycloak (<code>http://keycloak:8080/realms/gxfs-dev-test</code>), switches
+   <code>trustlist.vc.signer.type</code> to <code>INTERNAL</code> (upstream default is an external TSA signer), sets
+   <code>zonemanager.query.status=false</code>, and turns off <code>spring.cloud.kubernetes</code> config loading, so the chart's
+   <code>SPRING_APPLICATION_JSON</code> is the only source of overrides on top of the image's <code>application.yml</code>;
+   the chart also sets the well-known signer to <code>TSA</code>, which makes startup fail with a <code>NullPointerException</code>
+   in <code>WellKnownConfiguration</code> when no TSA answers; it is set back to the image's default, <code>INTERNAL</code> with key
+   <code>owner</code>;
+2. sets trust-list storage back to <code>INTERNAL</code> (the chart's default is IPFS; the image's own default, and what the
+   earlier run used, is <code>INTERNAL</code>), and replaces the chart's <code>hostPath</code> volumes with <code>emptyDir</code>;
+3. points the probes at <code>/tspa-service/api/docs</code>: the chart uses <code>/actuator/health</code> for liveness as well as
+   readiness, and that answers 503 while the Zone Manager is unreachable (see below), so the pod would be
+   restarted forever;
+4. Keycloak <code>26.0</code> runs from <code>keycloak.yaml</code> with upstream's realm export imported at start;
+   and <code>kind-up.sh</code> installs the chart from a copy without <code>templates/NOTES.txt</code>: with ingress disabled,
+   upstream's NOTES call a template the chart does not define (<code>train-tspa.name</code>), so the install fails;
+5. <strong>Build trap:</strong> the trust-list model classes (<code>eu.xfsc.train.tspa.model.trustlist.*</code>) live in a separate repo,
    <code>eclipse-xfsc/train-shared</code>, wired in via <code>.gitmodules</code> (path <code>shared</code>) and <code>build-helper-maven-plugin</code>
    (<code>shared/src</code>). The GitHub copy has the <code>.gitmodules</code> entry but <strong>no gitlink in the index</strong>, so neither a plain
    clone nor <code>--recurse-submodules</code> fetches it and <code>mvn package</code> fails with <code>package ...model.trustlist does not exist</code>.
    Fix: <code>git clone --depth 1 https://github.com/eclipse-xfsc/train-shared.git shared</code> before building.</p>
-<p>Token is requested from <strong>inside</strong> the docker network so that <code>iss</code> equals the issuer TSPA validates.
-No Java/Maven needed on the host: the Dockerfile builds the WAR in a Maven stage.</p>
-<p><strong>To reproduce the evidence</strong> (from <code>scripts/verify-tspa-api/</code>):</p>
-<pre><code class="language-bash">git clone --depth 1 https://github.com/eclipse-xfsc/train-trust-framework-manager.git tspa
-git clone --depth 1 https://github.com/eclipse-xfsc/train-shared.git tspa/shared
-cp docker-compose.override.yml tspa/ &amp;&amp; (cd tspa &amp;&amp; docker compose up -d --build)   # first build ≈ 15 min
-TSPA_REPO=./tspa bash roundtrip.sh      # writes evidence.md and bodies/ next to the script
+<p>Tokens are requested from a pod <strong>inside</strong> the cluster, under the same Keycloak name, so that <code>iss</code> equals the
+issuer TSPA validates. No Java/Maven needed on the host: upstream's Dockerfile builds the WAR in a Maven stage;
+the image is built with <code>docker build</code> and loaded into kind.</p>
+<p><strong>To reproduce the evidence</strong> (from <code>scripts/verify-tspa-api/</code>). Upstream is cloned <strong>outside</strong> this repository:
+its tree carries Docker Compose files, which have no place in this checkout.</p>
+<pre><code class="language-bash">export TSPA_REPO=&quot;$HOME/src/tspa&quot;      # any absolute path outside this repository
+git clone --depth 1 https://github.com/eclipse-xfsc/train-trust-framework-manager.git &quot;$TSPA_REPO&quot;
+git clone --depth 1 https://github.com/eclipse-xfsc/train-shared.git &quot;$TSPA_REPO/shared&quot;
+./kind-up.sh          # first image build ≈ 15 min
+./roundtrip.sh        # writes evidence.md and bodies/ next to the script
+./kind-down.sh
 </code></pre>
 <p><code>scripts/verify-tspa-api/tcr-findings/tcr-findings.md</code> holds an out-of-scope finding about the TCR; it is not
 part of this verification's evidence.</p>
 <h3 id="runtime-observations-worth-knowing-before-the-client-instance">Runtime observations worth knowing before the client instance<a class="headerlink" href="#runtime-observations-worth-knowing-before-the-client-instance" title="Permanent link">&para;</a></h3>
+<p>Recorded on the first local run (2026-09-18), which used the image's own <code>application.yml</code> endpoints. The kind run
+inherits the chart's instead: Zone Manager at <code>https://zonemgr.train1.xfsc.dev</code> and the placeholder token server
+<code>https://your-issuer.example/token</code>; both are unreachable locally, with the same results (health 503,
+<code>PUT /trustframework/{fw}</code> 500).</p>
 <ul>
 <li><code>GET /actuator/health</code> returns <strong>503 DOWN</strong> whenever the Zone Manager is unreachable: <code>ZonemanagerHealthCheck</code>
   probes <code>${zonemanager.Address}/status</code> unconditionally (the <code>zonemanager.query.status</code> flag is not read by it).
