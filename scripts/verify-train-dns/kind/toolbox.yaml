@@ -1,0 +1,16 @@
+# A throwaway pod with dig and python3, to run verify.sh from inside the cluster (README, "From a
+# cluster"). Ubuntu rather than a dnsutils image so the same recipe works on any cluster that can
+# reach the Ubuntu archive.
+apiVersion: v1
+kind: Pod
+metadata:
+  name: dnscheck
+spec:
+  restartPolicy: Never
+  containers:
+    - name: toolbox
+      image: docker.io/library/ubuntu:24.04
+      command: ["bash", "-c", "export DEBIAN_FRONTEND=noninteractive; apt-get -qq update && apt-get -qq install -y dnsutils python3 >/dev/null && touch /tmp/ready && sleep infinity"]
+      readinessProbe:
+        exec: { command: ["test", "-f", "/tmp/ready"] }
+        periodSeconds: 5

@@ -27,7 +27,7 @@ concurrency:
 
 jobs:
   # TDR-BDD-11: every chart passes lint, render and a server dry-run against a disposable cluster that
-  # serves the CRDs the charts render against (Cilium, Gatekeeper), and the two negative charts are
+  # serves the CRDs the charts render against (Cilium, Gatekeeper, Istio), and the two negative charts are
   # refused by the check each targets. A server dry-run proves render, API discovery and schemas; it
   # does not run admission webhooks or hooks and proves nothing about the release at runtime.
   chart-gate:
@@ -38,7 +38,7 @@ jobs:
         uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
 
       - name: Set up Go
-        uses: actions/setup-go@40f1582b2485089dde7abd97c1529aa768e1baff # v5.6.0
+        uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
         with:
           go-version-file: go.mod
 
@@ -49,7 +49,7 @@ jobs:
 
       - name: Install the pinned tools
         run: |
-          scripts/tools/install.sh "$RUNNER_TEMP/bin" kind kubectl gatekeeper-chart cilium-crds
+          scripts/tools/install.sh "$RUNNER_TEMP/bin" kind kubectl gatekeeper-chart cilium-crds istio-crds
           echo "$RUNNER_TEMP/bin" >> "$GITHUB_PATH"
 
       - name: Create the gate cluster with the CRDs the charts render against
@@ -58,6 +58,8 @@ jobs:
           kind create cluster --name ztd-gate --image "$KIND_NODE_IMAGE" --wait 180s
           tar -xzf "$RUNNER_TEMP/bin/gatekeeper-${GATEKEEPER_CHART_VERSION}.tgz" -C "$RUNNER_TEMP" gatekeeper/crds
           kubectl apply -f "$RUNNER_TEMP/gatekeeper/crds/provider-customresourcedefinition.yaml" -f "$RUNNER_TEMP/bin/cilium-crds/"
+          kubectl apply --server-side -f "$RUNNER_TEMP/bin/istio-crds/"
+          kubectl wait --for condition=established --timeout=60s -f "$RUNNER_TEMP/bin/istio-crds/"
           kubectl wait --for condition=established --timeout=60s crd/providers.externaldata.gatekeeper.sh \
             crd/ciliumclusterwidenetworkpolicies.cilium.io crd/ciliumnetworkpolicies.cilium.io
 
@@ -73,7 +75,7 @@ jobs:
 
       - name: Keep the gate evidence
         if: always()
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: chart-gate
           path: bundles/bdd
@@ -92,7 +94,7 @@ jobs:
         uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
 
       - name: Set up Go
-        uses: actions/setup-go@40f1582b2485089dde7abd97c1529aa768e1baff # v5.6.0
+        uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
         with:
           go-version-file: go.mod
 
@@ -141,7 +143,7 @@ jobs:
 
       - name: Keep the SBOMs and the mock attestation
         if: always()
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: candidate
           path: |
@@ -188,7 +190,7 @@ jobs:
 
       - name: Keep the sanitized evidence
         if: always()
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: secrets-baseline
           path: bundles/secrets
@@ -208,7 +210,7 @@ jobs:
         uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
 
       - name: Set up Go
-        uses: actions/setup-go@40f1582b2485089dde7abd97c1529aa768e1baff # v5.6.0
+        uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
         with:
           go-version-file: go.mod
 
@@ -237,7 +239,7 @@ jobs:
 
       - name: Keep the row's evidence
         if: always()
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: secrets-row
           path: bundles/bdd

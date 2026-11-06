@@ -9,8 +9,8 @@
 # The base is Debian 12 (bookworm), not the upstream `python:3.11` tag: that tag moved to Debian 13,
 # whose python3-ldns is built for Python 3.13, so the zone manager dies at `import ldns` (#39).
 # The source stage uses the full image, which has git; the image that ships is the slim one.
-ARG SOURCE_BASE=python:3.11-bookworm@sha256:5887f265d8d44d8b4734d3658b21d668edf5aaf92e4945bc0c984afbfab105d3
-ARG BASE=python:3.11-slim-bookworm@sha256:0a310eeecf4e1f5a0743f9a6520c90c88d089c903ca5fd283f501e3a805f5f89
+ARG SOURCE_BASE=python:3.11-bookworm@sha256:726d304906fa5eb468e5531e366548d1903286352f5adb54ef508ac01fbd80c6
+ARG BASE=python:3.11-slim-bookworm@sha256:a83ba18aef0f865b1a4a611c2cf460fe446f2795673bbb9fe43be570439e3b39
 ARG UPSTREAM_COMMIT=a431f148c4ef1f3c897385e99b463c556f271070
 ARG UPSTREAM_URL=https://github.com/eclipse-xfsc/train-dns-trust-zone-manager.git
 

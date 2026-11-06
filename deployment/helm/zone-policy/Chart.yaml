@@ -1,0 +1,18 @@
+apiVersion: v2
+name: zone-policy
+description: >-
+  The identity policy of one zone of the FACIS Zero Trust Demonstrator: the registration of the
+  plane workloads with SPIRE by selector (a ClusterSPIFFEID), the mesh-wide STRICT
+  PeerAuthentication, and the identity-band checks that fail the release when identity is not
+  there. Installed last, after the SPIRE and Istio releases whose CRDs it uses
+  (scripts/install-zone/install.sh).
+type: application
+version: 0.2.0
+appVersion: "0.1.0"
+keywords:
+  - facis
+  - zero-trust
+  - spire
+  - istio
+sources:
+  - https://github.com/eclipse-xfsc/facis-zero-trust-demonstrator

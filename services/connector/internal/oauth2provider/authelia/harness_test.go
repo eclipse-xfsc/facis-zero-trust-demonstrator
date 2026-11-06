@@ -2,12 +2,14 @@ package authelia
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"io"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
 	"strings"
+	"sync"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -30,6 +32,9 @@ type harness struct {
 	t        *testing.T
 	stores   oauth2provider.Stores
 	provider oauth2provider.Provider
+
+	// replay records what the provider hands to the replay store.
+	replay *recordingReplayStore
 
 	// clockOffset shifts the stores' clock forward, in nanoseconds.
 	clockOffset atomic.Int64
@@ -79,6 +84,9 @@ func newHarness(t *testing.T, configure func(*oauth2provider.Config)) *harness {
 		return time.Now().Add(time.Duration(h.clockOffset.Load()))
 	})
 
+	h.replay = &recordingReplayStore{inner: h.stores.DPoPReplay}
+	h.stores.DPoPReplay = h.replay
+
 	provider, err := New(cfg, h.stores)
 	if err != nil {
 		t.Fatalf("new provider: %v", err)
@@ -93,6 +101,33 @@ func newHarness(t *testing.T, configure func(*oauth2provider.Config)) *harness {
 	handler.Store(http.Handler(mux))
 
 	return h
+}
+
+// recordingReplayStore passes every call through and keeps what it was given.
+type recordingReplayStore struct {
+	inner oauth2provider.DPoPReplayStore
+
+	mu   sync.Mutex
+	uses []oauth2provider.DPoPProofUse
+}
+
+func (s *recordingReplayStore) MarkUsed(ctx context.Context, use oauth2provider.DPoPProofUse) (bool, error) {
+	s.mu.Lock()
+	s.uses = append(s.uses, use)
+	s.mu.Unlock()
+
+	return s.inner.MarkUsed(ctx, use)
+}
+
+func (s *recordingReplayStore) last() oauth2provider.DPoPProofUse {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	if len(s.uses) == 0 {
+		return oauth2provider.DPoPProofUse{}
+	}
+
+	return s.uses[len(s.uses)-1]
 }
 
 // serveResource is a minimal protected resource.
@@ -228,6 +263,13 @@ func (h *harness) tokenWithSecret(clientID, secret, proof string, form url.Value
 func (h *harness) register(authorization string, metadata map[string]any) result {
 	h.t.Helper()
 
+	return h.registerWithProof(authorization, "", metadata)
+}
+
+// registerWithProof is register with a DPoP proof, which may be empty.
+func (h *harness) registerWithProof(authorization, proof string, metadata map[string]any) result {
+	h.t.Helper()
+
 	body, err := json.Marshal(metadata)
 	if err != nil {
 		h.t.Fatal(err)
@@ -242,6 +284,10 @@ func (h *harness) register(authorization string, metadata map[string]any) result
 
 	if authorization != "" {
 		request.Header.Set("Authorization", authorization)
+	}
+
+	if proof != "" {
+		request.Header.Set("DPoP", proof)
 	}
 
 	return h.do(request)

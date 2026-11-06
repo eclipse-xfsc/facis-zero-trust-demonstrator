@@ -1,0 +1,12 @@
+# Apply with --reuse-values to retain this release's workload and credential settings.
+keycloak:
+  publicUrl: https://keycloak.85.215.131.155.sslip.io
+realm:
+  enabled: true
+  clientEnabled: true
+ui:
+  origin: https://orce.85-215-131-155.sslip.io
+  callbackUrl: https://orce.85-215-131-155.sslip.io/dev/ztd/oidc/callback
+  frontchannelLogoutUrl: https://orce.85-215-131-155.sslip.io/dev/ztd/oidc/frontchannel-logout
+  backchannelLogoutUrl: https://orce.85-215-131-155.sslip.io/dev/ztd/oidc/backchannel-logout
+  postLogoutRedirectUrl: https://orce.85-215-131-155.sslip.io/dev/facis-demo/

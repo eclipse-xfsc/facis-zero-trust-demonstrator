@@ -1,0 +1,324 @@
+{
+  "realm": "facis-ztd",
+  "enabled": {{ .Values.realm.enabled | toJson }},
+  "sslRequired": "all",
+  "registrationAllowed": false,
+  "resetPasswordAllowed": false,
+  "rememberMe": false,
+  "accessTokenLifespan": 300,
+  "ssoSessionIdleTimeout": 1800,
+  "ssoSessionMaxLifespan": 28800,
+  "clientSessionIdleTimeout": 1800,
+  "clientSessionMaxLifespan": 28800,
+  "revokeRefreshToken": true,
+  "refreshTokenMaxReuse": 0,
+  "roles": {
+    "realm": [
+      {
+        "name": "ztd-operator",
+        "composite": false
+      },
+      {
+        "name": "ztd-observer",
+        "composite": false
+      }
+    ]
+  },
+  "clientScopes": [
+    {
+      "name": "basic",
+      "description": "OpenID Connect scope for add all basic claims to the token",
+      "protocol": "openid-connect",
+      "attributes": {
+        "include.in.token.scope": "false",
+        "display.on.consent.screen": "false"
+      },
+      "protocolMappers": [
+        {
+          "name": "sub",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-sub-mapper",
+          "consentRequired": false,
+          "config": {
+            "access.token.claim": "true",
+            "introspection.token.claim": "true"
+          }
+        },
+        {
+          "name": "auth_time",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-usersessionmodel-note-mapper",
+          "consentRequired": false,
+          "config": {
+            "user.session.note": "AUTH_TIME",
+            "id.token.claim": "true",
+            "introspection.token.claim": "true",
+            "access.token.claim": "true",
+            "claim.name": "auth_time",
+            "jsonType.label": "long"
+          }
+        }
+      ]
+    },
+    {
+      "name": "profile",
+      "protocol": "openid-connect",
+      "attributes": {
+        "include.in.token.scope": "true"
+      },
+      "protocolMappers": [
+        {
+          "name": "username",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-usermodel-property-mapper",
+          "config": {
+            "access.token.claim": "true",
+            "id.token.claim": "true",
+            "userinfo.token.claim": "true",
+            "user.attribute": "username",
+            "claim.name": "preferred_username",
+            "jsonType.label": "String"
+          }
+        }
+      ]
+    },
+    {
+      "name": "roles",
+      "protocol": "openid-connect",
+      "attributes": {
+        "include.in.token.scope": "true"
+      },
+      "protocolMappers": [
+        {
+          "name": "realm roles",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-usermodel-realm-role-mapper",
+          "config": {
+            "access.token.claim": "true",
+            "id.token.claim": "true",
+            "userinfo.token.claim": "true",
+            "multivalued": "true",
+            "claim.name": "realm_access.roles",
+            "jsonType.label": "String"
+          }
+        }
+      ]
+    }
+  ],
+  "scopeMappings": [
+    {
+      "client": "ztd-ui",
+      "roles": [
+        "ztd-operator",
+        "ztd-observer"
+      ]
+    },
+    {
+      "clientScope": "roles",
+      "roles": [
+        "ztd-operator",
+        "ztd-observer"
+      ]
+    },
+    {
+      "clientScope": "profile",
+      "roles": [
+        "ztd-operator",
+        "ztd-observer"
+      ]
+    }
+  ],
+  "clients": [
+    {
+      "clientId": "ztd-ui",
+      "enabled": {{ .Values.realm.clientEnabled | toJson }},
+      "protocol": "openid-connect",
+      "publicClient": true,
+      "bearerOnly": false,
+      "standardFlowEnabled": true,
+      "implicitFlowEnabled": false,
+      "directAccessGrantsEnabled": false,
+      "serviceAccountsEnabled": false,
+      "authorizationServicesEnabled": false,
+      "consentRequired": false,
+      "fullScopeAllowed": false,
+      "redirectUris": [
+        {{ include "ztd.callback" . | toJson }}
+      ],
+      "webOrigins": [
+        {{ include "ztd.uiOrigin" . | toJson }}
+      ],
+      "frontchannelLogout": true,
+      "defaultClientScopes": [
+        "basic",
+        "profile",
+        "roles"
+      ],
+      "optionalClientScopes": [],
+      "attributes": {
+        "pkce.code.challenge.method": "S256",
+        "oauth2.device.authorization.grant.enabled": "false",
+        "oidc.ciba.grant.enabled": "false",
+        "access.token.lifespan": "300",
+        "frontchannel.logout.url": {{ include "ztd.frontLogout" . | toJson }},
+        "frontchannel.logout.session.required": "true",
+        "backchannel.logout.url": {{ include "ztd.backLogout" . | toJson }},
+        "backchannel.logout.session.required": "true",
+        "backchannel.logout.revoke.offline.tokens": "true",
+        "post.logout.redirect.uris": {{ include "ztd.afterLogout" . | toJson }}
+      },
+      "protocolMappers": [
+        {
+          "name": "ztd-ui audience",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-audience-mapper",
+          "config": {
+            "included.client.audience": "ztd-ui",
+            "access.token.claim": "true",
+            "id.token.claim": "false",
+            "userinfo.token.claim": "false"
+          }
+        }
+      ]
+    }
+  ],
+  "requiredActions": [
+    {
+      "alias": "VERIFY_PROFILE",
+      "name": "Verify Profile",
+      "providerId": "VERIFY_PROFILE",
+      "enabled": false,
+      "defaultAction": false,
+      "priority": 50,
+      "config": {}
+    }
+  ],
+  "userProfile": {
+    "attributes": [
+      {
+        "name": "username",
+        "required": {
+          "roles": [
+            "user"
+          ]
+        },
+        "permissions": {
+          "view": [
+            "admin",
+            "user"
+          ],
+          "edit": [
+            "admin",
+            "user"
+          ]
+        }
+      },
+      {
+        "name": "email",
+        "permissions": {
+          "view": [
+            "admin",
+            "user"
+          ],
+          "edit": [
+            "admin",
+            "user"
+          ]
+        }
+      },
+      {
+        "name": "firstName",
+        "permissions": {
+          "view": [
+            "admin",
+            "user"
+          ],
+          "edit": [
+            "admin",
+            "user"
+          ]
+        }
+      },
+      {
+        "name": "lastName",
+        "permissions": {
+          "view": [
+            "admin",
+            "user"
+          ],
+          "edit": [
+            "admin",
+            "user"
+          ]
+        }
+      }
+    ],
+    "groups": []
+  },
+  "users": [
+    {
+      "username": "demo-operator",
+      "enabled": true,
+      "requiredActions": [],
+      "groups": [],
+      "realmRoles": [
+        "ztd-operator"
+      ],
+      "credentials": [
+        {
+          "type": "password",
+          "temporary": false,
+          "value": $(env:DEMO_OPERATOR_PASSWORD_JSON)
+        }
+      ]
+    },
+    {
+      "username": "demo-observer",
+      "enabled": true,
+      "requiredActions": [],
+      "groups": [],
+      "realmRoles": [
+        "ztd-observer"
+      ],
+      "credentials": [
+        {
+          "type": "password",
+          "temporary": false,
+          "value": $(env:DEMO_OBSERVER_PASSWORD_JSON)
+        }
+      ]
+    },
+    {
+      "username": "bdd-operator",
+      "enabled": true,
+      "requiredActions": [],
+      "groups": [],
+      "realmRoles": [
+        "ztd-operator"
+      ],
+      "credentials": [
+        {
+          "type": "password",
+          "temporary": false,
+          "value": $(env:BDD_OPERATOR_PASSWORD_JSON)
+        }
+      ]
+    },
+    {
+      "username": "bdd-observer",
+      "enabled": true,
+      "requiredActions": [],
+      "groups": [],
+      "realmRoles": [
+        "ztd-observer"
+      ],
+      "credentials": [
+        {
+          "type": "password",
+          "temporary": false,
+          "value": $(env:BDD_OBSERVER_PASSWORD_JSON)
+        }
+      ]
+    }
+  ]
+}
