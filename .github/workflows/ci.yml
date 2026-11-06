@@ -72,8 +72,9 @@ jobs:
               exit 1
             fi
 
-            # A time-boxed, documented exception may exclude named upstream paths from the gate;
-            # an expired exception fails the build. Everything else stays under the gate.
+            # A time-boxed, documented exception may exclude named upstream paths from the gate, or,
+            # for a distribution base, the findings the distribution records no fix for; an expired
+            # exception fails the build. Everything else stays under the gate.
             skips=()
             exception="$(dirname "$dockerfile")/scan-exception.json"
             if [ -f "$exception" ]; then
@@ -82,16 +83,97 @@ jobs:
                 echo "::error::$exception expired on $expires - renew it or remove the upstream findings"
                 exit 1
               fi
-              mapfile -t skips < <(jq -r '(.skipDirs[] | "--skip-dirs", .), (.skipFiles[] | "--skip-files", .)' "$exception")
+              mapfile -t skips < <(jq -r '(.skipDirs[] | "--skip-dirs", .), (.skipFiles[] | "--skip-files", .), (if .ignoreUnfixed then "--ignore-unfixed" else empty end)' "$exception")
               {
                 echo "### Scan exception for $image (expires $expires)"
-                jq -r '.reason, "", .tracking, "", "Excluded: " + ((.skipDirs + .skipFiles) | join(", "))' "$exception"
+                jq -r '.reason, "", .tracking, "", "Excluded: " + ((.skipDirs + .skipFiles + (if .ignoreUnfixed then ["findings the distribution has no fix for"] else [] end)) | join(", "))' "$exception"
               } >> "$GITHUB_STEP_SUMMARY"
             fi
 
             docker run --rm -v /var/run/docker.sock:/var/run/docker.sock \
               aquasec/trivy:0.74.0 image --exit-code 1 --severity HIGH,CRITICAL "${skips[@]}" "$image"
           done
+
+  # The TRAIN DNS zone manager image (deployment/docker/train-zone-manager): built from the pinned
+  # upstream commit with its patches and driven in Docker through its cases - pin and patches, first
+  # start, restart, resign, platform - each with its negative half. The scenarios are the @image
+  # regression feature; the cases run in scripts/train-zone-manager/image_test.sh, which the Go tests
+  # job skips because it needs docker, dig and a few minutes.
+  zone-manager-image:
+    name: TRAIN zone manager image
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+
+      - name: Set up Go
+        uses: actions/setup-go@40f1582b2485089dde7abd97c1529aa768e1baff # v5.6.0
+        with:
+          go-version-file: go.mod
+
+      - name: Install dig
+        run: sudo apt-get -qq update && sudo apt-get -qq install -y --no-install-recommends dnsutils >/dev/null
+
+      - name: Run the image scenarios
+        env:
+          ZTD_IMAGE_TEST: "1"
+        run: GODOG_CUCUMBER_OUT=bundles/bdd/go-image-report.json go test -timeout 30m ./internal/bdd -godog.tags=@image
+
+      # The scenarios write the cucumber report, not the console; the case lines say what failed.
+      - name: Show the evidence on failure
+        if: failure()
+        run: cat bundles/bdd/evidence/regression/train-zone-manager/*.md
+
+      - name: Publish the evidence
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: zone-manager-image-evidence
+          path: |
+            bundles/bdd/evidence/regression/train-zone-manager/
+            bundles/bdd/go-image-report.json
+
+  # The TRAIN DNS zone manager chart (deployment/helm/train-zone-manager) on a throwaway kind cluster
+  # laid out like a zone: Cilium, the umbrella with its default deny and API lane, a registry for the
+  # image by digest. Install, reinstall on kept volumes, restore from backup, re-sign, ports and
+  # planes, the chart gate - each with its negative half. The scenarios are the @chart regression
+  # feature; the cases run in scripts/train-zone-manager/chart_test.sh.
+  zone-manager-chart:
+    name: TRAIN zone manager chart (kind)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+
+      - name: Set up Go
+        uses: actions/setup-go@40f1582b2485089dde7abd97c1529aa768e1baff # v5.6.0
+        with:
+          go-version-file: go.mod
+
+      - name: Install the pinned kind and kubectl, and dig
+        run: |
+          scripts/tools/install.sh .tools/bin kind kubectl
+          echo "$PWD/.tools/bin" >> "$GITHUB_PATH"
+          sudo apt-get -qq update && sudo apt-get -qq install -y --no-install-recommends dnsutils >/dev/null
+
+      - name: Run the chart scenarios
+        env:
+          ZTD_CHART_TEST: "1"
+        run: GODOG_CUCUMBER_OUT=bundles/bdd/go-chart-report.json go test -timeout 40m ./internal/bdd -godog.tags=@chart
+
+      # The scenarios write the cucumber report, not the console; the case lines say what failed.
+      - name: Show the evidence on failure
+        if: failure()
+        run: cat bundles/bdd/evidence/regression/train-zone-manager/*.md
+
+      - name: Publish the evidence
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: zone-manager-chart-evidence
+          path: |
+            bundles/bdd/evidence/regression/train-zone-manager/
+            bundles/bdd/go-chart-report.json
 
   # The signing profile end to end: the release signing script signs and attests throwaway images
   # with the pinned cosign and an ephemeral key, in a registry:2 on the runner, and the admission

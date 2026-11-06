@@ -1,0 +1,30 @@
+diff --git a/requirements.txt b/requirements.txt
+index db34548..d58cdf6 100644
+--- a/requirements.txt
++++ b/requirements.txt
+@@ -1,6 +1,6 @@
+ falcon==3.1.1
+-gunicorn==19.9.0
++gunicorn==23.0.0
+ SQLAlchemy==2.0.1
+-pyjwt[crypto] == 2.5.0
++pyjwt[crypto]==2.14.0
+ requests >= 2.31.0
+ marshmallow >= 3.20.2
+\ No newline at end of file
+diff --git a/setup.cfg b/setup.cfg
+index 1178003..3d46591 100644
+--- a/setup.cfg
++++ b/setup.cfg
+@@ -18,9 +18,9 @@ packages =
+ 
+ install_requires =
+     falcon==3.1.1
+-    gunicorn==19.9.0
++    gunicorn==23.0.0
+     SQLAlchemy==2.0.1
+-    pyjwt[crypto] == 2.5.0
++    pyjwt[crypto]==2.14.0
+     requests >= 2.31.0
+     marshmallow >= 3.20.2
+ 

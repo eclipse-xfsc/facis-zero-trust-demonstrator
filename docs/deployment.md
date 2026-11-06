@@ -51,6 +51,37 @@ hook-weight scheme and the evidence are in [Umbrella chart](umbrella-chart.md) a
 [Workload identity](workload-identity.md), and chart values are documented with each chart under
 `deployment/helm/`.
 
+### Components after the umbrella
+
+Each component installs into the plane the layout gives it, with its own chart and its own README
+under `deployment/helm/`. The first is the TRAIN DNS zone manager, into the management plane:
+
+```bash
+helm upgrade --install train-zone-manager deployment/helm/train-zone-manager -n ztd-mgmt \
+  -f <zone values> --wait --wait-for-jobs
+```
+
+It needs the plane's egress lane to the Kubernetes API (`networkPolicy.kubeApi` in the zone file)
+for the hook that records the zone's DS, and a zone with a load balancer for its public address;
+what it installs, how its keys survive a reinstall and how the delegation records are derived are in
+the chart's README under `deployment/helm/train-zone-manager/` and in [TRAIN DNS zone](train-dns.md).
+
+The OCM W-Stack wallet lane follows, also into the management plane: the zone's stores once, then
+one wallet per organisation of the zone. The umbrella's zone file must already name the wallet's
+service token (`openbaoBootstrap.serviceTokens`, [Secrets](secrets.md#service-tokens)), and the
+zone supplies the wallet's TLS certificate Secret:
+
+```bash
+helm upgrade --install ocm-backbone deployment/helm/ocm-backbone -n ztd-mgmt \
+  -f <zone values> --wait --wait-for-jobs
+helm upgrade --install ocm-wallet deployment/helm/ocm-wallet -n ztd-mgmt \
+  -f <zone values> --wait --wait-for-jobs
+```
+
+They uninstall in the reverse order; the backbone keeps its Cassandra claim across uninstalls by
+design. What the lane is, how the DID document is served and what survives a restart are in
+[OCM wallet](ocm-wallet.md) and the charts' READMEs under `deployment/helm/ocm-*/`.
+
 ### Through the ORCE workflow
 
 The same install, redeploy and uninstall run through ORCE with zero manual steps: a

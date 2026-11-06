@@ -117,7 +117,7 @@ components is a lookup and not a convention remembered by hand:
 |---|---|---|
 | `preflight` | 0–19 | checks that must hold before anything is installed |
 | `identity` | 20–39 | SPIRE: checks on the server, the trust bundle and the registration entries |
-| `platform` | 40–59 | jobs of OpenBao, Harbor, TSPA, estserver, observability and admission |
+| `platform` | 40–59 | jobs of OpenBao, Harbor, TSPA, estserver, observability, admission and the OCM wallet lane (keyspace, key) |
 | `policy` | 60–79 | jobs of the mesh and admission policy that depends on identity and platform |
 | `workloads` | 80–99 | jobs of the demonstrator workloads |
 | `verification` | 100–119 | read-back checks that fail the release when the layout is wrong |

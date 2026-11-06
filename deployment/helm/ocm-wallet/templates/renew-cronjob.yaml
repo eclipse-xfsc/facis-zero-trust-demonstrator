@@ -1,0 +1,77 @@
+{{- /*
+The release renews its own OpenBao token (renew-self) once a day, so a zone left without upgrades
+keeps its wallet: the token is periodic (768 h by default) and only the bootstrap's reruns renewed it
+before. Its own token, its own engine policy (which grants renew-self), nothing else.
+*/ -}}
+{{- $c := dict "Release" .Release "Values" .Values "Chart" .Chart "component" "renew" -}}
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: {{ include "wallet.component" $c }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "wallet.labels" . | nindent 4 }}
+    app.kubernetes.io/component: renew
+spec:
+  schedule: {{ .Values.tokenRenewal.schedule | quote }}
+  concurrencyPolicy: Forbid
+  successfulJobsHistoryLimit: 1
+  failedJobsHistoryLimit: 3
+  jobTemplate:
+    spec:
+      backoffLimit: 3
+      template:
+        metadata:
+          labels:
+            {{- include "wallet.podLabels" $c | nindent 12 }}
+          annotations:
+            # A one-shot pod: a sidecar would keep it from completing under a sidecar mesh.
+            sidecar.istio.io/inject: "false"
+        spec:
+          serviceAccountName: {{ include "wallet.component" (dict "Release" .Release "component" "key") }}
+          automountServiceAccountToken: false
+          enableServiceLinks: false
+          restartPolicy: OnFailure
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: 100
+            runAsGroup: 101
+            seccompProfile:
+              type: RuntimeDefault
+          containers:
+            - name: renew
+              image: {{ include "wallet.image" (dict "Values" .Values "image" "hook") | quote }}
+              imagePullPolicy: IfNotPresent
+              env:
+                - name: BAO_ADDR
+                  value: {{ .Values.openbao.address | quote }}
+              command: ["/bin/sh", "-eu", "-c"]
+              args:
+                - |
+                  umask 077
+                  printf 'X-Vault-Token: %s' "$(cat /token/openbao-token)" > /work/h
+                  code=$(curl -sS -X POST -H "@/work/h" -o /dev/null -w '%{http_code}' "$BAO_ADDR/v1/auth/token/renew-self" || true)
+                  rm -f /work/h
+                  [ "$code" = 200 ] || { echo "renew: renew-self answered HTTP ${code:-000}"; exit 1; }
+                  echo "renew: token renewed"
+              resources:
+                {{- toYaml .Values.resources.hook | nindent 16 }}
+              securityContext:
+                {{- include "wallet.containerSecurity" . | nindent 16 }}
+              volumeMounts:
+                - name: token
+                  mountPath: /token
+                  readOnly: true
+                - name: work
+                  mountPath: /work
+          volumes:
+            - name: token
+              secret:
+                secretName: {{ .Values.openbao.existingSecret | quote }}
+                items:
+                  - key: {{ .Values.openbao.secretKey | quote }}
+                    path: openbao-token
+            - name: work
+              emptyDir:
+                medium: Memory
+                sizeLimit: 1Mi

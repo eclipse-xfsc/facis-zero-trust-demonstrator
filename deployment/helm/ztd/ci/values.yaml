@@ -49,3 +49,9 @@ openbao:
   server:
     dataStorage:
       storageClass: standard
+# One service token, so the render, the release gate and the secrets baseline cover the path that
+# issues, checks and renews them.
+openbaoBootstrap:
+  serviceTokens:
+    - name: ocm-wallet
+      transitMount: ocm/kind

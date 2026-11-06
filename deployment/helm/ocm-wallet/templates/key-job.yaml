@@ -1,0 +1,96 @@
+{{- /*
+The tenant's key: created in its transit engine once the release's pods are up (post-install and
+post-upgrade, platform band: a pre-install hook would run before the ServiceAccount and the policy
+it needs exist), with the release's own token. Until it has run the DID document lists no key;
+`helm install --wait --wait-for-jobs` returns only after it has. ecdsa-p256 and never exportable;
+creating a key that exists is a no-op on OpenBao's side, and the Job then checks the type it
+finds. The token reaches curl through a header file in a memory volume, never a command line. The
+Job stays until the next run replaces it, so its log can be collected.
+*/ -}}
+{{- $c := dict "Release" .Release "Values" .Values "Chart" .Chart "component" "key" -}}
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: {{ include "wallet.component" $c }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "wallet.labels" . | nindent 4 }}
+    app.kubernetes.io/component: key
+  annotations:
+    helm.sh/hook: post-install,post-upgrade
+    helm.sh/hook-weight: {{ .Values.hooks.weight | quote }}
+    helm.sh/hook-delete-policy: before-hook-creation
+spec:
+  backoffLimit: 6
+  template:
+    metadata:
+      labels:
+        {{- include "wallet.podLabels" $c | nindent 8 }}
+      annotations:
+        # A one-shot pod: a sidecar would keep it from completing under a sidecar mesh.
+        sidecar.istio.io/inject: "false"
+    spec:
+      serviceAccountName: {{ include "wallet.component" $c }}
+      automountServiceAccountToken: false
+      enableServiceLinks: false
+      restartPolicy: OnFailure
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 100
+        runAsGroup: 101
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: key
+          image: {{ include "wallet.image" (dict "Values" .Values "image" "hook") | quote }}
+          imagePullPolicy: IfNotPresent
+          env:
+            - name: BAO_ADDR
+              value: {{ .Values.openbao.address | quote }}
+            - name: MOUNT
+              value: {{ include "wallet.mount" . | quote }}
+            - name: KEY
+              value: {{ include "wallet.key" . | quote }}
+          command: ["/bin/sh", "-eu", "-c"]
+          args:
+            - |
+              umask 077
+              W=/work
+              printf 'X-Vault-Token: %s' "$(cat /token/openbao-token)" > "$W/h"
+              bao() { curl -sS -X "$1" -H "@$W/h" ${3:+--data-binary "$3"} -o "$W/body" -w '%{http_code}' "$BAO_ADDR/v1/$2" || true; }
+              for i in $(seq 1 30); do
+                code=$(bao GET "sys/mounts/$MOUNT/tune")
+                [ "$code" = 200 ] && break
+                [ "$i" = 30 ] && { echo "key: $MOUNT/ is not a mount this token can see (HTTP $code; is the engine's service token in place?)"; exit 1; }
+                sleep 5
+              done
+              code=$(bao POST "$MOUNT/keys/$KEY" '{"type":"ecdsa-p256","exportable":false}')
+              case "$code" in 200|204) ;; *) echo "key: creating $MOUNT/keys/$KEY: HTTP $code"; exit 1 ;; esac
+              code=$(bao GET "$MOUNT/keys/$KEY")
+              [ "$code" = 200 ] || { echo "key: reading $MOUNT/keys/$KEY: HTTP $code"; exit 1; }
+              flat=$(tr -d '\n ' < "$W/body")
+              echo "$flat" | grep -q '"type":"ecdsa-p256"' || { echo "key: $MOUNT/keys/$KEY exists but is not ecdsa-p256"; exit 1; }
+              echo "$flat" | grep -q '"exportable":false' || { echo "key: $MOUNT/keys/$KEY is exportable; refusing to use it"; exit 1; }
+              rm -f "$W/h" "$W/body"
+              echo "key: $MOUNT/keys/$KEY is ecdsa-p256, not exportable, latest version $(echo "$flat" | sed -n 's/.*"latest_version":\([0-9]*\).*/\1/p')"
+          resources:
+            {{- toYaml .Values.resources.hook | nindent 12 }}
+          securityContext:
+            {{- include "wallet.containerSecurity" . | nindent 12 }}
+          volumeMounts:
+            - name: token
+              mountPath: /token
+              readOnly: true
+            - name: work
+              mountPath: /work
+      volumes:
+        - name: token
+          secret:
+            secretName: {{ .Values.openbao.existingSecret | quote }}
+            items:
+              - key: {{ .Values.openbao.secretKey | quote }}
+                path: openbao-token
+        - name: work
+          emptyDir:
+            medium: Memory
+            sizeLimit: 1Mi

@@ -1,0 +1,172 @@
+{{- /*
+The edge: nginx in front of the signer, the one place the tenant's identity headers are set. It
+terminates TLS for tenant.host on 8443 and serves exactly two well-known documents, the DID
+document and the JWKS; every other path is 404. (The signer's did-configuration endpoint is a
+signing request with a body, not a document to serve, so it is not exposed.) The headers name the DID, the engine (the transit mount) and the engine type;
+the signer builds the document from the keys it finds there. A plain 8080 answers the probes.
+*/ -}}
+{{- define "wallet.edgeConf" -}}
+server_tokens off;
+server {
+  listen 8080;
+  location = /healthz { return 200 "ok\n"; add_header Content-Type text/plain; }
+  location / { return 404; }
+}
+server {
+  listen 8443 ssl;
+  http2 on;
+  server_name {{ .Values.tenant.host }};
+  ssl_certificate /etc/nginx/tls/tls.crt;
+  ssl_certificate_key /etc/nginx/tls/tls.key;
+  ssl_protocols TLSv1.3;
+  add_header Strict-Transport-Security "max-age=31536000" always;
+  proxy_http_version 1.1;
+  proxy_set_header Host $host;
+  proxy_set_header x-did {{ include "wallet.did" . | quote }};
+  proxy_set_header x-namespace {{ include "wallet.mount" . | quote }};
+  proxy_set_header x-group "";
+  proxy_set_header x-engine "transit";
+  proxy_set_header x-origin "https://{{ .Values.tenant.host }}";
+  # Every other header the W-Stack's gateway sets is cleared, so nothing the client sends reaches
+  # the signer as an identity header.
+  proxy_set_header x-key "";
+  proxy_set_header x-host "";
+  proxy_set_header x-issuer "";
+  proxy_set_header x-issuerkid "";
+  proxy_set_header x-signerkey "";
+  proxy_set_header x-jwks-url "";
+  proxy_set_header x-tokenendpoint "";
+  proxy_set_header x-type "";
+  proxy_set_header x-groupid "";
+  proxy_set_header x-tenantid "";
+  proxy_set_header x-format "";
+  proxy_set_header x-nonce "";
+  proxy_set_header x-audience-url "";
+  proxy_set_header Authorization "";
+  proxy_set_header Cookie "";
+  location = /.well-known/did.json {
+    proxy_pass http://{{ include "wallet.component" (dict "Release" .Release "component" "signer") }}:8080/v1/did/document;
+  }
+  location = /.well-known/jwks.json {
+    proxy_pass http://{{ include "wallet.component" (dict "Release" .Release "component" "signer") }}:8080/v1/jwks;
+  }
+  location / { return 404; }
+}
+{{- end -}}
+{{- $c := dict "Release" .Release "Values" .Values "Chart" .Chart "component" "edge" -}}
+{{- $signer := include "wallet.component" (dict "Release" .Release "component" "signer") -}}
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "wallet.component" $c }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "wallet.labels" . | nindent 4 }}
+    app.kubernetes.io/component: edge
+data:
+  default.conf: |
+    {{- include "wallet.edgeConf" . | nindent 4 }}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "wallet.component" $c }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "wallet.labels" . | nindent 4 }}
+    app.kubernetes.io/component: edge
+  {{- with .Values.edge.service.annotations }}
+  annotations:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+spec:
+  type: {{ .Values.edge.service.type }}
+  {{- if and (eq .Values.edge.service.type "LoadBalancer") .Values.edge.service.loadBalancerIP }}
+  loadBalancerIP: {{ .Values.edge.service.loadBalancerIP | quote }}
+  {{- end }}
+  {{- if ne .Values.edge.service.type "ClusterIP" }}
+  externalTrafficPolicy: {{ .Values.edge.service.externalTrafficPolicy }}
+  {{- end }}
+  selector:
+    {{- include "wallet.selector" $c | nindent 4 }}
+  ports:
+    - name: https
+      port: 443
+      targetPort: https
+      {{- if and (ne .Values.edge.service.type "ClusterIP") .Values.edge.service.nodePort }}
+      nodePort: {{ .Values.edge.service.nodePort }}
+      {{- end }}
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "wallet.component" $c }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "wallet.labels" . | nindent 4 }}
+    app.kubernetes.io/component: edge
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      {{- include "wallet.selector" $c | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "wallet.podLabels" $c | nindent 8 }}
+      annotations:
+        checksum/config: {{ include "wallet.edgeConf" . | sha256sum | trunc 16 }}
+    spec:
+      serviceAccountName: {{ include "wallet.component" $c }}
+      automountServiceAccountToken: false
+      enableServiceLinks: false
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 101
+        runAsGroup: 101
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: edge
+          image: {{ include "wallet.image" (dict "Values" .Values "image" "edge") | quote }}
+          imagePullPolicy: IfNotPresent
+          ports:
+            - name: https
+              containerPort: 8443
+            - name: health
+              containerPort: 8080
+          readinessProbe:
+            httpGet:
+              path: /healthz
+              port: health
+            periodSeconds: 5
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: health
+            periodSeconds: 15
+          resources:
+            {{- toYaml .Values.resources.edge | nindent 12 }}
+          securityContext:
+            {{- include "wallet.containerSecurity" . | nindent 12 }}
+          volumeMounts:
+            - name: config
+              mountPath: /etc/nginx/conf.d/default.conf
+              subPath: default.conf
+              readOnly: true
+            - name: tls
+              mountPath: /etc/nginx/tls
+              readOnly: true
+            - name: tmp
+              mountPath: /tmp
+      volumes:
+        - name: config
+          configMap:
+            name: {{ include "wallet.component" $c }}
+        - name: tls
+          secret:
+            secretName: {{ .Values.edge.tls.existingSecret | quote }}
+        - name: tmp
+          emptyDir:
+            sizeLimit: 16Mi

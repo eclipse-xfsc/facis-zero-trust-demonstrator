@@ -1,0 +1,261 @@
+{{- if .Values.networkPolicy.enabled }}
+{{- $signer := dict "Release" .Release "component" "signer" -}}
+{{- $storage := dict "Release" .Release "component" "storage" -}}
+{{- $retrieval := dict "Release" .Release "component" "retrieval" -}}
+{{- $edge := dict "Release" .Release "component" "edge" -}}
+{{- $key := dict "Release" .Release "component" "key" -}}
+{{- $renew := dict "Release" .Release "component" "renew" -}}
+---
+# The signer's pod: its HTTP from the edge and the retrieval service, its engine from the storage
+# service; out to OpenBao, NATS and the resolver.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: {{ include "wallet.component" $signer }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "wallet.labels" . | nindent 4 }}
+spec:
+  podSelector:
+    matchLabels:
+      {{- include "wallet.selector" $signer | nindent 6 }}
+  policyTypes: [Ingress, Egress]
+  ingress:
+    - from:
+        - podSelector:
+            matchLabels:
+              {{- include "wallet.selector" $edge | nindent 14 }}
+        - podSelector:
+            matchLabels:
+              {{- include "wallet.selector" $retrieval | nindent 14 }}
+      ports:
+        - { port: 8080, protocol: TCP }
+    - from:
+        - podSelector:
+            matchLabels:
+              {{- include "wallet.selector" $storage | nindent 14 }}
+      ports:
+        - { port: 50051, protocol: TCP }
+  egress:
+    {{- include "wallet.dnsEgress" . | nindent 4 }}
+    - to:
+        - podSelector:
+            matchLabels:
+              {{- toYaml .Values.networkPolicy.openbaoSelector | nindent 14 }}
+      ports:
+        - { port: 8200, protocol: TCP }
+    - to:
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/name: ocm-backbone
+              app.kubernetes.io/component: nats
+      ports:
+        - { port: 4222, protocol: TCP }
+---
+# The key Job: out to OpenBao and the resolver, in from nobody.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: {{ include "wallet.component" $key }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "wallet.labels" . | nindent 4 }}
+spec:
+  podSelector:
+    matchLabels:
+      {{- include "wallet.selector" $key | nindent 6 }}
+  policyTypes: [Ingress, Egress]
+  ingress: []
+  egress:
+    {{- include "wallet.dnsEgress" . | nindent 4 }}
+    - to:
+        - podSelector:
+            matchLabels:
+              {{- toYaml .Values.networkPolicy.openbaoSelector | nindent 14 }}
+      ports:
+        - { port: 8200, protocol: TCP }
+---
+# The renewal CronJob: out to OpenBao and the resolver, in from nobody.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: {{ include "wallet.component" $renew }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "wallet.labels" . | nindent 4 }}
+spec:
+  podSelector:
+    matchLabels:
+      {{- include "wallet.selector" $renew | nindent 6 }}
+  policyTypes: [Ingress, Egress]
+  ingress: []
+  egress:
+    {{- include "wallet.dnsEgress" . | nindent 4 }}
+    - to:
+        - podSelector:
+            matchLabels:
+              {{- toYaml .Values.networkPolicy.openbaoSelector | nindent 14 }}
+      ports:
+        - { port: 8200, protocol: TCP }
+---
+# The storage service: its API from the lane's pods of this namespace; out to Cassandra, NATS, the
+# signer's engine and the resolver.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: {{ include "wallet.component" $storage }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "wallet.labels" . | nindent 4 }}
+spec:
+  podSelector:
+    matchLabels:
+      {{- include "wallet.selector" $storage | nindent 6 }}
+  policyTypes: [Ingress, Egress]
+  ingress:
+    - from:
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/part-of: ocm
+      ports:
+        - { port: 8080, protocol: TCP }
+  egress:
+    {{- include "wallet.dnsEgress" . | nindent 4 }}
+    - to:
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/name: ocm-backbone
+      ports:
+        - { port: 9042, protocol: TCP }
+        - { port: 4222, protocol: TCP }
+    - to:
+        - podSelector:
+            matchLabels:
+              {{- include "wallet.selector" $signer | nindent 14 }}
+      ports:
+        - { port: 50051, protocol: TCP }
+---
+# The retrieval service: its API from the lane's pods of this namespace; out to Cassandra, NATS,
+# the signer, the resolver and the issuers it fetches credentials from.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: {{ include "wallet.component" $retrieval }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "wallet.labels" . | nindent 4 }}
+spec:
+  podSelector:
+    matchLabels:
+      {{- include "wallet.selector" $retrieval | nindent 6 }}
+  policyTypes: [Ingress, Egress]
+  ingress:
+    - from:
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/part-of: ocm
+      ports:
+        - { port: 8080, protocol: TCP }
+  egress:
+    {{- include "wallet.dnsEgress" . | nindent 4 }}
+    - to:
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/name: ocm-backbone
+      ports:
+        - { port: 9042, protocol: TCP }
+        - { port: 4222, protocol: TCP }
+    - to:
+        - podSelector:
+            matchLabels:
+              {{- include "wallet.selector" $signer | nindent 14 }}
+      ports:
+        - { port: 8080, protocol: TCP }
+    {{- if .Values.networkPolicy.issuerEgress.cidrs }}
+    - to:
+        {{- range .Values.networkPolicy.issuerEgress.cidrs }}
+        - ipBlock: { cidr: {{ . | quote }} }
+        {{- end }}
+      ports:
+        - { port: {{ .Values.networkPolicy.issuerEgress.port }}, protocol: TCP }
+    {{- end }}
+    {{- with .Values.networkPolicy.issuerEgress.peers }}
+    - to:
+        {{- toYaml . | nindent 8 }}
+      ports:
+        - { port: 8443, protocol: TCP }
+        - { port: 443, protocol: TCP }
+    {{- end }}
+---
+# The edge: TLS from the world, out to the signer and the resolver only.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: {{ include "wallet.component" $edge }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "wallet.labels" . | nindent 4 }}
+spec:
+  podSelector:
+    matchLabels:
+      {{- include "wallet.selector" $edge | nindent 6 }}
+  policyTypes: [Ingress, Egress]
+  ingress:
+    # From the world (ipBlocks never match Cilium-managed pods) and from the lane's pods of this
+    # namespace, which resolve DIDs in-cluster.
+    - from:
+        {{- range .Values.networkPolicy.edgeIngress.cidrs }}
+        - ipBlock: { cidr: {{ . | quote }} }
+        {{- end }}
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/part-of: ocm
+      ports:
+        - { port: 8443, protocol: TCP }
+  egress:
+    {{- include "wallet.dnsEgress" . | nindent 4 }}
+    - to:
+        - podSelector:
+            matchLabels:
+              {{- include "wallet.selector" $signer | nindent 14 }}
+      ports:
+        - { port: 8080, protocol: TCP }
+{{- if .Values.networkPolicy.cilium }}
+---
+# Cilium does not match cluster nodes by address: a request a LoadBalancer or NodePort lands on
+# another node arrives source-translated to that node's address and is dropped by the ipBlock
+# above. This admits the TLS port from the node entities, and from the world only when
+# edgeIngress.cidrs is the any-address default (Cilium policies are additive: a narrower CIDR list
+# is kept by rendering the CIDRs here instead of the world entity).
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: {{ include "wallet.component" $edge }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "wallet.labels" . | nindent 4 }}
+spec:
+  endpointSelector:
+    matchLabels:
+      {{- include "wallet.selector" $edge | nindent 6 }}
+  ingress:
+    - fromEntities: [remote-node, host]
+      toPorts:
+        - ports:
+            - { port: "8443", protocol: TCP }
+    {{- if has "0.0.0.0/0" .Values.networkPolicy.edgeIngress.cidrs }}
+    - fromEntities: [world]
+      toPorts:
+        - ports:
+            - { port: "8443", protocol: TCP }
+    {{- else }}
+    - fromCIDRSet:
+        {{- range .Values.networkPolicy.edgeIngress.cidrs }}
+        - cidr: {{ . | quote }}
+        {{- end }}
+      toPorts:
+        - ports:
+            - { port: "8443", protocol: TCP }
+    {{- end }}
+{{- end }}
+{{- end }}

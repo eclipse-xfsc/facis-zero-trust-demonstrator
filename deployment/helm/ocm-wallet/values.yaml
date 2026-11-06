@@ -1,0 +1,146 @@
+# The tenant: the organisation this release is the wallet of. `id` names it inside the zone (the
+# tenant id of the W-Stack APIs and the label on every pod); `host` is the public name of its
+# did:web document, so the DID is did:web:<host> and the document is served at
+# https://<host>/.well-known/did.json; `key` is the transit key the document lists (default
+# wallet-<id>) and `transitMount` the OpenBao transit engine that holds it (default ocm/<id>): the
+# engine the umbrella's bootstrap created for this release's service token
+# (openbaoBootstrap.serviceTokens, docs/secrets.md). A DID document lists every key of its engine,
+# so an engine is one identity and is never shared between releases.
+tenant:
+  id: ""
+  host: ""
+  key: ""
+  transitMount: ""
+
+# Every image by digest only - the chart refuses a tag. The W-Stack images from the XFSC Harbor on
+# the client's registry host, the edge and the hook image from Docker Hub (tags in the comments).
+images:
+  signer:
+    repository: node-654e3bca7fbeeed18f81d7c7.ps-xaas.io/tsa/signer                                    # 2.3.9
+    digest: ""
+  vaultPlugin:
+    repository: node-654e3bca7fbeeed18f81d7c7.ps-xaas.io/tsa/crypto-provider-hashicorp-vault-plugin   # 2.0.6
+    digest: ""
+  storage:
+    repository: node-654e3bca7fbeeed18f81d7c7.ps-xaas.io/ocm-wstack/storage-service                   # 1.3.3
+    digest: ""
+  retrieval:
+    repository: node-654e3bca7fbeeed18f81d7c7.ps-xaas.io/ocm-wstack/credential-retrieval-service      # 1.1.7
+    digest: ""
+  edge:
+    repository: docker.io/nginxinc/nginx-unprivileged                                                 # 1.29-alpine
+    digest: ""
+  hook:
+    repository: docker.io/curlimages/curl                                                             # 8.10.1
+    digest: ""
+
+# The zone's OpenBao and this release's token: the Secret the umbrella's bootstrap wrote for the
+# matching serviceTokens entry (ztd-openbao-<name>, key openbao-token). Only the signer's engine
+# container reads it; the chart never carries a token.
+openbao:
+  address: http://ztd-openbao.ztd-mgmt.svc:8200
+  existingSecret: ""
+  secretKey: openbao-token
+
+# The zone's stores (ocm-backbone in the same namespace). The keyspace is the one the W-Stack
+# migrations are written for. `credentialsSecret` names a Secret with `username` and `password`
+# for a Cassandra with authentication on; empty (the backbone's default authenticator admits every
+# connection) sends no credentials. The chart never carries a password.
+backbone:
+  natsUrl: nats://ocm-nats:4222
+  cassandraHosts: ocm-cassandra:9042
+  keyspace: ocm
+  credentialsSecret: ""
+
+# NATS subjects, prefixed per tenant so two releases on one backbone never consume each other's
+# messages: <prefix>.offering (offers for this wallet), <prefix>.storage (store requests),
+# <prefix>.signer (signing requests). Default prefix: tenant.id.
+messaging:
+  prefix: ""
+
+# The edge: nginx in front of the signer, TLS on 8443, serving /.well-known/did.json and
+# /.well-known/jwks.json with the tenant's identity headers set here and nowhere else. The certificate is a kubernetes.io/tls Secret the zone supplies
+# (tls.crt, tls.key) for `tenant.host`. LoadBalancer where the zone has one, NodePort on kind.
+edge:
+  service:
+    type: ClusterIP
+    nodePort: null
+    loadBalancerIP: ""
+    externalTrafficPolicy: Cluster
+    annotations: {}
+  tls:
+    existingSecret: ""
+
+# The retrieval service: where the wallet lives and how it trusts issuers. `trustedCAConfigMap`
+# names a ConfigMap with a `ca.crt` bundle the service trusts in addition to the system roots (the
+# zone's own CA while certificates are self-issued); `disableTLS` is the upstream's development
+# switch and stays off.
+retrieval:
+  country: DE
+  region: EU
+  disableTLS: false
+  trustedCAConfigMap: ""
+
+# Mesh layer: with the zone's sidecar mesh, PeerAuthentication STRICT for every workload except the
+# edge's TLS port, which the world reaches without a sidecar. Off on a plain kind cluster.
+mesh:
+  enabled: false
+
+# Every pod carries the SPIRE-managed-identity label the zone's policy selects (its SPIFFE ID ends in
+# its own ServiceAccount, <release>-<component>).
+identity:
+  spireManagedIdentity: true
+
+# Network layer. The umbrella's default deny covers the namespace; this chart opens, per pod, only
+# what the lane needs: the signer to OpenBao, the three services to NATS and Cassandra, the storage
+# service to the signer's engine, the edge to the signer, the edge's TLS port to the world (and,
+# with Cilium, to the node entities a LoadBalancer's traffic arrives from), and the retrieval
+# service to the issuers it fetches from (`issuerEgress`: CIDRs on 443, or pod/namespace selectors
+# inside the cluster). `openbaoSelector` selects the zone's OpenBao pods in this namespace. Inside the
+# namespace these policies narrow nothing while the umbrella's intra-plane lane is on
+# (networkPolicy.intraPlane, the default): they take effect for traffic from outside the namespace
+# and in a zone that turns that lane off. With `cilium`, a `edgeIngress.cidrs` narrower than the
+# any-address default is rendered as a CIDR set in the Cilium policy too.
+networkPolicy:
+  enabled: true
+  cilium: false
+  openbaoSelector:
+    app.kubernetes.io/name: openbao
+  edgeIngress:
+    cidrs: ["0.0.0.0/0", "::/0"]
+  issuerEgress:
+    cidrs: []
+    port: 443
+    peers: []   # NetworkPolicyPeer objects, e.g. [{podSelector: {matchLabels: {app.kubernetes.io/component: edge}}}]
+
+# The release renews its own OpenBao token once a day (renew-self); the token's period is 768 h by
+# default, so a missed day or two is harmless.
+tokenRenewal:
+  schedule: "17 3 * * *"
+
+# Hooks on the umbrella's hook-weight scheme (docs/umbrella-chart.md): the key Job runs in the
+# platform band, 40 to 59, after the pods of an install or upgrade are up.
+hooks:
+  weight: 45
+
+logLevel: info
+
+resources:
+  signer:
+    requests: { cpu: 50m, memory: 128Mi }
+    limits: { memory: 512Mi }
+  vaultPlugin:
+    requests: { cpu: 20m, memory: 32Mi }
+    limits: { memory: 128Mi }
+  storage:
+    requests: { cpu: 25m, memory: 64Mi }
+    limits: { memory: 256Mi }
+  retrieval:
+    requests: { cpu: 25m, memory: 64Mi }
+    limits: { memory: 256Mi }
+  edge:
+    requests: { cpu: 10m, memory: 16Mi }
+    limits: { memory: 64Mi }
+  hook:
+    requests: { cpu: 10m, memory: 16Mi }
+    limits: { memory: 64Mi }

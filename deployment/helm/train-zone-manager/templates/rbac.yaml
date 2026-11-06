@@ -1,0 +1,42 @@
+{{- /*
+The pod's own service account, used by the `address` init step alone (a projected token mounted only
+there): it may read the DNS Service, to learn the address the load balancer gave it, and nothing else.
+*/ -}}
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: {{ include "tzm.name" . }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "tzm.labels" . | nindent 4 }}
+automountServiceAccountToken: false
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: {{ include "tzm.name" . }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "tzm.labels" . | nindent 4 }}
+rules:
+  - apiGroups: [""]
+    resources: ["services"]
+    resourceNames: [{{ printf "%s-dns" (include "tzm.name" .) | quote }}]
+    verbs: ["get"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: {{ include "tzm.name" . }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "tzm.labels" . | nindent 4 }}
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: {{ include "tzm.name" . }}
+subjects:
+  - kind: ServiceAccount
+    name: {{ include "tzm.name" . }}
+    namespace: {{ .Release.Namespace }}

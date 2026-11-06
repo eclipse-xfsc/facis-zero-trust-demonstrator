@@ -22,6 +22,7 @@ and is declared as such in [Specification changes](specifications.md#readings-an
 | `.github/workflows/ci.yml` | every pull request, push to `main`, published release, manual | Go lint and tests, image build with the Linux assertion and a Trivy scan, chart lint and dry-run render; on a published release, the chart gate once more and the chart packaging and publication (see [Chart release](#chart-release)) |
 | `.github/workflows/release.yml` | manual, push to a `candidate/**` branch | Release candidate: the chart gate (see [Chart gate](#chart-gate)), then builds, pushes, signs and attests every image by digest and verifies each one (see [Image signing](#image-signing)); beside it the secrets baseline (see [Secrets](secrets.md#the-baseline-proof-tdr-bdd-08)) |
 | `.github/workflows/measurement-determinism.yml` | pull request and push to `main` touching the check, manual | Measures one fixture on a hosted runner, in a container, and on a deliberately divergent checkout, and requires the normalised measurement to be the same on all three |
+| `.github/workflows/ocm-wallet.yml` | pull request and push to `main` touching the OCM wallet lane (the `ocm-*` charts, the umbrella, the proof, the pins, the scripts it calls), manual | Installs the umbrella with two service tokens, `ocm-backbone` and two `ocm-wallet` releases on kind and runs `scripts/verify-ocm-wallet/verify.sh`; publishes the records as the artifact `ocm-wallet-lane` |
 | `.github/workflows/policy-hook.yml` | pull requests touching the policy-hook probe, its script, the pinned Envoy image or the policy fixtures; manual | Runs the guard policy-hook proofs (`scripts/verify-policy-hook/verify.sh`) against Envoy from the pinned image, uploads the records as an artefact and writes the verdict and the latency numbers to the job summary |
 
 ## The service pipeline
@@ -36,6 +37,8 @@ and nobody hand-rolls their own:
 | `Image build and scan` | Builds each context under `deployment/docker/` for `linux/amd64`, asserts the built image's OS, then scans it with Trivy for HIGH and CRITICAL vulnerabilities | yes |
 | `Chart lint and render` | `scripts/ci/check-charts.sh`: `helm lint` and a `helm template` render of every chart under `deployment/helm/` and `features/fixtures/charts/`, dependencies built from `Chart.lock`; then `scripts/ci/check-charts_test.sh`, the cases that hold the script to refusing a package when a chart fails | yes |
 | `Release charts` | On a published release only, once every other gate job of the workflow has passed: runs the chart gate with its server dry-run on a disposable cluster, packages the charts under `deployment/helm/` at the release version, attaches them to the release with their checksums and, when a registry is configured, pushes them as OCI chart artefacts — see [Chart release](#chart-release) | yes — a release whose gates fail ships no chart |
+| `TRAIN zone manager image` | `scripts/train-zone-manager/image_test.sh`, through the `@image` regression feature: the zone manager image is built from its pinned upstream commit with its patches and driven in Docker through first start, restart and re-sign, each case with its negative half (see `deployment/docker/train-zone-manager/`) | yes |
+| `TRAIN zone manager chart (kind)` | `scripts/train-zone-manager/chart_test.sh`, through the `@chart` regression feature: the chart is installed on a throwaway kind cluster laid out like a zone and driven through install, reinstall on kept volumes, restore from backup, re-sign, ports and planes, each case with its negative half (see `deployment/helm/train-zone-manager/`) | yes |
 
 ZT-13 requires Linux images. The pipeline reads the OS back off the built image with
 `docker image inspect` and fails if it is anything but `linux/amd64`, rather than trusting the
@@ -225,10 +228,12 @@ repository variable `BDD_<KEY>_ORCE_LOGS_CMD`, plus its entry in the job's matri
 
 Every image is scanned and a HIGH or CRITICAL finding fails the build. When a finding sits in an
 upstream component that this project cannot fix in its own layer, a `scan-exception.json` next to
-the image's Dockerfile may exclude named paths from the gate. It must carry an expiry date, the
-reason and the tracking of the upstream fix; the job prints it into the run summary and fails the
-build once it has expired. The ORCE image carries one for the upstream ORCE runtime, kubectl and the bundled Helm,
-expiring 13 November 2026.
+the image's Dockerfile may exclude named paths from the gate, or, with `ignoreUnfixed`, the
+findings a distribution base records no fix for (Trivy's `--ignore-unfixed`). It must carry an
+expiry date, the reason and the tracking of the upstream fix; the job prints it into the run summary
+and fails the build once it has expired. The ORCE image carries one for the upstream ORCE runtime,
+kubectl and the bundled Helm, expiring 13 November 2026; the TRAIN zone manager image carries one
+for the Debian packages of its base that Debian has no fix for, expiring 18 December 2026.
 
 ## Repository protection and least privilege
 
