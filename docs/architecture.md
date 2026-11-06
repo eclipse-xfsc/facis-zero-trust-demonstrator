@@ -296,7 +296,7 @@ the evidence. It is declared in [Specifications](specifications.md) as a propose
 with its approval pending; the row that disposes it, with istiod's client authentication pinned
 and proven, is left to a follow-up. istiod's CA answers on the same port and cannot be switched
 off; a certificate it issues is refused by every meshed peer, whose `ROOTCA` is SPIRE's bundle
-alone, as every run of the mesh identity proof shows (see `scripts/verify-mesh-identity/README.md`). The other three openings keep
+alone (the `mesh-identity-issued-by-spire` check of the mesh identity proof, `scripts/verify-mesh-identity/README.md`). The other three openings keep
 the catch-all denial whole: in particular a data-plane workload reaches the SPIRE server on no
 port. Each opening is rendered by the umbrella chart only when the zone file enables it, and is
 proven by the named check of the mesh identity proof, which every run records (see
