@@ -11,8 +11,9 @@
 #   scripts/verify-connector/verify.sh [--out DIR]       default .dev/connector-evidence (git-ignored)
 #   BIN=<dir with kind and kubectl> ...                   default .tools/bin (scripts/tools/install.sh kind kubectl)
 #
-# Needs docker, helm, kind, kubectl, curl, jq. KEEP=1 leaves the cluster and registry running for
-# inspection.
+# Needs docker, helm, kind, kubectl, curl, jq, and the pinned Istio CRDs the chart's PeerAuthentication
+# needs (BIN/istio-crds from scripts/tools/install.sh, or fetched into the work directory). KEEP=1 leaves
+# the cluster and registry running for inspection.
 set -euo pipefail
 
 root="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
@@ -50,7 +51,7 @@ hex() { head -c "$1" /dev/urandom | od -An -tx1 | tr -d ' \n'; }
 bao_root="$(hex 16)"
 db_password="$(hex 12)"
 db_url="postgres://postgres:$db_password@postgres:5432/tokenstore?sslmode=disable"
-connector_sel='app.kubernetes.io/name=ztd-connector,app.kubernetes.io/component=server'
+connector_sel='app.kubernetes.io/name=ztd-connector'
 work="$(mktemp -d)"
 export KUBECONFIG="$work/kubeconfig"
 proxy_pid=""
@@ -148,9 +149,10 @@ step "PostgreSQL and OpenBao from the pinned images, the Secrets, the transit ke
 kubectl create namespace "$ns" >/dev/null
 registrar_secret=$(hex 24)
 kubectl -n "$ns" create secret generic token-store-database --from-literal=url="$db_url" >/dev/null
-kubectl -n "$ns" create secret generic connector-secrets --from-literal=token-secret="$(hex 24)" \
-  --from-literal=registration-secret="$(hex 24)" --from-literal=registrar-secret="$registrar_secret" >/dev/null
-kubectl -n "$ns" create secret generic connector-openbao --from-literal=token="$bao_root" >/dev/null
+# The connector's credentials Secret: the key-value store token and the three secrets of its own.
+kubectl -n "$ns" create secret generic connector-credentials --from-literal=openbao-token="$bao_root" \
+  --from-literal=token-hmac="$(hex 24)" --from-literal=registration-hmac="$(hex 24)" \
+  --from-literal=registrar-secret="$registrar_secret" >/dev/null
 kubectl -n "$ns" apply -f - <<EOF >/dev/null
 apiVersion: apps/v1
 kind: Deployment
@@ -253,12 +255,38 @@ helm install token-store deployment/helm/token-store -n "$ns" --set "image.repos
 version=$(psql "SELECT coalesce(max(version), 0) FROM schema_migrations")
 if [ "$version" -ge 4 ]; then pass "the token-store chart applied the schema to version $version"; else fail "schema at version $version, the connector needs 4"; fi
 
+step "The Istio CRDs the chart's PeerAuthentication needs"
+crds="${BIN:-.tools/bin}/istio-crds"
+if [ ! -d "$crds" ]; then scripts/tools/install.sh "$work/tools" istio-crds >/dev/null; crds="$work/tools/istio-crds"; fi
+kubectl apply --server-side -f "$crds/" >/dev/null
+kubectl wait --for condition=established --timeout=60s -f "$crds/" >/dev/null
+
 step "The connector: installed and ready"
-helm install connector deployment/helm/connector -n "$ns" --set "image.repository=$reg/connector" --set "image.digest=$connector_digest" \
-  --set zone=b --set database.existingSecret=token-store-database --set openbao.address=http://openbao:8200 \
-  --set openbao.existingTokenSecret=connector-openbao --set secrets.existingSecret=connector-secrets \
-  --set "issuer=$issuer" --set signing.key=connector-at --set signing.version=1 \
-  --set 'registrar.scopes={connector:client_registration,resource.read}' --set "registrar.audiences={$resource}" \
+endpoint="http://ztd-connector.$ns.svc:8080/oauth2/register"
+# The chart's NetworkPolicy admits no caller and no dependency until the deployment names its lanes,
+# and kind enforces it: the registration pods in, PostgreSQL and OpenBao out.
+cat > "$work/connector-network.yaml" <<EOF
+networkPolicy:
+  ingressFrom:
+    - podSelector:
+        matchLabels: {facis.verify/role: register}
+  egress:
+    - to:
+        - podSelector:
+            matchLabels: {app: postgres}
+      ports: [{port: 5432, protocol: TCP}]
+    - to:
+        - podSelector:
+            matchLabels: {app: openbao}
+      ports: [{port: 8200, protocol: TCP}]
+EOF
+helm install connector deployment/helm/connector -n "$ns" -f "$work/connector-network.yaml" \
+  --set "image.repository=$reg/connector" --set "image.digest=$connector_digest" \
+  --set zone=b --set database.existingSecret=token-store-database --set credentials.existingSecret=connector-credentials \
+  --set openbao.address=http://openbao:8200 --set openbao.signingKey=connector-at --set openbao.signingKeyVersion=1 \
+  --set "oauth.issuer=$issuer" --set "oauth.registrationEndpoint=$endpoint" \
+  --set 'oauth.registrarScopes={connector:client_registration,resource.read}' --set "oauth.registrarAudiences={$endpoint,$resource}" \
+  --set verifiedPresentation.enabled=false \
   --wait --timeout 3m >/dev/null
 start_proxy
 rid="verify-ready-$(hex 4)"
@@ -289,6 +317,7 @@ apiVersion: v1
 kind: Pod
 metadata:
   name: $name
+  labels: {facis.verify/role: register}
 spec:
   restartPolicy: Never
   securityContext:
@@ -317,7 +346,7 @@ spec:
         - {name: out, mountPath: /out, readOnly: true}
   volumes:
     - name: secrets
-      secret: {secretName: connector-secrets, defaultMode: 0400, items: [{key: registrar-secret, path: registrar-secret}]}
+      secret: {secretName: connector-credentials, defaultMode: 0400, items: [{key: registrar-secret, path: registrar-secret}]}
     - name: out
       emptyDir: {}
     - name: metadata

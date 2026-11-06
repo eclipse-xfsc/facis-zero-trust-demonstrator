@@ -198,6 +198,11 @@ func (e *subEnv) serverWith(renewal bool) (*Server, string) {
 		s.renewal = nil // renewal is tested in internal/renew; here it would race the rows the tests set up
 	}
 	startServer(e.t, s)
+	select {
+	case <-s.keyStarted:
+	case <-time.After(10 * time.Second):
+		e.t.Fatal("startup key provisioning did not finish")
+	}
 	e.servers = append(e.servers, s)
 	return s, "http://" + s.Addr().String() + "/internal/substitute"
 }
@@ -688,7 +693,7 @@ func TestSubstitute_StoreFailuresAre503AndAPeerRefusalIs409(t *testing.T) {
 // real version with its thumbprint is ready; a version transit does not have, or another
 // thumbprint, is not; references with no transit key configured are not either.
 func TestReadyz_ResolvesActiveSigningKeys(t *testing.T) {
-	e := newSubEnv(t, false)
+	e := newSubEnv(t, true)
 	s, _ := e.server()
 	ctx := t.Context()
 	signing := func() string {
@@ -771,5 +776,65 @@ func TestSubstitute_ATokenThatExpiresDuringSigningIsNoUpstream(t *testing.T) {
 	}
 	if n := e.acquisitions(); n != 1 {
 		t.Errorf("%d acquisitions; the discarded token must not be reacquired synchronously", n)
+	}
+}
+
+// Real Connector/OpenBao public material is authoritative even without active rows.
+func TestReadyz_RefusesSharedConnectorKeyMaterial(t *testing.T) {
+	e := newSubEnv(t, true)
+	if _, err := e.bao.EnsureKey(t.Context(), e.loaded.SigningKey); err != nil {
+		t.Fatal(err)
+	}
+	s, _ := e.server()
+	distinct := e.loaded.SigningKey
+	if state := s.checkSigningKey(t.Context()); state != checkOK {
+		t.Fatalf("distinct keys: %s", state)
+	}
+	e.loaded.SigningKey = e.b.SigningKey
+	if state := s.checkSigningKey(t.Context()); state != checkSharedIssuerKey {
+		t.Fatalf("shared key: %s", state)
+	}
+	oldRef, oldJKT, err := (keys.Keys{Signer: e.bao, Name: e.b.SigningKey}).Ensure(t.Context())
+	if err != nil {
+		t.Fatal(err)
+	}
+	req, err := http.NewRequestWithContext(t.Context(), http.MethodPost, strings.TrimRight(os.Getenv("TRANSIT_TEST_ADDR"), "/")+"/v1/transit/keys/"+e.b.SigningKey+"/rotate", nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	req.Header.Set("X-Vault-Token", os.Getenv("TRANSIT_TEST_TOKEN"))
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		t.Fatal("rotation request failed")
+	}
+	_ = resp.Body.Close()
+	if resp.StatusCode != http.StatusNoContent && resp.StatusCode != http.StatusOK {
+		t.Fatalf("rotation status %d", resp.StatusCode)
+	}
+	if state := s.checkSigningKey(t.Context()); state != checkOK {
+		t.Fatalf("new latest key must differ from published older Connector key: %s", state)
+	}
+	if _, err := e.poolA.Exec(t.Context(), `INSERT INTO signing_key (key_ref,jkt,alg,state) VALUES ($1,$2,'ES256','active')`, oldRef.Ref(), oldJKT); err != nil {
+		t.Fatal(err)
+	}
+	if state := s.checkSigningKey(t.Context()); state != checkSharedIssuerKey {
+		t.Fatalf("shared older active version: %s", state)
+	}
+	if _, err := e.poolA.Exec(t.Context(), `DELETE FROM signing_key WHERE key_ref=$1`, oldRef.Ref()); err != nil {
+		t.Fatal(err)
+	}
+	e.loaded.SigningKey = distinct
+	if state := s.checkSigningKey(t.Context()); state != checkOK {
+		t.Fatalf("restored separation: %s", state)
+	}
+	e.b.Stop()
+	if state := s.checkSigningKey(t.Context()); state != checkOK {
+		t.Fatalf("fresh cached result: %s", state)
+	}
+	s.issuerCache.mu.Lock()
+	s.issuerCache.expires = time.Time{}
+	s.issuerCache.mu.Unlock()
+	if state := s.checkSigningKey(t.Context()); state != checkUnreachable {
+		t.Fatalf("expired cache with unavailable issuer: %s", state)
 	}
 }

@@ -219,6 +219,56 @@ func TestAClaimSkipsARowAnotherWorkerIsClaiming(t *testing.T) {
 	}
 }
 
+// secondRoute adds a second route, same peer and audience but another tenant, and makes its token
+// due together with the first route's.
+func (e *env) secondRoute() (first, second string) {
+	e.t.Helper()
+	r := e.route
+	r.Name, r.Tenant = "zone-b-api-second", "second"
+	e.loaded.Routes[r.Name] = r
+	tok, err := e.a.Acquire(e.ctx, r)
+	if err != nil {
+		e.t.Fatal(err)
+	}
+	first = e.due()
+	e.makeDue(tok.ID)
+	return first, tok.ID
+}
+
+// TestAClaimTakesAtMostTheRequestedRows: with two routes due on a fresh table, a claim of one row
+// claims one row. Planned as a semi-join, the locking subquery can be rescanned per outer row and
+// claim both, leaving a claim no renewal owns.
+func TestAClaimTakesAtMostTheRequestedRows(t *testing.T) {
+	e := newEnv(t)
+	e.secondRoute()
+	claims, err := e.worker("w1").claim(e.ctx, 1)
+	if err != nil || len(claims) != 1 {
+		t.Fatalf("claim of one row with two due: %d claims, %v; want 1", len(claims), err)
+	}
+	if n := e.count(e.poolA, `SELECT count(*) FROM upstream_token WHERE state = 'renewing'`); n != 1 {
+		t.Fatalf("%d rows claimed; want 1", n)
+	}
+}
+
+// TestACycleRenewsEveryDueRoute: two routes due at once are both renewed in one cycle; neither is
+// left claimed for the staleness sweep to fail.
+func TestACycleRenewsEveryDueRoute(t *testing.T) {
+	e := newEnv(t)
+	first, second := e.secondRoute()
+	e.worker("w1").Cycle(e.ctx)
+	for _, id := range []string{first, second} {
+		if s := e.state(id); s != "retired" {
+			t.Errorf("token %s is %s after the cycle; want retired", id, s)
+		}
+	}
+	if n := e.count(e.poolA, `SELECT count(*) FROM upstream_token WHERE state = 'active'`); n != 2 {
+		t.Errorf("%d active rows after the cycle; want one per route", n)
+	}
+	if n := e.count(e.poolA, `SELECT count(*) FROM upstream_token WHERE state IN ('renewing', 'failed')`); n != 0 {
+		t.Errorf("%d rows left renewing or failed; want 0", n)
+	}
+}
+
 func TestIssuerDownFailsTheTokenAndSubstitutionHasNoUpstream(t *testing.T) {
 	e := newEnv(t)
 	id := e.due()

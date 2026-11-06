@@ -28,6 +28,7 @@ func Cleanup() { connectortest.Cleanup() }
 // ZoneB is a running connector and the store's client registered at it.
 type ZoneB struct {
 	Base, ClientID, ClientSecret string
+	SigningKey                   string
 	// Stop stops the connector (SIGTERM, then wait); later calls do nothing.
 	Stop func()
 }
@@ -52,5 +53,5 @@ func StartConnector(t *testing.T, dsn, baoAddr, baoToken string, issuer *ecdsa.P
 		ScopeMap: []connectortest.Scope{{Role: VPRole, Entitlement: VPEntitle, Scopes: []string{VPScope}}},
 	})
 	id, secret := c.Register(t, "zone-a token store", VPScope, Audience)
-	return ZoneB{Base: c.Base, ClientID: id, ClientSecret: secret, Stop: c.Stop}
+	return ZoneB{Base: c.Base, SigningKey: c.SigningKey, ClientID: id, ClientSecret: secret, Stop: c.Stop}
 }

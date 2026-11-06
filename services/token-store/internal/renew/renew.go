@@ -101,22 +101,25 @@ func (w *Worker) Cycle(ctx context.Context) {
 		if len(claims) == 0 {
 			return
 		}
-		w.renew(ctx, claims[0])
+		for _, c := range claims {
+			w.renew(ctx, c)
+		}
 	}
 }
 
 // claim takes up to n due tokens: active, unclaimed and past renew_after. Rows another worker is
 // claiming at this moment are skipped, not waited for; the outer conditions repeat the inner ones so
-// a row that changed meanwhile is never claimed twice.
+// a row that changed meanwhile is never claimed twice. The due rows are a materialized CTE so the
+// locking subquery runs once: as an IN semi-join it can be rescanned per row and claim more than n.
 func (w *Worker) claim(ctx context.Context, n int) ([]Claim, error) {
 	ctx, cancel := context.WithTimeout(ctx, opTimeout)
 	defer cancel()
-	rows, err := w.DB.Query(ctx, `UPDATE upstream_token SET state = 'renewing', claimed_by = $1, claimed_at = $2, updated_at = $2
-		WHERE token_id IN (SELECT token_id FROM upstream_token
+	rows, err := w.DB.Query(ctx, `WITH due AS MATERIALIZED (SELECT token_id FROM upstream_token
 			WHERE state = 'active' AND claimed_at IS NULL AND renew_after <= $2
 			ORDER BY renew_after FOR UPDATE SKIP LOCKED LIMIT $3)
-		AND state = 'active' AND claimed_at IS NULL
-		RETURNING token_id::text, peer_zone, audience, tenant, claimed_by, claimed_at`, w.Instance, w.now(), n)
+		UPDATE upstream_token t SET state = 'renewing', claimed_by = $1, claimed_at = $2, updated_at = $2
+		FROM due WHERE t.token_id = due.token_id AND t.state = 'active' AND t.claimed_at IS NULL
+		RETURNING t.token_id::text, t.peer_zone, t.audience, t.tenant, t.claimed_by, t.claimed_at`, w.Instance, w.now(), n)
 	if err != nil {
 		return nil, err
 	}

@@ -1,0 +1,14 @@
+const read = name => { const v=env.get(name); return typeof v==='string' ? v.trim() : ''; };
+const mode=read('JOURNEY_ADAPTER_MODE')||'fixture';
+const participantUrl=read('JOURNEY_PARTICIPANT_URL');
+const expectedUrl='https://participant.zero-trust.160-44-12-115.sslip.io';
+const duration=(name,fallback)=>{const v=Number(read(name));return Number.isInteger(v)&&v>0?v:fallback;};
+const participantTimeoutMs=duration('JOURNEY_PARTICIPANT_TIMEOUT_MS',7000);
+const flowDeadlineMs=duration('JOURNEY_FLOW_DEADLINE_MS',10000);
+const skipTlsVerification=mode==='http-sample'&&participantUrl===expectedUrl&&read('JOURNEY_PARTICIPANT_TLS_SKIP_VERIFY')==='true';
+let error=null;
+if(!['fixture','http-sample'].includes(mode)) error={code:'JOURNEY_ADAPTER_UNSUPPORTED',detail:'Select fixture or http-sample.'};
+else if(mode==='http-sample'&&participantUrl!==expectedUrl) error={code:'JOURNEY_PARTICIPANT_UNCONFIGURED',detail:'This Basic Auth adapter requires the approved Participant HTTPS origin.'};
+else if(flowDeadlineMs<=participantTimeoutMs) error={code:'JOURNEY_DEADLINE_INVALID',detail:'Flow deadline must exceed Participant timeout.'};
+msg.journeyAdapterConfig={mode,participantUrl,participantTimeoutMs,flowDeadlineMs,skipTlsVerification,tlsExceptionUntil:null,error};
+return msg;

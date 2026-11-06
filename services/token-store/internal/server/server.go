@@ -21,6 +21,7 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"github.com/eclipse-xfsc/facis-zero-trust-demonstrator/internal/replay"
+	"github.com/eclipse-xfsc/facis-zero-trust-demonstrator/internal/transit"
 	"github.com/eclipse-xfsc/facis-zero-trust-demonstrator/services/token-store/internal/acquire"
 	"github.com/eclipse-xfsc/facis-zero-trust-demonstrator/services/token-store/internal/caller"
 	"github.com/eclipse-xfsc/facis-zero-trust-demonstrator/services/token-store/internal/renew"
@@ -51,6 +52,8 @@ type Server struct {
 	renewal     *renew.Worker       // nil without an acquisition config
 	subTimeout  time.Duration       // the deadline of one substitution; substituteTimeout
 	reconnected chan struct{}       // signalled when the pool opens a connection, so the replay epoch is rechecked
+	keyStarted  chan struct{}
+	issuerCache issuerSeparationCache
 	now         func() time.Time
 }
 
@@ -113,11 +116,13 @@ func New(ctx context.Context, cfg Config, log *slog.Logger) (*Server, error) {
 		subTimeout:  substituteTimeout,
 		reconnected: reconnected,
 		now:         time.Now,
+		keyStarted:  make(chan struct{}),
 	}
 	if a := cfg.Acquisition; a != nil {
-		acquirer := &acquire.Acquirer{DB: pool, Signer: cfg.OpenBao, Secrets: cfg.OpenBao, KeyName: a.SigningKey,
-			Trusted: a.Trusted, Log: log}
-		s.substitute = &substitute.Service{DB: pool, Signer: cfg.OpenBao, Secrets: cfg.OpenBao, Routes: *a, Log: log,
+		readOnly := runtimeBao{cfg.OpenBao}
+		acquirer := &acquire.Acquirer{DB: pool, Signer: readOnly, Secrets: cfg.OpenBao, KeyName: a.SigningKey,
+			Trusted: a.Trusted, Log: log, Prefix: a.KVPrefix}
+		s.substitute = &substitute.Service{DB: pool, Signer: readOnly, Secrets: cfg.OpenBao, Routes: *a, Log: log,
 			Acquirer: acquirer}
 		instance := cfg.Instance
 		if instance == "" {
@@ -192,6 +197,28 @@ func (s *Server) httpServer(h http.Handler) *http.Server {
 // returns nil after a clean stop.
 func (s *Server) Serve(ctx context.Context) error {
 	maintainCtx, stopMaintaining := context.WithCancel(context.Background())
+	keyStarted := s.keyStarted
+	go func() {
+		defer close(keyStarted)
+		if s.cfg.Acquisition == nil {
+			return
+		}
+		for {
+			attempt, cancel := context.WithTimeout(maintainCtx, 5*time.Second)
+			_, err := s.cfg.OpenBao.EnsureKey(attempt, s.cfg.Acquisition.SigningKey)
+			cancel()
+			if err == nil {
+				return
+			}
+			s.log.WarnContext(maintainCtx, "startup signing key unavailable")
+			select {
+			case <-maintainCtx.Done():
+				return
+			case <-time.After(time.Second):
+			}
+		}
+	}()
+	defer func() { stopMaintaining(); <-keyStarted }()
 	maintained := make(chan struct{})
 	go func() { defer close(maintained); s.maintainReplay(maintainCtx) }()
 	renewed := make(chan struct{})
@@ -264,4 +291,12 @@ func (s *Server) Serve(ctx context.Context) error {
 	<-renewed
 	s.pool.Close()
 	return cause
+}
+
+// runtimeBao prevents acquisition and renewal from recreating a deleted key.
+// Only the separate startup provisioner is allowed to ensure a key exists.
+type runtimeBao struct{ OpenBao }
+
+func (b runtimeBao) EnsureKey(ctx context.Context, name string) (transit.KeyVersion, error) {
+	return b.LatestKey(ctx, name)
 }

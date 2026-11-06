@@ -1,6 +1,6 @@
 # ADR-0001: Service mesh mode — Istio Ambient with Cilium
 
-- **Status:** Accepted
+- **Status:** Superseded by [ADR-0009](0009-service-mesh-mode-istio-sidecar-with-cilium.md) on 2026-10-03, through the fallback clause this record foresees
 - **Date:** 2026-09-08
 - **Deciders:** Technical Design Authority (Kevin Kupilas), Project Leader (Robert Koning)
 - **Requirement basis:** SRS 2.3.3; ZT-23, ZT-24, ZT-26, ZT-55, ZT-58, ZT-61

@@ -142,7 +142,7 @@ the endpoint as the connector does.
 
 ```bash
 connector register --connector http://ztd-connector.ztd-mgmt.svc:8080 \
-  --registrar-id ztd-registrar --registrar-secret-file /var/run/secrets/connector/registrar-secret \
+  --registrar-id ztd-registrar --registrar-secret-file /var/run/connector/credentials/registrar-secret \
   --client-name "participant backend" --scope resource.read --audience https://resource.example \
   --out /out/credentials.json --request-id my-registration
 ```
@@ -184,10 +184,11 @@ provisioned credentials, which this command produces.
 The chart `deployment/helm/connector` (its README documents the values) runs the connector as a
 Deployment with its own ServiceAccount, a Service on the API port and probes on the ops port, in
 the management plane beside the token store, whose chart applies the schema first and whose
-database Secret the connector reads. The chart never carries a credential: the database URL, the
-key-value store token and the connector's three secrets (the two HMAC secrets and the registrar's
-client secret) come from Secrets of the release namespace, mounted as files where they are secrets
-of the connector's own. The transit key that signs the access tokens is created before the install,
+database Secret the connector reads. The chart never carries a credential: the database URL comes
+from a Secret of the release namespace, and the key-value store token and the connector's three
+secrets (the two HMAC secrets and the registrar's client secret) are the four keys of one
+credentials Secret, mounted as files. The zone (`zone`, `a` or `b`) names the source of the
+security-state events. The transit key that signs the access tokens is created before the install,
 `ecdsa-p256` and not exportable, and the key-value store token's policy allows reading
 `transit/keys/<key>` and updating `transit/sign/<key>`.
 
@@ -202,8 +203,11 @@ The connector runs as its own ServiceAccount, `ztd-connector`, with the pod labe
 `spiffe://<trust domain>/ns/ztd-mgmt/sa/ztd-connector`. The mesh terminates mTLS for it, as for
 every zone workload ([ADR-0001](adr/0001-service-mesh-mode-istio-ambient-with-cilium.md), and the
 sidecar mode proposed to supersede it): the listeners are plain HTTP inside the pod, the mesh
-carries the traffic as mTLS, the pod mounts no ServiceAccount token, since the SVID comes from the
-SPIFFE CSI driver, and the chart renders no mesh resource of its own. Participant backends in the
+carries the traffic as mTLS, and the pod mounts no ServiceAccount token, since the SVID comes from the
+SPIFFE CSI driver. The chart renders a STRICT `PeerAuthentication` for its pods, so the Istio CRDs
+must exist where it installs (the proof applies the pinned ones), and a `NetworkPolicy` whose
+ingress is empty and whose egress is DNS only until the deployment names its lanes
+(`networkPolicy.ingressFrom`, `networkPolicy.egress`). Participant backends in the
 data plane reach it through a lane of the umbrella chart's allow matrix (data to management, port
 8080, pods labelled `app.kubernetes.io/name: ztd-connector`), which joins the umbrella when the
 connector joins a zone; until then the connector is reachable within the management plane.

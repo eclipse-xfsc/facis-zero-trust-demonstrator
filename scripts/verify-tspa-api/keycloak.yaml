@@ -1,0 +1,39 @@
+# Keycloak for the local TSPA round trip: the test realm upstream ships (keycloak/realm-export.json in
+# train-trust-framework-manager), imported at start. The realm ConfigMap is created by kind-up.sh.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: keycloak
+spec:
+  selector:
+    matchLabels: {app: keycloak}
+  template:
+    metadata:
+      labels: {app: keycloak}
+    spec:
+      containers:
+        - name: keycloak
+          image: quay.io/keycloak/keycloak:26.0
+          args: [start-dev, --import-realm]
+          env:
+            - {name: KC_BOOTSTRAP_ADMIN_USERNAME, value: admin}
+            - {name: KC_BOOTSTRAP_ADMIN_PASSWORD, value: admin}   # local test instance only
+          ports:
+            - {name: http, containerPort: 8080}
+          readinessProbe:
+            httpGet: {path: /realms/gxfs-dev-test, port: http}
+            periodSeconds: 5
+          volumeMounts:
+            - {name: realm, mountPath: /opt/keycloak/data/import}
+      volumes:
+        - name: realm
+          configMap: {name: keycloak-realm}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: keycloak
+spec:
+  selector: {app: keycloak}
+  ports:
+    - {port: 8080, targetPort: http}

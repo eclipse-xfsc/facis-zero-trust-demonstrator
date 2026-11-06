@@ -23,9 +23,15 @@ spec:
         {{- if .Values.identity.spireManagedIdentity }}
         spiffe.io/spire-managed-identity: "true"
         {{- end }}
+      {{- include "token-store.annotations" . | nindent 6 }}
     spec:
       serviceAccountName: {{ .Values.serviceAccount.name | quote }}
       automountServiceAccountToken: false
+      enableServiceLinks: false
+      {{- with .Values.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
       # The service's worst case: the drain delay, the shutdown timeout, a readiness evaluation
       # that still holds a connection when the pool closes, and a margin.
       terminationGracePeriodSeconds: {{ add (int .Values.server.drainDelaySeconds) (int .Values.server.shutdownTimeoutSeconds) (int .Values.server.readinessTimeoutSeconds) 5 }}
@@ -33,6 +39,7 @@ spec:
         runAsNonRoot: true
         runAsUser: 65532
         runAsGroup: 65532
+        fsGroup: 65532
         seccompProfile:
           type: RuntimeDefault
       containers:
@@ -52,6 +59,19 @@ spec:
                   key: {{ .Values.database.secretKey | quote }}
             - name: TOKEN_STORE_OPENBAO_URL
               value: {{ .Values.openbao.address | quote }}
+            {{- if .Values.runtime.enabled }}
+            - name: TOKEN_STORE_ACQUIRE_CONFIG
+              value: {{ printf "/etc/token-store/%s" .Values.runtime.configKey | quote }}
+            - name: TOKEN_STORE_OPENBAO_TOKEN_FILE
+              value: {{ printf "/var/run/token-store/credentials/%s" .Values.runtime.openbaoTokenKey | quote }}
+            - name: TOKEN_STORE_REPLAY_CALLERS
+              value: {{ join "," .Values.runtime.replayCallers | quote }}
+            {{- end }}
+          {{- if .Values.runtime.enabled }}
+          volumeMounts:
+            - {name: acquisition, mountPath: /etc/token-store, readOnly: true}
+            - {name: credentials, mountPath: /var/run/token-store/credentials, readOnly: true}
+          {{- end }}
           ports:
             - name: http
               containerPort: 8080
@@ -75,3 +95,13 @@ spec:
             readOnlyRootFilesystem: true
             capabilities:
               drop: [ALL]
+      {{- if .Values.runtime.enabled }}
+      volumes:
+        - name: acquisition
+          configMap:
+            name: {{ .Values.runtime.existingConfigMap | quote }}
+        - name: credentials
+          secret:
+            secretName: {{ .Values.runtime.credentialsSecret | quote }}
+            defaultMode: 0440
+      {{- end }}

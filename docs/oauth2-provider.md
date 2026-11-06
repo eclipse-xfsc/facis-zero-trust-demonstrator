@@ -581,3 +581,9 @@ back into its default session.
 - The proof URI is reconstructed from the request. Behind a proxy the scheme is taken from
   `X-Forwarded-Proto`, so that header must be set by a trusted hop only.
 - The pinned `authelia.com/provider/oauth2` v0.3.2 requires Go 1.27.x.
+
+### Exclusive audiences for guarded access
+
+Set `CONNECTOR_EXCLUSIVE_AUDIENCES` (chart `oauth.exclusiveAudiences`) to the guard's inbound audience and the Resource's upstream audience. `Config.ExclusiveAudiences` is an additive provider contract field. A client may hold at most one member of this set. Registration returns `invalid_client_metadata` for a dual-role request, even with a registrar token authorizing both. Both grant handlers return `invalid_request` for existing clients holding both; the migration flag never relaxes issuance.
+
+The Participant requests only the guard's `inbound_audience`. The store requests only its route's upstream audience, equal to both the guard's `upstream_audience` and `PROTECTED_RESOURCE_AUDIENCE`. The audiences must differ. Provision separate registrar identities for each role; the bootstrap registrar in the guarded example provisions Participants. `/readyz` reports conflicting client IDs and count, and fails until their registrations are repaired. `CONNECTOR_ALLOW_AUDIENCE_MIGRATION=true` (chart `oauth.allowAudienceMigration`) explicitly downgrades this readiness failure to `migration_warning`; use only during a controlled migration. The report and warning contain no credentials.

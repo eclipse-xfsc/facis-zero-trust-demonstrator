@@ -111,7 +111,7 @@ func acquireCmd(name string, args []string, stdout, stderr io.Writer) int {
 		return exitFailed
 	}
 	defer pool.Close()
-	a := &acquire.Acquirer{DB: pool, Signer: tc, Secrets: tc, KeyName: cfg.SigningKey, Trusted: cfg.Trusted, Log: log}
+	a := &acquire.Acquirer{DB: pool, Signer: tc, Secrets: tc, KeyName: cfg.SigningKey, Trusted: cfg.Trusted, Log: log, Prefix: cfg.KVPrefix}
 
 	if sweep {
 		n, err := a.SweepOrphans(ctx)

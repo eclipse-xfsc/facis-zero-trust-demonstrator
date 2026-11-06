@@ -160,6 +160,7 @@ func newServer(ctx context.Context, cfg config, log *slog.Logger, events *eventS
 		}},
 		providerCfg: oauth2provider.Config{
 			Secret:              tokenSecret,
+			ExclusiveAudiences:  cfg.exclusiveAudiences,
 			AccessTokenLifespan: cfg.accessTokenLifespan,
 			Issuer:              cfg.issuer,
 			DPoP: oauth2provider.DPoPConfig{
@@ -501,10 +502,13 @@ const (
 )
 
 type checks struct {
-	Postgres   string `json:"postgres"`
-	OpenBao    string `json:"openbao"`
-	SigningKey string `json:"signing_key"`
-	Registrar  string `json:"registrar"`
+	AudienceIsolation      string   `json:"audience_isolation"`
+	ConflictingClientIDs   []string `json:"conflicting_client_ids,omitempty"`
+	ConflictingClientCount int      `json:"conflicting_client_count"`
+	Postgres               string   `json:"postgres"`
+	OpenBao                string   `json:"openbao"`
+	SigningKey             string   `json:"signing_key"`
+	Registrar              string   `json:"registrar"`
 }
 
 type report struct {
@@ -535,8 +539,10 @@ func (s *server) handleReadyz(w http.ResponseWriter, r *http.Request) {
 			wg.Go(func() { *dst = check(ctx) })
 		}
 		wg.Wait()
+		c.AudienceIsolation, c.ConflictingClientIDs = s.checkAudienceIsolation(ctx)
+		c.ConflictingClientCount = len(c.ConflictingClientIDs)
 		c.Registrar = [...]string{checkPending, checkOK, checkConflict}[s.registrarState.Load()]
-		rep = report{Ready: c.Postgres == checkOK && c.OpenBao == checkOK && c.SigningKey == checkOK && c.Registrar == checkOK, Checks: c}
+		rep = report{Ready: (c.AudienceIsolation == checkOK || c.AudienceIsolation == "migration_warning") && c.Postgres == checkOK && c.OpenBao == checkOK && c.SigningKey == checkOK && c.Registrar == checkOK, Checks: c}
 		state := int32(2)
 		if rep.Ready {
 			state = 1
@@ -696,4 +702,38 @@ func (h stampHandler) WithAttrs(attrs []slog.Attr) slog.Handler {
 
 func (h stampHandler) WithGroup(name string) slog.Handler {
 	return stampHandler{h.Handler.WithGroup(name)}
+}
+
+// checkAudienceIsolation reads only audience metadata and client IDs, never credential columns.
+func (s *server) checkAudienceIsolation(ctx context.Context) (string, []string) {
+	if len(s.cfg.exclusiveAudiences) < 2 {
+		return checkOK, nil
+	}
+	rows, err := s.pool.Query(ctx, `SELECT client_id FROM oauth2_client WHERE
+      (SELECT count(DISTINCT a) FROM unnest(CASE WHEN metadata IS NULL THEN audience
+       ELSE ARRAY(SELECT jsonb_array_elements_text(COALESCE(metadata::jsonb->'audience', '[]'::jsonb))) END) a
+       WHERE a = ANY($1::text[])) > 1 ORDER BY client_id`, s.cfg.exclusiveAudiences)
+	if err != nil {
+		return checkUnreachable, nil
+	}
+	defer rows.Close()
+	var ids []string
+	for rows.Next() {
+		var id string
+		if err := rows.Scan(&id); err != nil {
+			return checkUnreachable, nil
+		}
+		ids = append(ids, id)
+	}
+	if rows.Err() != nil {
+		return checkUnreachable, nil
+	}
+	if len(ids) == 0 {
+		return checkOK, nil
+	}
+	s.log.WarnContext(ctx, "clients hold multiple exclusive audiences", "count", len(ids), "client_ids", ids)
+	if s.cfg.allowAudienceMigration {
+		return "migration_warning", ids
+	}
+	return "exclusive_audience_conflict", ids
 }

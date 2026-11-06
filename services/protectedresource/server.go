@@ -134,12 +134,15 @@ type accessKey struct{}
 type accessMark struct{ reached bool }
 
 // accessLog logs requests the verifier refused before they reached handleDemo, which logs its own.
-// It records the status only: never a header, token or proof.
+// It records the status and a fixed verifier reason code: never a header, token or proof.
 func (s *Server) accessLog(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		mark := &accessMark{}
 		recorder := &statusRecorder{ResponseWriter: w, status: http.StatusOK}
-		next.ServeHTTP(recorder, r.WithContext(context.WithValue(r.Context(), accessKey{}, mark)))
+		reason := "unclassified"
+		ctx := context.WithValue(r.Context(), accessKey{}, mark)
+		ctx = tokenverify.WithRefusalObserver(ctx, func(code string) { reason = code })
+		next.ServeHTTP(recorder, r.WithContext(ctx))
 		if mark.reached {
 			return
 		}
@@ -147,6 +150,7 @@ func (s *Server) accessLog(next http.Handler) http.Handler {
 			slog.String("requestId", cleanIdentifier(r.Header.Get("X-Request-ID"))),
 			slog.String("correlationId", cleanIdentifier(r.Header.Get("X-Correlation-ID"))),
 			slog.Int("status", recorder.status),
+			slog.String("reasonCode", reason),
 		)
 	})
 }

@@ -74,7 +74,8 @@ func Cleanup() {
 
 // Connector is a running connector.
 type Connector struct {
-	Base string
+	Base       string
+	SigningKey string // public transit key name for key-isolation tests
 	// Stop stops the connector (SIGTERM, then wait); later calls do nothing.
 	Stop func()
 
@@ -207,7 +208,7 @@ func Start(t *testing.T, dsn, baoAddr, baoToken string, o Options) *Connector {
 		time.Sleep(100 * time.Millisecond)
 	}
 
-	return &Connector{Base: base, Stop: stop, registrarSecret: registrarSecret, endpoint: endpoint}
+	return &Connector{Base: base, SigningKey: key.Name, Stop: stop, registrarSecret: registrarSecret, endpoint: endpoint}
 }
 
 // Register registers a confidential client for the verified-presentation grant, DPoP-bound, with

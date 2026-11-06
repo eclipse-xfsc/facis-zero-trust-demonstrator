@@ -214,14 +214,28 @@ func (s *Server) checkSigningKey(ctx context.Context) string {
 	if rows.Err() != nil {
 		return checkUnreachable
 	}
-	if len(refs) == 0 {
+	if len(refs) == 0 && s.cfg.Acquisition == nil {
 		return checkOK
 	}
 	if s.cfg.Acquisition == nil || s.cfg.OpenBao == nil {
 		return checkUnconfigured
 	}
 	k := keys.Keys{Signer: s.cfg.OpenBao, Name: s.cfg.Acquisition.SigningKey}
+	latestRef, err := s.cfg.OpenBao.LatestKey(ctx, k.Name)
+	if err != nil {
+		return checkUnreachable
+	}
+	pub, err := s.cfg.OpenBao.PublicKey(ctx, latestRef)
+	if err != nil {
+		return checkUnreachable
+	}
+	latest, err := keys.Thumbprint(pub)
+	if err != nil {
+		return checkUnreachable
+	}
+	thumbprints := map[string]bool{latest: true}
 	for _, r := range refs {
+		thumbprints[r.jkt] = true
 		if _, err := transit.ParseRef(r.ref); err != nil {
 			return checkMissing
 		}
@@ -236,7 +250,7 @@ func (s *Server) checkSigningKey(ctx context.Context) string {
 			return checkUnreachable
 		}
 	}
-	return checkOK
+	return s.checkIssuerSeparation(ctx, thumbprints)
 }
 
 // handleHealthz says the process is alive. It consults nothing, so no dependency outage ever

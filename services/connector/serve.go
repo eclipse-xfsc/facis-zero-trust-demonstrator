@@ -50,6 +50,8 @@ type config struct {
 	// The verified-presentation grant: off unless the issuers file is set, read at start.
 	vpIssuersFile, vpScopeMapFile string
 	vp                            oauth2provider.VerifiedPresentationConfig
+	exclusiveAudiences            []string
+	allowAudienceMigration        bool
 	registrarDelegable            []string // scopes the registrar may grant beyond its token's
 
 	// The IF-01 events: their source is connector-<zone>; their run id is minted at every start.
@@ -67,7 +69,7 @@ type serveOptions struct {
 func parseServe(args []string, env func(string) string, stderr io.Writer) (serveOptions, error) {
 	opts := serveOptions{level: slog.LevelInfo}
 	c := &opts.cfg
-	var registrarScopes, registrarAudiences, registrarDelegable string
+	var registrarScopes, registrarAudiences, registrarDelegable, exclusiveAudiences string
 	fs := flag.NewFlagSet("connector serve", flag.ContinueOnError)
 	fs.SetOutput(stderr)
 	strs := []struct {
@@ -88,6 +90,7 @@ func parseServe(args []string, env func(string) string, stderr io.Writer) (serve
 		{"registrar-secret-file", "CONNECTOR_REGISTRAR_SECRET_FILE", "", "file holding the registrar's client secret", &c.registrarSecretFile},
 		{"registrar-scopes", "CONNECTOR_REGISTRAR_SCOPES", "", "comma-separated scopes of the registrar, connector:client_registration among them", &registrarScopes},
 		{"registrar-audiences", "CONNECTOR_REGISTRAR_AUDIENCES", "", "comma-separated audiences of the registrar: the registration endpoint and the resource audiences registered clients may name", &registrarAudiences},
+		{"exclusive-audiences", "CONNECTOR_EXCLUSIVE_AUDIENCES", "", "comma-separated mutually exclusive client audiences", &exclusiveAudiences},
 		{"registrar-delegable-scopes", "CONNECTOR_REGISTRAR_DELEGABLE_SCOPES", "", "comma-separated scopes the registrar may grant to the clients it registers beyond its token's", &registrarDelegable},
 		{"vp-trusted-issuers-file", "CONNECTOR_VP_TRUSTED_ISSUERS_FILE", "", "JSON file of the IF-03 issuers and their keys; enables the verified-presentation grant", &c.vpIssuersFile},
 		{"vp-scope-map-file", "CONNECTOR_VP_SCOPE_MAP_FILE", "", "JSON file mapping outcome claims to scopes, required with the issuers file", &c.vpScopeMapFile},
@@ -114,6 +117,7 @@ func parseServe(args []string, env func(string) string, stderr io.Writer) (serve
 		name, variable, help string
 		dst                  *bool
 	}{
+		{"allow-audience-migration", "CONNECTOR_ALLOW_AUDIENCE_MIGRATION", "warn instead of failing readiness for existing conflicting clients; grants remain refused", &c.allowAudienceMigration},
 		{"dpop-enforce", "CONNECTOR_DPOP_ENFORCE", "require a DPoP proof from every client", &c.dpopEnforce},
 		{"dpop-nonce", "CONNECTOR_DPOP_NONCE", "challenge with a server DPoP nonce", &c.dpopNonce},
 	}
@@ -176,6 +180,7 @@ func parseServe(args []string, env func(string) string, stderr io.Writer) (serve
 	c.registrarScopes = splitList(registrarScopes)
 	c.registrarAudiences = splitList(registrarAudiences)
 	c.registrarDelegable = splitList(registrarDelegable)
+	c.exclusiveAudiences = splitList(exclusiveAudiences)
 	if err := c.validate(); err != nil {
 		return opts, err
 	}

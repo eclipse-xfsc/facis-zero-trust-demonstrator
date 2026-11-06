@@ -62,8 +62,8 @@ jobs:
         with:
           version: v4.3.0
 
-      - name: Install the pinned kind and kubectl
-        run: scripts/tools/install.sh "$RUNNER_TEMP/bin" kind kubectl
+      - name: Install the pinned kind, kubectl and Istio CRDs
+        run: scripts/tools/install.sh "$RUNNER_TEMP/bin" kind kubectl istio-crds
 
       # The records go to the runner's temp directory, outside the checkout.
       - name: Install the charts, register a client, refuse one, read the audit trail

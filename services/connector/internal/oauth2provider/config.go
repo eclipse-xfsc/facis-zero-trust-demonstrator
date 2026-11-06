@@ -48,6 +48,9 @@ type Config struct {
 	// VerifiedPresentation enables the verified-presentation grant and the
 	// challenge endpoint when its TrustedIssuers is non-empty.
 	VerifiedPresentation VerifiedPresentationConfig
+
+	// ExclusiveAudiences are mutually exclusive: a client may hold at most one.
+	ExclusiveAudiences []string
 }
 
 // VerifiedPresentationConfig configures the verified-presentation grant. The grant issues signed

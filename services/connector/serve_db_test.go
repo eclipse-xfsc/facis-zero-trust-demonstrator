@@ -7,11 +7,14 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
+	"io"
+	"log/slog"
 	"net"
 	"net/http"
 	"net/url"
 	"os"
 	"path/filepath"
+	"slices"
 	"strconv"
 	"strings"
 	"testing"
@@ -679,5 +682,39 @@ func TestServeIssuesVerifiedPresentationTokens(t *testing.T) {
 	if resp.StatusCode != http.StatusBadRequest || json.Unmarshal(body, &refused) != nil ||
 		refused.Error != "invalid_grant" || refused.Reason != if03.CodeConsumed {
 		t.Errorf("second use of the outcome: status %d %s, want 400 invalid_grant %s", resp.StatusCode, body, if03.CodeConsumed)
+	}
+}
+
+func TestReadinessExclusiveAudienceClients(t *testing.T) {
+	pool, err := pgxpool.New(t.Context(), pgtest.MigratedURL(t, "exclusive"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer pool.Close()
+	s := &server{pool: pool, log: slog.New(slog.NewTextHandler(io.Discard, nil)), cfg: config{exclusiveAudiences: []string{"guard", "resource"}}}
+	if _, err := pool.Exec(t.Context(), `INSERT INTO oauth2_client (client_id, secret_hash, grant_types, scopes, audience, dpop_bound) VALUES ('legacy', 'unused', '{client_credentials}', '{}', '{guard,resource}', true)`); err != nil {
+		t.Fatal(err)
+	}
+	state, ids := s.checkAudienceIsolation(t.Context())
+	if state != "exclusive_audience_conflict" || !slices.Equal(ids, []string{"legacy"}) {
+		t.Fatalf("state %q IDs %v", state, ids)
+	}
+	s.cfg.allowAudienceMigration = true
+	if state, _ := s.checkAudienceIsolation(t.Context()); state != "migration_warning" {
+		t.Fatal("migration must remain visible")
+	}
+	if _, err := pool.Exec(t.Context(), `UPDATE oauth2_client SET audience = '{guard}'`); err != nil {
+		t.Fatal(err)
+	}
+	if state, ids := s.checkAudienceIsolation(t.Context()); state != checkOK || len(ids) != 0 {
+		t.Fatal("repaired client must be ready")
+	}
+	// Persisted registration metadata overrides the columns when grants load a client.
+	if _, err := pool.Exec(t.Context(), `UPDATE oauth2_client SET metadata = '{"audience":["guard","resource"]}'`); err != nil {
+		t.Fatal(err)
+	}
+	s.cfg.allowAudienceMigration = false
+	if state, ids := s.checkAudienceIsolation(t.Context()); state != "exclusive_audience_conflict" || len(ids) != 1 {
+		t.Fatal("metadata conflict was missed")
 	}
 }

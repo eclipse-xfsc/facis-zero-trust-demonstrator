@@ -11,6 +11,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/eclipse-xfsc/facis-zero-trust-demonstrator/internal/replay"
 	"github.com/eclipse-xfsc/facis-zero-trust-demonstrator/internal/tokenverify"
 )
 
@@ -267,6 +268,27 @@ func TestFixedHooksGiveByteIdenticalRuns(t *testing.T) {
 		}
 		if !strings.Contains(first, "fixed-1") {
 			t.Fatalf("%s run did not use the id hook: %s", name, first)
+		}
+	}
+}
+
+func TestRefusalLogCarriesSafeReasonOnly(t *testing.T) {
+	v, err := tokenverify.New(tokenverify.Config{Issuer: "https://issuer.example", JWKSURL: "https://issuer.example/jwks", Audience: "resource", PublicBaseURL: "https://resource.example", Replay: replay.NewMemory()})
+	if err != nil {
+		t.Fatal(err)
+	}
+	var logs bytes.Buffer
+	response := serveWithCredentials(newTokenServer(&logs, v).Handler(), `{"resource":"sample-report","action":"read"}`)
+	if response.Code != http.StatusUnauthorized {
+		t.Fatal("malformed token was not refused")
+	}
+	text := logs.String()
+	if !strings.Contains(text, `"reasonCode":"token_malformed"`) {
+		t.Fatal("safe refusal reason missing")
+	}
+	for _, forbidden := range []string{canaryToken, canaryProof, "Authorization", "DPoP"} {
+		if strings.Contains(text, forbidden) {
+			t.Fatal("credential material present in log")
 		}
 	}
 }

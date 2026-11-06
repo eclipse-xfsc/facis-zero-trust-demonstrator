@@ -243,6 +243,9 @@ func TestKVRequests(t *testing.T) {
 	var seen []string
 	c := newTestClient(t, func(w http.ResponseWriter, r *http.Request) {
 		seen = append(seen, r.Method+" "+r.URL.EscapedPath())
+		if r.URL.RawQuery != "" {
+			seen[len(seen)-1] += "?" + r.URL.RawQuery
+		}
 		switch r.Method {
 		case http.MethodPost:
 			var body struct {
@@ -254,9 +257,11 @@ func TestKVRequests(t *testing.T) {
 				t.Errorf("create body %+v", body)
 			}
 		case http.MethodGet:
+			if r.URL.Query().Get("list") == "true" {
+				_, _ = io.WriteString(w, `{"data":{"keys":["b","c/"]}}`)
+				return
+			}
 			_, _ = fmt.Fprintf(w, `{"data":{"data":{"value":"%s"}}}`, "Y2FuYXJ5") // "canary"
-		case "LIST":
-			_, _ = io.WriteString(w, `{"data":{"keys":["b","c/"]}}`)
 		}
 	})
 	ctx := context.Background()
@@ -272,7 +277,7 @@ func TestKVRequests(t *testing.T) {
 	if keys, err := c.List(ctx, "z"); err != nil || fmt.Sprint(keys) != "[b c/]" {
 		t.Fatalf("list %v %v", keys, err)
 	}
-	want := "[POST /v1/secret/data/z/a%20b%3F GET /v1/secret/data/z/x DELETE /v1/secret/metadata/z/x LIST /v1/secret/metadata/z]"
+	want := "[POST /v1/secret/data/z/a%20b%3F GET /v1/secret/data/z/x DELETE /v1/secret/metadata/z/x GET /v1/secret/metadata/z?list=true]"
 	if fmt.Sprint(seen) != want {
 		t.Fatalf("requests\n got %v\nwant %s", seen, want)
 	}

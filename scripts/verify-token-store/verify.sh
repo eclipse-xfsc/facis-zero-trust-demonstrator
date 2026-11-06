@@ -30,17 +30,17 @@ while [ $# -gt 0 ]; do
     *) echo "unknown argument: $1" >&2; exit 2 ;;
   esac
 done
-for tool in docker helm kind kubectl curl jq; do
+for tool in docker helm kind kubectl curl jq sha256sum; do
   command -v "$tool" >/dev/null || { echo "$tool is required" >&2; exit 2; }
 done
 mkdir -p "$out"
 out="$(cd "$out" && pwd)"
 rm -f "$out"/*.txt "$out"/*.json
 
-cluster=ztd-token-store
-reg_name=kind-registry-token-store
+cluster=${TOKEN_STORE_KIND_CLUSTER:-ztd-token-store}
+reg_name=${TOKEN_STORE_KIND_REGISTRY:-kind-registry-token-store}
 reg="$reg_name:5000"            # the registry's name inside the kind network
-host_reg=127.0.0.1:5002         # the same registry from this machine, for the push
+host_reg=${TOKEN_STORE_KIND_HOST_REGISTRY:-127.0.0.1:5002}         # the same registry from this machine, for the push
 ns=ztd-mgmt
 release=token-store
 secret=token-store-database
@@ -49,6 +49,8 @@ latest=$(find services/token-store/internal/schema/migrations -name '*.up.sql' |
 store_sel='app.kubernetes.io/name=ztd-token-store,app.kubernetes.io/component=server'
 work="$(mktemp -d)"
 export KUBECONFIG="$work/kubeconfig"
+cluster_owned=false
+registry_owned=false
 proxy_pid=""
 proxy_port=""
 
@@ -72,8 +74,8 @@ cleanup() {
     echo "kept: cluster $cluster, registry $reg_name, KUBECONFIG=$KUBECONFIG"
     return
   fi
-  kind delete cluster --name "$cluster" >/dev/null 2>&1 || true
-  docker rm -f "$reg_name" >/dev/null 2>&1 || true
+  if [ "$cluster_owned" = true ]; then kind delete cluster --name "$cluster" >/dev/null 2>&1 || true; fi
+  if [ "$registry_owned" = true ]; then docker rm -f "$reg_name" >/dev/null 2>&1 || true; fi
   rm -rf "$work"
 }
 trap cleanup EXIT
@@ -148,17 +150,31 @@ step "Image from the working tree"
 docker build -q -f deployment/docker/token-store/Dockerfile -t "$host_reg/token-store:verify" . >/dev/null
 
 step "Cluster and registry"
-# A cluster or registry kept by an earlier run (KEEP=1) is replaced.
-kind delete cluster --name "$cluster" >/dev/null 2>&1 || true
-docker rm -f "$reg_name" >/dev/null 2>&1 || true
-kind create cluster --name "$cluster" --image "$KIND_NODE_IMAGE" --wait 180s --config - <<'EOF' >/dev/null
+# Never replace a pre-existing local cluster or registry.
+if kind get clusters | grep -Fxq "$cluster" || docker inspect "$reg_name" >/dev/null 2>&1; then
+  echo "refusing to replace an existing local cluster or registry" >&2; exit 1
+fi
+cluster_owned=true
+kind create cluster --name "$cluster" --image "$KIND_NODE_IMAGE" --wait 0s --config - <<'EOF' >/dev/null
 kind: Cluster
 apiVersion: kind.x-k8s.io/v1alpha4
+networking:
+  disableDefaultCNI: true
 containerdConfigPatches:
   - |-
     [plugins."io.containerd.grpc.v1.cri".registry]
       config_path = "/etc/containerd/certs.d"
 EOF
+step "Enforce NetworkPolicy with the pinned Cilium chart"
+curl -fsSL "https://helm.cilium.io/cilium-${CILIUM_CHART_VERSION}.tgz" -o "$work/cilium.tgz"
+printf '%s  %s\n' "$CILIUM_CHART_SHA256" "$work/cilium.tgz" | sha256sum -c - >/dev/null
+helm install cilium "$work/cilium.tgz" -n kube-system --set operator.replicas=1 \
+  --set ipam.mode=kubernetes --set kubeProxyReplacement=false --set envoy.enabled=false \
+  --set securityContext.privileged=true --set cgroup.autoMount.enabled=false \
+  --set cgroup.hostRoot=/sys/fs/cgroup --wait --timeout 5m >/dev/null
+kubectl wait --for=condition=Ready node --all --timeout=180s >/dev/null
+pass "pinned Cilium enforces NetworkPolicy"
+registry_owned=true
 docker run -d --name "$reg_name" --network kind -p "$host_reg:5000" "$REGISTRY_IMAGE" >/dev/null
 for node in $(kind get nodes --name "$cluster"); do
   docker exec "$node" mkdir -p "/etc/containerd/certs.d/$reg"
@@ -170,6 +186,30 @@ echo "  token-store image $reg/token-store@$digest"
 
 step "PostgreSQL and OpenBao from the pinned images, inside the cluster"
 kubectl create namespace "$ns" >/dev/null
+# Default-deny is installed before dependencies or any Helm hook can run.
+kubectl -n "$ns" apply -f - <<'YAML' >/dev/null
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata: {name: default-deny}
+spec:
+  podSelector: {}
+  policyTypes: [Ingress, Egress]
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata: {name: dependency-ingress}
+spec:
+  podSelector:
+    matchExpressions:
+      - {key: app, operator: In, values: [postgres, openbao]}
+  policyTypes: [Ingress]
+  ingress:
+    - from:
+        - podSelector:
+            matchLabels: {app.kubernetes.io/name: ztd-token-store}
+      ports: [{port: 5432, protocol: TCP}, {port: 8200, protocol: TCP}]
+YAML
+pass "namespace denies ingress and egress by default"
 kubectl -n "$ns" create secret generic "$secret" --from-literal=url="$db_url" >/dev/null
 # PostgreSQL keeps its data on a volume: the readiness proof takes it down and brings it back, and
 # the schema must survive that. OpenBao runs in dev mode: in memory, initialised and unsealed at
@@ -283,14 +323,50 @@ if [ -n "${GITHUB_ACTIONS:-}" ]; then host_kind=ci; fi
   echo "}"
 } > "$out/environment.json"
 
-values=(--set "image.repository=$reg/token-store" --set "image.digest=$digest" --set "database.existingSecret=$secret" --set "openbao.address=http://openbao:8200")
+cat > "$work/network-values.yaml" <<'YAML'
+networkPolicy:
+  enabled: true
+  schemaEgress:
+    - to:
+        - podSelector: {matchLabels: {app: postgres}}
+      ports: [{port: 5432, protocol: TCP}]
+  egress:
+    - to:
+        - podSelector: {matchLabels: {app: postgres}}
+      ports: [{port: 5432, protocol: TCP}]
+    - to:
+        - podSelector: {matchLabels: {app: openbao}}
+      ports: [{port: 8200, protocol: TCP}]
+YAML
+values=(-f "$work/network-values.yaml" --set "image.repository=$reg/token-store" --set "image.digest=$digest" --set "database.existingSecret=$secret" --set "openbao.address=http://openbao:8200")
 
 step "Before the install: an empty database"
 if [ "$(tables)" = 0 ]; then pass "the database holds no table before the install"; else fail "the database is not empty before the install: $(tables) tables"; fi
 
+step "Negative control: removing schema egress must block the hook"
+cp -R deployment/helm/token-store "$work/no-schema-policy"
+rm "$work/no-schema-policy/templates/schema-networkpolicy.yaml"
+if helm install schema-negative "$work/no-schema-policy" -n "$ns" "${values[@]}" \
+  --wait --wait-for-jobs --timeout 45s >"$work/negative.log" 2>&1; then
+  fail "schema hook completed without its egress policy"
+else
+  if kubectl -n "$ns" get job ztd-token-store-migrate -o json | jq -e '(.status.succeeded // 0) == 0 and ((.status.active // 0) > 0 or (.status.failed // 0) > 0)' >/dev/null; then
+    pass "schema hook blocked without its egress policy under enforced default-deny"
+  else
+    fail "negative hook did not reach the network-policy control"
+  fi
+fi
+helm uninstall schema-negative -n "$ns" --no-hooks >/dev/null 2>&1 || true
+kubectl -n "$ns" delete job -l app.kubernetes.io/instance=schema-negative --wait=true >/dev/null
+kubectl -n "$ns" delete serviceaccount ztd-token-store-schema --ignore-not-found >/dev/null
+if [ "$(tables)" != 0 ]; then fail "negative hook mutated the schema"; fi
+
 step "Install: the schema is applied"
 helm install "$release" deployment/helm/token-store -n "$ns" "${values[@]}" --set schema.dropOnUninstall=true \
   --wait --wait-for-jobs --timeout 3m >/dev/null
+if kubectl -n "$ns" get networkpolicy ztd-token-store-schema -o json | jq -e '.spec.podSelector.matchLabels["app.kubernetes.io/component"] == "schema" and .spec.policyTypes == ["Egress"] and (.metadata.annotations["helm.sh/hook-weight"] | tonumber) < 41' >/dev/null; then
+  pass "schema egress policy precedes migration and drop hooks"
+else fail "schema egress policy missing or incorrectly scoped"; fi
 version=$(psql "SELECT coalesce(max(version), 0) FROM schema_migrations")
 record > "$out/install-schema_migrations.txt"
 psql "SELECT table_name FROM information_schema.tables WHERE table_schema = 'public' ORDER BY 1" > "$out/install-tables.txt"

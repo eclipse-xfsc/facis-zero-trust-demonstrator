@@ -30,13 +30,14 @@ const accessTokenPrefix = "connector_%s_"
 // hold the contract interface, so the library it is built on can never be
 // reached through this package's API.
 type provider struct {
-	config   *oauth2.Config
-	store    *storeAdapter
-	strategy coreStrategy
-	dpop     *rfc9449.DefaultStrategy
-	lib      oauth2.Provider
-	fosite   *oauth2.Fosite
-	signed   bool
+	config             *oauth2.Config
+	store              *storeAdapter
+	strategy           coreStrategy
+	dpop               *rfc9449.DefaultStrategy
+	lib                oauth2.Provider
+	fosite             *oauth2.Fosite
+	signed             bool
+	exclusiveAudiences []string
 
 	// vp is the verified-presentation grant's configuration, nil when the grant is not enabled.
 	vp *verifiedPresentation
@@ -93,6 +94,7 @@ func New(cfg oauth2provider.Config, stores oauth2provider.Stores) (oauth2provide
 			return &clientCredentials{
 				ClientCredentialsGrantHandler: compose.OAuth2ClientCredentialsGrantFactory(config, storage, strategy).(*hoauth2.ClientCredentialsGrantHandler),
 				vpScopes:                      vpScopes,
+				exclusiveAudiences:            cfg.ExclusiveAudiences,
 			}
 		},
 		compose.DPoPTokenFactory,
@@ -102,11 +104,12 @@ func New(cfg oauth2provider.Config, stores oauth2provider.Stores) (oauth2provide
 	if vp != nil {
 		factories = append(factories, func(_ oauth2.Configurator, _, _ any) any {
 			return &vpGrant{
-				HandleHelper: &hoauth2.HandleHelper{AccessTokenStrategy: strategy, AccessTokenStorage: store, Config: config},
-				vp:           vp,
-				store:        store,
-				lifespan:     config.GetAccessTokenLifespan(context.Background()),
-				clock:        clk,
+				HandleHelper:       &hoauth2.HandleHelper{AccessTokenStrategy: strategy, AccessTokenStorage: store, Config: config},
+				vp:                 vp,
+				exclusiveAudiences: cfg.ExclusiveAudiences,
+				store:              store,
+				lifespan:           config.GetAccessTokenLifespan(context.Background()),
+				clock:              clk,
 			}
 		})
 	}
@@ -125,7 +128,7 @@ func New(cfg oauth2provider.Config, stores oauth2provider.Stores) (oauth2provide
 
 	return &provider{
 		config: config, store: store, strategy: strategy, dpop: dpop, lib: lib, fosite: fosite,
-		signed: cfg.AccessTokenSigner != nil, vp: vp, clock: clk,
+		signed: cfg.AccessTokenSigner != nil, vp: vp, clock: clk, exclusiveAudiences: cfg.ExclusiveAudiences,
 	}, nil
 }
 
@@ -239,6 +242,12 @@ func (p *provider) RegistrationHandler() http.Handler {
 				p.lib.WriteRFC7591ClientRegistrationError(ctx, rw, request, err)
 			})
 
+			return
+		}
+
+		if exclusiveConflict(request.GetMetadata().Audience, p.exclusiveAudiences) {
+			err = oauth2.ErrInvalidClientMetadata.WithHint("A client cannot hold multiple exclusive audiences.")
+			p.lib.WriteRFC7591ClientRegistrationError(ctx, w, request, err)
 			return
 		}
 

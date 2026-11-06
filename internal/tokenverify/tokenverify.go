@@ -184,6 +184,9 @@ func (v *Verifier) Middleware(next http.Handler) http.Handler {
 			next.ServeHTTP(w, r.WithContext(WithIdentity(r.Context(), id)))
 			return
 		}
+		if observer, ok := r.Context().Value(refusalObserverKey{}).(func(string)); ok {
+			observer(ReasonCode(err))
+		}
 		status, challenge := refusal(err)
 		if challenge != "" {
 			w.Header().Set("WWW-Authenticate", challenge)

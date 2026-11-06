@@ -60,6 +60,7 @@ type Config struct, field 3 Registration RegistrationConfig
 type Config struct, field 4 Issuer string
 type Config struct, field 5 AccessTokenSigner TokenSigner
 type Config struct, field 6 VerifiedPresentation VerifiedPresentationConfig
+type Config struct, field 7 ExclusiveAudiences []string
 type DPoPConfig struct
 type DPoPConfig struct, field 0 Enforce bool
 type DPoPConfig struct, field 1 NonceRequired bool

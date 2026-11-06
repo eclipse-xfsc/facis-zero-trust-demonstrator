@@ -168,10 +168,11 @@ func (v *verifiedPresentation) scopesFor(claims if03.Claims, ceiling []string) (
 type vpGrant struct {
 	*hoauth2.HandleHelper
 
-	vp       *verifiedPresentation
-	store    *storeAdapter
-	lifespan time.Duration
-	clock    *clock
+	exclusiveAudiences []string
+	vp                 *verifiedPresentation
+	store              *storeAdapter
+	lifespan           time.Duration
+	clock              *clock
 }
 
 // clock is the provider's one time source: every validity decision and every instant written to
@@ -224,6 +225,10 @@ func (g *vpGrant) check(ctx context.Context, request oauth2.AccessRequester, loc
 
 	if !client.GetGrantTypes().Has(vpGrantType) {
 		return checked{}, oauth2.ErrUnauthorizedClient.WithHint("The client is not allowed to use the verified-presentation grant.")
+	}
+
+	if exclusiveConflict(client.GetAudience(), g.exclusiveAudiences) {
+		return checked{}, oauth2.ErrInvalidRequest.WithHint("The client holds multiple exclusive audiences.")
 	}
 
 	form := request.GetRequestForm()
@@ -387,7 +392,8 @@ func (g *vpGrant) PopulateTokenEndpointResponse(ctx context.Context, request oau
 type clientCredentials struct {
 	*hoauth2.ClientCredentialsGrantHandler
 
-	vpScopes map[string]bool
+	vpScopes           map[string]bool
+	exclusiveAudiences []string
 }
 
 func (c *clientCredentials) HandleTokenEndpointRequest(ctx context.Context, request oauth2.AccessRequester) error {
@@ -395,6 +401,9 @@ func (c *clientCredentials) HandleTokenEndpointRequest(ctx context.Context, requ
 		return err
 	}
 
+	if exclusiveConflict(request.GetClient().GetAudience(), c.exclusiveAudiences) || exclusiveConflict(request.GetRequestedAudience(), c.exclusiveAudiences) {
+		return oauth2.ErrInvalidRequest.WithHint("The client holds multiple exclusive audiences.")
+	}
 	return c.refuseVPScopes(request.GetRequestedScopes())
 }
 
@@ -548,4 +557,15 @@ func (d *delegatingAuth) AuthenticateClientRegistrationRequest(ctx context.Conte
 	}
 
 	return &ceiling, nil
+}
+
+// exclusiveConflict counts distinct configured members, so duplicate audiences do not bypass it.
+func exclusiveConflict(audiences, exclusive []string) bool {
+	found := map[string]bool{}
+	for _, audience := range audiences {
+		if slices.Contains(exclusive, audience) {
+			found[audience] = true
+		}
+	}
+	return len(found) > 1
 }

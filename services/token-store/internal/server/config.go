@@ -1,6 +1,7 @@
 package server
 
 import (
+	"context"
 	"errors"
 	"net/url"
 	"strings"
@@ -50,6 +51,7 @@ type Config struct {
 // OpenBao is the key-value store as the store uses it: transit signing and KV v2.
 type OpenBao interface {
 	transit.Signer
+	LatestKey(context.Context, string) (transit.KeyVersion, error)
 	transit.Secrets
 }
 

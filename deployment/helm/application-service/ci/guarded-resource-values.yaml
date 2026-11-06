@@ -1,0 +1,20 @@
+# Render-only guarded configuration; supply admitted images and complete egress before deployment.
+name: ztd-protected-resource
+image:
+  repository: ghcr.io/eclipse-xfsc/facis-zero-trust-demonstrator/protected-resource
+  digest: sha256:0000000000000000000000000000000000000000000000000000000000000000
+serviceAccount:
+  create: true
+  name: ztd-protected-resource
+identity:
+  spireManagedIdentity: true
+ingress:
+  enabled: false
+env:
+  PROTECTED_RESOURCE_MODE: token
+  PROTECTED_RESOURCE_TOKEN_ISSUER: https://connector.m3.invalid
+  PROTECTED_RESOURCE_JWKS_URL: http://ztd-connector:8080/.well-known/jwks.json
+  PROTECTED_RESOURCE_AUDIENCE: https://resource.facis.invalid
+  PROTECTED_RESOURCE_PUBLIC_BASE_URL: http://ztd-guard:8080
+networkPolicy:
+  ingressFrom: []

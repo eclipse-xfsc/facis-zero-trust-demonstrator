@@ -17,7 +17,7 @@ const (
 	StateFailedConnector State = "failed_connector_unreachable"
 )
 
-// Bootstrapper runs the start-up sequence: register with the Connector (registrar credentials from a
+// Bootstrapper runs the start-up sequence: register with the Connector (provisioned client credentials from a
 // mounted secret), obtain a challenge, present (an IF-03 outcome from the OutcomeSource), and acquire
 // a DPoP-bound token. It reports every transition through report. The token path implementation is
 // integrated locally; the Participant's lifecycle, /state and /reset build against this interface.

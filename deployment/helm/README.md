@@ -9,11 +9,25 @@ documents its values in its own README.
 | Admission provider | `deployment/helm/admission` | new; installed after Gatekeeper | [admission/README.md](admission/README.md) |
 | Admission pool | `deployment/helm/admission-pool` | new; admission-proof namespaces and tester identity | [admission-pool/README.md](admission-pool/README.md) |
 | Token store | `deployment/helm/token-store` | new; the authorization database's schema as a migration hook, and the service with its probes and identity, its endpoints to follow | [token-store/README.md](token-store/README.md) |
-| Connector | `deployment/helm/connector` | new; the OAuth2 authorization surface with its registration policy and audit, its probes and identity, installed after the token-store chart | [connector/README.md](connector/README.md) |
+| Connector | `deployment/helm/connector` | new; standalone DCR behind the connector's registration policy with every decision audited, the verified-presentation grant, DPoP token issuance and JWKS, with its probes and identity; installed after the token-store chart; live proof pending | [connector/README.md](connector/README.md) |
 | Application service | `deployment/helm/application-service` | in use (OSC shared namespace) | [application-service/README.md](application-service/README.md) |
 | Lifecycle fixture (test data, never released) | `features/fixtures/charts/lifecycle-fixture` | in use by the acceptance scenarios | [README](../../features/fixtures/charts/lifecycle-fixture/README.md) |
 | ORCE | — | planned; until then ORCE is installed from `deployment/orce-minimal/` | — |
 | Umbrella chart for a zone | `deployment/helm/ztd` | in use on kind; design in [docs/umbrella-chart.md](../../docs/umbrella-chart.md) | [ztd/README.md](ztd/README.md) |
+| Zone policy | `deployment/helm/zone-policy` | in use on kind | the workloads' registration with SPIRE, mesh-wide STRICT mTLS, the identity-band checks |
+| Upstream SPIRE and Istio charts (values only) | `deployment/helm/values` | in use on kind | [values/README.md](values/README.md) |
+
+## A zone
+
+A zone is seven Helm releases, installed in order by `scripts/install-zone/install.sh` from one zone
+file: the umbrella `ztd` (management and data planes and the two control-plane namespaces, baseline
+deny network policies with the declared openings, the allow matrix, the hook-weight bands); the
+upstream charts `spire-crds`, `spire`, `istio-base`, `istiod` and `istio-cni`, installed as they ship
+and pinned by version with the values files in `values/` (that README lists every value set and
+why); and `zone-policy`.
+
+Workload identity exists before any workload starts because of the identity path, not because of an
+install order (`docs/umbrella-chart.md`).
 
 ## Quality gate
 
