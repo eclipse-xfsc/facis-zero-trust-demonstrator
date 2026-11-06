@@ -187,10 +187,6 @@
                   </li>
                   <li class="toctree-l1"><a class="reference internal" href="../evidences/mesh-mode-upstream-state/upstream-state/">Mesh mode, upstream state: record</a>
                   </li>
-                  <li class="toctree-l1"><a class="reference internal" href="../evidences/mesh-identity/">Mesh identity: about</a>
-                  </li>
-                  <li class="toctree-l1"><a class="reference internal" href="../evidences/mesh-identity/evidence/">Mesh identity: record</a>
-                  </li>
               </ul>
               <p class="caption"><span class="caption-text">Architecture decisions</span></p>
               <ul>
@@ -344,7 +340,7 @@ context. The <code>helm</code> commands on this page are the engine-level equiva
 </code></pre>
 <p>Teardown must leave no orphaned namespaces, CRDs or secrets. Every CRD leaves with the release that
 brought it; the installer removes the ones Istio's <code>base</code> chart marks to be kept by Helm. This is
-verified by the mesh identity evidence and by an acceptance scenario rather than by inspection.</p>
+verified by the teardown section of every run of the mesh identity proof (<code>scripts/verify-mesh-identity/README.md</code>) and by an acceptance scenario rather than by inspection.</p>
 <h2 id="reproducibility">Reproducibility<a class="headerlink" href="#reproducibility" title="Permanent link">&para;</a></h2>
 <p>Every environment is reproducible from this repository plus its values files. No step is performed
 by hand against a cluster; anything that cannot be expressed in a chart or a script belongs in

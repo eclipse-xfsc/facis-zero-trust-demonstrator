@@ -187,10 +187,6 @@
                   </li>
                   <li class="toctree-l1"><a class="reference internal" href="../evidences/mesh-mode-upstream-state/upstream-state/">Mesh mode, upstream state: record</a>
                   </li>
-                  <li class="toctree-l1"><a class="reference internal" href="../evidences/mesh-identity/">Mesh identity: about</a>
-                  </li>
-                  <li class="toctree-l1"><a class="reference internal" href="../evidences/mesh-identity/evidence/">Mesh identity: record</a>
-                  </li>
               </ul>
               <p class="caption"><span class="caption-text">Architecture decisions</span></p>
               <ul>
@@ -276,7 +272,7 @@ the DNS bypass, and each rendered only when the zone enables it:</p>
 <tbody>
 <tr>
 <td>workloads → DNS</td>
-<td><code>allow-dns-egress</code>, port 53 to the cluster resolver only</td>
+<td><code>allow-dns-egress</code>, the resolver pods' port (<code>networkPolicy.dns.ports</code>: 53, 8053 on the Gardener clusters) to the cluster resolver only</td>
 <td>the declared DNS bypass</td>
 </tr>
 <tr>
@@ -529,7 +525,7 @@ promotion job must need the same gate. OpenBao, installed by this chart when a z
 described in <a href="../secrets/">Secrets</a>.</p>
 <p>The umbrella's evidence covers the layout alone; the identity path and the mesh installed into it,
 with the seven releases, are proven by <code>scripts/verify-mesh-identity/verify.sh</code>
-(<a href="../evidences/mesh-identity/">the mesh identity evidence</a>).</p>
+(what a run shows: <code>scripts/verify-mesh-identity/README.md</code>).</p>
 <p>What waits for the client clusters is the first acceptance criterion — the layout on all three
 clusters — and the per-zone values the baseline records, including the API endpoint for the
 management-plane lane. The two OSC clusters are not yet provided. The IONOS cluster is, and

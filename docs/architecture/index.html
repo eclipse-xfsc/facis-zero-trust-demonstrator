@@ -191,10 +191,6 @@
                   </li>
                   <li class="toctree-l1"><a class="reference internal" href="../evidences/mesh-mode-upstream-state/upstream-state/">Mesh mode, upstream state: record</a>
                   </li>
-                  <li class="toctree-l1"><a class="reference internal" href="../evidences/mesh-identity/">Mesh identity: about</a>
-                  </li>
-                  <li class="toctree-l1"><a class="reference internal" href="../evidences/mesh-identity/evidence/">Mesh identity: record</a>
-                  </li>
               </ul>
               <p class="caption"><span class="caption-text">Architecture decisions</span></p>
               <ul>
@@ -603,7 +599,7 @@ not by the plane-separation test, so the table has no test column.</p>
 <td>workloads → DNS</td>
 <td>name-resolution infrastructure</td>
 <td>ALLOW (declared bypass, ZT-26)</td>
-<td>NetworkPolicy: ALLOW, port 53 only; mesh: not applicable — DNS is not mTLS traffic, so the mesh cannot govern it</td>
+<td>NetworkPolicy: ALLOW, the resolver's port only (53; 8053 on the Gardener clusters); mesh: not applicable — DNS is not mTLS traffic, so the mesh cannot govern it</td>
 </tr>
 </tbody>
 </table>
@@ -612,7 +608,7 @@ not by the plane-separation test, so the table has no test column.</p>
   destination permitted above by service name, so none of those paths works without name
   resolution. DNS is cluster infrastructure and a declared bypass under ZT-26, in the sense defined
   above. The mesh cannot govern it because it is not mTLS traffic, so the NetworkPolicy rule
-  limited to port 53 imposes the restriction.</li>
+  limited to the resolver's port (53; 8053 on the Gardener clusters) imposes the restriction.</li>
 </ul>
 <h3 id="declared-openings-of-the-network-baseline">Declared openings of the network baseline<a class="headerlink" href="#declared-openings-of-the-network-baseline" title="Permanent link">&para;</a></h3>
 <p>Beside the DNS bypass, the network baseline of a meshed zone has four declared openings for the two
@@ -633,10 +629,11 @@ the evidence. It is declared in <a href="../specifications/">Specifications</a> 
 with its approval pending; the row that disposes it, with istiod's client authentication pinned
 and proven, is left to a follow-up. istiod's CA answers on the same port and cannot be switched
 off; a certificate it issues is refused by every meshed peer, whose <code>ROOTCA</code> is SPIRE's bundle
-alone (<a href="../evidences/mesh-identity/">mesh identity evidence</a>). The other three openings keep
+alone, as every run of the mesh identity proof shows (see <code>scripts/verify-mesh-identity/README.md</code>). The other three openings keep
 the catch-all denial whole: in particular a data-plane workload reaches the SPIRE server on no
 port. Each opening is rendered by the umbrella chart only when the zone file enables it, and is
-proven by the named check of the mesh identity evidence:</p>
+proven by the named check of the mesh identity proof, which every run records (see
+<code>scripts/verify-mesh-identity/README.md</code>):</p>
 <table>
 <thead>
 <tr>
@@ -659,7 +656,7 @@ proven by the named check of the mesh identity evidence:</p>
 </tr>
 <tr>
 <td><code>controlPlaneWebhooks</code></td>
-<td>the API server (entities <code>kube-apiserver</code>, <code>host</code>, <code>remote-node</code>)</td>
+<td>the API server (entities <code>kube-apiserver</code>, <code>host</code>, <code>remote-node</code>); where the zone names it, the provider's pod that relays the API server's calls (<code>fromEndpoints</code>; Gardener's <code>vpn-shoot</code> on zone A and zone B)</td>
 <td>istiod's webhook; the SPIRE controller-manager's webhook</td>
 <td>15017; 9443</td>
 <td>ingress in <code>istio-system</code> and <code>spire-system</code> (<code>CiliumNetworkPolicy</code>)</td>

@@ -173,10 +173,6 @@
                   </li>
                   <li class="toctree-l1"><a class="reference internal" href="../../evidences/mesh-mode-upstream-state/upstream-state/">Mesh mode, upstream state: record</a>
                   </li>
-                  <li class="toctree-l1"><a class="reference internal" href="../../evidences/mesh-identity/">Mesh identity: about</a>
-                  </li>
-                  <li class="toctree-l1"><a class="reference internal" href="../../evidences/mesh-identity/evidence/">Mesh identity: record</a>
-                  </li>
               </ul>
               <p class="caption"><span class="caption-text">Architecture decisions</span></p>
               <ul class="current">
@@ -311,9 +307,8 @@ Consequence: Secure, auditable deployment operations.</p>
   <code>deployment/helm/values/istiod.yaml</code>; Istio's default minimum is TLS 1.2). The CI chart job
   asserts the value in the rendered <code>istio</code> ConfigMap, and the mesh identity proof shows a meshed
   peer's proxy completing a TLS 1.3 handshake with the caller's SPIRE SVID and refusing one capped
-  at TLS 1.2 with a protocol alert, in section
-  <a href="../../evidences/mesh-identity/evidence/#8-mesh-identity-issued-by-spire">8. mesh-identity-issued-by-spire</a>
-  of the mesh identity evidence.</li>
+  at TLS 1.2 with a protocol alert, in section 8 (<code>mesh-identity-issued-by-spire</code>) of every run's
+  record (see <code>scripts/verify-mesh-identity/README.md</code>).</li>
 </ul>
 <p><strong>Not yet:</strong> TLS 1.3 on ORCE's endpoints. ORCE has no ingress yet and is reached by port-forward;
 TLS 1.3 termination comes with its exposure, together with the ORCE chart. The rows that check the baseline at run

@@ -193,10 +193,6 @@
                   </li>
                   <li class="toctree-l1"><a class="reference internal" href="../evidences/mesh-mode-upstream-state/upstream-state/">Mesh mode, upstream state: record</a>
                   </li>
-                  <li class="toctree-l1"><a class="reference internal" href="../evidences/mesh-identity/">Mesh identity: about</a>
-                  </li>
-                  <li class="toctree-l1"><a class="reference internal" href="../evidences/mesh-identity/evidence/">Mesh identity: record</a>
-                  </li>
               </ul>
               <p class="caption"><span class="caption-text">Architecture decisions</span></p>
               <ul>
@@ -312,9 +308,24 @@ whether the reason is the one you expected.</p>
 <td><code>cilium-dbg monitor --type drop</code> on the webhook pod's node shows the dropped SYN and its source identity; the <code>controlPlaneWebhooks</code> opening admits <code>kube-apiserver</code>, <code>host</code> and <code>remote-node</code> on the webhook port</td>
 </tr>
 <tr>
-<td>The <code>istio-cni-node</code> pods crash with <code>couldn't initialize inotify: too many open files</code> (kind)</td>
-<td>The host's inotify instance limit, shared by every kind node</td>
-<td><code>sysctl fs.inotify.max_user_instances</code>; raise it to 512 (<code>sudo sysctl -w fs.inotify.max_user_instances=512</code>), the value kind's known issues give</td>
+<td>The <code>istio-cni-node</code> pods crash with <code>couldn't initialize inotify: too many open files</code></td>
+<td>On kind, the host's inotify instance limit, shared by every kind node; on another cluster, the node's own limit</td>
+<td>On kind: <code>sysctl fs.inotify.max_user_instances</code>; raise it to 512 (<code>sudo sysctl -w fs.inotify.max_user_instances=512</code>), the value kind's known issues give. Elsewhere, read it on every node through its Cilium agent: <code>kubectl -n kube-system exec &lt;cilium pod&gt; -c cilium-agent -- cat /proc/sys/fs/inotify/max_user_instances</code> (the participant clusters run 8192); a provider-managed node is raised by the provider, not by hand</td>
+</tr>
+<tr>
+<td>Meshed pods on a node other than istiod's never start on a provider cluster: they stay in <code>Init:1/2</code>, their <code>istio-proxy</code> never ready, while pods on istiod's node start</td>
+<td>Their proxies cannot reach istiod on 15012. The provider's pod network masquerades pod-to-pod traffic between nodes (Cilium in native routing with the pod ranges outside <code>ipv4-native-routing-cidr</code>, masquerading on, as on the participant clusters today): the destination sees the node, not the pod, and no policy admitting pods by namespace matches</td>
+<td><code>cilium-dbg monitor --type drop</code> on istiod's node (read-only <code>kubectl exec</code> into its Cilium pod) shows SYNs to 15012 from node addresses; the proof's preconditions record the routing as found (the pod ranges against the native-routing range). The fix is the provider's: keep pod addresses between nodes (the pod ranges inside the native-routing range, or an overlay); do not widen the lanes to node addresses; no workload lane admits a pod by address (the one address the chart admits is the kubelet probe address of the parked ambient mode, rendered only in that mode). Until then the proof pins its pods to istiod's node there (<a href="../environments/osc/#what-has-been-run">OSC guide</a>)</td>
+</tr>
+<tr>
+<td><code>verify-mesh-identity: refusing context '&lt;context&gt;'</code></td>
+<td>The proof accepts a kind cluster, or the participant cluster <code>zerotrust-a</code> or <code>zerotrust-b</code> behind its opt-in; the message names the fact that did not hold (<code>ZTD_CONFIRM_CLUSTER</code>, the API host prefix <code>api.&lt;context&gt;.</code>, a node's <code>onmetal://</code> provider ID or <code>--&lt;context&gt;-</code> name, the zone file's <code>zone.name</code>, or <code>ZTD_KEEP_ZONE</code> on kind or with another value)</td>
+<td>Set the variable it names for this run, or check that the context points at the cluster its name says (<a href="https://github.com/eclipse-xfsc/facis-zero-trust-demonstrator/tree/main/scripts/verify-mesh-identity">verify-mesh-identity</a>)</td>
+</tr>
+<tr>
+<td>A participant-cluster run with <code>ZTD_KEEP_ZONE</code> ends with <code>Zone kept: no</code></td>
+<td>A check failed (the evidence counts them), so the run tore the zone down as without the opt-in; an interrupted run does the same from its exit trap</td>
+<td>Read the failed checks in <code>evidence.md</code> of the run directory the run printed as its last line (see <code>scripts/verify-mesh-identity/README.md</code>), fix, and re-run; to debug by hand, install with <code>scripts/install-zone/install.sh</code> and remove it with <code>install.sh uninstall</code> and <code>kubectl delete namespace ztd-system</code></td>
 </tr>
 <tr>
 <td>A pod in a plane namespace is refused with <code>ValidatingAdmissionPolicy 'proxy-takes-spire-socket' … denied request</code></td>

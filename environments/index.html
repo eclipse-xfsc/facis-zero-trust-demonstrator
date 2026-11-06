@@ -181,10 +181,6 @@
                   </li>
                   <li class="toctree-l1"><a class="reference internal" href="../evidences/mesh-mode-upstream-state/upstream-state/">Mesh mode, upstream state: record</a>
                   </li>
-                  <li class="toctree-l1"><a class="reference internal" href="../evidences/mesh-identity/">Mesh identity: about</a>
-                  </li>
-                  <li class="toctree-l1"><a class="reference internal" href="../evidences/mesh-identity/evidence/">Mesh identity: record</a>
-                  </li>
               </ul>
               <p class="caption"><span class="caption-text">Architecture decisions</span></p>
               <ul>
@@ -257,7 +253,7 @@ visualization environment. The reasoning for three rather than two is recorded i
 <td>T-Systems Open Sovereign Cloud</td>
 <td>2</td>
 <td>Zone A and zone B — the two demonstration zones and their trust boundary</td>
-<td><a href="osc/">OSC setup</a> — clusters not yet provided</td>
+<td><a href="osc/">OSC setup</a> — provided (contexts <code>zerotrust-a</code>, <code>zerotrust-b</code>); both zones installed and kept on interim trust domains, the mesh proven node-locally (it fails across nodes on the provider's pod masquerading until the provider changes it); the proof: <a href="osc/#proving-steps-2-to-4-the-mesh-identity-proof">the guide's proving step</a> and <code>scripts/verify-mesh-identity/README.md</code></td>
 </tr>
 <tr>
 <td>IONOS Cloud</td>
@@ -291,8 +287,8 @@ Where a step cannot be executed yet it says so, rather than reading as though it
 which runs seven Helm releases in order — the umbrella <code>ztd</code>, <code>spire-crds</code>, <code>spire</code>, <code>istio-base</code>,
 <code>istiod</code>, <code>istio-cni</code>, <code>zone-policy</code> — each through the deployment lifecycle step, and exits 0 only
 when every pod of the zone is Ready. The zone file records the cluster's facts (Kubernetes version,
-storage class, load balancer) and, where the mesh runs, the zone's trust domain (the DNS zone
-delegated to the trust zone) and the API server endpoint. The <a href="osc/#2-the-zone-layout">OSC guide</a>
+storage class, load balancer) and, where the mesh runs, the zone's trust domain (a name under the DNS
+zone delegated to the trust framework, one per zone) and the API server's port. The <a href="osc/#2-the-zone-layout">OSC guide</a>
 walks through it step by step with each step's verification; the identity path is described in
 <a href="../workload-identity/">Workload identity</a>.</p>
 <h2 id="reproduction-and-verification">Reproduction and verification<a class="headerlink" href="#reproduction-and-verification" title="Permanent link">&para;</a></h2>

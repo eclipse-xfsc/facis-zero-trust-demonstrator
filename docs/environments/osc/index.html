@@ -75,13 +75,19 @@
     <ul class="current">
     <li class="toctree-l2"><a class="reference internal" href="#before-you-start">Before you start</a>
     </li>
-    <li class="toctree-l2"><a class="reference internal" href="#1-cni">1. CNI</a>
+    <li class="toctree-l2"><a class="reference internal" href="#1-cni-verify-the-providers-cilium">1. CNI: verify the provider's Cilium</a>
     </li>
     <li class="toctree-l2"><a class="reference internal" href="#2-the-zone-layout">2. The zone layout</a>
     </li>
     <li class="toctree-l2"><a class="reference internal" href="#3-workload-identity">3. Workload identity</a>
     </li>
     <li class="toctree-l2"><a class="reference internal" href="#4-mesh">4. Mesh</a>
+    </li>
+    <li class="toctree-l2"><a class="reference internal" href="#proving-steps-2-to-4-the-mesh-identity-proof">Proving steps 2 to 4: the mesh-identity proof</a>
+        <ul>
+    <li class="toctree-l3"><a class="reference internal" href="#what-has-been-run">What has been run</a>
+    </li>
+        </ul>
     </li>
     <li class="toctree-l2"><a class="reference internal" href="#5-admission-control">5. Admission control</a>
     </li>
@@ -195,10 +201,6 @@
                   </li>
                   <li class="toctree-l1"><a class="reference internal" href="../../evidences/mesh-mode-upstream-state/upstream-state/">Mesh mode, upstream state: record</a>
                   </li>
-                  <li class="toctree-l1"><a class="reference internal" href="../../evidences/mesh-identity/">Mesh identity: about</a>
-                  </li>
-                  <li class="toctree-l1"><a class="reference internal" href="../../evidences/mesh-identity/evidence/">Mesh identity: record</a>
-                  </li>
               </ul>
               <p class="caption"><span class="caption-text">Architecture decisions</span></p>
               <ul>
@@ -257,35 +259,109 @@
 the protected resource it calls. Each is a separate cluster with its own workload identity,
 admission control and policy enforcement, and the interesting part of the demonstrator is what
 happens between them.</p>
-<div class="admonition warning">
-<p class="admonition-title">Cluster not yet provided</p>
-<p>The two OSC clusters have not been provided yet (status of 23 September 2026). This page is
-written from the platform baseline and the decisions that govern it; nothing on it has been run
-against a real OSC cluster. Every step says how it will be verified, and the page is confirmed
-against the clusters on first stand-up, as the <a href="../ionos/">IONOS guide</a> already is.</p>
-</div>
+<p>The two clusters were provided on 9 October 2026 and the facts on this page were read off them on
+10 October 2026. Steps 1 to 4 have been run on both by the mesh-identity proof, with the proof's
+pods on istiod's node, and both zones are left installed on their interim trust domains; the mesh
+does not work across nodes on the provider's pod network as configured today (see
+<a href="#what-has-been-run">What has been run</a>). Steps 5 to 7 have not been run.</p>
 <h2 id="before-you-start">Before you start<a class="headerlink" href="#before-you-start" title="Permanent link">&para;</a></h2>
 <p>You need:</p>
 <ul>
-<li>a kubeconfig for each of the two OSC clusters, with rights to create namespaces and
-  cluster-scoped resources;</li>
-<li>credentials for the container registry the images are pulled from, and network reachability to it
-  from both clusters;</li>
-<li>the DNS zone delegation for the trust framework in place (<a href="../../train-dns/">TRAIN DNS zone</a>), or
-  the trust-list steps will not resolve;</li>
-<li>Helm v4.3.0, the version the pipeline pins, and kubectl;</li>
-<li>this repository checked out, and the values file for the zone you are installing.</li>
+<li>a kubeconfig for each of the two clusters, with rights to create namespaces and cluster-scoped
+  resources. This guide uses the context names the delivered kubeconfigs carry: <code>zerotrust-a</code> for
+  zone A and <code>zerotrust-b</code> for zone B; the mesh-identity proof accepts those two names only;</li>
+<li>network reachability from both clusters to the registries the pinned images are pulled from;</li>
+<li>the zone files <code>deployment/helm/ztd/zones/zone-a.yaml</code> and <code>zone-b.yaml</code>. Their trust domains
+  are <strong>interim</strong>, <code>zone-a.trust.invalid</code> and <code>zone-b.trust.invalid</code>, until the DNS zone delegated
+  to the trust framework is named and the Technical Design Authority confirms the final names
+  <code>zone-a.&lt;zone&gt;</code> and <code>zone-b.&lt;zone&gt;</code>; a zone installed on an interim name is re-installed with the
+  final one (<a href="../../workload-identity/#the-trust-domain">Workload identity</a>);</li>
+<li>the DNS zone delegation for the trust framework in place before the trust-list steps (5 to 7),
+  which resolve the trust framework's records;</li>
+<li>Helm v4.3.0, the version the pipeline pins, kubectl, <code>jq</code>, <code>curl</code>, <code>openssl</code> and <code>python3</code> with
+  PyYAML (the zone installer and the proof), istioctl 1.31.1 and the <code>cilium</code> CLI;</li>
+<li>this repository checked out.</li>
 </ul>
 <p>Check the version first — everything below assumes 1.29 or later, and the mesh needs 1.33 or later:</p>
-<pre><code class="language-bash">kubectl version -o json | jq -r '.serverVersion.gitVersion'
+<pre><code class="language-bash">kubectl --context zerotrust-a version -o json | jq -r '.serverVersion.gitVersion'   # v1.34.7
 </code></pre>
-<h2 id="1-cni">1. CNI<a class="headerlink" href="#1-cni" title="Permanent link">&para;</a></h2>
-<p>Cilium is installed first and must not claim exclusive ownership of the CNI configuration
-directory, or the Istio CNI plugin cannot chain behind it:</p>
-<pre><code class="language-bash">helm upgrade --install cilium cilium/cilium -n kube-system \
-  --set cni.exclusive=false
+<h2 id="1-cni-verify-the-providers-cilium">1. CNI: verify the provider's Cilium<a class="headerlink" href="#1-cni-verify-the-providers-cilium" title="Permanent link">&para;</a></h2>
+<p>Cilium on these clusters is installed and upgraded by the provider (Gardener). It is <strong>not</strong>
+installed by us and must not be re-installed, upgraded or reconfigured: the zone only verifies it.
+The Istio CNI plugin chains behind it, which needs <code>cni-exclusive=false</code>, and the provider already
+sets it. For each context:</p>
+<pre><code class="language-bash">kubectl --context zerotrust-a -n kube-system get ds cilium \
+  -o jsonpath='{.spec.template.spec.containers[0].image}{&quot;\n&quot;}'          # .../cilium:v1.18.8
+kubectl --context zerotrust-a -n kube-system get cm cilium-config \
+  -o jsonpath='{.data.cni-exclusive} {.data.bpf-lb-sock-hostns-only}{&quot;\n&quot;}'   # false true
+kubectl --context zerotrust-a -n kube-system get ds cilium                 # 3 desired, 3 ready
 </code></pre>
-<p><strong>Verify:</strong> every Cilium pod is <code>Running</code>, and <code>cilium status</code> reports the cluster healthy.</p>
+<p><strong>Verify:</strong> the image tag is <code>v1.18.8</code>, <code>cni-exclusive</code> is <code>false</code>, <code>bpf-lb-sock-hostns-only</code> is
+<code>true</code> (socket load-balancing stays in the host namespace, so the sidecars see service traffic),
+and every Cilium pod is ready. The proof reads the same values and checks at its end that the
+DaemonSet and its ConfigMap are unchanged by the run.</p>
+<p>Facts read off both clusters on 10 October 2026:</p>
+<table>
+<thead>
+<tr>
+<th>Fact</th>
+<th>zone A (<code>zerotrust-a</code>) and zone B (<code>zerotrust-b</code>)</th>
+<th>Read with</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Kubernetes</td>
+<td><code>v1.34.7</code></td>
+<td><code>kubectl version</code></td>
+</tr>
+<tr>
+<td>Nodes</td>
+<td>three workers, Garden Linux 2150.7.0, containerd 2.2.6, provider IDs <code>onmetal://</code></td>
+<td><code>kubectl get nodes -o wide</code></td>
+</tr>
+<tr>
+<td>Cilium</td>
+<td>1.18.8, the provider's DaemonSet, <code>cni-exclusive=false</code>, <code>bpf-lb-sock-hostns-only=true</code>, kube-proxy replacement, native routing, <code>policy-cidr-match-mode=nodes</code></td>
+<td><code>kubectl -n kube-system get ds cilium</code>, <code>get cm cilium-config</code></td>
+</tr>
+<tr>
+<td>StorageClass</td>
+<td><code>default</code> (the default class, <code>csi.onmetal.de</code>)</td>
+<td><code>kubectl get storageclass</code></td>
+</tr>
+<tr>
+<td>CoreDNS</td>
+<td>in <code>kube-system</code>, labelled <code>k8s-app=kube-dns</code> (the chart default), listening on 8053 behind the Service's port 53</td>
+<td><code>kubectl -n kube-system get svc kube-dns</code></td>
+</tr>
+<tr>
+<td>Pod mutation by the provider</td>
+<td><code>kubernetes-service-host.resources.gardener.cloud</code> sets <code>KUBERNETES_SERVICE_HOST</code> to the API server's public name in every new pod, except in namespaces labelled <code>apiserver-proxy.networking.gardener.cloud/inject: disable</code></td>
+<td><code>kubectl get mutatingwebhookconfiguration gardener-resource-manager-shoot</code></td>
+</tr>
+<tr>
+<td>API server</td>
+<td>outside the cluster, reached through the provider's <code>apiserver-proxy</code> pods; the <code>kubernetes</code> Service's endpoint port is 443</td>
+<td><code>kubectl get endpointslices -n default -l kubernetes.io/service-name=kubernetes</code></td>
+</tr>
+<tr>
+<td>inotify instances</td>
+<td>8192 on every node</td>
+<td>through each node's Cilium agent (below)</td>
+</tr>
+<tr>
+<td>Before the first install</td>
+<td>empty: no namespace beyond <code>default</code>, <code>kube-system</code>, <code>kube-public</code>, <code>kube-node-lease</code></td>
+<td><code>kubectl get ns</code></td>
+</tr>
+</tbody>
+</table>
+<p>The inotify instance limit is read on every node through its Cilium agent, read-only:</p>
+<pre><code class="language-bash">for p in $(kubectl --context zerotrust-a -n kube-system get pod -l k8s-app=cilium -o name); do
+  kubectl --context zerotrust-a -n kube-system exec &quot;$p&quot; -c cilium-agent -- cat /proc/sys/fs/inotify/max_user_instances
+done
+</code></pre>
 <h2 id="2-the-zone-layout">2. The zone layout<a class="headerlink" href="#2-the-zone-layout" title="Permanent link">&para;</a></h2>
 <p>Steps 2 to 4 are one command. The zone installer installs the zone from its zone file as seven Helm
 releases, in this order, each through the deployment lifecycle step (<code>scripts/lifecycle.sh</code>: a
@@ -353,26 +429,38 @@ the previous, and stops at the first release that fails, naming it:</p>
 </tr>
 </tbody>
 </table>
-<p>First fill the zone file, <code>deployment/helm/ztd/zones/&lt;zone&gt;.yaml</code>, from the cluster
-(<code>zones/zone-a.example.yaml</code> shows each fact with the command that reads it). Besides the cluster
-facts, a zone that runs the mesh states:</p>
+<p>The zone files record each cluster: <code>deployment/helm/ztd/zones/zone-a.yaml</code> and <code>zone-b.yaml</code>
+(<code>zones/zone-a.example.yaml</code> shows each fact with the command that reads it). Each states:</p>
 <ul>
-<li><code>zone.trustDomain</code>: the zone's SPIFFE trust domain, which is <strong>the DNS zone delegated to this
-  trust zone</strong>, confirmed by the Technical Design Authority. It is fixed at the first install
-  (<a href="../../workload-identity/#the-trust-domain">Workload identity</a>); without it nothing renders.</li>
-<li><code>networkPolicy.kubeApi</code>: enabled, with the API server's port as the endpoint slice of the
-  <code>kubernetes</code> Service shows it (<code>kubectl get endpointslices -n default -l
-  kubernetes.io/service-name=kubernetes</code>).</li>
-<li><code>zone.kubernetesVersion</code> 1.33 or later, <code>cni.cilium.enabled: true</code>, the control-plane namespaces
-  <code>spire-system</code> and <code>istio-system</code> in <code>planes.extra</code> with <code>mesh: false</code>, and the openings
-  <code>meshControlPlane</code>, <code>controlPlaneWebhooks</code> and <code>identityServer</code> enabled.</li>
+<li><code>zone.name</code> <code>zone-a</code> or <code>zone-b</code>, <code>zone.kubernetesVersion: v1.34.7</code>, <code>zone.storageClass: default</code>,
+  <code>zone.loadBalancer.type: cloud</code> (the provider provisions LoadBalancer Services; nothing in the
+  zone exercises one yet);</li>
+<li><code>zone.trustDomain</code>: the zone's SPIFFE trust domain, a name under the DNS zone delegated to the
+  trust framework, one per zone, today the interim <code>zone-a.trust.invalid</code> / <code>zone-b.trust.invalid</code>.
+  It is fixed in the SPIRE root CA at install
+  (<a href="../../workload-identity/#the-trust-domain">Workload identity</a>); without it nothing renders;</li>
+<li><code>mesh.mode: sidecar</code>, <code>cni.cilium.enabled: true</code>, the control-plane namespaces <code>spire-system</code>
+  and <code>istio-system</code> in <code>planes.extra</code> with <code>mesh: false</code>, and the openings <code>meshControlPlane</code>,
+  <code>controlPlaneWebhooks</code> and <code>identityServer</code> enabled;</li>
+<li><code>networkPolicy.kubeApi</code> enabled with port 443 and no address: under Cilium the API lane and the
+  openings are entity policies, and no IP-based rule is written;</li>
+<li>the DNS bypass to CoreDNS (<code>k8s-app=kube-dns</code>, the chart default) on port <strong>8053</strong>, the port its
+  pods listen on behind the <code>kube-dns</code> Service's port 53 (a network policy matches the pod's port);</li>
+<li><code>planes.namespaceLabels</code> with <code>apiserver-proxy.networking.gardener.cloud/inject: disable</code> on every
+  namespace the umbrella creates. Without it the provider's webhook
+  <code>kubernetes-service-host.resources.gardener.cloud</code> sets <code>KUBERNETES_SERVICE_HOST</code> in every new pod
+  to the API server's public name, which Cilium sees as <code>world</code>: SPIRE and istiod could not reach
+  the API through the <code>kubeApi</code> lane, which admits the <code>kube-apiserver</code> entity only. With the label
+  the pods use the <code>kubernetes</code> Service, as on any other cluster.</li>
 </ul>
 <p>Then plan, and install:</p>
-<pre><code class="language-bash">ZONE_VALUES=deployment/helm/ztd/zones/&lt;zone&gt;.yaml KUBE_CONTEXT=&lt;context&gt; \
+<pre><code class="language-bash">ZONE_VALUES=deployment/helm/ztd/zones/zone-a.yaml KUBE_CONTEXT=zerotrust-a \
   scripts/install-zone/install.sh plan
-ZONE_VALUES=deployment/helm/ztd/zones/&lt;zone&gt;.yaml KUBE_CONTEXT=&lt;context&gt; \
+ZONE_VALUES=deployment/helm/ztd/zones/zone-a.yaml KUBE_CONTEXT=zerotrust-a \
   scripts/install-zone/install.sh install
 </code></pre>
+<p>(zone B: <code>zone-b.yaml</code> and <code>zerotrust-b</code>). The installer itself has no cluster guard; the
+mesh-identity proof below runs it behind an explicit opt-in.</p>
 <p>The installer exits 0 only when every release is deployed and every pod of the plane and
 control-plane namespaces is Ready; run again, it changes nothing. Its
 <a href="https://github.com/eclipse-xfsc/facis-zero-trust-demonstrator/tree/main/scripts/install-zone">README</a>
@@ -399,8 +487,9 @@ the server, the trust bundle and the entries sit in the <code>identity</code> ba
 and fail the release when identity is not there. Details: <a href="../../workload-identity/">Workload identity</a>.</p>
 <p>The zone facts this step needs, in the zone file <code>deployment/helm/ztd/zones/&lt;zone&gt;.yaml</code>:</p>
 <ul>
-<li><code>zone.trustDomain</code>: the zone's SPIFFE trust domain, the DNS zone delegated to this trust zone,
-  confirmed by the Technical Design Authority and fixed at the first install;</li>
+<li><code>zone.trustDomain</code>: the zone's SPIFFE trust domain, a name under the DNS zone delegated to the
+  trust framework (interim <code>zone-a.trust.invalid</code> / <code>zone-b.trust.invalid</code> until the Technical Design
+  Authority confirms the final names), fixed in the SPIRE root CA at install;</li>
 <li><code>spire-system</code> in <code>planes.extra</code> with <code>mesh: false</code>, and the openings <code>identityServer</code> and
   <code>controlPlaneWebhooks</code> enabled;</li>
 <li><code>networkPolicy.kubeApi</code> enabled with the API server's port, which the agents and the
@@ -432,8 +521,64 @@ recorded in the mesh configuration.</p>
 <p><strong>Verify:</strong> every pod in a plane namespace carries the injected proxy as a native sidecar
 (<code>istio-proxy</code> among its init containers with <code>restartPolicy: Always</code>); <code>istioctl proxy-config
 secret &lt;pod&gt;</code> shows <code>default</code> and <code>ROOTCA</code> issued by the SPIRE CA; a request between two meshed
-workloads carries a SPIRE-issued identity. The executed proof of all of it on kind is
-<a href="../../evidences/mesh-identity/">the mesh identity evidence</a>.</p>
+workloads carries a SPIRE-issued identity. The mesh identity proof shows all of it, on kind and on
+these clusters: the next section.</p>
+<h2 id="proving-steps-2-to-4-the-mesh-identity-proof">Proving steps 2 to 4: the mesh-identity proof<a class="headerlink" href="#proving-steps-2-to-4-the-mesh-identity-proof" title="Permanent link">&para;</a></h2>
+<p><code>scripts/verify-mesh-identity/verify.sh</code> installs the zone from the empty cluster with the zone
+installer, twice, and proves every verification of steps 2 to 4 with stand-in pods: the SVID over
+the CSI socket, the proxy's certificate from SPIRE, the trust domain shared by SPIRE, the SVID and
+the mesh, the Istio plugin chained behind the provider's Cilium, the default deny with both
+control planes inside it, the server version against the native-sidecar floor, and the provider's
+CNI unchanged. It refuses these clusters unless the run is confirmed: the context is <code>zerotrust-a</code>
+or <code>zerotrust-b</code>, <code>ZTD_CONFIRM_CLUSTER</code> equals it, the API server host begins with
+<code>api.&lt;context&gt;.</code>, and every node is an <code>onmetal://</code> node named for that cluster
+(<a href="https://github.com/eclipse-xfsc/facis-zero-trust-demonstrator/tree/main/scripts/verify-mesh-identity">verify-mesh-identity</a>).</p>
+<p>Run and torn down, leaving the cluster as it was found (empty):</p>
+<pre><code class="language-bash">KUBE_CONTEXT=zerotrust-a ZTD_CONFIRM_CLUSTER=zerotrust-a \
+  ZONE_VALUES=deployment/helm/ztd/zones/zone-a.yaml scripts/verify-mesh-identity/verify.sh
+</code></pre>
+<p>Run and left installed, when every check passed:</p>
+<pre><code class="language-bash">KUBE_CONTEXT=zerotrust-a ZTD_CONFIRM_CLUSTER=zerotrust-a ZTD_KEEP_ZONE=zerotrust-a \
+  ZONE_VALUES=deployment/helm/ztd/zones/zone-a.yaml scripts/verify-mesh-identity/verify.sh
+</code></pre>
+<p>With <code>ZTD_KEEP_ZONE</code>, a run whose every check passed leaves the seven releases installed in
+<code>ztd-system</code>, <code>spire-system</code> and <code>istio-system</code> with the two plane namespaces, removes its stand-in
+pods, and ends its evidence with "What remains installed": the releases <code>deployed</code>, the SPIRE
+server and controller-manager ready, one agent and one CSI driver pod ready per node, one attested
+agent per node, and the trust domain in use. A failed check or an interrupted run tears the zone
+down whatever the opt-in; without it the run always does. A kept zone runs on its <strong>interim trust
+domain</strong> until the re-install with the final name; it is not acceptance evidence until then. A
+re-run of the proof on a kept zone starts from its clean slate, which uninstalls the zone first
+(and so regenerates the SPIRE root CA and every SVID).</p>
+<p>SPIRE's metrics endpoints are exposed on fixed ports (the server and the agents on 9988, the
+agents' bound to the node's loopback; the controller-manager on 8082) but nothing in the zone
+scrapes them yet: that belongs to the observability work.</p>
+<p>Each run writes its record (<code>evidence.md</code>, <code>environment.json</code>) to a run directory outside the
+repository, <code>ZTD_EVIDENCE_DIR</code> when set, else a new directory under
+<code>${XDG_STATE_HOME:-$HOME/.local/state}/ztd/verify-mesh-identity/&lt;context&gt;/</code>, and prints that
+directory as its last line; every IPv4 address of the cluster is written as <code>&lt;address&gt;</code> in it. The
+repository holds no record of a run: a record is proof of a state at a time and goes with the task
+that asked for it. What a run shows, section by section, is in
+<code>scripts/verify-mesh-identity/README.md</code>.</p>
+<h3 id="what-has-been-run">What has been run<a class="headerlink" href="#what-has-been-run" title="Permanent link">&para;</a></h3>
+<p>The proof has been run on both participant clusters, zone A then zone B, with the keep opt-in and
+with the proof's pods pinned to istiod's node; every check passed on both, and both zones are
+<strong>left installed</strong> on their interim trust domains. The pin is in the proof alone: the chart, the
+policies and the zone files carry none of it.</p>
+<p><strong>The limitation: the mesh is proven node-locally only.</strong> The provider's Cilium runs in native
+routing with <code>ipv4-native-routing-cidr</code> covering the node network only and masquerading on, so a
+pod's traffic to a pod on another node leaves with the node's address; at the destination Cilium
+sees the node, not the source pod, and no network policy that admits pods by namespace or label
+matches across nodes (a run's preconditions state it: <code>0 of 3 node pod ranges inside
+ipv4-native-routing-cidr</code>). <strong>Cross-node meshed traffic is not proven and does not work there</strong>: a
+meshed workload on a node other than istiod's never starts, because its proxy cannot reach istiod
+on 15012. The lanes admit no workload by address and are not widened to node addresses, which would
+admit every pod on every node (the one address the chart admits is the kubelet probe address of the
+parked ambient mode, rendered only in that mode). The fix is the provider's (pod-to-pod traffic
+keeping the pod's address between nodes, the pod network inside Cilium's native-routing range or the
+overlay) and has been requested; once the provider confirms the change, the pin is removed from the
+proof and both zones are re-run without it, as a run of its own, independent of the re-install on
+the final trust-domain names.</p>
 <h2 id="5-admission-control">5. Admission control<a class="headerlink" href="#5-admission-control" title="Permanent link">&para;</a></h2>
 <p>OPA Gatekeeper is installed together with the signature-verification external-data provider. From
 this point an image whose Cosign signature does not verify against the client key material cannot
@@ -463,7 +608,8 @@ CRDs that release owned:</p>
   scripts/install-zone/install.sh uninstall
 </code></pre>
 <p>The umbrella's release namespace <code>ztd-system</code> remains: the installer creates it before the first
-release and no release owns it. It holds nothing once the umbrella is uninstalled; delete it last:</p>
+release and no release owns it. It holds nothing once the umbrella is uninstalled; delete it last
+(this is also how a zone kept by the proof is removed by hand; the proof's own teardown does both):</p>
 <pre><code class="language-bash">kubectl --context &lt;context&gt; delete namespace ztd-system
 </code></pre>
 <p><strong>Verify:</strong> no namespace, CRD or secret belonging to the demonstrator survives. This is asserted by

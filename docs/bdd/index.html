@@ -207,10 +207,6 @@
                   </li>
                   <li class="toctree-l1"><a class="reference internal" href="../evidences/mesh-mode-upstream-state/upstream-state/">Mesh mode, upstream state: record</a>
                   </li>
-                  <li class="toctree-l1"><a class="reference internal" href="../evidences/mesh-identity/">Mesh identity: about</a>
-                  </li>
-                  <li class="toctree-l1"><a class="reference internal" href="../evidences/mesh-identity/evidence/">Mesh identity: record</a>
-                  </li>
               </ul>
               <p class="caption"><span class="caption-text">Architecture decisions</span></p>
               <ul>
@@ -682,8 +678,8 @@ the chart's <code>helm.sh/resource-policy: keep</code> in its values, so <code>h
 Istio's <code>base</code> sets that policy in its files, so the zone installer deletes that release's CRDs
 after uninstalling it. The zone installer,
 <code>scripts/install-zone/install.sh</code>, runs the releases in order through the same lifecycle step this
-pack exercises, and its uninstall leaves no SPIRE or Istio CRD behind, as the
-<a href="../evidences/mesh-identity/">mesh identity evidence</a> shows.</p>
+pack exercises, and its uninstall leaves no SPIRE or Istio CRD behind, as the teardown section of
+every run of the mesh identity proof shows (see <code>scripts/verify-mesh-identity/README.md</code>).</p>
 <h3 id="evidence">Evidence<a class="headerlink" href="#evidence" title="Permanent link">&para;</a></h3>
 <p>Per row, target and example: <code>bundles/bdd/evidence/bdd-tdr-00n/&lt;target&gt;/&lt;example&gt;/</code> holds the
 commands and acknowledgements, the ORCE context entry of each command (with the masked Helm output,

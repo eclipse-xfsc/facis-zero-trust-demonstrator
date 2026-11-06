@@ -92,7 +92,7 @@
     </li>
     <li class="toctree-l2"><a class="reference internal" href="#checking-an-identity">Checking an identity</a>
     </li>
-    <li class="toctree-l2"><a class="reference internal" href="#what-the-evidence-proves">What the evidence proves</a>
+    <li class="toctree-l2"><a class="reference internal" href="#what-a-run-of-the-proof-shows">What a run of the proof shows</a>
     </li>
     </ul>
                 </li>
@@ -203,10 +203,6 @@
                   </li>
                   <li class="toctree-l1"><a class="reference internal" href="../evidences/mesh-mode-upstream-state/upstream-state/">Mesh mode, upstream state: record</a>
                   </li>
-                  <li class="toctree-l1"><a class="reference internal" href="../evidences/mesh-identity/">Mesh identity: about</a>
-                  </li>
-                  <li class="toctree-l1"><a class="reference internal" href="../evidences/mesh-identity/evidence/">Mesh identity: record</a>
-                  </li>
               </ul>
               <p class="caption"><span class="caption-text">Architecture decisions</span></p>
               <ul>
@@ -266,8 +262,9 @@ the repository installs it: where its parts live and why, how the zone's trust d
 a workload is registered, which network openings the two control planes need under the default
 deny, the contract between the SPIRE agent and the mesh proxy, and how to check on a live cluster
 that an identity is SPIRE's. <a href="../adr/0009-service-mesh-mode-istio-sidecar-with-cilium/">ADR-0009</a>
-records why the mesh runs in sidecar mode; the <a href="../evidences/mesh-identity/">evidence</a> is
-the executed proof on the kind cluster.</p>
+records why the mesh runs in sidecar mode; <code>scripts/verify-mesh-identity/verify.sh</code> is the executed
+proof, on the kind cluster or a participant cluster, and <code>scripts/verify-mesh-identity/README.md</code> says what a run
+shows.</p>
 <h2 id="the-identity-path">The identity path<a class="headerlink" href="#the-identity-path" title="Permanent link">&para;</a></h2>
 <pre><code>SPIRE server ◄── agent (DaemonSet, host network) ──► kubelet (localhost): attests the pod
 (spire-system)        │ Workload API socket
@@ -304,11 +301,12 @@ it, instead of applying them to every management component in <code>ztd-mgmt</co
 name because Istio's mesh root namespace, and with it the mesh-wide <code>PeerAuthentication</code>, lives
 there by convention.</p>
 <h2 id="the-trust-domain">The trust domain<a class="headerlink" href="#the-trust-domain" title="Permanent link">&para;</a></h2>
-<p>Each zone is its own SPIFFE trust domain; zones never federate. The <strong>trust domain of a zone is
-the DNS zone delegated to that trust zone</strong>: the zone the trust framework already requires as a
+<p>Each zone is its own SPIFFE trust domain; zones never federate. The <strong>trust domain of a zone is a
+name under the DNS zone delegated to the trust framework, one per zone</strong> (<code>zone-a.&lt;zone&gt;</code>,
+<code>zone-b.&lt;zone&gt;</code>): the delegated zone is the one the trust framework already requires as a
 precondition, in which the trust-list pointers and the connector's <code>did:web</code> identifier are
-published. One name, one owner, no second namespace of names. The trust domain itself is never
-resolved; only the trust framework's records are.</p>
+published. One delegation, one owner, no second delegation requested for the trust domains. The
+trust domain itself is never resolved; only the trust framework's records are.</p>
 <table>
 <thead>
 <tr>
@@ -322,8 +320,12 @@ resolved; only the trust framework's records are.</p>
 <td><code>kind.facis-ztd.local</code>, the local fixture zone the trust-list verification uses; a <code>.local</code> name is acceptable here and nowhere else</td>
 </tr>
 <tr>
-<td>zone A, zone B</td>
-<td>the delegated DNS name, recorded in the zone file when the delegation exists and confirmed by the Technical Design Authority; until then the field is empty and the umbrella does not render</td>
+<td>zone A, zone B (final)</td>
+<td><code>zone-a.&lt;zone&gt;</code> and <code>zone-b.&lt;zone&gt;</code>, where <code>&lt;zone&gt;</code> is the delegated trust-framework zone; recorded in the zone files once the zone is named and the Technical Design Authority confirms the names</td>
+</tr>
+<tr>
+<td>zone A, zone B (interim)</td>
+<td><code>zone-a.trust.invalid</code> and <code>zone-b.trust.invalid</code>, in <code>zones/zone-a.yaml</code> and <code>zones/zone-b.yaml</code> until then, so that SPIRE and the mesh can be installed and proven on the participant clusters before the delegation lands. <code>.invalid</code> is reserved and can never resolve or be delegated, so an interim name is never taken for a real one. A zone installed on an interim name is re-installed with the final one, and is not acceptance evidence until then</td>
 </tr>
 <tr>
 <td>IONOS</td>
@@ -335,8 +337,9 @@ resolved; only the trust framework's records are.</p>
 <code>mesh.mode</code> is not <code>none</code>. The zone installer passes the same value to SPIRE
 (<code>global.spire.trustDomain</code>) and to the mesh (<code>meshConfig.trustDomain</code>), so the three cannot
 disagree; a mismatch would otherwise fail only at the first mTLS handshake. <strong>The name is fixed at
-the first install:</strong> it is baked into the SPIRE server's root CA, so changing it means
-reinstalling SPIRE and reissuing every identity. The <code>spiffe://zone-a…</code> examples in the attested
+install:</strong> it is baked into the SPIRE server's root CA, so changing it means reinstalling SPIRE and
+reissuing every identity. That is why a zone installed on an interim name is re-installed (a new
+SPIRE CA, new SVIDs) when the final name is confirmed. The <code>spiffe://zone-a…</code> examples in the attested
 channel documentation and in test fixtures are illustrative.</p>
 <h2 id="registration">Registration<a class="headerlink" href="#registration" title="Permanent link">&para;</a></h2>
 <p>The <code>zone-policy</code> chart renders one <code>ClusterSPIFFEID</code>, <code>plane-workloads</code>:</p>
@@ -407,8 +410,8 @@ probe, not the endpoint itself; <code>registrations-reconciled</code> reads the 
 writes into the <code>ClusterSPIFFEID</code> status after it has set the entries on the server, not the entries
 themselves. On a zone with no running labelled pod (a fresh install, before any workload),
 <code>registrations-reconciled</code> has nothing to compare and passes on the absence of failures alone. The
-entries themselves are read on the server by the evidence run (<code>spire-server entry show</code>, in
-<a href="../evidences/mesh-identity/">the mesh identity evidence</a>).</p>
+entries themselves are read on the server by each run of the mesh identity proof
+(<code>spire-server entry show</code>, in the record a run writes; see <code>scripts/verify-mesh-identity/README.md</code>).</p>
 <h2 id="openings-under-the-default-deny">Openings under the default deny<a class="headerlink" href="#openings-under-the-default-deny" title="Permanent link">&para;</a></h2>
 <p>The control planes sit under the same default deny as every plane namespace. These openings are
 added, each only when the zone file enables it, and nothing else opens toward <code>spire-system</code> or
@@ -439,7 +442,7 @@ follow-up.</p>
 </tr>
 <tr>
 <td><code>controlPlaneWebhooks</code></td>
-<td>the API server: entities <code>kube-apiserver</code>, <code>host</code>, <code>remote-node</code></td>
+<td>the API server: entities <code>kube-apiserver</code>, <code>host</code>, <code>remote-node</code>; where the zone names it, the provider's pod that relays the API server's calls (<code>fromEndpoints</code>; Gardener's <code>vpn-shoot</code> on zone A and zone B)</td>
 <td>istiod's webhook; the controller-manager's webhook (in the SPIRE server pod)</td>
 <td>15017; 9443</td>
 <td><code>CiliumNetworkPolicy</code> ingress in <code>istio-system</code> and <code>spire-system</code></td>
@@ -470,7 +473,16 @@ on another node arrive with that node's identity (<code>remote-node</code>; <cod
 names the three entities, on the webhook port of the webhook pod only. The price is that any
 host-networked endpoint of any node may open a connection to those two ports; every other port of
 both control planes stays closed. A zone whose API server is managed outside its nodes can narrow
-<code>networkPolicy.controlPlaneWebhooks.fromEntities</code> to <code>[kube-apiserver]</code> in its zone file. Every Cilium rule sets
+<code>networkPolicy.controlPlaneWebhooks.fromEntities</code> to <code>[kube-apiserver]</code> in its zone file. The
+participant clusters of zone A and zone B (Gardener) showed the other case: the API server runs
+outside the cluster and reaches in-cluster webhooks through the provider's <code>vpn-shoot</code> pod in
+<code>kube-system</code>, which is not on the host network. From another node its call arrives as that node;
+from the webhook pod's own node it arrives as the <code>vpn-shoot</code> pod, which no entity names, and the
+webhook times out. Their zone files therefore add <code>networkPolicy.controlPlaneWebhooks.fromEndpoints</code>
+with that pod's namespace and labels (<code>app: vpn-shoot</code>, <code>type: tunnel</code>): the same two webhook
+ports, opened to that one pod by identity; no workload lane admits a pod by address, and the lanes
+are not widened to node addresses (the one address the chart admits is the kubelet probe address
+of the parked ambient mode, rendered only in that mode). Every Cilium rule sets
 <code>enableDefaultDeny</code> false: it adds its lane and leaves the deny to the baseline's <code>default-deny</code>.</p>
 <p><strong>Nothing else.</strong> The sidecar reaches its agent over the mounted socket and the agent reaches the
 kubelet over the host's loopback (the chart's <code>hostNetwork: auto</code> with <code>kubeletAddress.mode: auto</code>),
@@ -555,8 +567,8 @@ proxy, so a missing bundle cannot pass unnoticed.</p>
   service-account token and obtain a certificate under istiod's root. No peer trusts that root:
   every proxy's <code>ROOTCA</code> is SPIRE's bundle only, so such a certificate opens no mesh connection.
   The proof shows it: a certificate signed with istiod's CA key for an enrolled pod's own SPIFFE
-  ID is refused by a meshed peer, while that pod's SPIRE SVID is accepted
-  (<a href="../evidences/mesh-identity/">evidence</a>). Closing the CA itself needs istiod's serving
+  ID is refused by a meshed peer, while that pod's SPIRE SVID is accepted (check
+  <code>mesh-identity-issued-by-spire</code> of the proof, <code>scripts/verify-mesh-identity/README.md</code>). Closing the CA itself needs istiod's serving
   certificates from another issuer, left to a later change.</li>
 <li><strong>STRICT.</strong> The mesh-wide <code>PeerAuthentication</code> <code>default</code> in <code>istio-system</code> is <code>STRICT</code>. A workload
   without an entry gets no certificate, so its proxy never becomes ready and, being a native
@@ -565,8 +577,8 @@ proxy, so a missing bundle cannot pass unnoticed.</p>
   A future plaintext exception is a namespaced <code>PeerAuthentication</code>, recorded per path. Mesh mTLS
   runs at TLS 1.3 at least (<code>meshConfig.meshMTLS.minProtocolVersion: TLSV1_3</code> in the <code>istiod</code>
   release, the security baseline of ADR 005; Istio's default is TLS 1.2): the proof shows a peer's
-  proxy accepting a TLS 1.3 handshake with a SPIRE SVID and refusing one capped at TLS 1.2
-  (<a href="../evidences/mesh-identity/">evidence</a>).</li>
+  proxy accepting a TLS 1.3 handshake with a SPIRE SVID and refusing one capped at TLS 1.2 (check
+  <code>mesh-identity-issued-by-spire</code> of the proof, <code>scripts/verify-mesh-identity/README.md</code>).</li>
 <li><strong>Native sidecars.</strong> <code>ENABLE_NATIVE_SIDECARS=true</code> in istiod injects the proxy as an init
   container with <code>restartPolicy: Always</code>: it starts before the application and stops after it, and
   Jobs end. This needs Kubernetes 1.33 or later; the umbrella refuses to render sidecar mode for a
@@ -676,7 +688,7 @@ mount with a <code>subPath</code>, the admission of a pod with
 <code>prometheus.io/*</code> annotations, the admission of the istiod and
 <code>istio-cni</code> pods in <code>istio-system</code> and their refusal in the data plane, and a label admitted on a
 running pod while an added exclusion is refused, through <code>pods/status</code> as well, and the removal of
-<code>sidecar.istio.io/status</code> from a running injected pod refused (<a href="../evidences/mesh-identity/">evidence</a>). A workload that needs a capture exception or a
+<code>sidecar.istio.io/status</code> from a running injected pod refused (check <code>mesh-identity-issued-by-spire</code> of the proof, <code>scripts/verify-mesh-identity/README.md</code>). A workload that needs a capture exception or a
 proxy setting gets it mesh-wide through the charts (<code>meshConfig.defaultConfig</code>, or a value that
 widens the rule) in its own change, never through a pod annotation. Interception mode <code>TPROXY</code>,
 which also captures, is refused with the rest: the zone does not use it.</p>
@@ -760,9 +772,12 @@ kubectl -n spire-system exec spire-server-0 -c spire-server -- \
 <p>A SPIRE-issued certificate has <code>O = SPIRE</code> in its subject, the SPIRE server CA as its issuer, the
 pod's SPIFFE ID as its URI SAN, and the <code>ROOTCA</code> bundle is the SPIRE server's CA, not istiod's
 (<code>istio-ca-root-cert</code>).</p>
-<h2 id="what-the-evidence-proves">What the evidence proves<a class="headerlink" href="#what-the-evidence-proves" title="Permanent link">&para;</a></h2>
-<p><code>scripts/verify-mesh-identity/verify.sh</code> installs the zone on the kind cluster from an empty
-cluster, twice, and writes <a href="../evidences/mesh-identity/evidence/">the record</a>:</p>
+<h2 id="what-a-run-of-the-proof-shows">What a run of the proof shows<a class="headerlink" href="#what-a-run-of-the-proof-shows" title="Permanent link">&para;</a></h2>
+<p><code>scripts/verify-mesh-identity/verify.sh</code> installs the zone on the kind cluster (or a confirmed
+participant cluster) from an empty cluster, twice, and writes its record to a run directory outside
+the repository, printed as its last line; the repository holds no record of a run
+(<code>scripts/verify-mesh-identity/README.md</code> describes the run directory and each section of a
+record). A run shows:</p>
 <table>
 <thead>
 <tr>
