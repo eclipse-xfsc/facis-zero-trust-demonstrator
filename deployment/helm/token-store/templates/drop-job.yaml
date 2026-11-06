@@ -1,0 +1,38 @@
+{{- if .Values.schema.dropOnUninstall }}
+# Reverts every migration when the release is uninstalled, leaving an empty schema. Rendered only
+# with schema.dropOnUninstall, which is off by default: a production database outlives the release.
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: {{ include "token-store.name" . }}-drop
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "token-store.labels" . | nindent 4 }}
+    app.kubernetes.io/component: schema
+  annotations:
+    helm.sh/hook: pre-delete
+    helm.sh/hook-weight: {{ .Values.schema.hookWeight | quote }}
+    helm.sh/hook-delete-policy: before-hook-creation,hook-succeeded
+spec:
+  backoffLimit: {{ .Values.schema.backoffLimit }}
+  template:
+    metadata:
+      labels:
+        {{- include "token-store.labels" . | nindent 8 }}
+        app.kubernetes.io/component: schema
+        {{- if .Values.identity.spireManagedIdentity }}
+        spiffe.io/spire-managed-identity: "true"
+        {{- end }}
+    spec:
+      restartPolicy: Never
+      serviceAccountName: {{ .Values.serviceAccount.schemaName | quote }}
+      automountServiceAccountToken: false
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 65532
+        runAsGroup: 65532
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        {{- include "token-store.migrateContainer" (dict "root" . "args" (list "migrate" "down" "--to" "0")) | nindent 8 }}
+{{- end }}

@@ -1,0 +1,77 @@
+{{- include "token-store.validate" . -}}
+# The service. A regular resource, never a hook: the schema Job has run before its first pod
+# starts, and readiness is the pod's own answer, 200 only while PostgreSQL is reachable with the
+# schema current and the key-value store is initialised and unsealed.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "token-store.name" . }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "token-store.labels" . | nindent 4 }}
+    app.kubernetes.io/component: server
+spec:
+  replicas: {{ .Values.replicas }}
+  selector:
+    matchLabels:
+      {{- include "token-store.selector" . | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "token-store.labels" . | nindent 8 }}
+        app.kubernetes.io/component: server
+        {{- if .Values.identity.spireManagedIdentity }}
+        spiffe.io/spire-managed-identity: "true"
+        {{- end }}
+    spec:
+      serviceAccountName: {{ .Values.serviceAccount.name | quote }}
+      automountServiceAccountToken: false
+      # The service's worst case: the drain delay, the shutdown timeout, a readiness evaluation
+      # that still holds a connection when the pool closes, and a margin.
+      terminationGracePeriodSeconds: {{ add (int .Values.server.drainDelaySeconds) (int .Values.server.shutdownTimeoutSeconds) (int .Values.server.readinessTimeoutSeconds) 5 }}
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 65532
+        runAsGroup: 65532
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: server
+          image: "{{ .Values.image.repository }}@{{ .Values.image.digest }}"
+          args:
+            - serve
+            - --readiness-timeout={{ int .Values.server.readinessTimeoutSeconds }}s
+            - --drain-delay={{ int .Values.server.drainDelaySeconds }}s
+            - --shutdown-timeout={{ int .Values.server.shutdownTimeoutSeconds }}s
+            - --log-level={{ .Values.server.logLevel }}
+          env:
+            - name: TOKEN_STORE_DATABASE_URL
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.database.existingSecret | quote }}
+                  key: {{ .Values.database.secretKey | quote }}
+            - name: TOKEN_STORE_OPENBAO_URL
+              value: {{ .Values.openbao.address | quote }}
+          ports:
+            - name: http
+              containerPort: 8080
+            - name: ops
+              containerPort: 9090
+          readinessProbe:
+            httpGet:
+              path: /readyz
+              port: ops
+            periodSeconds: 5
+            timeoutSeconds: {{ add (int .Values.server.readinessTimeoutSeconds) 1 }}
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: ops
+            periodSeconds: 10
+          resources:
+            {{- toYaml .Values.resources | nindent 12 }}
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: [ALL]
