@@ -11,6 +11,8 @@ ENV CGO_ENABLED=0 \
 COPY go.mod go.sum ./
 COPY cmd/participant/ ./cmd/participant/
 COPY services/participant/ ./services/participant/
+# The token path: internal/connectorclient, dpopproof, if03 and jose.
+COPY internal/ ./internal/
 
 RUN go build -mod=readonly -trimpath -buildvcs=false \
     -ldflags="-s -w" -o /out/participant ./cmd/participant

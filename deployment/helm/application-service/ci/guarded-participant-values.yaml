@@ -1,0 +1,28 @@
+# Render-only guarded configuration; supply admitted images and complete egress before deployment.
+name: ztd-participant
+image:
+  repository: ghcr.io/eclipse-xfsc/facis-zero-trust-demonstrator/participant
+  digest: sha256:0000000000000000000000000000000000000000000000000000000000000000
+serviceAccount:
+  create: true
+  name: ztd-participant
+identity:
+  spireManagedIdentity: true
+ingress:
+  enabled: false
+env:
+  PARTICIPANT_ADAPTER_MODE: token
+  PARTICIPANT_RESOURCE_URL: http://ztd-guard:8080
+  PARTICIPANT_CONNECTOR_URL: http://ztd-connector:8080
+  PARTICIPANT_AUDIENCE: https://guard.facis.invalid
+  PARTICIPANT_CREDENTIALS_FILE: /var/run/client/credentials.json
+  PARTICIPANT_OUTCOME_ISSUER: https://fixture.facis.invalid
+  PARTICIPANT_OUTCOME_KID: fixture-1
+  PARTICIPANT_OUTCOME_KEY_FILE: /var/run/client/fixture.pem
+  PARTICIPANT_OUTCOME_ROLE: reader
+networkPolicy:
+  ingressFrom: []
+secretMounts:
+  - name: client
+    secretName: ztd-participant-client
+    mountPath: /var/run/client

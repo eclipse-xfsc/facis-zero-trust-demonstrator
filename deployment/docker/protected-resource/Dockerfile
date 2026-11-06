@@ -11,6 +11,8 @@ ENV CGO_ENABLED=0 \
 COPY go.mod go.sum ./
 COPY cmd/protected-resource/ ./cmd/protected-resource/
 COPY services/protectedresource/ ./services/protectedresource/
+# The token verifier and what it builds on (internal/tokenverify, dpopproof, replay, jose).
+COPY internal/ ./internal/
 
 RUN go build -mod=readonly -trimpath -buildvcs=false \
     -ldflags="-s -w" -o /out/protected-resource ./cmd/protected-resource
