@@ -21,3 +21,15 @@ route. It creates no cluster-scoped objects.
 Secrets the values name are created in the namespace by the deploying identity before the install.
 The Participant and Protected Resource releases are recorded in
 [Application service verification](../../../docs/application-services-verification.md).
+
+## Token-path runtime wiring
+
+`serviceAccount`, `identity.spireManagedIdentity`, `podAnnotations` and
+`nodeSelector` provide explicit mesh identity and placement. Existing sample
+values keep their previous default account. `secretEnv` maps an environment name
+to an existing Secret `name` and `key`; it must not duplicate `env`. `secretMounts`
+and `configMapMounts` reference existing resources at unique absolute paths.
+Secret files use mode 0440 and the non-root pod group. Credentials and private
+keys never belong in Helm values. These additions do not create Secrets or
+configure Resource authorization: the slice must supply its guard-only
+AuthorizationPolicy and ingress peers before allowing traffic.

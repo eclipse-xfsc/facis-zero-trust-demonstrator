@@ -63,6 +63,10 @@ control is disabled for the observer and returns `denied` if called.
 
 Ends in: the resource payload, every step green.
 
+Step 1 is live: the connector emits `registered` with the new `client_id` in `detail` on an
+accepted registration, and `refused` with `TOK-REGISTRATION-REJECTED` and the policy rule in
+`rule_id` on one its policy refuses ([Connector service](connector.md#security-state-events)).
+
 ### Revoked credential
 
 The operator revokes the profile's credential (its status-list bit is set), then starts the run.

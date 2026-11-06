@@ -30,6 +30,11 @@ spec:
           protocol: UDP
         - port: 53
           protocol: TCP
+        # Gardener/CoreDNS target port after Service translation on OSC.
+        - port: 8053
+          protocol: UDP
+        - port: 8053
+          protocol: TCP
     {{- with .Values.networkPolicy.egress }}
     {{- toYaml . | nindent 4 }}
     {{- end }}

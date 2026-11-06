@@ -30,6 +30,28 @@ const (
 	// CodeDPoPInvalidATH: the proof's ath claim is missing or does not match
 	// the presented access token.
 	CodeDPoPInvalidATH Code = "dpop_invalid_ath"
+
+	// The IF-03 reason codes of the verified-presentation grant, as the
+	// reason-code registry names them.
+
+	// CodeCredOutcomeSignature: the outcome's JWS does not verify with a
+	// trusted issuer key, or the outcome is not in the IF-03 form.
+	CodeCredOutcomeSignature Code = "CRED-OUTCOME-SIGNATURE"
+
+	// CodeCredOutcomeNotVerified: the outcome's status is not verified.
+	CodeCredOutcomeNotVerified Code = "CRED-OUTCOME-NOT-VERIFIED"
+
+	// CodeCredOutcomeMismatch: the outcome's client, challenge or audience
+	// differs from the request, or the challenge was not issued to this
+	// client for this audience.
+	CodeCredOutcomeMismatch Code = "CRED-OUTCOME-MISMATCH"
+
+	// CodeCredOutcomeExpired: the outcome, or its challenge, is outside its
+	// validity interval.
+	CodeCredOutcomeExpired Code = "CRED-OUTCOME-EXPIRED"
+
+	// CodeCredOutcomeConsumed: the outcome or its challenge was already used.
+	CodeCredOutcomeConsumed Code = "CRED-OUTCOME-CONSUMED"
 )
 
 // ReasonField is the JSON member of an error response that carries the Code,
