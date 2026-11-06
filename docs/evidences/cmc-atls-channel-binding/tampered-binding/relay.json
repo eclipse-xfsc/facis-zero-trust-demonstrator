@@ -1,0 +1,75 @@
+{
+  "schema": "atls-probe-record/v1",
+  "mode": "relay",
+  "role": "man-in-the-middle",
+  "identities": [
+    "spiffe://a/gateway",
+    "localhost"
+  ],
+  "cert_fingerprint": "d72fc36f115b2ed9d26c9ae7fe49a2fdf601b206056feb4311b07b11c68efa95",
+  "listen_addr": "127.0.0.1:52038",
+  "hold_ms": 0,
+  "interval_ms": 0,
+  "started_at": "2026-11-06T17:14:41.022330418Z",
+  "started_at_unix_ms": 1793985281022,
+  "finished_at": "2026-11-06T17:14:41.212016392Z",
+  "exit_code": 0,
+  "outcome": "forwarded",
+  "local_addr": "127.0.0.1:52038",
+  "peer_addr": "127.0.0.1:36448",
+  "heartbeats": {
+    "sent": 0,
+    "received": 0,
+    "max_gap_ms": 0
+  },
+  "application_bytes_sent": 0,
+  "application_bytes_received": 0,
+  "relay": {
+    "upstream_addr": "127.0.0.1:23547",
+    "downstream": {
+      "local_addr": "127.0.0.1:52038",
+      "peer_addr": "127.0.0.1:36448",
+      "presented_fingerprint": "d72fc36f115b2ed9d26c9ae7fe49a2fdf601b206056feb4311b07b11c68efa95",
+      "presented_identities": [
+        "spiffe://a/gateway",
+        "localhost"
+      ],
+      "peer_fingerprint": "3867dabea0bc80af7b58e9d9c638e9b5d206087a3e22e15c2248a3b4bc65387d",
+      "peer_identities": [
+        "spiffe://b/gateway",
+        "localhost"
+      ],
+      "tls_version": "TLS 1.3",
+      "binding": "4640e00ef2becfc4e898ad65089398e026718f75775ebd30c75efe37808b3bc4"
+    },
+    "upstream": {
+      "local_addr": "127.0.0.1:35112",
+      "peer_addr": "127.0.0.1:23547",
+      "presented_fingerprint": "04ac8c1bb4a3c9b9f1b8b08c3e659d7639c4f3c8fdf56554c8708c853118c5c3",
+      "presented_identities": [
+        "spiffe://b/gateway",
+        "localhost"
+      ],
+      "peer_fingerprint": "5b2fd5486ee1628cf5bee3ed45f9fef3bd8419d25dbbc8cd1a3e71fa36ba08fb",
+      "peer_identities": [
+        "spiffe://a/gateway",
+        "localhost"
+      ],
+      "tls_version": "TLS 1.3",
+      "binding": "9da6f8d32657d945135989422e2735849c3bf5d8b1466bc0b0e20a29f92443f9"
+    },
+    "bindings_differ": true,
+    "bytes_dialer_to_listener": 6433,
+    "bytes_listener_to_dialer": 6433,
+    "forwarding_started_at": "2026-11-06T17:14:41.144755442Z",
+    "forwarding_ended_at": "2026-11-06T17:14:41.209319983Z",
+    "forwarding_ended_because": "the listener closed its session"
+  },
+  "environment": {
+    "commit": "f531ed63b8ef6f974008364393e74297f7ba3bd3",
+    "dirty": false,
+    "go_version": "go1.27.0",
+    "cmc_version": "v0.9.15",
+    "platform": "linux/amd64"
+  }
+}

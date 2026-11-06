@@ -1,0 +1,15 @@
+A report bound to another TLS session is refused
+
+PASS  the relay held a TLS 1.3 session with each end and forwarded bytes both ways
+PASS  the relay's two TLS sessions have different channel bindings
+PASS  the relay's sessions were with this client and this server
+PASS  the relay showed each end a certificate with the identity that end expects
+PASS  the server refused the channel with ErrBindingMismatch
+PASS  the client refused the channel with ErrBindingMismatch
+PASS  neither end holds a binding
+PASS  no application data crossed
+PASS  control: a relay showing another identity is stopped by the identity check (ErrIdentityMismatch)
+PASS  control: that relay forwarded nothing
+NOTE  the relay forwards the attestation messages unread; the bytes it counts are that exchange, not application data
+
+verdict: PASS

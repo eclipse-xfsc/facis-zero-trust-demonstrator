@@ -2,10 +2,13 @@
 
 ## Interface registry
 
-The demonstrator's cross-component interfaces are identified `IF-01` through `IF-08`. Version 1 of
-each is defined by the machine-readable artefacts in `docs/contracts/`, which CI
-validates on every change (see [Validation](#validation)). A v1 contract changes only by a
-compatible addition; anything else is a v2.
+The demonstrator's cross-component interfaces are identified `IF-01` through `IF-08`. Except for
+IF-07, version 1 of each is defined by machine-readable artefacts in `docs/contracts/` (IF-08's sit
+beside this page in `docs/`), which CI validates on every change (see [Validation](#validation)).
+Such a v1 contract changes only by a compatible addition; anything else is a v2. Version 1 of IF-07
+is the Go interface of `internal/atls`, outside `docs/contracts/` and the `Contracts` job:
+`TestExportedAPIFrozen` checks its exported API against its listing, and it changes only as
+[its change policy](attested-channel.md#change-policy) states.
 
 | Interface | Purpose | v1 artefacts | Status |
 |---|---|---|---|
@@ -15,7 +18,7 @@ compatible addition; anything else is a v2.
 | IF-04 | Observability and evidence | The IF-01 event schema, as a JSON log line; [rules](#if-04-observability-and-evidence) | v1 |
 | IF-05 | Policy decision input and output | [input](contracts/if05-policy-input.v1.schema.json), [decision](contracts/if05-policy-decision.v1.schema.json), [header rules](#header-propagation-guard-to-gateway) | v1 |
 | IF-06 | Governed configuration change | [change](contracts/if06-config-change.v1.schema.json) | v1 |
-| IF-07 | Attested channel control | [States and rules](#if-07-attested-channel-control) | v0, not frozen |
+| IF-07 | Attested channel control — v1: [Go interface of `internal/atls`](attested-channel.md); partner sign-off pending | [States and rules](#if-07-attested-channel-control) | v1, partner sign-off pending |
 | IF-08 | Scenario driver hooks | [lifecycle command](lifecycle.openapi.yaml), [lifecycle result](lifecycle-result.schema.json) | v1 (delivered with the BDD pack) |
 
 Internal to a zone, and not a numbered interface: the token store's API,
@@ -158,8 +161,10 @@ proofs of both are in [Guard policy hook](policy-hook.md).
 
 ## IF-07 — attested channel control
 
-Not frozen: the channel's control surface is defined by the attested-channel component when it is
-built. What is fixed now:
+Frozen at v1, with the partner sign-off under the interface-freeze process pending. The contract is
+the Go interface of `internal/atls`: its exported identifiers and signatures are listed in
+`internal/atls/api_v1.txt`, and [Attested channel control](attested-channel.md#stability) states what
+is frozen and how the interface may change. Also fixed:
 
 - **States:** `connecting → handshake → attested → draining → closed`, with error edges to
   `refused` (carrying a `CHAN-*` code) and `lost`. These are the `state` values of IF-01
@@ -175,11 +180,20 @@ software because the demonstrator has no TEE hardware — is described by
 [`contracts/mock-attestation.schema.json`](contracts/mock-attestation.schema.json), with one sample
 per vendor profile in [`contracts/samples/`](contracts/samples/).
 
-It is a single format serving both sides of the evidence path: the artefact attached to a release
-and verified at admission, and the report exchanged inside the attested channel. It therefore
-underlies both IF-04 and IF-07. IF-04 is already frozen at v1 with the IF-01 event schema as its
-contract, so this format is not part of it; whether IF-07 carries it as its own contract is settled
-when IF-07 is frozen.
+The two sides of the evidence path, the artefact attached to a release and verified at admission
+and the report exchanged inside the attested channel, share CMC's `attestationreport` evidence and
+collateral types ([ADR-0011](adr/0011-mock-tee-evidence-format-and-provisioning.md)), but they are
+different documents. The artefact is the JSON document this schema describes: one `evidence` and one
+`collateral` object, with the `mock` and `profile` wrapper fields. The channel carries the CBOR
+`AttestationReport` that `cmcd` produces ([Pinned library](attested-channel.md#pinned-library)),
+which has a different shape and which this schema does not validate.
+
+Those shared types therefore underlie both IF-04 and IF-07. IF-04 is already frozen at v1 with the
+IF-01 event schema as its contract, so this schema is not part of it. IF-07 is frozen at v1 with the
+Go interface of `internal/atls` as its contract, and
+[what that freeze covers](attested-channel.md#what-is-frozen) includes neither this schema nor the
+format of the reports; whether IF-07 carries the evidence format of its reports as its own contract
+is still open.
 
 ## IF-08 — deployment lifecycle command
 
