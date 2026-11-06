@@ -49,8 +49,15 @@ helm install gatekeeper gatekeeper-$GATEKEEPER_CHART_VERSION.tgz -n gatekeeper-s
   --set postInstall.probeWebhook.enabled=false --post-renderer ztd-webhook-scope --wait
 helm install admission deployment/helm/admission -n gatekeeper-system -f <provider values>
 kubectl apply -f deployment/admission/templates/
-kubectl apply -f deployment/admission/exemptions.yaml -f deployment/admission/constraints/
+kubectl apply -f deployment/admission/exemptions.yaml
+kubectl apply -k deployment/admission/constraints
 ```
+
+`scripts/admission/install.sh` runs this order with the checks that prove each step, and substitutes the
+zone's trusted repository prefix into the allowed-repositories constraint. From then on the policy is
+kept equal to Git by the reconciler in [deployment/argocd](../argocd/README.md): a merged change to the
+templates, the exemptions or the constraints reaches the cluster without a manual step, and a
+hand-edited constraint is put back.
 
 **Break-glass:** delete the `gatekeeper-validating-webhook-configuration` ValidatingWebhookConfiguration,
 then `helm uninstall gatekeeper -n gatekeeper-system`.
