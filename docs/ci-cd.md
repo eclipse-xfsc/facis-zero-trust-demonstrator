@@ -221,6 +221,23 @@ Both jobs stay off until the repository variable `BDD_CLUSTER_ENABLED` is `true`
 `BDD_<KEY>_ORCE_READ_TOKEN`, `BDD_<KEY>_ORCE_HTTP_USER` and `BDD_<KEY>_ORCE_HTTP_PASS`, and as a
 repository variable `BDD_<KEY>_ORCE_LOGS_CMD`, plus its entry in the job's matrix.
 
+## Cluster reachability
+
+The `cluster-reachability` job checks, for each client cluster (IONOS, OSC zone A, OSC zone B), that
+the API server answers the pipeline and that the observer identity authenticates (`kubectl version`,
+`kubectl auth whoami`). It runs on pushes to `main`, on releases and on demand, never on pull requests,
+and does not depend on `BDD_CLUSTER_ENABLED`. A target is checked once its secret
+`BDD_<KEY>_OBSERVER_KUBECONFIG` is set (`IONOS`, `ZONE_A`, `ZONE_B`); until then the run says it was
+not checked, and never that it was reachable.
+
+The OSC zones have no BDD pool, so their observer is the service account in
+[deployment/ci/reachability-observer.yaml](https://github.com/eclipse-xfsc/facis-zero-trust-demonstrator/blob/main/deployment/ci/reachability-observer.yaml): the
+manifest grants it nothing, so it holds only what every authenticated identity is bound to by default
+(API discovery, the server version, a review of its own access). A cluster administrator applies it,
+checks its effective rights (`kubectl auth can-i --list --as=system:serviceaccount:ztd-ci:ztd-ci-observer`),
+builds the kubeconfig from the token in `ztd-ci/ztd-ci-observer-token` and hands it to a maintainer
+for the secret. The token does not expire; deleting that Secret revokes it.
+
 ## Image scan exceptions
 
 Every image is scanned and a HIGH or CRITICAL finding fails the build. When a finding sits in an

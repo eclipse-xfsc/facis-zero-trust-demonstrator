@@ -42,6 +42,7 @@ nav:
   - BDD acceptance:
       - Harness and pack: bdd.md
       - Catalogue: bdd-catalogue.md
+      - M3 evidence: evidence-m3.md
   - CI/CD: ci-cd.md
   - Secrets: secrets.md
   - Troubleshooting: troubleshooting.md
