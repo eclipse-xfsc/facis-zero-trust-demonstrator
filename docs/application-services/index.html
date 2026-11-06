@@ -1,0 +1,510 @@
+<!DOCTYPE html>
+<html class="writer-html5" lang="en" >
+<head>
+    <meta charset="utf-8" />
+    <meta http-equiv="X-UA-Compatible" content="IE=edge" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+      <link rel="shortcut icon" href="../img/favicon.ico" />
+    <title>Application services - FACIS Zero Trust Demonstrator</title>
+    <link rel="stylesheet" href="../css/theme.css" />
+    <link rel="stylesheet" href="../css/theme_extra.css" />
+        <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.8.0/styles/github.min.css" />
+    
+      <script>
+        // Current page data
+        var mkdocs_page_name = "Application services";
+        var mkdocs_page_input_path = "application-services.md";
+        var mkdocs_page_url = null;
+      </script>
+    
+    <!--[if lt IE 9]>
+      <script src="../js/html5shiv.min.js"></script>
+    <![endif]-->
+      <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.8.0/highlight.min.js"></script>
+      <script>hljs.highlightAll();</script> 
+</head>
+
+<body class="wy-body-for-nav" role="document">
+
+  <div class="wy-grid-for-nav">
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side stickynav">
+    <div class="wy-side-scroll">
+      <div class="wy-side-nav-search">
+          <a href=".." class="icon icon-home"> FACIS Zero Trust Demonstrator
+        </a><div role="search">
+  <form id ="rtd-search-form" class="wy-form" action="../search.html" method="get">
+      <input type="text" name="q" placeholder="Search docs" aria-label="Search docs" title="Type search term here" />
+  </form>
+</div>
+      </div>
+
+      <div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="..">Home</a>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../features/">Features and journeys</a>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../architecture/">Architecture</a>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../usage/">Using the demonstrator</a>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../deployment/">Deployment</a>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../umbrella-chart/">Umbrella chart</a>
+                </li>
+              </ul>
+              <p class="caption"><span class="caption-text">Environments</span></p>
+              <ul>
+                  <li class="toctree-l1"><a class="reference internal" href="../environments/">Overview</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../environments/osc/">T-Systems OSC</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../environments/ionos/">IONOS Cloud</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../environments/application-workloads/">Application workloads</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../environments/capabilities/">Capability sheets</a>
+                  </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../packaging/">Packaging and containers</a>
+                </li>
+              </ul>
+              <ul class="current">
+                <li class="toctree-l1 current"><a class="reference internal current" href="#">Application services</a>
+    <ul class="current">
+    <li class="toctree-l2"><a class="reference internal" href="#source-and-build">Source and build</a>
+    </li>
+    <li class="toctree-l2"><a class="reference internal" href="#configuration">Configuration</a>
+        <ul>
+    <li class="toctree-l3"><a class="reference internal" href="#participant">Participant</a>
+    </li>
+    <li class="toctree-l3"><a class="reference internal" href="#protected-resource">Protected Resource</a>
+    </li>
+        </ul>
+    </li>
+    <li class="toctree-l2"><a class="reference internal" href="#how-the-services-communicate">How the services communicate</a>
+    </li>
+    <li class="toctree-l2"><a class="reference internal" href="#local-source-smoke-check">Local source smoke check</a>
+    </li>
+    <li class="toctree-l2"><a class="reference internal" href="#deployment-and-returned-evidence">Deployment and returned evidence</a>
+    </li>
+    </ul>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../application-services-verification/">Application service verification</a>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../flows/">Orchestrated flows</a>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../scenarios/">Scenario decisions</a>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../keycloak/">Keycloak integration</a>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../identity-model/">Identity model</a>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../oauth2-provider/">Connector OAuth2 provider</a>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../policy-hook/">Guard policy hook</a>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../api-docs/">API documentation</a>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../contracts/">Interface contracts</a>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../tspa-publish-api/">TRAIN trust-list publishing</a>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../train-dns/">TRAIN DNS zone</a>
+                </li>
+              </ul>
+              <p class="caption"><span class="caption-text">BDD acceptance</span></p>
+              <ul>
+                  <li class="toctree-l1"><a class="reference internal" href="../bdd/">Harness and pack</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../bdd-catalogue/">Catalogue</a>
+                  </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../ci-cd/">CI/CD</a>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../secrets/">Secrets</a>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../troubleshooting/">Troubleshooting</a>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../dependencies/">OSS dependencies</a>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../licenses/">Licenses</a>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../specifications/">Specification changes</a>
+                </li>
+              </ul>
+              <p class="caption"><span class="caption-text">Architecture decisions</span></p>
+              <ul>
+                  <li class="toctree-l1"><a class="reference internal" href="../adr/">Overview</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../adr/decision-ledger/">Decision ledger</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../adr/tdr-decisions/">TDR decisions ADR 001–006</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../adr/0001-service-mesh-mode-istio-ambient-with-cilium/">0001 Service mesh mode</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../adr/0002-gatekeeper-external-data-provider-for-cosign-verification/">0002 Gatekeeper external data provider</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../adr/0003-oauth2-authorisation-surface-in-the-go-connector/">0003 OAuth2 surface in the Go connector</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../adr/0004-openbao-as-x509-key-value-store/">0004 OpenBao as X.509 key-value store</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../adr/0005-three-cluster-reading-of-the-target-environment/">0005 Three-cluster target environment</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../adr/0008-envoy-ext-authz-as-the-guard-policy-hook/">0008 Guard policy hook</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../adr/0011-mock-tee-evidence-format-and-provisioning/">0011 Mock TEE evidence</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../adr/0016-oauth2-library-behind-the-connector-provider-contract/">0016 OAuth2 library</a>
+                  </li>
+              </ul>
+      </div>
+    </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap">
+      <nav class="wy-nav-top" role="navigation" aria-label="Mobile navigation menu">
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="..">FACIS Zero Trust Demonstrator</a>
+        
+      </nav>
+      <div class="wy-nav-content">
+        <div class="rst-content"><div role="navigation" aria-label="breadcrumbs navigation">
+  <ul class="wy-breadcrumbs">
+    <li><a href=".." class="icon icon-home" aria-label="Docs"></a></li>
+      <li class="breadcrumb-item active">Application services</li>
+    <li class="wy-breadcrumbs-aside">
+          <a href="https://github.com/eclipse-xfsc/facis-zero-trust-demonstrator/edit/main/docs/application-services.md" class="icon icon-github"> Edit on GitHub</a>
+    </li>
+  </ul>
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+            <div class="section" itemprop="articleBody">
+              
+                <h1 id="participant-and-protected-resource-services">Participant and Protected Resource services<a class="headerlink" href="#participant-and-protected-resource-services" title="Permanent link">&para;</a></h1>
+<p>Two Go sample services for application deployment and HTTP integration. It does not implement the Connector/guard authorization path, Keycloak login, workload identity, attestation or real API replacement. A sample <code>denied</code> result is deliberately selected test data, not a security decision. The responses remain marked <code>source: sample</code> and <code>mode: sample</code>; health reports <code>liveMode: unavailable</code>.</p>
+<h2 id="source-and-build">Source and build<a class="headerlink" href="#source-and-build" title="Permanent link">&para;</a></h2>
+<p>Use the repository root as the build context and retain its <code>go.mod</code> and <code>go.sum</code>. The services use the standard library only and add no module dependencies.</p>
+<table>
+<thead>
+<tr>
+<th>Service</th>
+<th>Entry point</th>
+<th>Package</th>
+<th>Default TCP port</th>
+<th>Endpoints</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Participant</td>
+<td><code>cmd/participant</code></td>
+<td><code>services/participant</code></td>
+<td>8085</td>
+<td><code>GET /health</code>, <code>POST /demo</code></td>
+</tr>
+<tr>
+<td>Protected Resource</td>
+<td><code>cmd/protected-resource</code></td>
+<td><code>services/protectedresource</code></td>
+<td>8086</td>
+<td><code>GET /health</code>, <code>POST /demo</code></td>
+</tr>
+</tbody>
+</table>
+<p>From the repository root:</p>
+<pre><code class="language-sh">go version
+go build ./cmd/participant ./cmd/protected-resource
+go test ./services/participant/... ./services/protectedresource/... -timeout 30s
+go vet ./services/participant/... ./services/protectedresource/...
+</code></pre>
+<p>The two-target build checks compilation without leaving two runnable executables. To produce executables, run separate builds with <code>-o</code>, or use <code>go run</code> as below.</p>
+<p>Container build recipes are included at <code>deployment/docker/participant/Dockerfile</code> and <code>deployment/docker/protected-resource/Dockerfile</code>, each with repository-root context. They compile Linux/amd64 static binaries using a digest-pinned Go builder, run from <code>scratch</code> as UID/GID 65532, and include CA certificates. The release workflow builds, signs and publishes them with every other image under <code>deployment/docker/</code>; follow <a href="../packaging/">Packaging</a> for release builds/signing; a local source test is not a release build or publication.</p>
+<p>The pipeline build commands, from the repository root, are:</p>
+<pre><code class="language-sh">docker build --platform linux/amd64 -f deployment/docker/participant/Dockerfile -t ci/participant:check .
+docker build --platform linux/amd64 -f deployment/docker/protected-resource/Dockerfile -t ci/protected-resource:check .
+</code></pre>
+<p>These are build-check tags, not deployment references. Deploy the pipeline-produced images by digest. The Participant image defaults to <code>http-sample</code> and deliberately requires <code>PARTICIPANT_RESOURCE_URL</code> at runtime; it will reject startup without that setting. Both images use HTTP <code>/health</code> probes supplied by the orchestrator; the scratch images contain no shell or curl.</p>
+<h2 id="configuration">Configuration<a class="headerlink" href="#configuration" title="Permanent link">&para;</a></h2>
+<p>The processes read environment variables; they do not load <code>.env</code> files automatically. Set variables in the process environment or deployment configuration. Example files contain no credentials.</p>
+<h3 id="participant">Participant<a class="headerlink" href="#participant" title="Permanent link">&para;</a></h3>
+<table>
+<thead>
+<tr>
+<th>Variable</th>
+<th>Code default</th>
+<th>Meaning</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>PARTICIPANT_ADDRESS</code></td>
+<td><code>:8085</code></td>
+<td>HTTP listener; use <code>:8085</code> in a container and <code>127.0.0.1:8085</code> for a host-only local test.</td>
+</tr>
+<tr>
+<td><code>PARTICIPANT_REQUEST_TIMEOUT</code></td>
+<td><code>5s</code></td>
+<td>Positive Go duration bounding each adapter call.</td>
+</tr>
+<tr>
+<td><code>PARTICIPANT_ADAPTER_MODE</code></td>
+<td><code>sample</code></td>
+<td><code>sample</code> handles the result internally. <code>http-sample</code> calls Protected Resource over HTTP(S).</td>
+</tr>
+<tr>
+<td><code>PARTICIPANT_RESOURCE_URL</code></td>
+<td>Empty</td>
+<td>Required for <code>http-sample</code>; base URL without <code>/demo</code>, credentials, query or fragment. The adapter appends <code>/demo</code>.</td>
+</tr>
+<tr>
+<td><code>PARTICIPANT_LOG_LEVEL</code></td>
+<td><code>info</code></td>
+<td><code>debug</code>, <code>info</code>, <code>warn</code> or <code>error</code>.</td>
+</tr>
+</tbody>
+</table>
+<p><code>configs/participant.env.example</code> enables the two-process local HTTP route. <code>configs/participant.osc.env.example</code> shows the separate-service deployment shape. It matches the Service the application-service chart (<code>deployment/helm/application-service</code>) creates. <code>127.0.0.1</code> cannot address a different pod.</p>
+<h3 id="protected-resource">Protected Resource<a class="headerlink" href="#protected-resource" title="Permanent link">&para;</a></h3>
+<table>
+<thead>
+<tr>
+<th>Variable</th>
+<th>Code default</th>
+<th>Meaning</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>PROTECTED_RESOURCE_ADDRESS</code></td>
+<td><code>:8086</code></td>
+<td>HTTP listener; use <code>:8086</code> in a container and loopback for a host-only test.</td>
+</tr>
+<tr>
+<td><code>PROTECTED_RESOURCE_REQUEST_TIMEOUT</code></td>
+<td><code>5s</code></td>
+<td>Positive duration bounding each resource request.</td>
+</tr>
+<tr>
+<td><code>PROTECTED_RESOURCE_SLOW_DELAY</code></td>
+<td><code>2s</code></td>
+<td>Positive simulated delay; must be shorter than the Resource request timeout.</td>
+</tr>
+<tr>
+<td><code>PROTECTED_RESOURCE_MODE</code></td>
+<td><code>sample</code></td>
+<td>Only <code>sample</code> is supported.</td>
+</tr>
+<tr>
+<td><code>PROTECTED_RESOURCE_ADAPTER_MODE</code></td>
+<td><code>sample</code></td>
+<td><code>sample</code> or <code>sample-alternative</code>; both are deterministic sample data.</td>
+</tr>
+<tr>
+<td><code>PROTECTED_RESOURCE_LOG_LEVEL</code></td>
+<td><code>info</code></td>
+<td><code>debug</code>, <code>info</code>, <code>warn</code> or <code>error</code>.</td>
+</tr>
+</tbody>
+</table>
+<p>The current sample services require no application secrets, database, persistent volume or Keycloak client secret. Registry credentials and ingress TLS secrets belong to deployment configuration; secret values must not enter this repository. The applications serve plain HTTP; HTTPS routes require the approved ingress configuration. Do not disable certificate verification for outbound HTTPS calls.</p>
+<h2 id="how-the-services-communicate">How the services communicate<a class="headerlink" href="#how-the-services-communicate" title="Permanent link">&para;</a></h2>
+<pre><code class="language-text">Test caller / future journey runtime
+  -&gt; POST Participant:8085/demo
+  -&gt; Participant http-sample adapter
+  -&gt; POST Protected Resource:8086/demo
+  &lt;- sample JSON result, matched requestId and correlationId
+</code></pre>
+<p>Only Participant makes an outbound application call. Resource has no callback to Participant or other outbound application dependency. Participant forwards the documented JSON fields, with <code>Content-Type</code> and <code>Accept</code> set to <code>application/json</code>. It does not forward bearer tokens, passwords or cookies, does not retry, and refuses redirects. The server-controlled Resource URL is not accepted as a request-body input.</p>
+<p>Both demo endpoints accept one JSON object, at most 64 KiB, with these fields:</p>
+<pre><code class="language-json">{
+  &quot;resource&quot;: &quot;sample-report&quot;,
+  &quot;action&quot;: &quot;read&quot;,
+  &quot;scenario&quot;: &quot;success&quot;,
+  &quot;requestId&quot;: &quot;service-check-success-1&quot;,
+  &quot;correlationId&quot;: &quot;service-check-run-1&quot;
+}
+</code></pre>
+<p><code>resource</code> and <code>action</code> are required; the Resource sample catalogue supports <code>sample-report</code> / <code>read</code>. Omitted scenario defaults to success at Resource. IDs are optional, but should be supplied for traceable checks. Unknown body fields are rejected. The response includes IDs, <code>source</code>, <code>mode</code>, <code>outcome</code>, <code>reasonCode</code>, <code>explanation</code>, <code>timestamp</code> and <code>safeData</code>. Non-success results contain empty <code>safeData</code>.</p>
+<p>For the standard Resource adapter with the HTTP connection enabled:</p>
+<table>
+<thead>
+<tr>
+<th>Scenario</th>
+<th>Resource HTTP</th>
+<th>Participant HTTP</th>
+<th>Outcome</th>
+<th>Reason</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>success</code></td>
+<td>200</td>
+<td>200</td>
+<td><code>success</code></td>
+<td><code>SAMPLE_RESOURCE_RETURNED</code></td>
+</tr>
+<tr>
+<td><code>denied</code></td>
+<td>403</td>
+<td>403</td>
+<td><code>denied</code></td>
+<td><code>SAMPLE_ACCESS_DENIED</code></td>
+</tr>
+<tr>
+<td><code>unavailable</code></td>
+<td>503</td>
+<td>503</td>
+<td><code>unavailable</code></td>
+<td><code>SAMPLE_RESOURCE_UNAVAILABLE</code></td>
+</tr>
+<tr>
+<td><code>error</code></td>
+<td>500</td>
+<td>502</td>
+<td><code>error</code></td>
+<td><code>SAMPLE_RESOURCE_ERROR</code></td>
+</tr>
+<tr>
+<td><code>slow</code></td>
+<td>200 if within deadlines</td>
+<td>200 if within deadlines</td>
+<td><code>success</code></td>
+<td><code>SAMPLE_SLOW_RESOURCE_RETURNED</code></td>
+</tr>
+</tbody>
+</table>
+<p>A Participant outbound deadline produces 504 / <code>SAMPLE_REQUEST_TIMEOUT</code>; a failed connection produces 503 / <code>SAMPLE_CONNECTION_FAILURE</code>. Resource's own timeout may instead be mapped to Participant's generic unavailable status. Do not rely on identical 5-second deadlines to demonstrate a particular timeout source. For ordinary slow-success checks retain the 2-second delay; for a Participant timeout check set its deadline shorter than the Resource delay.</p>
+<p>These endpoint reason codes are not IF-01 security events and must not be relabelled as the successful-call, revoked-credential or wrong-scope security journeys in <a href="../scenarios/">Scenario decisions</a>.</p>
+<h2 id="local-source-smoke-check">Local source smoke check<a class="headerlink" href="#local-source-smoke-check" title="Permanent link">&para;</a></h2>
+<p>Start these from the repository root in separate Bash terminals:</p>
+<pre><code class="language-sh">PROTECTED_RESOURCE_ADDRESS=127.0.0.1:8086 PROTECTED_RESOURCE_MODE=sample \
+PROTECTED_RESOURCE_ADAPTER_MODE=sample PROTECTED_RESOURCE_SLOW_DELAY=2s \
+PROTECTED_RESOURCE_REQUEST_TIMEOUT=5s go run ./cmd/protected-resource
+</code></pre>
+<pre><code class="language-sh">PARTICIPANT_ADDRESS=127.0.0.1:8085 PARTICIPANT_ADAPTER_MODE=http-sample \
+PARTICIPANT_RESOURCE_URL=http://127.0.0.1:8086 \
+PARTICIPANT_REQUEST_TIMEOUT=5s go run ./cmd/participant
+</code></pre>
+<p>PowerShell equivalents:</p>
+<pre><code class="language-powershell"># Terminal 1
+$env:PROTECTED_RESOURCE_ADDRESS='127.0.0.1:8086'
+$env:PROTECTED_RESOURCE_MODE='sample'
+$env:PROTECTED_RESOURCE_ADAPTER_MODE='sample'
+$env:PROTECTED_RESOURCE_REQUEST_TIMEOUT='5s'
+$env:PROTECTED_RESOURCE_SLOW_DELAY='2s'
+go run ./cmd/protected-resource
+</code></pre>
+<pre><code class="language-powershell"># Terminal 2
+$env:PARTICIPANT_ADDRESS='127.0.0.1:8085'
+$env:PARTICIPANT_ADAPTER_MODE='http-sample'
+$env:PARTICIPANT_RESOURCE_URL='http://127.0.0.1:8086'
+$env:PARTICIPANT_REQUEST_TIMEOUT='5s'
+go run ./cmd/participant
+</code></pre>
+<p>Then run the dependency-free Node.js 22+ checker from another terminal:</p>
+<pre><code class="language-sh">node scripts/smoke-application-services.mjs
+</code></pre>
+<p>It checks both health endpoints, all five standard scenarios directly and through Participant, ID propagation, sample labels, reasons and safe-data shape. It exits nonzero on failure. Use <code>--participant-url</code> and <code>--resource-url</code> for explicitly approved test endpoints; it does not create deployments or configure credentials. Health only establishes that the service is running; Participant health does not probe Resource. The sample endpoint has no built-in authentication: use approved restricted routes, not an unrestricted public endpoint.</p>
+<h2 id="deployment-and-returned-evidence">Deployment and returned evidence<a class="headerlink" href="#deployment-and-returned-evidence" title="Permanent link">&para;</a></h2>
+<p>Deploy the two services in the shared OSC <code>zero-trust</code> namespace per <a href="../environments/application-workloads/">Application workloads</a>, as separate releases outside the platform umbrella. Images target <code>linux/amd64</code>, are published by the release workflow and selected by digest; the application-service chart (<code>deployment/helm/application-service</code>) installs each one. Network policy must allow the approved caller to Participant, Participant to Resource and required DNS; Resource needs no outbound application route. Observe namespace quotas and minimum requests. No cluster-scoped resources are needed by these applications.</p>
+<p>Return the source revision, image digests, effective non-secret environment settings, both health results, scenario results and correlated JSON logs from both processes. The current deployment and its results are recorded in <a href="../application-services-verification/">Application service verification</a>. The UI/ORCE bridge is outside these services. Shared-OSC deployment and sample HTTP results establish application integration only, not final two-zone security acceptance.</p>
+              
+            </div>
+          </div><footer>
+    <div class="rst-footer-buttons" role="navigation" aria-label="Footer Navigation">
+        <a href="../packaging/" class="btn btn-neutral float-left" title="Packaging and containers"><span class="icon icon-circle-arrow-left"></span> Previous</a>
+        <a href="../application-services-verification/" class="btn btn-neutral float-right" title="Application service verification">Next <span class="icon icon-circle-arrow-right"></span></a>
+    </div>
+
+  <hr/>
+
+  <div role="contentinfo">
+    <!-- Copyright etc -->
+      <p>Apache-2.0</p>
+  </div>
+
+  Built with <a href="https://www.mkdocs.org/">MkDocs</a> using a <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a> provided by <a href="https://readthedocs.org">Read the Docs</a>.
+</footer>
+          
+        </div>
+      </div>
+
+    </section>
+
+  </div>
+
+  <div class="rst-versions" role="note" aria-label="Versions">
+  <span class="rst-current-version" data-toggle="rst-current-version">
+    
+        <span>
+          <a href="https://github.com/eclipse-xfsc/facis-zero-trust-demonstrator" class="fa fa-github" style="color: #fcfcfc"> GitHub</a>
+        </span>
+    
+    
+      <span><a href="../packaging/" style="color: #fcfcfc">&laquo; Previous</a></span>
+    
+    
+      <span><a href="../application-services-verification/" style="color: #fcfcfc">Next &raquo;</a></span>
+    
+  </span>
+</div>
+    <script src="../js/jquery-3.6.0.min.js"></script>
+    <script>var base_url = "..";</script>
+    <script src="../js/theme_extra.js"></script>
+    <script src="../js/theme.js"></script>
+      <script src="../search/main.js"></script>
+    <script>
+        jQuery(function () {
+            SphinxRtdTheme.Navigation.enable(true);
+        });
+    </script>
+
+</body>
+</html>
