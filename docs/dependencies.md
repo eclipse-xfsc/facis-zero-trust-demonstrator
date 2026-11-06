@@ -5,8 +5,9 @@ but does not own.
 
 ## Licence compliance
 
-Every dependency clears Eclipse Dash before it ships. The scan runs on every pull request and a
-dependency Dash marks `restricted` blocks the merge; anything Dash cannot clear automatically goes
+Every dependency clears Eclipse Dash before it ships. The scan runs on every pull request, and a
+dependency Dash marks `restricted` fails the licence gate — which blocks the merge once the gate is a
+required check of the `main` ruleset ([CI/CD](ci-cd.md#branch-protection)); anything Dash cannot clear automatically goes
 to the Eclipse IP team for review. See [CI/CD](ci-cd.md).
 
 A dependency under a licence the project cannot accept is replaced, not waived. The exception below
@@ -14,6 +15,15 @@ is the only other route, and it is not a way to waive the rule.
 
 Generated inventories — the CycloneDX SBOM and the Dash summary — are published with each release
 and are the authoritative list. This page records the components chosen and why.
+
+### Pending Eclipse IP review
+
+Dependencies Dash cannot clear yet. They are not exceptions: each stays here until Eclipse approves it,
+and is removed then. None is pending: the last two, `golang.org/x/text` v0.42.0
+([iplab #32075](https://gitlab.eclipse.org/eclipsefdn/emo-team/iplab/-/work_items/32075)) and
+`github.com/santhosh-tekuri/jsonschema/v6` v6.0.3
+([iplab #32387](https://gitlab.eclipse.org/eclipsefdn/emo-team/iplab/-/work_items/32387)), were approved
+by 23 October 2026.
 
 ## Licence exceptions
 
@@ -60,6 +70,8 @@ Direct dependencies of the Go module. Transitive dependencies are listed in the 
 | `github.com/cucumber/gherkin/go/v42` | v42.0.0 | MIT | parses the feature files for the Annex verbatim check (`cmd/bddpack`) |
 | `github.com/cucumber/messages/go/v34` | v34.2.0 | MIT | the Gherkin document model used with it |
 | `github.com/santhosh-tekuri/jsonschema/v6` | v6.0.3 | Apache-2.0 | validates SBOMs and mock attestations against their JSON Schemas at admission |
+| `github.com/envoyproxy/go-control-plane/envoy` | v1.37.0 | Apache-2.0 | the Envoy `ext_authz` and `ext_proc` API types the guard policy hook is served through (`cmd/policy-hook-probe`); only its `envoyhook` package may import them |
+| `google.golang.org/grpc` | v1.83.2 | Apache-2.0 | gRPC transport of the policy hook's Envoy services |
 
 The admission check validates SBOMs against the official CycloneDX 1.5, 1.6 and 1.7 JSON Schemas and
 the schemas they reference (CycloneDX specification tag 1.7.2, Apache-2.0), vendored in
@@ -116,3 +128,40 @@ other dependency.
 The admission provider talks to OCI registries through a small first-party client built on the Go
 standard library rather than a general-purpose registry library, to keep its dependency set minimal.
 
+## Identity and service mesh
+
+The identity path and the mesh ([Workload identity](workload-identity.md)) are installed from the
+upstream charts as they ship, one Helm release per chart, by `scripts/install-zone/install.sh`,
+which pins each chart by version and by the sha256 of the chart archive (the Istio charts: of the
+release archive). The container images the charts run are pinned separately, by tag and digest
+(the multi-arch index digest of the tag, read from its registry), in the values files under
+`deployment/helm/values/`: the SPIRE server, agent, controller-manager and SPIFFE CSI driver, the
+CSI node-driver registrar, the server's `busybox` init container and `kubectl` hook image, and
+Istio's `pilot`, `proxyv2` (the injected proxy and the injected `istio-validation` init container)
+and `install-cni`. The images the charts already pin by digest are left
+as they ship. One image stays a tag: `busybox:1.28` in Istio's `grpc-simple` injection template,
+which only a pod that chooses its injection templates would run, and the `zone-policy` admission
+policy refuses such a pod in every plane namespace. The values the repository sets on the charts
+are listed with their reasons in `deployment/helm/values/README.md`.
+
+| Component | Version | Installed through | Licence | Why |
+|---|---|---|---|---|
+| SPIRE (server, agent, controller-manager, SPIFFE CSI driver) | v1.15.3 | chart `spire` 0.30.2 and chart `spire-crds` 0.6.1, from the SPIFFE hardened charts `https://spiffe.github.io/helm-charts-hardened/` | Apache-2.0 | the only issuer of workload and mesh identities (ZT-24): attests every pod and serves its SVID over the CSI-mounted Workload API socket and to the mesh proxy over SDS |
+| Istio, sidecar mode | 1.31.1 | charts `base`, `istiod` and `cni` 1.31.1, from the Istio release archive `istio-1.31.1-linux-amd64.tar.gz` (`manifests/charts`), pinned by its published sha256 | Apache-2.0 | the service mesh of [ADR-0009](adr/0009-service-mesh-mode-istio-sidecar-with-cilium.md): native sidecars that take their certificates from SPIRE, mesh-wide STRICT mTLS, the CNI plugin chained behind Cilium |
+| Cilium | 1.20.2 on kind; 1.18.8 on the participant clusters | kind: chart `cilium/cilium` 1.20.2, by `scripts/dev/kind-cilium-up.sh`, the version a kind run of `scripts/verify-mesh-identity/verify.sh` shows; the participant clusters of zone A and zone B: installed and upgraded by the provider (Gardener), never by the zone, found at 1.18.8, the version a participant-cluster run of the same script shows in its preconditions and `environment.json` (see `scripts/verify-mesh-identity/README.md`) (the chaining proven on every node; cross-node pod traffic masqueraded by the provider's configuration, so the mesh is proven node-locally there and fails across nodes until the provider changes it; a kind pass on 1.20.2 supports but does not prove a fix for the provider's 1.18.8 pod network) | Apache-2.0 | the CNI and the enforcer of the network policies, with `cni.exclusive=false` (`cni-exclusive=false` in `cilium-config`) so that the Istio plugin can chain |
+| istioctl | 1.31.1 | the operator's machine | Apache-2.0 | reads a proxy's secrets and sync status in the proof; never installs |
+
+The Istio 1.31 charts are taken from the release archive because Istio's Helm repository and OCI
+registry do not carry them (on 2026-10-06 the repository's index stopped at 1.31.0-rc.0); the
+archive is the release Istio publishes, and its charts are the same charts.
+
+**Upgrades.** An upgrade changes the pinned version and digest in the installer and re-reads the
+digest of every image tag in the values files (`docker buildx imagetools inspect <image>:<tag>`
+prints the index digest), then reruns `scripts/verify-mesh-identity/verify.sh`, whose record goes
+to the run directory outside the repository. The local proof runs on kind node v1.35.8 with Cilium
+1.20.2; the participant clusters run Kubernetes v1.34.7 with the provider's
+Cilium 1.18.8, and the same proof is re-run there with the keep opt-in. At every Istio minor upgrade the
+[ADR-0009](adr/0009-service-mesh-mode-istio-sidecar-with-cilium.md) reopen check
+(`scripts/mesh-mode/check-upstream-state.sh`) runs alongside the proof. The SPIRE charts are
+upgraded as a pair (`spire-crds` first), because the controller-manager in `spire` is built
+against the CRDs of its `spire-crds`.
