@@ -37,3 +37,4 @@ kubeconfig*
 
 # Pinned tools installed by scripts/tools/install.sh
 .tools/
+/scripts/verify-tspa-api/bodies/

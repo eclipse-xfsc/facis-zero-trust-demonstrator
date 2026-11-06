@@ -601,3 +601,20 @@ func TestParsePublicKeys(t *testing.T) {
 		t.Error("empty input accepted")
 	}
 }
+
+func TestValidateCycloneDX(t *testing.T) {
+	valid := `{"bomFormat":"CycloneDX","specVersion":"1.7","version":1,"components":[{"type":"library","name":"golang.org/x/text","version":"v0.42.0"}]}`
+	if err := ValidateCycloneDX([]byte(valid)); err != nil {
+		t.Errorf("valid 1.7 document refused: %v", err)
+	}
+	for name, doc := range map[string]string{
+		"old spec version": `{"bomFormat":"CycloneDX","specVersion":"1.4","version":1}`,
+		"not CycloneDX":    `{"bomFormat":"SPDX","specVersion":"1.7","version":1}`,
+		"bad component":    `{"bomFormat":"CycloneDX","specVersion":"1.7","version":1,"components":[{"type":"no-such-type","name":"x"}]}`,
+		"not JSON":         `{`,
+	} {
+		if err := ValidateCycloneDX([]byte(doc)); err == nil {
+			t.Errorf("%s: accepted", name)
+		}
+	}
+}

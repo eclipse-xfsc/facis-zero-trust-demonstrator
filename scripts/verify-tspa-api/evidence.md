@@ -1,4 +1,4 @@
-# TSPA local round-trip evidence (2026-09-18T10:03:27-01:00)
+# TSPA local round-trip evidence (2026-10-08T13:18:03Z)
 ## 0. Health
 
 ### health
@@ -8,9 +8,9 @@
 - Response (first 800 bytes):
 
 ```
-{"status":"DOWN","components":{"diskSpace":{"status":"UP","details":{"total":501809635328,"free":134919405568,"threshold":10485760,"path":"/usr/local/tomcat/.","exists":true}},"ping":{"status":"UP"},"zonemanagerHealthCheck":{"status":"DOWN","details":{"Status":"Zonemanager is not healthy","Zonemanager-address":"https://testtrain.trust-scheme.de"}}}}
+{"status":"DOWN","components":{"diskSpace":{"status":"UP","details":{"total":977896124416,"free":821528584192,"threshold":10485760,"path":"/usr/local/tomcat/.","exists":true}},"livenessState":{"status":"UP"},"ping":{"status":"UP"},"readinessState":{"status":"UP"},"zonemanagerHealthCheck":{"status":"DOWN","details":{"Status":"Zonemanager is not healthy","Zonemanager-address":"https://zonemgr.train1.xfsc.dev"}}},"groups":["liveness","readiness"]}
 ```
-## 1. Token (client_credentials on the compose Keycloak, requested from inside the docker network so iss matches)
+## 1. Token (client_credentials on the local Keycloak, requested from inside the cluster so iss matches)
 
 Decoded access-token claims relevant to TSPA:
 
@@ -27,7 +27,7 @@ Decoded access-token claims relevant to TSPA:
       "default-roles-gxfs-dev-test"
     ]
   },
-  "exp": 1789729715
+  "exp": 1791465939
 }
 ```
 ## 1b. Cleanup from previous runs (ignore result)
@@ -71,7 +71,7 @@ Decoded access-token claims relevant to TSPA:
 - Response (first 800 bytes):
 
 ```
-{"timestamp":"2026-09-18T11:03:36.412+00:00","status":500,"error":"Internal Server Error","path":"/tspa-service/tspa/v1/trustframework/facis-ztd.local"}
+{"timestamp":"2026-10-08T13:20:41.610+00:00","status":500,"error":"Internal Server Error","path":"/tspa-service/tspa/v1/trustframework/facis-ztd.local"}
 ```
 ## 4. Trust list init + first measurement
 
@@ -216,17 +216,17 @@ Decoded access-token claims relevant to TSPA:
   "type" : [ "VerifiableCredential" ],
   "id" : "did:web:essif.iao.fraunhofer.de#issuer-lists",
   "issuer" : "did:web:essif.iao.fraunhofer.de",
-  "issuanceDate" : "2026-09-18T13:03:36+02:00",
+  "issuanceDate" : "2026-10-08T15:20:41+02:00",
   "expirationDate" : "2025-06-15T18:56:59Z",
   "credentialSubject" : {
     "id" : "uuid:2632367287r82729",
     "trustlisttype" : "JSON based Trust-lists",
     "trustlistURI" : "http://localhost:16003/tspa-service/tspa/v1/facis-ztd.local/trust-list",
-    "hash" : "QmW9LdN8aDNypfZoUbVpYy71ib3Cgaqhyfa7HEKRrZb9KG"
+    "hash" : "QmU6U1bDzJAhxtyCgLd1Y57KRosGrrT2jnT4mRX6iGsio2"
   },
   "proof" : {
     "type" : "JsonWebSignature2020",
-    "created" : "2026-09-18T12:03:36Z",
+    "created" : "2026-10-08T14:20:41Z",
     "proofPurpose" : "assertionMethod
 ```
 

@@ -355,7 +355,8 @@ func (c *Client) List(ctx context.Context, prefix string) ([]string, error) {
 			Keys []string `json:"keys"`
 		} `json:"data"`
 	}
-	_, err := c.do(ctx, "list", "LIST", c.kvPath("metadata", prefix), nil, &out)
+	// GET with list=true, not the LIST method: the mesh sidecar answers 400 to non-standard methods.
+	_, err := c.do(ctx, "list", http.MethodGet, c.kvPath("metadata", prefix)+"?list=true", nil, &out)
 	if errors.Is(err, ErrNotFound) {
 		return nil, nil // nothing under the prefix
 	}

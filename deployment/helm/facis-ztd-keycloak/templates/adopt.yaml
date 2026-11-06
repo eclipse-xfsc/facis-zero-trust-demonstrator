@@ -1,0 +1,78 @@
+{{- if eq .Values.deployment.mode "adopt" -}}
+{{- $namespace := .Release.Namespace -}}
+{{- $targets := list
+      (dict "api" "apps/v1" "kind" "Deployment" "name" .Values.deployment.keycloakName)
+      (dict "api" "apps/v1" "kind" "StatefulSet" "name" .Values.deployment.postgresName)
+      (dict "api" "v1" "kind" "Service" "name" .Values.deployment.keycloakName)
+      (dict "api" "v1" "kind" "Service" "name" .Values.deployment.postgresName)
+      (dict "api" "v1" "kind" "Secret" "name" .Values.deployment.runtimeSecret) -}}
+{{- if .Values.ingress.enabled -}}
+{{- $targets = append $targets (dict "api" "networking.k8s.io/v1" "kind" "Ingress" "name" .Values.deployment.ingressName) -}}
+{{- end -}}
+{{- $claims := dict -}}
+{{- range $target := $targets -}}
+{{- $old := lookup $target.api $target.kind $namespace $target.name -}}
+{{- if not $old -}}{{- fail (printf "adopt mode requires existing %s/%s in namespace %s. Use a real Helm install or --dry-run=server; use mode=new for fresh installation." $target.kind $target.name $namespace) -}}{{- end -}}
+{{- include "ztd.checkOwner" (dict "object" $old "release" $.Release) -}}
+{{- if eq $target.kind "StatefulSet" -}}
+  {{- range $claim := $old.spec.volumeClaimTemplates -}}
+    {{- range $ordinal := until (int (default 1 $old.spec.replicas)) -}}
+      {{- $_ := set $claims (printf "%s-%s-%d" $claim.metadata.name $target.name $ordinal) true -}}
+    {{- end -}}
+  {{- end -}}
+  {{- range $volume := $old.spec.template.spec.volumes -}}
+    {{- if $volume.persistentVolumeClaim -}}{{- $_ := set $claims $volume.persistentVolumeClaim.claimName true -}}{{- end -}}
+  {{- end -}}
+{{- end }}
+---
+apiVersion: {{ $target.api }}
+kind: {{ $target.kind }}
+metadata:
+  name: {{ $target.name }}
+  {{- with $old.metadata.ownerReferences }}
+  ownerReferences:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+  labels:
+    {{- toYaml (mergeOverwrite (deepCopy (default (dict) $old.metadata.labels)) (dict "app.kubernetes.io/managed-by" "Helm" "app.kubernetes.io/instance" $.Release.Name)) | nindent 4 }}
+  {{- $annotations := omit (default (dict) $old.metadata.annotations) "kubectl.kubernetes.io/last-applied-configuration" -}}
+  {{- if eq $target.kind "Secret" -}}{{- $_ := set $annotations "helm.sh/resource-policy" "keep" -}}{{- end }}
+  annotations:
+    {{- toYaml $annotations | nindent 4 }}
+{{- if eq $target.kind "Secret" }}
+type: {{ default "Opaque" $old.type }}
+data:
+  {{- toYaml $old.data | nindent 2 }}
+{{- else -}}
+{{- $spec := deepCopy $old.spec -}}
+{{- if and (eq $target.kind "Deployment") $.Values.keycloak.image -}}
+  {{- $_ := set (index $spec.template.spec.containers 0) "image" $.Values.keycloak.image -}}
+{{- end -}}
+{{- if and (eq $target.kind "StatefulSet") $.Values.postgresql.image -}}
+  {{- $_ := set (index $spec.template.spec.containers 0) "image" $.Values.postgresql.image -}}
+{{- end }}
+spec:
+  {{- toYaml $spec | nindent 2 }}
+{{- end -}}
+{{- end -}}
+{{- range $name, $_ := $claims -}}
+{{- $pvc := lookup "v1" "PersistentVolumeClaim" $namespace $name -}}
+{{- if not $pvc -}}{{- fail (printf "Database PVC %s is missing; refusing ownership migration" $name) -}}{{- end }}
+{{- include "ztd.checkOwner" (dict "object" $pvc "release" $.Release) }}
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: {{ $name }}
+  {{- with $pvc.metadata.ownerReferences }}
+  ownerReferences:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+  labels:
+    {{- toYaml (mergeOverwrite (deepCopy (default (dict) $pvc.metadata.labels)) (dict "app.kubernetes.io/managed-by" "Helm" "app.kubernetes.io/instance" $.Release.Name)) | nindent 4 }}
+  annotations:
+    {{- toYaml (mergeOverwrite (omit (default (dict) $pvc.metadata.annotations) "kubectl.kubernetes.io/last-applied-configuration") (dict "helm.sh/resource-policy" "keep")) | nindent 4 }}
+spec:
+  {{- toYaml $pvc.spec | nindent 2 }}
+{{- end -}}
+{{- end -}}
