@@ -1,0 +1,647 @@
+<!DOCTYPE html>
+<html class="writer-html5" lang="en" >
+<head>
+    <meta charset="utf-8" />
+    <meta http-equiv="X-UA-Compatible" content="IE=edge" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+      <link rel="shortcut icon" href="../img/favicon.ico" />
+    <title>TRAIN DNS zone - FACIS Zero Trust Demonstrator</title>
+    <link rel="stylesheet" href="../css/theme.css" />
+    <link rel="stylesheet" href="../css/theme_extra.css" />
+        <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.8.0/styles/github.min.css" />
+    
+      <script>
+        // Current page data
+        var mkdocs_page_name = "TRAIN DNS zone";
+        var mkdocs_page_input_path = "train-dns.md";
+        var mkdocs_page_url = null;
+      </script>
+    
+    <!--[if lt IE 9]>
+      <script src="../js/html5shiv.min.js"></script>
+    <![endif]-->
+      <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.8.0/highlight.min.js"></script>
+      <script>hljs.highlightAll();</script> 
+</head>
+
+<body class="wy-body-for-nav" role="document">
+
+  <div class="wy-grid-for-nav">
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side stickynav">
+    <div class="wy-side-scroll">
+      <div class="wy-side-nav-search">
+          <a href=".." class="icon icon-home"> FACIS Zero Trust Demonstrator
+        </a><div role="search">
+  <form id ="rtd-search-form" class="wy-form" action="../search.html" method="get">
+      <input type="text" name="q" placeholder="Search docs" aria-label="Search docs" title="Type search term here" />
+  </form>
+</div>
+      </div>
+
+      <div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="..">Home</a>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../features/">Features and journeys</a>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../architecture/">Architecture</a>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../usage/">Using the demonstrator</a>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../deployment/">Deployment</a>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../umbrella-chart/">Umbrella chart</a>
+                </li>
+              </ul>
+              <p class="caption"><span class="caption-text">Environments</span></p>
+              <ul>
+                  <li class="toctree-l1"><a class="reference internal" href="../environments/">Overview</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../environments/osc/">T-Systems OSC</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../environments/ionos/">IONOS Cloud</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../environments/application-workloads/">Application workloads</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../environments/capabilities/">Capability sheets</a>
+                  </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../packaging/">Packaging and containers</a>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../flows/">Orchestrated flows</a>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../scenarios/">Scenario decisions</a>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../keycloak/">Keycloak integration</a>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../identity-model/">Identity model</a>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../oauth2-provider/">Connector OAuth2 provider</a>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../policy-hook/">Guard policy hook</a>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../api-docs/">API documentation</a>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../contracts/">Interface contracts</a>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../tspa-publish-api/">TRAIN trust-list publishing</a>
+                </li>
+              </ul>
+              <ul class="current">
+                <li class="toctree-l1 current"><a class="reference internal current" href="#">TRAIN DNS zone</a>
+    <ul class="current">
+    <li class="toctree-l2"><a class="reference internal" href="#the-chain-the-zone-starts">The chain the zone starts</a>
+    </li>
+    <li class="toctree-l2"><a class="reference internal" href="#delegation">Delegation</a>
+    </li>
+    <li class="toctree-l2"><a class="reference internal" href="#what-the-zone-serves">What the zone serves</a>
+    </li>
+    <li class="toctree-l2"><a class="reference internal" href="#dnssec">DNSSEC</a>
+    </li>
+    <li class="toctree-l2"><a class="reference internal" href="#operating-the-zone-manager">Operating the zone manager</a>
+    </li>
+    <li class="toctree-l2"><a class="reference internal" href="#verification">Verification</a>
+    </li>
+    <li class="toctree-l2"><a class="reference internal" href="#caching-windows">Caching windows</a>
+    </li>
+    <li class="toctree-l2"><a class="reference internal" href="#how-a-failure-stays-quiet-and-the-alert-that-does-not-let-it">How a failure stays quiet, and the alert that does not let it</a>
+    </li>
+    <li class="toctree-l2"><a class="reference internal" href="#status">Status</a>
+    </li>
+    </ul>
+                </li>
+              </ul>
+              <p class="caption"><span class="caption-text">BDD acceptance</span></p>
+              <ul>
+                  <li class="toctree-l1"><a class="reference internal" href="../bdd/">Harness and pack</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../bdd-catalogue/">Catalogue</a>
+                  </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../ci-cd/">CI/CD</a>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../secrets/">Secrets</a>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../troubleshooting/">Troubleshooting</a>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../dependencies/">OSS dependencies</a>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../licenses/">Licenses</a>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../specifications/">Specification changes</a>
+                </li>
+              </ul>
+              <p class="caption"><span class="caption-text">Architecture decisions</span></p>
+              <ul>
+                  <li class="toctree-l1"><a class="reference internal" href="../adr/">Overview</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../adr/decision-ledger/">Decision ledger</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../adr/tdr-decisions/">TDR decisions ADR 001–006</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../adr/0001-service-mesh-mode-istio-ambient-with-cilium/">0001 Service mesh mode</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../adr/0002-gatekeeper-external-data-provider-for-cosign-verification/">0002 Gatekeeper external data provider</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../adr/0003-oauth2-authorisation-surface-in-the-go-connector/">0003 OAuth2 surface in the Go connector</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../adr/0004-openbao-as-x509-key-value-store/">0004 OpenBao as X.509 key-value store</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../adr/0005-three-cluster-reading-of-the-target-environment/">0005 Three-cluster target environment</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../adr/0008-envoy-ext-authz-as-the-guard-policy-hook/">0008 Guard policy hook</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../adr/0011-mock-tee-evidence-format-and-provisioning/">0011 Mock TEE evidence</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../adr/0016-oauth2-library-behind-the-connector-provider-contract/">0016 OAuth2 library</a>
+                  </li>
+              </ul>
+      </div>
+    </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap">
+      <nav class="wy-nav-top" role="navigation" aria-label="Mobile navigation menu">
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="..">FACIS Zero Trust Demonstrator</a>
+        
+      </nav>
+      <div class="wy-nav-content">
+        <div class="rst-content"><div role="navigation" aria-label="breadcrumbs navigation">
+  <ul class="wy-breadcrumbs">
+    <li><a href=".." class="icon icon-home" aria-label="Docs"></a></li>
+      <li class="breadcrumb-item active">TRAIN DNS zone</li>
+    <li class="wy-breadcrumbs-aside">
+          <a href="https://github.com/eclipse-xfsc/facis-zero-trust-demonstrator/edit/main/docs/train-dns.md" class="icon icon-github"> Edit on GitHub</a>
+    </li>
+  </ul>
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+            <div class="section" itemprop="articleBody">
+              
+                <h1 id="train-dns-zone">TRAIN DNS zone<a class="headerlink" href="#train-dns-zone" title="Permanent link">&para;</a></h1>
+<p>TRAIN anchors trust in DNS. When the attested channel forms, the verifier does not hold a list of
+whom to trust; it holds a domain name, and the content resolver (TCR) turns that name into the
+signed trust list by walking a chain of DNS records. The first link of that chain is a DNS zone
+that answers for the trust framework. This page is the record of that zone: how it is delegated,
+what it serves, what its DNSSEC state is and how re-signing happens, how it is verified, and how a
+failure becomes an alert rather than a silent refusal. The verification script and the kit that
+produced the observations are in <code>scripts/verify-train-dns/</code>.</p>
+<h2 id="the-chain-the-zone-starts">The chain the zone starts<a class="headerlink" href="#the-chain-the-zone-starts" title="Permanent link">&para;</a></h2>
+<pre><code>_scheme._trust.&lt;zone&gt;        PTR  → _scheme._trust.&lt;framework&gt;      (a scheme claim)
+_scheme._trust.&lt;framework&gt;   URI  → did:web:…                       (the DID of the trust list)
+                             DID document → trust-list VC → trust list → entry for the peer
+</code></pre>
+<p>The TCR starts at <code>_scheme._trust.&lt;zone&gt;</code> and follows PTR targets and URI records until it holds a
+DID; everything after that is HTTPS, described in <a href="../tspa-publish-api/">TRAIN trust-list publishing</a>.
+Three components touch the zone:</p>
+<table>
+<thead>
+<tr>
+<th>Component</th>
+<th>Role for the zone</th>
+<th>Who runs it</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Zone manager (<code>train-dns-trust-zone-manager</code>)</td>
+<td>The authoritative DNS server for the zone (NSD) and the API that writes the PTR and URI records, signing the zone on every write</td>
+<td>The demonstrator, as part of the XFSC stack</td>
+</tr>
+<tr>
+<td>TSPA</td>
+<td>Publishes the scheme claim and the DID through the zone manager's API when a framework is registered</td>
+<td>The demonstrator</td>
+</tr>
+<tr>
+<td>TCR</td>
+<td>Reads the chain for the verifier, with DNSSEC validation on by default</td>
+<td>The demonstrator</td>
+</tr>
+</tbody>
+</table>
+<p>Nothing in the chain is reachable from outside the zone manager's own cluster until the parent
+domain's DNS points at it. That delegation is the one step the demonstrator cannot perform itself.</p>
+<h2 id="delegation">Delegation<a class="headerlink" href="#delegation" title="Permanent link">&para;</a></h2>
+<p>A zone exists for the world when two things are true at once: a server answers for it, and the
+parent zone names that server. The parent is a domain the client owns; its operator adds the
+records, we supply them. The request goes to the client in two messages, because the records
+name an address that exists only once the zone manager runs on the dedicated clusters behind a
+public address — the shared namespace available today cannot expose port 53. The steps alternate:</p>
+<ol>
+<li><strong>First message: three questions.</strong> The zone name — one label under a domain the client
+   controls, for example <code>trust.&lt;domain&gt;</code>; who operates the parent zone, so the records reach the
+   right hands; and whether the parent zone is DNSSEC-signed, because only a signed parent can
+   publish the DS record and so validate the chain end to end. The same message says that the DS
+   comes as a separate, later step, and why (<a href="#dnssec">DNSSEC</a>): the client had asked for the DS to
+   be part of the delegation, so the change of order is stated, not implied.</li>
+<li><strong>Deploy the zone manager</strong> behind a public address on port 53, UDP and TCP, on the dedicated
+   clusters.</li>
+<li>
+<p><strong>Second message: the records.</strong> The zone manager publishes two name-server names at the apex
+   (<code>PRIMARY_SERVER_NSD</code> and <code>SECONDARY_SERVER_1_NSD</code> in its configuration), so the parent must
+   delegate both; until a real secondary exists, both resolve to the same address:</p>
+<p><code>&lt;zone&gt;.        IN NS  ns1.&lt;zone&gt;.
+&lt;zone&gt;.        IN NS  ns2.&lt;zone&gt;.
+ns1.&lt;zone&gt;.    IN A   &lt;public address&gt;     ; glue: the server's name is inside the zone it serves
+ns2.&lt;zone&gt;.    IN A   &lt;public address&gt;</code></p>
+<p>The glue records break a circle: to ask <code>ns1.&lt;zone&gt;</code> anything, a resolver needs its address, and
+that address lives in the zone <code>ns1</code> itself serves. The parent hands out name and address in the
+same referral. A low TTL (300 s) on these four records keeps an address change cheap while the
+deployment settles.
+4. <strong>The parent operator publishes the four records</strong> — and no DS record yet.
+5. <strong>Verify</strong>, from outside and from each cluster, with <code>scripts/verify-train-dns/verify.sh</code>, and
+   keep the evidence.
+6. <strong>The DS, last.</strong> Once key persistence and the daily re-sign are proven on the deployed instance
+   — a closing criterion of the zone manager's deployment — the DS record goes to the parent
+   operator as one more record, and the chain validates end to end.</p>
+</li>
+</ol>
+<p>Between steps 2 and 3 the zone can already be checked by naming the servers directly
+(<code>SERVERS=</code>) and the DS the zone manager printed (<code>EXPECT_DS=</code>); see the script's README.</p>
+<h2 id="what-the-zone-serves">What the zone serves<a class="headerlink" href="#what-the-zone-serves" title="Permanent link">&para;</a></h2>
+<p>Written by the zone manager at first start from its configuration, then by TSPA through the API:</p>
+<table>
+<thead>
+<tr>
+<th>Record</th>
+<th>Written by</th>
+<th>TTL</th>
+<th>Note</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>SOA</code></td>
+<td>zone manager</td>
+<td>3600</td>
+<td>serial is the Unix time of the last write; refresh 28800, retry 7200, expire 604800, minimum 3600</td>
+</tr>
+<tr>
+<td><code>NS</code> ×2 (<code>ns1</code>, <code>ns2</code>), <code>A</code> for <code>ns1</code>, <code>ns2</code>, <code>ns3</code> and for the apex</td>
+<td>zone manager, at first start</td>
+<td>3600</td>
+<td>from <code>TF_DOMAIN_*</code>, <code>PRIMARY_SERVER_*</code>, <code>SECONDARY_SERVER_*</code></td>
+</tr>
+<tr>
+<td><code>_scheme._trust.&lt;zone&gt; PTR</code></td>
+<td>TSPA (<code>PUT /trustframework/{fw}</code>)</td>
+<td>0</td>
+<td>the scheme claim; 3600 when added through the zone manager's CLI</td>
+</tr>
+<tr>
+<td><code>_scheme._trust.&lt;framework&gt; URI</code></td>
+<td>TSPA (<code>PUT /{fw}/did</code>)</td>
+<td>0</td>
+<td><code>10 1 "did:…"</code></td>
+</tr>
+<tr>
+<td><code>DNSKEY</code>, <code>RRSIG</code>, <code>NSEC</code></td>
+<td>zone manager, on every write</td>
+<td>3600</td>
+<td>see below</td>
+</tr>
+</tbody>
+</table>
+<p>Denial of existence uses NSEC (the zone is walkable; it holds nothing secret) with the SOA minimum
+of 3600 s, which is also how long a resolver keeps a signed "does not exist" answer — the
+<a href="#caching-windows">caching window</a> that matters most.</p>
+<h2 id="dnssec">DNSSEC<a class="headerlink" href="#dnssec" title="Permanent link">&para;</a></h2>
+<p><strong>Keys.</strong> The zone manager generates one key-signing key (KSK) and one zone-signing key (ZSK),
+ECDSA P-256 (algorithm 13), when it creates the zone at its first start, and stores them in its
+SQLite database on the pod's volume. It leaves the private keys in clear in <code>private_key.tmp</code> next
+to the database as well. There is no key rollover command: the keys the zone has are the keys it
+will have until the database is lost, and then it silently makes new ones.</p>
+<p><strong>The DS.</strong> The fingerprint of the KSK, the record the parent publishes to make validation
+mandatory, is printed to the pod log once, when the zone is created, by the <code>add-zone</code> command. No
+API or CLI returns it afterwards. Record it from the log at first start
+(<code>scripts/verify-train-dns/kind/zone-manager-up.sh</code> prints it), or recompute it from the key the
+zone serves:</p>
+<pre><code class="language-bash">dig +noall +answer DNSKEY &lt;zone&gt; @&lt;server&gt; | awk '$5==257' | dnssec-dsfromkey -2 -f - &lt;zone&gt;
+</code></pre>
+<p>(<code>dnssec-dsfromkey</code> is in <code>bind9-utils</code>; on kind this reproduced the DS the zone manager had printed.)</p>
+<p><strong>Signatures.</strong> Every write re-signs the whole zone with signatures valid for 28 days from the
+moment of the write (ldns' default; nothing in the zone manager changes it). A zone that nobody
+writes to for 28 days serves expired signatures, which validating resolvers refuse exactly as they
+refuse a wrong key.</p>
+<p><strong>Re-signing.</strong> The zone manager ships a nightly <code>resign</code> job that never runs: its crontab calls a
+file that does not exist, and no cron daemon is started in the container
+(<a href="https://github.com/eclipse-xfsc/train-dns-trust-zone-manager/issues/41">upstream #41</a>). The command itself works and renews the 28 days:</p>
+<pre><code class="language-bash">dns-zone-manager-server --database sqlite:////var/lib/zonemgr/zones.db resign
+</code></pre>
+<p>The deployment therefore runs that command on its own schedule — daily, in the zone manager's pod —
+and the verification script fails when fewer than <code>MIN_SIG_DAYS</code> (7) remain, so a job that stopped
+is noticed three weeks before it matters.</p>
+<p><strong>When the DS is published.</strong> A DS at the parent is a commitment: from then on every validating
+resolver refuses the whole zone the moment the key or the signatures are wrong, and the TCR reports
+that refusal as an empty trust list. Two properties of the zone manager as shipped make the
+commitment unkeepable at first: the keys do not survive a rebuilt volume, and nothing re-signs. So
+the zone is delegated <strong>without</strong> a DS first. This reverses the order first discussed with the
+client, who had asked for the DS to be part of the delegation and welcomed it "if the full chain can
+be validated"; the request therefore says in so many words that the DS comes second, and why.
+Resolvers meanwhile treat the zone as insecure — they accept its answers unvalidated, as they do for
+most of the internet — and the TCR's validation, which stays on, passes it as insecure rather than
+bogus. The DS is sent to the parent operator once three things hold on the deployed instance, which
+the zone manager's deployment lists among its closing criteria:</p>
+<ul>
+<li>the volume is retained across reinstalls and <code>zones.db</code> is backed up, so the keys persist;</li>
+<li>the daily <code>resign</code> job runs and the signature expiry is observed to move;</li>
+<li>the procedure for a key change is agreed with the parent operator: remove the DS, wait for its TTL
+  to pass, change the keys, publish the new DS. The zone manager cannot double-sign, so a key change
+  with a DS in place is an outage of at least the DS TTL.</li>
+</ul>
+<p>This is the reading declared in <a href="../specifications/">Specification changes</a>: the zone is signed from
+its first start; the anchoring at the parent follows the proof that the signing can be kept up.</p>
+<h2 id="operating-the-zone-manager">Operating the zone manager<a class="headerlink" href="#operating-the-zone-manager" title="Permanent link">&para;</a></h2>
+<p>Running the upstream component as shipped was tried on the local kind cluster
+(<code>scripts/verify-train-dns/kind/</code>, findings in <code>scripts/verify-train-dns/zone-manager-findings.md</code>).
+Four things the deployment has to carry, in the order they bite:</p>
+<table>
+<thead>
+<tr>
+<th>Defect as shipped</th>
+<th>Effect</th>
+<th>What the deployment does</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>FROM python:3.11</code> now resolves to Debian 13, whose <code>python3-ldns</code> is built for Python 3.13 (<a href="https://github.com/eclipse-xfsc/train-dns-trust-zone-manager/issues/39">upstream #39</a>)</td>
+<td>the container exits at <code>import ldns</code></td>
+<td>build on <code>python:3.11-bookworm</code></td>
+</tr>
+<tr>
+<td>NSD starts before the zone's <code>include</code> is written, and the second <code>service nsd start</code> is a no-op (<a href="https://github.com/eclipse-xfsc/train-dns-trust-zone-manager/issues/40">upstream #40</a>)</td>
+<td>after every start — first or restart — NSD serves no zone: every query is REFUSED until the next write</td>
+<td><code>nsd-control reconfig &amp;&amp; nsd-control reload</code> after the configuration is written; a readiness probe on <code>nsd-control zonestatus</code> so a pod that serves nothing is not Ready</td>
+</tr>
+<tr>
+<td>The chart's volume claim asks for <code>ReadWriteMany</code></td>
+<td>pending forever on block storage</td>
+<td><code>ReadWriteOnce</code>; the pod is single-replica by design (one NSD, one database)</td>
+</tr>
+<tr>
+<td><code>auth.conf</code> is executed as Python (<code>exec</code>)</td>
+<td>unquoted values are a syntax error at import; whoever edits the ConfigMap runs code in the zone manager</td>
+<td>values carry their own quotes; the ConfigMap is management-plane only</td>
+</tr>
+</tbody>
+</table>
+<p>Also to be kept in mind: the DNS service needs TCP and UDP 53 on one public address (a mixed-protocol
+LoadBalancer, or a static address); the private keys on the volume are readable by anyone who can
+read the volume; and the API's write routes expect an OIDC bearer token whose audience is the
+configured <code>CLIENT_ID</code> — TSPA's token, in the real deployment.</p>
+<h2 id="verification">Verification<a class="headerlink" href="#verification" title="Permanent link">&para;</a></h2>
+<p><code>scripts/verify-train-dns/verify.sh</code> is the inspector. It walks the chain this page describes and
+writes a PASS/FAIL evidence file; its exit status fails a pipeline. What it proves, in order:</p>
+<ol>
+<li>the delegation at the parent — NS set, glue, DS present or absent;</li>
+<li>every name server the delegation names answers authoritatively over UDP and TCP, all with the
+   same serial, and each with the same NS set inside the zone as the delegation;</li>
+<li>the <code>_scheme._trust</code> pointer on every server, and the URI record at each of its targets;</li>
+<li>resolution through recursive resolvers, from wherever it runs: the SOA, the pointer, and the URI
+   at every target a resolver returns, through that same resolver — one that still caches a
+   negative answer for a URI breaks discovery for its clients while the others are right;</li>
+<li>the DNSSEC state — every server serving the same key-signing key; the DS at the parent and the
+   one recorded for publication compared in full (owner, algorithm, digest type, digest) with the
+   DS computed from that key, since a right key tag with a wrong digest is refused like any other
+   wrong DS; days of signature validity left; and whether any resolver rejects the zone as bogus
+   (SERVFAIL that turns into NOERROR with checking disabled).</li>
+</ol>
+<p>Run it from outside as it is, and inside each cluster with <code>RESOLVERS</code> set to the cluster resolver
+(the README has the pod recipe), so the evidence shows what a workload there sees. Before the
+delegation, <code>SERVERS=</code> names the zone manager directly and <code>EXPECT_DS=</code> compares the recorded DS
+with the live key, whether the zone is signed or not — which is how a rebuilt volume, or a server
+that answers unsigned, shows up as a FAIL before anyone publishes the wrong DS. On kind, against
+the upstream zone manager, the healthy state passed every check and the rebuilt-volume state failed
+exactly the DS and bogus checks; both evidence files are kept next to the kit. Each failure mode the
+inspector claims to catch is also a case in <code>verify_test.sh</code>, run in CI against local NSD servers
+that break one thing each, behind a signed parent zone and a validating resolver.</p>
+<h2 id="caching-windows">Caching windows<a class="headerlink" href="#caching-windows" title="Permanent link">&para;</a></h2>
+<p>Four windows govern how fast a change at the zone is seen, and they are not the same:</p>
+<table>
+<thead>
+<tr>
+<th>Change</th>
+<th>Seen after</th>
+<th>Why</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>A new pointer or DID, by a resolver that never asked for it</td>
+<td>at once</td>
+<td>the records carry TTL 0 (API)</td>
+</tr>
+<tr>
+<td>A new pointer, by a resolver that asked before it existed</td>
+<td>up to 3600 s</td>
+<td>the signed denial (NSEC, SOA minimum 3600) is cached and answered from, validly, until it expires</td>
+</tr>
+<tr>
+<td>A removed pointer</td>
+<td>at once for API-written records (TTL 0); up to 3600 s for records written through the CLI</td>
+<td>the positive answer is cached for its TTL</td>
+</tr>
+<tr>
+<td>A DS or key change</td>
+<td>DS TTL at the parent plus DNSKEY TTL (3600)</td>
+<td>both sides cache</td>
+</tr>
+</tbody>
+</table>
+<p>The second row was observed on kind: the record was at the server, a validating resolver that had
+been asked a minute earlier still answered NXDOMAIN with the <code>ad</code> flag. It is the reason the
+inspector asks the authoritative servers directly as well as the resolvers, and the window any
+"takes effect within the TTL" statement about trust-list changes has to include.</p>
+<h2 id="how-a-failure-stays-quiet-and-the-alert-that-does-not-let-it">How a failure stays quiet, and the alert that does not let it<a class="headerlink" href="#how-a-failure-stays-quiet-and-the-alert-that-does-not-let-it" title="Permanent link">&para;</a></h2>
+<p>The TCR turns every DNS answer that is not NOERROR into an empty result: a lame delegation, an
+expired signature, a wrong DS and "nothing is published" all look the same to the verifier, which
+then refuses the peer with no indication that DNS was the cause. Fail-closed is the right outcome
+(ZT-52); the silence is not, and ZT-52 asks for control-plane failures to be detected and alerted
+within 30 seconds.</p>
+<p>The alert has two parts, wired into the observability stack when it lands:</p>
+<ul>
+<li><strong>A resolution probe every 5 s</strong>, from inside each cluster through its resolver: a blackbox DNS
+  probe for <code>_scheme._trust.&lt;zone&gt;</code> (type PTR, answer must contain a PTR) and for the SOA at each
+  authoritative address, each with a 4 s timeout. Two failed probes in a row raise the alert
+  (<code>probe_success == 0</code> with <code>for: 5s</code>, in a rule group evaluated every 5 s), so a single lost UDP
+  packet does not. The probe through the resolver catches what the verifier would see; the probes
+  at the servers say which link broke.</li>
+<li><strong>The inspector once a day</strong> as a job in one cluster, with <code>MIN_SIG_DAYS=7</code> and <code>EXPECT_DS</code> set to
+  the published DS; a failed job is the alert. It catches the slow failures a liveness probe cannot:
+  signatures running out, a key that no longer matches the DS, a delegation changed at the parent.</li>
+</ul>
+<p>The 30 seconds run from the failure to the notification, so every delay on the way counts. Worst
+case, for a failure that starts just after a successful probe:</p>
+<table>
+<thead>
+<tr>
+<th>Step</th>
+<th>Worst case</th>
+<th>Why</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Until the next probe starts</td>
+<td>5 s</td>
+<td>probe interval (the scrape interval of the probe job)</td>
+</tr>
+<tr>
+<td>Until that probe fails</td>
+<td>4 s</td>
+<td>a server that does not answer fails at the timeout; a SERVFAIL or a missing record fails at once</td>
+</tr>
+<tr>
+<td>Until a rule evaluation reads the failure</td>
+<td>5 s</td>
+<td>evaluation interval; the alert is now pending</td>
+</tr>
+<tr>
+<td>Until it fires</td>
+<td>5 s</td>
+<td><code>for: 5s</code>: the next evaluation, which reads the second failed probe</td>
+</tr>
+<tr>
+<td>Until Alertmanager sends the notification</td>
+<td>5 s</td>
+<td><code>group_wait: 5s</code> on the route for this alert</td>
+</tr>
+<tr>
+<td><strong>Total</strong></td>
+<td><strong>24 s</strong></td>
+<td>6 s left for delivery to the receiver</td>
+</tr>
+</tbody>
+</table>
+<p>Neither setting can be left at its default: Prometheus evaluates rules every minute and Alertmanager
+waits 30 s before the first notification of a new group, either of which alone exceeds the budget.</p>
+<p>Until the stack exists, the daily inspector run and its evidence file are the record.</p>
+<h2 id="status">Status<a class="headerlink" href="#status" title="Permanent link">&para;</a></h2>
+<table>
+<thead>
+<tr>
+<th>Done when</th>
+<th>Proven where</th>
+<th>Still needs</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Delegation completed</td>
+<td>—</td>
+<td>the first message (the three questions) is written; the records follow the deployment on the dedicated clusters; the parent-zone operator publishes them</td>
+</tr>
+<tr>
+<td>Records resolve from all three clusters and from outside</td>
+<td>on kind: from inside the cluster, direct and through a validating resolver</td>
+<td>the delegation, the two OSC clusters</td>
+</tr>
+<tr>
+<td>DNSSEC status recorded, including re-signing</td>
+<td>this page, with the observations in <code>zone-manager-findings.md</code></td>
+<td>the daily <code>resign</code> job and the volume retention on the real deployment, then the DS</td>
+</tr>
+<tr>
+<td>A resolution failure raises an alert</td>
+<td>the probe and the job are specified; the inspector detects every failure mode seen</td>
+<td>the observability stack</td>
+</tr>
+</tbody>
+</table>
+              
+            </div>
+          </div><footer>
+    <div class="rst-footer-buttons" role="navigation" aria-label="Footer Navigation">
+        <a href="../tspa-publish-api/" class="btn btn-neutral float-left" title="TRAIN trust-list publishing"><span class="icon icon-circle-arrow-left"></span> Previous</a>
+        <a href="../bdd/" class="btn btn-neutral float-right" title="Harness and pack">Next <span class="icon icon-circle-arrow-right"></span></a>
+    </div>
+
+  <hr/>
+
+  <div role="contentinfo">
+    <!-- Copyright etc -->
+      <p>Apache-2.0</p>
+  </div>
+
+  Built with <a href="https://www.mkdocs.org/">MkDocs</a> using a <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a> provided by <a href="https://readthedocs.org">Read the Docs</a>.
+</footer>
+          
+        </div>
+      </div>
+
+    </section>
+
+  </div>
+
+  <div class="rst-versions" role="note" aria-label="Versions">
+  <span class="rst-current-version" data-toggle="rst-current-version">
+    
+        <span>
+          <a href="https://github.com/eclipse-xfsc/facis-zero-trust-demonstrator" class="fa fa-github" style="color: #fcfcfc"> GitHub</a>
+        </span>
+    
+    
+      <span><a href="../tspa-publish-api/" style="color: #fcfcfc">&laquo; Previous</a></span>
+    
+    
+      <span><a href="../bdd/" style="color: #fcfcfc">Next &raquo;</a></span>
+    
+  </span>
+</div>
+    <script src="../js/jquery-3.6.0.min.js"></script>
+    <script>var base_url = "..";</script>
+    <script src="../js/theme_extra.js"></script>
+    <script src="../js/theme.js"></script>
+      <script src="../search/main.js"></script>
+    <script>
+        jQuery(function () {
+            SphinxRtdTheme.Navigation.enable(true);
+        });
+    </script>
+
+</body>
+</html>

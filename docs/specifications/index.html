@@ -116,6 +116,10 @@
                 <li class="toctree-l1"><a class="reference internal" href="../tspa-publish-api/">TRAIN trust-list publishing</a>
                 </li>
               </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../train-dns/">TRAIN DNS zone</a>
+                </li>
+              </ul>
               <p class="caption"><span class="caption-text">BDD acceptance</span></p>
               <ul>
                   <li class="toctree-l1"><a class="reference internal" href="../bdd/">Harness and pack</a>
@@ -285,6 +289,12 @@ the decision.</p>
 <td>TSPA's trust-list entry has no digest field; the value must ride in an existing <code>Type</code>/<code>Value</code> list, with the connector's identifier in <code>ServiceTypeIdentifier</code> (the TCR lookup key)</td>
 <td>TRAIN's data model was built for credential issuers; the SRS assumes TRAIN stores measurements without fixing where</td>
 <td><a href="../tspa-publish-api/">TRAIN trust-list publishing</a> · <a href="../adr/0011-mock-tee-evidence-format-and-provisioning/">ADR-0011 §§ 4.2–4.3</a></td>
+</tr>
+<tr>
+<td>TRAIN glossary and SRS 2.7 — trust anchored in DNS; the TRAIN zone created and reachable</td>
+<td>The zone is signed from its first start and the TCR validates DNSSEC, but the DS is published at the parent only after key persistence and a working re-sign job are proven on the deployed zone manager; until then resolvers treat the zone as insecure</td>
+<td>The zone manager as shipped loses its keys with its volume and never re-signs; a DS published before that is fixed turns either event into a refusal of the whole zone, which the TCR reports as an empty trust list</td>
+<td><a href="../train-dns/">TRAIN DNS zone</a></td>
 </tr>
 </tbody>
 </table>

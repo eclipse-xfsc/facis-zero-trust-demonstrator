@@ -138,6 +138,10 @@
                 <li class="toctree-l1"><a class="reference internal" href="../../tspa-publish-api/">TRAIN trust-list publishing</a>
                 </li>
               </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../../train-dns/">TRAIN DNS zone</a>
+                </li>
+              </ul>
               <p class="caption"><span class="caption-text">BDD acceptance</span></p>
               <ul>
                   <li class="toctree-l1"><a class="reference internal" href="../../bdd/">Harness and pack</a>
@@ -238,8 +242,8 @@ against the clusters on first stand-up, as the <a href="../ionos/">IONOS guide</
   cluster-scoped resources;</li>
 <li>credentials for the container registry the images are pulled from, and network reachability to it
   from both clusters;</li>
-<li>the DNS zone delegation for the trust framework in place, or the trust-list steps will not
-  resolve;</li>
+<li>the DNS zone delegation for the trust framework in place (<a href="../../train-dns/">TRAIN DNS zone</a>), or
+  the trust-list steps will not resolve;</li>
 <li>Helm v4.3.0, the version the pipeline pins, and kubectl;</li>
 <li>this repository checked out, and the values file for the zone you are installing.</li>
 </ul>

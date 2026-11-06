@@ -116,6 +116,10 @@
                 <li class="toctree-l1"><a class="reference internal" href="../tspa-publish-api/">TRAIN trust-list publishing</a>
                 </li>
               </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../train-dns/">TRAIN DNS zone</a>
+                </li>
+              </ul>
               <p class="caption"><span class="caption-text">BDD acceptance</span></p>
               <ul>
                   <li class="toctree-l1"><a class="reference internal" href="../bdd/">Harness and pack</a>
@@ -143,6 +147,8 @@
     <li class="toctree-l2"><a class="reference internal" href="#token-issuance-dpop-proofs-and-the-token-store">Token issuance, DPoP proofs and the token store</a>
     </li>
     <li class="toctree-l2"><a class="reference internal" href="#attested-channel-handshake-failures">Attested channel handshake failures</a>
+    </li>
+    <li class="toctree-l2"><a class="reference internal" href="#trust-framework-dns">Trust-framework DNS</a>
     </li>
     <li class="toctree-l2"><a class="reference internal" href="#credential-verification-and-trust-list-staleness">Credential verification and trust-list staleness</a>
     </li>
@@ -341,6 +347,38 @@ whether the reason is the one you expected.</p>
 <td>Application traffic appears after a failed handshake</td>
 <td>A serious defect</td>
 <td>This must be impossible and is asserted by an acceptance scenario; treat any instance as a stop-the-line finding</td>
+</tr>
+</tbody>
+</table>
+<h2 id="trust-framework-dns">Trust-framework DNS<a class="headerlink" href="#trust-framework-dns" title="Permanent link">&para;</a></h2>
+<table>
+<thead>
+<tr>
+<th>Symptom</th>
+<th>Likely cause</th>
+<th>Check</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>The verifier refuses every peer with "no expected value" and nothing was changed</td>
+<td>The TCR turns any DNS failure into an empty result, so a broken zone looks like an empty trust list</td>
+<td>Run <code>scripts/verify-train-dns/verify.sh</code> from the cluster; its sections say which link of the chain failed — see <a href="../train-dns/">TRAIN DNS zone</a></td>
+</tr>
+<tr>
+<td>Every query to the zone manager is REFUSED after a pod restart</td>
+<td>NSD came up before the zone's include was written and never reloaded</td>
+<td><code>nsd-control zonestatus</code> in the pod lists no zone; <code>nsd-control reconfig &amp;&amp; nsd-control reload</code> serves it — the deployment runs this at start</td>
+</tr>
+<tr>
+<td>Validating resolvers answer SERVFAIL for the zone; <code>dig +cd</code> answers</td>
+<td>The zone is bogus: the DS at the parent no longer matches the key (the volume was rebuilt), or the signatures expired (the <code>resign</code> job stopped)</td>
+<td>Compare the DS at the parent in full with the DS of the key the zone serves (<code>dnssec-dsfromkey</code>, see <a href="../train-dns/#dnssec">TRAIN DNS zone</a>): a matching key tag is not enough; read the RRSIG expiry on the SOA; the inspector's section 5 does both</td>
+</tr>
+<tr>
+<td>A pointer was published but a resolver still says NXDOMAIN, with the <code>ad</code> flag</td>
+<td>The resolver cached the signed denial from before the record existed (NSEC, 3600 s)</td>
+<td>Ask the authoritative server directly; wait out the TTL or flush the resolver</td>
 </tr>
 </tbody>
 </table>
