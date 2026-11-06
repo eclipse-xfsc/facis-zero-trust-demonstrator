@@ -1,0 +1,423 @@
+<!DOCTYPE html>
+<html class="writer-html5" lang="en" >
+<head>
+    <meta charset="utf-8" />
+    <meta http-equiv="X-UA-Compatible" content="IE=edge" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+      <link rel="shortcut icon" href="../img/favicon.ico" />
+    <title>Demonstrator UI and identity - FACIS Zero Trust Demonstrator</title>
+    <link rel="stylesheet" href="../css/theme.css" />
+    <link rel="stylesheet" href="../css/theme_extra.css" />
+        <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.8.0/styles/github.min.css" />
+    
+      <script>
+        // Current page data
+        var mkdocs_page_name = "Demonstrator UI and identity";
+        var mkdocs_page_input_path = "demonstrator-handoff.md";
+        var mkdocs_page_url = null;
+      </script>
+    
+    <!--[if lt IE 9]>
+      <script src="../js/html5shiv.min.js"></script>
+    <![endif]-->
+      <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.8.0/highlight.min.js"></script>
+      <script>hljs.highlightAll();</script> 
+</head>
+
+<body class="wy-body-for-nav" role="document">
+
+  <div class="wy-grid-for-nav">
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side stickynav">
+    <div class="wy-side-scroll">
+      <div class="wy-side-nav-search">
+          <a href=".." class="icon icon-home"> FACIS Zero Trust Demonstrator
+        </a><div role="search">
+  <form id ="rtd-search-form" class="wy-form" action="../search.html" method="get">
+      <input type="text" name="q" placeholder="Search docs" aria-label="Search docs" title="Type search term here" />
+  </form>
+</div>
+      </div>
+
+      <div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="..">Home</a>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../features/">Features and journeys</a>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../architecture/">Architecture</a>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../usage/">Using the demonstrator</a>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../deployment/">Deployment</a>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../umbrella-chart/">Umbrella chart</a>
+                </li>
+              </ul>
+              <p class="caption"><span class="caption-text">Environments</span></p>
+              <ul>
+                  <li class="toctree-l1"><a class="reference internal" href="../environments/">Overview</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../environments/osc/">T-Systems OSC</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../environments/ionos/">IONOS Cloud</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../environments/application-workloads/">Application workloads</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../environments/capabilities/">Capability sheets</a>
+                  </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../packaging/">Packaging and containers</a>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../application-services/">Application services</a>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../application-services-verification/">Application service verification</a>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../flows/">Orchestrated flows</a>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../scenarios/">Scenario decisions</a>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../keycloak/">Keycloak integration</a>
+                </li>
+              </ul>
+              <ul class="current">
+                <li class="toctree-l1 current"><a class="reference internal current" href="#">Demonstrator UI and identity</a>
+    <ul class="current">
+    <li class="toctree-l2"><a class="reference internal" href="#contents">Contents</a>
+    </li>
+    <li class="toctree-l2"><a class="reference internal" href="#current-delivery-assembled-21-october-2026">Current delivery assembled 21 October 2026</a>
+    </li>
+    <li class="toctree-l2"><a class="reference internal" href="#initial-ui-only-synchronization-recorded-21-october-2026">Initial UI-only synchronization recorded 21 October 2026</a>
+    </li>
+    <li class="toctree-l2"><a class="reference internal" href="#validation-recorded-12-october-2026">Validation recorded 12 October 2026</a>
+    </li>
+    <li class="toctree-l2"><a class="reference internal" href="#limits-and-remaining-integration-checks">Limits and remaining integration checks</a>
+    </li>
+    <li class="toctree-l2"><a class="reference internal" href="#connector-adapter-component-preparation-on-21-october-2026">Connector adapter component preparation on 21 October 2026</a>
+    </li>
+    <li class="toctree-l2"><a class="reference internal" href="#protected-resource-fixture-integration-on-21-october-2026">Protected Resource fixture integration on 21 October 2026</a>
+    </li>
+    <li class="toctree-l2"><a class="reference internal" href="#replaceable-application-adapter-preparation-on-21-october-2026">Replaceable application adapter preparation on 21 October 2026</a>
+    </li>
+    </ul>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../identity-model/">Identity model</a>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../oauth2-provider/">Connector OAuth2 provider</a>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../policy-hook/">Guard policy hook</a>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../api-docs/">API documentation</a>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../contracts/">Interface contracts</a>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../tspa-publish-api/">TRAIN trust-list publishing</a>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../train-dns/">TRAIN DNS zone</a>
+                </li>
+              </ul>
+              <p class="caption"><span class="caption-text">BDD acceptance</span></p>
+              <ul>
+                  <li class="toctree-l1"><a class="reference internal" href="../bdd/">Harness and pack</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../bdd-catalogue/">Catalogue</a>
+                  </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../ci-cd/">CI/CD</a>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../secrets/">Secrets</a>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../troubleshooting/">Troubleshooting</a>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../dependencies/">OSS dependencies</a>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../licenses/">Licenses</a>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../specifications/">Specification changes</a>
+                </li>
+              </ul>
+              <p class="caption"><span class="caption-text">Architecture decisions</span></p>
+              <ul>
+                  <li class="toctree-l1"><a class="reference internal" href="../adr/">Overview</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../adr/decision-ledger/">Decision ledger</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../adr/tdr-decisions/">TDR decisions ADR 001–006</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../adr/0001-service-mesh-mode-istio-ambient-with-cilium/">0001 Service mesh mode</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../adr/0002-gatekeeper-external-data-provider-for-cosign-verification/">0002 Gatekeeper external data provider</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../adr/0003-oauth2-authorisation-surface-in-the-go-connector/">0003 OAuth2 surface in the Go connector</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../adr/0004-openbao-as-x509-key-value-store/">0004 OpenBao as X.509 key-value store</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../adr/0005-three-cluster-reading-of-the-target-environment/">0005 Three-cluster target environment</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../adr/0008-envoy-ext-authz-as-the-guard-policy-hook/">0008 Guard policy hook</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../adr/0011-mock-tee-evidence-format-and-provisioning/">0011 Mock TEE evidence</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../adr/0016-oauth2-library-behind-the-connector-provider-contract/">0016 OAuth2 library</a>
+                  </li>
+              </ul>
+      </div>
+    </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap">
+      <nav class="wy-nav-top" role="navigation" aria-label="Mobile navigation menu">
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="..">FACIS Zero Trust Demonstrator</a>
+        
+      </nav>
+      <div class="wy-nav-content">
+        <div class="rst-content"><div role="navigation" aria-label="breadcrumbs navigation">
+  <ul class="wy-breadcrumbs">
+    <li><a href=".." class="icon icon-home" aria-label="Docs"></a></li>
+      <li class="breadcrumb-item active">Demonstrator UI and identity</li>
+    <li class="wy-breadcrumbs-aside">
+          <a href="https://github.com/eclipse-xfsc/facis-zero-trust-demonstrator/edit/main/docs/demonstrator-handoff.md" class="icon icon-github"> Edit on GitHub</a>
+    </li>
+  </ul>
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+            <div class="section" itemprop="articleBody">
+              
+                <h1 id="demonstrator-ui-flows-and-identity-handoff">Demonstrator UI, flows and identity handoff<a class="headerlink" href="#demonstrator-ui-flows-and-identity-handoff" title="Permanent link">&para;</a></h1>
+<p>This contribution adds the demonstrator UI, ORCE flows, component tests and a
+reproducible Keycloak chart. It uses the identity/scenario contracts and the
+deployed sample-service interface recorded in upstream change 27, commit
+<code>075aa150d7308bb7330a4e3ed8f79b5e07319bf9</code>. Integrate those prerequisite changes
+before installing this contribution on a clean environment.</p>
+<h2 id="contents">Contents<a class="headerlink" href="#contents" title="Permanent link">&para;</a></h2>
+<table>
+<thead>
+<tr>
+<th>Path</th>
+<th>Purpose</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>ui/demonstrator/INSTALL.md</code></td>
+<td>Runtime requirements, clean installation and upgrade instructions</td>
+</tr>
+<tr>
+<td><code>ui/demonstrator/src/</code></td>
+<td>HTML, CSS, JavaScript and vendored Vue with its licence</td>
+</tr>
+<tr>
+<td><code>flows/demonstrator/</code></td>
+<td>Identity/session, journey, application-interface and nine-file UI installer flows</td>
+</tr>
+<tr>
+<td><code>deployment/helm/facis-ztd-keycloak/</code></td>
+<td>Realm/client/roles/personas, basic subject scope and <code>/dev</code> callback/logout configuration</td>
+</tr>
+<tr>
+<td><code>tests/demonstrator/</code></td>
+<td>Component tests and coverage notes</td>
+</tr>
+<tr>
+<td><code>.github/workflows/demonstrator-tests.yml</code></td>
+<td>Separate component-test CI job; no deployment or secrets required</td>
+</tr>
+</tbody>
+</table>
+<p>The ORCE editor is under <code>/dev/</code>; the demonstrator is under <code>/dev/facis-demo/</code>.
+Use the exact callback/logout URLs in the installation instructions. The UI uses
+authorization code with PKCE S256 and requires matching verified access/ID token
+subjects. Operator actions are authorized on the backend; observers view shared
+results without starting or changing journeys.</p>
+<h2 id="current-delivery-assembled-21-october-2026">Current delivery assembled 21 October 2026<a class="headerlink" href="#current-delivery-assembled-21-october-2026" title="Permanent link">&para;</a></h2>
+<p>This delivery combines the existing UI/identity/chart contribution with the B2
+application changes on collaboration main <code>86c7148810a091eb7a35089449c5a5fc0cd7fa34</code>.
+Existing platform, CI, chart-gate and service files from that baseline are retained.
+The earlier UI contribution remains unmerged, so it is carried as a prerequisite;
+the Keycloak chart and identity implementation are unchanged from that contribution.</p>
+<p>The final suite passes <strong>140 component tests, zero failures and zero skipped</strong> on
+Node v24.19.0/Windows, matching the supplied Linux result. Helm v4.3.0 strict lint
+and existing-mode rendering pass. These are local checks, not a live release test.
+The original source handoff recorded the staged results below as features were added;
+69, 86, 90 and 119 are historical intermediate counts, not the final total.</p>
+<p>Compared with the previous UI export, three existing function bodies change:
+<code>facis-native-ui-files</code>, <code>journey-sample-fixtures</code> and <code>journey-engine</code>. Five nodes
+add the separate, default-disabled Connector tab. Follow the complete upgrade
+steps in <code>ui/demonstrator/INSTALL.md</code>; do not import the combined flow over an
+existing installation. Review the new branding and fixture behavior separately
+from live Connector and real-API acceptance, which remain blocked on approved inputs.</p>
+<h2 id="initial-ui-only-synchronization-recorded-21-october-2026">Initial UI-only synchronization recorded 21 October 2026<a class="headerlink" href="#initial-ui-only-synchronization-recorded-21-october-2026" title="Permanent link">&para;</a></h2>
+<p>The 42 application flow nodes were compared with the current ORCE editor. Only the UI installer function changed. The installer now includes all nine UI assets, including the logo and favicons. The approved colors and logo size are retained; measurement and policy validation feedback is associated with each field. All 69 component tests passed on Node v24.19.0/Linux. Identity and service authorization logic are unchanged.</p>
+<h2 id="validation-recorded-12-october-2026">Validation recorded 12 October 2026<a class="headerlink" href="#validation-recorded-12-october-2026" title="Permanent link">&para;</a></h2>
+<ul>
+<li>All 60 component tests passed locally on Node v24.19.0/Windows.</li>
+<li>Browser checks passed for fresh operator/observer login and ordinary UI logout,
+  successful call, revoked credential, wrong scope and presentation-required fixtures.</li>
+<li>The Participant sample endpoint returned the expected success, denied, unavailable,
+  error and slow-response outcomes. The UI displayed request/correlation IDs.</li>
+<li>Participant, Resource and DNS configuration fields were read-only. Allowed preview
+  payloads were checked, malformed measurement input was rejected, and Apply remained disabled.</li>
+<li>All 42 supplied flow nodes were present in the refreshed editor. Inspected differences
+  were formatting/editor metadata or equivalent installer representations; the five
+  embedded UI assets matched byte-for-byte. This is not a runtime commit attestation.</li>
+<li>Helm v4.3.0 lint/render checks cover the chart. Live image pull, configuration import
+  and resource adoption have not been independently tested for this package.</li>
+</ul>
+<h2 id="limits-and-remaining-integration-checks">Limits and remaining integration checks<a class="headerlink" href="#limits-and-remaining-integration-checks" title="Permanent link">&para;</a></h2>
+<p>Security decisions in these journeys use fixtures. The application sample HTTP call
+is real, but it does not prove the Connector/guard trusted path or two-zone acceptance.
+Configuration is preview-only; policy registry validation, real API replacement and
+governed application of changes remain later integration work.</p>
+<p>The Participant connection currently uses an endpoint-specific TLS verification
+exception for the supplied self-signed certificate, visibly labelled in the UI.
+There is no encoded expiry. Agree the exception and expiry or supply a trusted
+certificate/CA before treating this as final TLS acceptance. Do not generalize the
+exception to Keycloak or other endpoints.</p>
+<p>Actual administrator-initiated logout, isolated front/back-channel delivery,
+refresh reuse/expiry, direct forged-request tests, clean target installation and
+formal BDD remain target-environment checks. Local handler tests do not prove them.</p>
+<p>Keep Participant credentials in the HTTP Request node's private credential settings.
+The chart references Kubernetes Secrets and supports External Secrets/OpenBao;
+preserve existing persona credentials when installing/upgrading. A first install
+without the existing credential source can generate new persona passwords. Do not
+commit credential files, rendered Secrets, kubeconfigs or token dumps.</p>
+<h2 id="connector-adapter-component-preparation-on-21-october-2026">Connector adapter component preparation on 21 October 2026<a class="headerlink" href="#connector-adapter-component-preparation-on-21-october-2026" title="Permanent link">&para;</a></h2>
+<p>The server-side module <code>flows/demonstrator/connector-adapter.mjs</code> implements
+registration, client-credentials tokens and DPoP protected calls against the
+30 September OAuth2 contract. Its configuration and usage are in
+<code>flows/README.md</code>. Seventeen new local HTTP contract tests cover success,
+nonce challenges, refusal at each stage, invalid token/registration responses,
+redirect rejection, response bounds, timeouts and correlation IDs. The full
+component suite passes 86 tests. No UI or deployed flow changes are included in
+this adapter update. The Connector registration/token endpoints, guard and trust
+services are not deployed for the B2 test window; live BDD-ZT-039/074 execution
+remains blocked. This component is ready for contract reconciliation and wiring
+once the approved route and event schema are available.</p>
+<p>The Connector adapter now also has a separately importable Node-RED flow,
+<code>flows/demonstrator/connector-adapter-flow.json</code>, included in the combined export.
+It is disconnected from Journey, has no automatic inject and is disabled by
+server environment by default. Four additional checks exercise the embedded
+Function, default-disabled behavior, source/export equality, transport handling
+and refusal. The complete component suite passes 90 tests. Existing UI and
+identity nodes are unchanged by this flow addition.</p>
+<h2 id="protected-resource-fixture-integration-on-21-october-2026">Protected Resource fixture integration on 21 October 2026<a class="headerlink" href="#protected-resource-fixture-integration-on-21-october-2026" title="Permanent link">&para;</a></h2>
+<p>Thirteen server-owned resource fixture cases are available in the existing
+Journey catalogue. Role combinations return distinct synthetic content; missing
+or unauthorized rights and invalid/revoked/expired contexts withhold protected
+content. An unavailable security dependency returns unavailable without content.
+The final outcome is correlated with Journey evidence and remains visibly
+fixture-only. Viewer roles and browser claims are not service authorization.
+The new 29 checks bring the full component suite to 119 passing tests. The
+live role mapping and security interface are still blocked; these fixture
+results do not close BDD-ZT-041/075 live acceptance.</p>
+<h2 id="replaceable-application-adapter-preparation-on-21-october-2026">Replaceable application adapter preparation on 21 October 2026<a class="headerlink" href="#replaceable-application-adapter-preparation-on-21-october-2026" title="Permanent link">&para;</a></h2>
+<p>Separate Participant and Protected Resource adapters can select local mocks or
+loopback HTTP sample servers through one common pipeline. All four combinations
+pass local execution with the same request/result contract. Interface descriptors
+are checked before execution; incompatible responses, wrong correlation IDs,
+refusal, timeout and unavailable targets cannot fall back to a mock. Real targets
+remain disabled pending client confirmation. The module is separate from the
+currently deployed Journey and does not change Connector, trust or policy logic.
+Usage and the two local sample contracts are documented in <code>flows/README.md</code>.
+The complete component suite now passes 140 tests, including 21 replacement
+checks. These results prepare BDD-ZT-007/077 and do not close their live acceptance.</p>
+              
+            </div>
+          </div><footer>
+    <div class="rst-footer-buttons" role="navigation" aria-label="Footer Navigation">
+        <a href="../keycloak/" class="btn btn-neutral float-left" title="Keycloak integration"><span class="icon icon-circle-arrow-left"></span> Previous</a>
+        <a href="../identity-model/" class="btn btn-neutral float-right" title="Identity model">Next <span class="icon icon-circle-arrow-right"></span></a>
+    </div>
+
+  <hr/>
+
+  <div role="contentinfo">
+    <!-- Copyright etc -->
+      <p>Apache-2.0</p>
+  </div>
+
+  Built with <a href="https://www.mkdocs.org/">MkDocs</a> using a <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a> provided by <a href="https://readthedocs.org">Read the Docs</a>.
+</footer>
+          
+        </div>
+      </div>
+
+    </section>
+
+  </div>
+
+  <div class="rst-versions" role="note" aria-label="Versions">
+  <span class="rst-current-version" data-toggle="rst-current-version">
+    
+        <span>
+          <a href="https://github.com/eclipse-xfsc/facis-zero-trust-demonstrator" class="fa fa-github" style="color: #fcfcfc"> GitHub</a>
+        </span>
+    
+    
+      <span><a href="../keycloak/" style="color: #fcfcfc">&laquo; Previous</a></span>
+    
+    
+      <span><a href="../identity-model/" style="color: #fcfcfc">Next &raquo;</a></span>
+    
+  </span>
+</div>
+    <script src="../js/jquery-3.6.0.min.js"></script>
+    <script>var base_url = "..";</script>
+    <script src="../js/theme_extra.js"></script>
+    <script src="../js/theme.js"></script>
+      <script src="../search/main.js"></script>
+    <script>
+        jQuery(function () {
+            SphinxRtdTheme.Navigation.enable(true);
+        });
+    </script>
+
+</body>
+</html>
