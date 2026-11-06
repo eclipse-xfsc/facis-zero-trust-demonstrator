@@ -1,0 +1,86 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "zone-policy chart values",
+  "type": "object",
+  "required": ["trustDomain", "spire", "mesh", "registration", "peerAuthentication", "proxySocketPolicy", "checks"],
+  "properties": {
+    "trustDomain": {
+      "type": "string",
+      "description": "The zone's SPIFFE trust domain (zone.trustDomain of the zone file).",
+      "minLength": 1,
+      "maxLength": 255,
+      "pattern": "^[a-z0-9]([-a-z0-9_]*[a-z0-9])?(\\.[a-z0-9]([-a-z0-9_]*[a-z0-9])?)*$"
+    },
+    "spire": {
+      "type": "object",
+      "required": ["namespace", "className", "serverStatefulSet", "agentDaemonSet", "bundleConfigMap", "controllerManagerConfigMap"],
+      "properties": {
+        "namespace": { "$ref": "#/$defs/name" },
+        "className": { "type": "string", "minLength": 1 },
+        "serverStatefulSet": { "$ref": "#/$defs/name" },
+        "agentDaemonSet": { "$ref": "#/$defs/name" },
+        "bundleConfigMap": { "$ref": "#/$defs/name" },
+        "controllerManagerConfigMap": { "$ref": "#/$defs/name" }
+      }
+    },
+    "mesh": {
+      "type": "object",
+      "required": ["namespace", "configMap"],
+      "properties": {
+        "namespace": { "$ref": "#/$defs/name" },
+        "configMap": { "$ref": "#/$defs/name" }
+      }
+    },
+    "registration": {
+      "type": "object",
+      "required": ["name", "identityLabel", "planeLabel"],
+      "properties": {
+        "name": { "$ref": "#/$defs/name" },
+        "identityLabel": {
+          "type": "object",
+          "required": ["key", "value"],
+          "properties": { "key": { "type": "string", "minLength": 1 }, "value": { "type": "string", "minLength": 1 } }
+        },
+        "planeLabel": { "type": "string", "minLength": 1 }
+      }
+    },
+    "peerAuthentication": {
+      "type": "object",
+      "required": ["mode"],
+      "properties": { "mode": { "type": "string", "enum": ["STRICT"] } }
+    },
+    "proxySocketPolicy": {
+      "type": "object",
+      "required": ["name", "volume", "mountPath", "driver", "statusPort", "proxyImage"],
+      "properties": {
+        "name": { "$ref": "#/$defs/name" },
+        "volume": { "$ref": "#/$defs/name" },
+        "mountPath": { "type": "string", "pattern": "^/[A-Za-z0-9._/-]+$" },
+        "driver": { "type": "string", "pattern": "^[a-z0-9]([-a-z0-9.]*[a-z0-9])?$" },
+        "statusPort": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 65535,
+          "description": "The proxy's status port, the one inbound port excluded from the capture; must equal the istiod release's global.proxy.statusPort."
+        },
+        "proxyImage": {
+          "type": "string",
+          "pattern": "^[^\\s'/]+/[^\\s']+@sha256:[0-9a-f]{64}$",
+          "description": "The injected proxy's whole image reference, pinned by digest; must equal the istiod release's global.proxy.image."
+        }
+      }
+    },
+    "checks": {
+      "type": "object",
+      "required": ["enabled", "image", "timeoutSeconds"],
+      "properties": {
+        "enabled": { "type": "boolean" },
+        "image": { "type": "string", "pattern": "@sha256:[0-9a-f]{64}$" },
+        "timeoutSeconds": { "type": "integer", "minimum": 10, "maximum": 1800 }
+      }
+    }
+  },
+  "$defs": {
+    "name": { "type": "string", "pattern": "^[a-z0-9]([-a-z0-9]*[a-z0-9])?$", "maxLength": 63 }
+  }
+}

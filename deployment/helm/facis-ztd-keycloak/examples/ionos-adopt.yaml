@@ -1,0 +1,15 @@
+# Use Helm --take-ownership. No delete/recreate migration is needed.
+deployment:
+  mode: adopt
+  keycloakName: keycloak
+  postgresName: postgres
+  ingressName: keycloak
+  runtimeSecret: keycloak-secrets
+keycloak:
+  publicUrl: https://keycloak.85.215.131.155.sslip.io
+admin:
+  existingSecret: keycloak-secrets
+  username: admin
+  passwordKey: KC_BOOTSTRAP_ADMIN_PASSWORD
+ui:
+  origin: https://orce.85-215-131-155.sslip.io
