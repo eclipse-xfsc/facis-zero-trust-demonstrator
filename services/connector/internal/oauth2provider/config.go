@@ -6,6 +6,11 @@ import "time"
 // the registration endpoint as its audience, to register a client.
 const RegistrationScope = "connector:client_registration"
 
+// MaxDPoPProofWindow is the longest a DPoP proof may stay acceptable after
+// its iat: DPoPConfig.ProofLifespan plus DPoPConfig.ClockSkew may not exceed
+// it. It bounds how long a replay store has to keep a record.
+const MaxDPoPProofWindow = 90 * time.Second
+
 // Config configures a Provider.
 type Config struct {
 	// Secret signs access tokens. At least 32 bytes.
@@ -27,10 +32,13 @@ type DPoPConfig struct {
 	// NonceRequired makes the server challenge with a DPoP-Nonce.
 	NonceRequired bool
 
-	// ProofLifespan is how long after its iat a proof is accepted.
+	// ProofLifespan is how long after its iat a proof is accepted. The
+	// implementation's default applies when zero.
 	ProofLifespan time.Duration
 
 	// ClockSkew is the tolerance applied on both sides of the iat window.
+	// The implementation's default applies when zero. Together with
+	// ProofLifespan it may not exceed MaxDPoPProofWindow.
 	ClockSkew time.Duration
 
 	// NonceLifespan is how long an issued nonce remains valid.

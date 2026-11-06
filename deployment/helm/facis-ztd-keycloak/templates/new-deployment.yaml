@@ -1,0 +1,154 @@
+{{- if eq .Values.deployment.mode "new" }}
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ .Values.deployment.postgresName }}
+  labels:
+    {{- include "ztd.labels" . | nindent 4 }}
+spec:
+  clusterIP: None
+  selector: {app: {{ .Values.deployment.postgresName | quote }}}
+  ports: [{name: postgres, port: 5432, targetPort: postgres}]
+---
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: {{ .Values.deployment.postgresName }}
+  labels:
+    {{- include "ztd.labels" . | nindent 4 }}
+spec:
+  replicas: 1
+  serviceName: {{ .Values.deployment.postgresName }}
+  selector:
+    matchLabels: {app: {{ .Values.deployment.postgresName | quote }}}
+  template:
+    metadata:
+      labels: {app: {{ .Values.deployment.postgresName | quote }}}
+    spec:
+      automountServiceAccountToken: false
+      securityContext: {runAsNonRoot: true, runAsUser: 999, runAsGroup: 999, fsGroup: 999}
+      containers:
+        - name: postgres
+          image: {{ .Values.postgresql.image | quote }}
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities: {drop: [ALL]}
+          ports: [{name: postgres, containerPort: 5432}]
+          env:
+            - {name: POSTGRES_DB, value: keycloak}
+            - {name: POSTGRES_USER, value: keycloak}
+            - {name: PGDATA, value: /var/lib/postgresql/data/pgdata}
+            - name: POSTGRES_PASSWORD
+              valueFrom:
+                secretKeyRef: {name: {{ .Values.deployment.runtimeSecret | quote }}, key: POSTGRES_PASSWORD}
+          readinessProbe:
+            exec: {command: [pg_isready, -U, keycloak, -d, keycloak]}
+            periodSeconds: 5
+          resources:
+            {{- toYaml .Values.postgresql.resources | nindent 12 }}
+          volumeMounts: [{name: data, mountPath: /var/lib/postgresql/data}]
+  volumeClaimTemplates:
+    - metadata: {name: data}
+      spec:
+        accessModes: [ReadWriteOnce]
+        {{- if .Values.postgresql.storageClass }}
+        storageClassName: {{ .Values.postgresql.storageClass | quote }}
+        {{- end }}
+        resources:
+          requests: {storage: {{ .Values.postgresql.size | quote }}}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ .Values.deployment.keycloakName }}
+  labels:
+    {{- include "ztd.labels" . | nindent 4 }}
+spec:
+  selector: {app: {{ .Values.deployment.keycloakName | quote }}}
+  ports: [{name: http, port: 80, targetPort: http}]
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ .Values.deployment.keycloakName }}
+  labels:
+    {{- include "ztd.labels" . | nindent 4 }}
+spec:
+  replicas: 1
+  strategy: {type: Recreate}
+  selector:
+    matchLabels: {app: {{ .Values.deployment.keycloakName | quote }}}
+  template:
+    metadata:
+      labels: {app: {{ .Values.deployment.keycloakName | quote }}}
+    spec:
+      automountServiceAccountToken: false
+      securityContext: {runAsNonRoot: true, runAsUser: 1000, runAsGroup: 1000}
+      containers:
+        - name: keycloak
+          image: {{ .Values.keycloak.image | quote }}
+          args: [start, "--cache=local"]
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities: {drop: [ALL]}
+          ports: [{name: http, containerPort: 8080}, {name: health, containerPort: 9000}]
+          env:
+            - {name: KC_DB, value: postgres}
+            - name: KC_DB_URL
+              value: {{ printf "jdbc:postgresql://%s:5432/keycloak" .Values.deployment.postgresName | quote }}
+            - {name: KC_DB_USERNAME, value: keycloak}
+            - name: KC_DB_PASSWORD
+              valueFrom:
+                secretKeyRef: {name: {{ .Values.deployment.runtimeSecret | quote }}, key: POSTGRES_PASSWORD}
+            - name: KC_BOOTSTRAP_ADMIN_USERNAME
+              value: {{ .Values.admin.username | quote }}
+            - name: KC_BOOTSTRAP_ADMIN_PASSWORD
+              valueFrom:
+                secretKeyRef: {name: {{ .Values.deployment.runtimeSecret | quote }}, key: {{ .Values.admin.passwordKey | quote }}}
+            - name: KC_HOSTNAME
+              value: {{ trimSuffix "/" .Values.keycloak.publicUrl | quote }}
+            - {name: KC_HTTP_ENABLED, value: "true"}
+            - {name: KC_PROXY_HEADERS, value: xforwarded}
+            - {name: KC_HEALTH_ENABLED, value: "true"}
+            - {name: KC_LOG_CONSOLE_OUTPUT, value: json}
+          startupProbe:
+            httpGet: {path: /health/ready, port: health}
+            periodSeconds: 5
+            failureThreshold: 120
+          readinessProbe:
+            httpGet: {path: /health/ready, port: health}
+            periodSeconds: 5
+          livenessProbe:
+            httpGet: {path: /health/live, port: health}
+            periodSeconds: 10
+          resources:
+            {{- toYaml .Values.keycloak.resources | nindent 12 }}
+{{- if .Values.ingress.enabled }}
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: {{ .Values.deployment.ingressName }}
+  labels:
+    {{- include "ztd.labels" . | nindent 4 }}
+  {{- if not .Values.ingress.existingTlsSecret }}
+  annotations:
+    cert-manager.io/cluster-issuer: {{ .Values.ingress.clusterIssuer | quote }}
+  {{- end }}
+spec:
+  ingressClassName: {{ .Values.ingress.className | quote }}
+  tls:
+    - hosts: [{{ regexReplaceAll ":[0-9]+$" (trimPrefix "https://" (trimSuffix "/" .Values.keycloak.publicUrl)) "" | quote }}]
+      secretName: {{ .Values.ingress.tlsSecret }}
+  rules:
+    - host: {{ regexReplaceAll ":[0-9]+$" (trimPrefix "https://" (trimSuffix "/" .Values.keycloak.publicUrl)) "" | quote }}
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: {{ .Values.deployment.keycloakName }}
+                port: {name: http}
+{{- end }}
+{{- end }}

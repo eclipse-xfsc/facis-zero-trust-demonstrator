@@ -92,6 +92,19 @@ Only the row tag drives coverage. A tag shaped like a row id that matches no row
 `features/annex-rows.txt` **fails the run** — a typo would otherwise leave the scenario passing
 while proving nothing about the row it was meant to cover.
 
+The plane-separation design check — *The plane-separation matrix is complete and consistent at
+both layers*, in `features/go/plane-separation-design.feature` — is one of those regression
+scenarios. It runs strict in CI and asserts that the matrices in the
+[plane-separation section](architecture.md#6-plane-separation-and-staleness-windows) are complete
+and consistent: every path from the data plane to the management plane is disposed at both the
+network policy layer and the service mesh layer, in agreement with its verdict, and the catch-all
+row denies every management-plane destination without a row of its own. It reaches no network, so
+it carries no row tag and ZT-55 stays pending. The row is covered by the reachability scenario,
+not yet written, which runs when the matrix is executed against a cluster and asserts that a
+management-plane destination without a row is unreachable from the data plane at both layers. It
+is the scenario the section refers to when it says what the plane-separation test asserts for a
+destination it probes and does not find listed.
+
 ### Running one Annex row
 
 ```bash
@@ -224,6 +237,15 @@ acceptance of the umbrella release. The umbrella chart (`deployment/helm/ztd`) i
 creates the plane namespaces and a cluster role, which the pool-confined deployer cannot do. Before
 it may replace the fixture, those cluster-scoped deploy rights must be designed
 ([Umbrella chart](umbrella-chart.md#release-namespace-and-teardown)); it then needs its own run.
+The ownership and removal of CRDs is answered by the shape of the zone: one Helm release per upstream
+chart, so every CRD is installed, upgraded and removed by the release that ships it in its
+templates (`spire-crds`, Istio's `base`), and the umbrella itself ships none. `spire-crds` drops
+the chart's `helm.sh/resource-policy: keep` in its values, so `helm uninstall` removes its CRDs;
+Istio's `base` sets that policy in its files, so the zone installer deletes that release's CRDs
+after uninstalling it. The zone installer,
+`scripts/install-zone/install.sh`, runs the releases in order through the same lifecycle step this
+pack exercises, and its uninstall leaves no SPIRE or Istio CRD behind, as the teardown section of
+every run of the mesh identity proof shows (see `scripts/verify-mesh-identity/README.md`).
 
 ### Evidence
 

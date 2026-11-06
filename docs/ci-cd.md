@@ -16,13 +16,14 @@ and is declared as such in [Specification changes](specifications.md#readings-an
 | Workflow | Triggers | What it does |
 |---|---|---|
 | `.github/workflows/eclipse-dash.yml` | every pull request, schedule, release, manual | Runs the Eclipse Dash licence scanner on `go.sum` and files IP review requests for dependencies |
-| `.github/workflows/sbom.yml` | schedule, release, manual | Generates a CycloneDX SBOM for every release that has none and attaches it |
+| `.github/workflows/sbom.yml` | schedule, release, manual, `candidate/**` push | Generates, checks and signs a CycloneDX SBOM for every release that lacks a verifying one, and attaches both |
 | `.github/workflows/docs.yml` | push to `main` affecting `docs/`, manual | Builds the MkDocs site and publishes it to the `gh-pages` branch |
 | `.github/workflows/workflow-hygiene.yml` | every pull request, manual | Fails the pull request when an action is not pinned to a commit or a token scope is too wide |
-| `.github/workflows/ci.yml` | every pull request, push to `main`, manual | Go lint and tests, image build with the Linux assertion and a Trivy scan, chart lint and dry-run render |
+| `.github/workflows/ci.yml` | every pull request, push to `main`, published release, manual | Go lint and tests, image build with the Linux assertion and a Trivy scan, chart lint and dry-run render; on a published release, the chart gate once more and the chart packaging and publication (see [Chart release](#chart-release)) |
 | `.github/workflows/release.yml` | manual, push to a `candidate/**` branch | Release candidate: the chart gate (see [Chart gate](#chart-gate)), then builds, pushes, signs and attests every image by digest and verifies each one (see [Image signing](#image-signing)); beside it the secrets baseline (see [Secrets](secrets.md#the-baseline-proof-tdr-bdd-08)) |
 | `.github/workflows/measurement-determinism.yml` | pull request and push to `main` touching the check, manual | Measures one fixture on a hosted runner, in a container, and on a deliberately divergent checkout, and requires the normalised measurement to be the same on all three |
 | `.github/workflows/token-store.yml` | pull requests touching the token store, its image, its chart or the pinned images; manual | Runs the schema migrations and the store's queries against a PostgreSQL from the pinned image, then the chart's lifecycle (install, upgrade, uninstall) on kind; the lifecycle records are the run's artefact and the verdict goes to the job summary |
+| `.github/workflows/policy-hook.yml` | pull requests touching the policy-hook probe, its script, the pinned Envoy image or the policy fixtures; manual | Runs the guard policy-hook proofs (`scripts/verify-policy-hook/verify.sh`) against Envoy from the pinned image, uploads the records as an artefact and writes the verdict and the latency numbers to the job summary |
 
 ## The service pipeline
 
@@ -34,7 +35,8 @@ and nobody hand-rolls their own:
 | `Go tests` | Calls the shared `go-test.yml`, which runs the tests of every Go module it finds | yes |
 | `Go lint` | `golangci-lint run ./...`, with a pinned golangci-lint built by the Go version `go.mod` names | yes |
 | `Image build and scan` | Builds each context under `deployment/docker/` for `linux/amd64`, asserts the built image's OS, then scans it with Trivy for HIGH and CRITICAL vulnerabilities | yes |
-| `Chart lint and render` | `scripts/ci/check-charts.sh`: `helm lint` and a `helm template` render of every chart under `deployment/helm/` and `features/fixtures/charts/`, dependencies built from `Chart.lock` | yes |
+| `Chart lint and render` | `scripts/ci/check-charts.sh`: `helm lint` and a `helm template` render of every chart under `deployment/helm/` and `features/fixtures/charts/`, dependencies built from `Chart.lock`; then `scripts/ci/check-charts_test.sh`, the cases that hold the script to refusing a package when a chart fails | yes |
+| `Release charts` | On a published release only, once every other gate job of the workflow has passed: runs the chart gate with its server dry-run on a disposable cluster, packages the charts under `deployment/helm/` at the release version, attaches them to the release with their checksums and, when a registry is configured, pushes them as OCI chart artefacts — see [Chart release](#chart-release) | yes — a release whose gates fail ships no chart |
 
 ZT-13 requires Linux images. The pipeline reads the OS back off the built image with
 `docker image inspect` and fails if it is anything but `linux/amd64`, rather than trusting the
@@ -69,10 +71,12 @@ Nothing in the shared org workflows reads `go.mod`. Each sets up its own fixed G
 | shared `eclipse-dash-licence-go.yml` | hard-coded 1.21, no input | cannot run on this module — not used |
 | shared `sbom-golang.yml` | hard-coded 1.23.8, no input | cannot run on this module — not used |
 
-The last two are why the licence scan and the SBOM run locally. The local jobs do what the shared
-ones do — the same Eclipse Dash tool with the same review arguments, the same `cyclonedx-gomod`
-version and the same rule of attaching an SBOM to every release that lacks one — with the pinned
-actions and declared permissions this repository requires of its own workflows. They can go back to
+The last two are why the licence scan and the SBOM run locally. The licence job does what the shared
+one does — the same Eclipse Dash tool with the same review arguments — and the SBOM job keeps the
+shared rule of attaching an SBOM to every release that lacks one, with the pinned actions and declared
+permissions this repository requires of its own workflows. The SBOM job goes further than the shared
+one: it uses the pinned Syft, the same tool as the image SBOMs, checks the result and signs it (see
+[Release SBOM](#release-sbom)). They can go back to
 being references once the shared workflows accept a Go version or read `go.mod`; that is a change to
 propose in `eclipse-xfsc/dev-ops`.
 
@@ -86,7 +90,10 @@ dry-runs every chart against that API server, and two deliberately broken charts
 `features/fixtures/broken-charts/` must be refused by the check each targets — one by `helm lint`,
 one only by the server dry-run (it ships a resource whose API the cluster does not serve). The step
 also checks that the `candidate` job needs the gate. The `candidate` job has `needs: [chart-gate]`;
-any later job that publishes charts or promotes a release must need it too.
+any later job that publishes charts or promotes a release must need it too, or run it again: the
+`Release charts` job of `ci.yml` runs on a published release, which no candidate run is tied to, so
+it creates the same disposable cluster and runs the same script with `--server-dry-run` before it
+packages anything (see [Chart release](#chart-release)).
 
 A server dry-run renders the chart, discovers the API and its schemas and checks existing resources.
 It does not run admission webhooks or hooks, and proves nothing about the release at runtime: that is
@@ -124,6 +131,76 @@ is pushed. GHCR creates new packages as private; the job verifies them with its 
 cluster pulls and verifies anonymously, so the candidate packages must be made public in the package
 settings (once per package) before a cluster can admit them.
 
+## Release SBOM
+
+`sbom.yml` gives every published release two assets: `sbom.json`, the CycloneDX inventory of the Go
+module at the release tag, and `sbom.json.sig`, its signature. For each release, `scripts/supplychain/repo-sbom.sh`:
+
+1. scans the tag's checkout with the pinned Syft, Go module only (the images have their own SBOMs);
+2. checks it with `go run ./cmd/sbomcheck`: valid CycloneDX against the schemas admission uses, and every
+   module the tag's tidy `go.mod` requires present at the required version, replacements resolved. With
+   module graph pruning a tidy `go.mod` lists every module that supplies a package to any build or test, on
+   any platform and build tag, so transitive dependencies are included;
+3. signs it with `cosign sign-blob` and the interim key, in the profile the images use (key-based, no
+   transparency log), and verifies the signature before anything is uploaded.
+
+A release counts as done only when both assets are attached and the signature verifies. A release with
+no SBOM, an unsigned one, a half-finished upload or a pair that does not verify is regenerated from its
+tag on the next run; the monthly run, or one started by hand, covers every release.
+
+To verify a release's SBOM:
+
+```bash
+gh release download <tag> --pattern 'sbom.json*'
+cosign verify-blob --key docs/contracts/keys/interim-cosign.pub --insecure-ignore-tlog=true \
+  --signature sbom.json.sig sbom.json
+```
+
+The interim key is replaced by the client key with the rest of the signing chain. The key lives in the
+`release` environment; for the run that a published release starts — which runs on the tag — to reach
+it, the environment must admit the release tags (`v*`) as well as `main` and `candidate/*`. That is a
+repository setting; until it is applied, the monthly or a manual run signs new releases.
+
+## Chart release
+
+The Technical Development Requirements deliver the Helm charts with each release. The candidate
+stage above creates no tag and no release; the charts are delivered when a release is published, by
+the `Release charts` job of `ci.yml`, and only after every gate job of that workflow has passed —
+the lifecycle jobs included, which may be skipped while the repository variable is off but not
+failed or cancelled. The job then runs the [chart gate](#chart-gate) once more, on a disposable kind
+cluster of its own with the same CRDs: `release.yml` runs on candidate branches and `ci.yml` on the
+published release, no candidate run is tied to the tag, and a published chart must not skip the
+server dry-run. Lint, render and the server dry-run are the gate in front of the package, so a chart
+that fails any of them is never released, which is the rule of Annex A row TDR-BDD-11. The
+pull-request job, the release gate and the release job run the same `scripts/ci/check-charts.sh`,
+which checks every chart first and packages only when all of them pass, so the gate a pull request
+clears is the gate the release is held to. Each package is then checked again as its source was,
+with the chart's own values: the version now differs from `Chart.yaml`, and a template that reads
+it renders differently. One failing package leaves no package at all.
+`scripts/ci/check-charts_test.sh` holds the script to that in the chart job, against charts it
+writes itself: a set that passes is packaged at the version with matching checksums, and one failing
+chart leaves no package, at the source or once packaged.
+
+A release is tagged `vX.Y.Z`, or `vX.Y.Z-prerelease`. The charts are packaged at that version — the
+tag drives `--version` and `--app-version`, over the development version in each `Chart.yaml` — so
+the release and every chart in it carry one version, and the documentation of a release describes
+the charts it ships. A tag that is not semantic versioning stops the job before it names a package,
+and so does build metadata (`+`): the charts put their version into the `helm.sh/chart` label, and
+`+` is not allowed in a label value. The packages and a `SHA256SUMS` file are attached to the
+release as assets.
+
+Publication to a registry stays off until one exists. When the repository variable `CHART_REGISTRY`
+names the OCI path for charts (for example `harbor.example.org/facis/charts`) and the secrets
+`CHART_REGISTRY_USER` and `CHART_REGISTRY_PASSWORD` hold a robot account allowed to push there, the
+job also pushes every package with `helm push` and prints the digest of each into the run summary.
+That digest is what a zone file pins: the lifecycle workflow accepts a chart only as a local path or
+as an `oci://` reference pinned by digest.
+
+Locally, `scripts/ci/check-charts.sh` runs the same check, and
+`scripts/ci/check-charts.sh --package dist --version 0.0.0-local` the same packaging, for a look at
+what a release would ship; with a cluster in the current kube context, `--server-dry-run` adds the
+gate's dry-run to both.
+
 ## Lifecycle scenarios on the client targets
 
 The `bdd` job runs on every pull request: `bddpack -check`, the strict and catalogue runs of both
@@ -151,7 +228,7 @@ Every image is scanned and a HIGH or CRITICAL finding fails the build. When a fi
 upstream component that this project cannot fix in its own layer, a `scan-exception.json` next to
 the image's Dockerfile may exclude named paths from the gate. It must carry an expiry date, the
 reason and the tracking of the upstream fix; the job prints it into the run summary and fails the
-build once it has expired. The ORCE image carries one for the upstream ORCE runtime and kubectl,
+build once it has expired. The ORCE image carries one for the upstream ORCE runtime, kubectl and the bundled Helm,
 expiring 13 November 2026.
 
 ## Repository protection and least privilege
@@ -179,7 +256,9 @@ The repository's default workflow token is read-only — an administrator settin
 ruleset above. Every workflow then declares its own top-level `permissions:` block rather than
 relying on that default, and a job that needs more than read access grants it at the job level with
 a comment naming the reason: `docs.yml` writes to `gh-pages`, `sbom.yml` uploads the SBOM onto a
-release, the release candidate job pushes images and signatures to GHCR (`packages: write`). Wildcard scopes (`write-all`) are never used.
+release, the release candidate job pushes images and signatures to GHCR (`packages: write`), and the
+`Release charts` job attaches the packaged charts to a release. Wildcard scopes (`write-all`) are
+never used.
 
 ### Action pinning
 

@@ -1,0 +1,131 @@
+[
+  {
+    "disabled": false,
+    "id": "facis-interface",
+    "info": "Native UI Builder application and sample connection bridge installed. Journey and System are connected. Default fixture mode; live authentication, Atlas authorization, and remote Go services are not connected. Browser acceptance pending.",
+    "label": "Application interface",
+    "type": "tab"
+  },
+  {
+    "id": "facis-runtime-pending",
+    "info": "Native UI Builder serves the installed light-theme application files. Journey and System commands and replies are linked. Server-generated socket metadata scopes sample state to the originating connection; this is not live person authentication or Atlas authorization. Fixture mode is the default. Go services need separate server installation. Browser acceptance remains pending.",
+    "name": "Native UI and sample connection bridge",
+    "type": "comment",
+    "wires": [],
+    "x": 380,
+    "y": 180,
+    "z": "facis-interface"
+  },
+  {
+    "allowScripts": false,
+    "allowStyles": false,
+    "copyIndex": true,
+    "deployedVersion": "7.5.0",
+    "descr": "",
+    "editurl": "vscode://vscode-remote/ssh-remote+orce.85-215-131-155.sslip.io/data/uibuilder/facis-demo/?windowId=_blank",
+    "extTemplate": "",
+    "fwdInMessages": false,
+    "id": "0c1e06701ede26f1",
+    "name": "FACIS Demonstrator",
+    "okToGo": true,
+    "reload": false,
+    "showMsgUib": true,
+    "showfolder": false,
+    "sourceFolder": "src",
+    "templateFolder": "blank",
+    "title": "",
+    "topic": "",
+    "type": "uibuilder",
+    "url": "facis-demo",
+    "wires": [
+      [
+        "facis-ingress"
+      ],
+      []
+    ],
+    "x": 360,
+    "y": 340,
+    "z": "facis-interface"
+  },
+  {
+    "finalize": "",
+    "func": "// Authenticated UI accepts commands only through the HTTP session boundary.\nreturn null;",
+    "id": "facis-ingress",
+    "initialize": "",
+    "libs": [],
+    "name": "Route sample UI commands",
+    "noerr": 0,
+    "outputs": 2,
+    "timeout": "",
+    "type": "function",
+    "wires": [
+      [
+        "interface-journey"
+      ],
+      [
+        "interface-system"
+      ]
+    ],
+    "x": 720,
+    "y": 140,
+    "z": "facis-interface"
+  },
+  {
+    "id": "interface-journey",
+    "links": [
+      "journey-entry"
+    ],
+    "mode": "link",
+    "name": "Journey commands",
+    "type": "link out",
+    "wires": [],
+    "x": 740,
+    "y": 340,
+    "z": "facis-interface"
+  },
+  {
+    "id": "interface-system",
+    "links": [
+      "system-entry"
+    ],
+    "mode": "link",
+    "name": "System commands",
+    "type": "link out",
+    "wires": [],
+    "x": 740,
+    "y": 400,
+    "z": "facis-interface"
+  },
+  {
+    "id": "facis-module-responses",
+    "links": [
+      "journey-response",
+      "system-response"
+    ],
+    "name": "Module replies",
+    "type": "link in",
+    "wires": [
+      [
+        "facis-response"
+      ]
+    ],
+    "x": 290,
+    "y": 520,
+    "z": "facis-interface"
+  },
+  {
+    "func": "const r=msg._facisRequest;\nif (!r || typeof r.socketId !== 'string' || !r.socketId || typeof r.requestId !== 'string') return null;\nconst p=msg.payload;\nif (!p || typeof p !== 'object') return null;\nreturn {_socketId:r.socketId,payload:{kind:'response',requestId:r.requestId,ok:p.ok===true,...(p.ok===true?{data:p.data}:{error:p.error||{code:'MODULE_OPERATION_FAILED'}})}};",
+    "id": "facis-response",
+    "name": "Reply to originating connection",
+    "outputs": 1,
+    "type": "function",
+    "wires": [
+      [
+        "0c1e06701ede26f1"
+      ]
+    ],
+    "x": 550,
+    "y": 520,
+    "z": "facis-interface"
+  }
+]
