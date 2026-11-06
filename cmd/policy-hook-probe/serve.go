@@ -16,8 +16,9 @@ import (
 	"google.golang.org/grpc/health"
 	healthpb "google.golang.org/grpc/health/grpc_health_v1"
 
-	"github.com/eclipse-xfsc/facis-zero-trust-demonstrator/cmd/policy-hook-probe/internal/envoyhook"
-	"github.com/eclipse-xfsc/facis-zero-trust-demonstrator/cmd/policy-hook-probe/internal/hook"
+	"github.com/eclipse-xfsc/facis-zero-trust-demonstrator/internal/policyhook/envoyhook"
+	"github.com/eclipse-xfsc/facis-zero-trust-demonstrator/internal/policyhook/hook"
+	"github.com/eclipse-xfsc/facis-zero-trust-demonstrator/internal/policyhook/hookfixture"
 )
 
 // What the stand-in token store answers every substitution with. The verification reads these
@@ -71,7 +72,7 @@ func serve(ctx context.Context, args []string, stderr io.Writer) int {
 }
 
 func runServe(ctx context.Context, o serveOptions, stderr io.Writer) error {
-	fx, err := hook.LoadFixtures(o.fixtures)
+	fx, err := hookfixture.LoadFixtures(o.fixtures)
 	if err != nil {
 		return fmt.Errorf("fixtures: %w", err)
 	}
@@ -86,7 +87,7 @@ func runServe(ctx context.Context, o serveOptions, stderr io.Writer) error {
 	}
 	guard := hook.New(hook.Config{PublishedBaseURL: o.publishedBaseURL, PeerZone: o.peerZone, Audience: o.audience,
 		SourceID: o.sourceID, DecisionTimeout: o.decisionTimeout},
-		fx, fx, hook.StaticSubstituter{Authorization: upstreamAuthorization, DPoP: upstreamProof},
+		fx, fx, hookfixture.StaticSubstituter{Authorization: upstreamAuthorization, DPoP: upstreamProof},
 		hook.NewLogSink(events, o.source, o.runID))
 
 	srv := grpc.NewServer()

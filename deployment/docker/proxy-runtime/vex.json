@@ -1,0 +1,57 @@
+{
+  "@context": "https://openvex.dev/ns/v0.2.0",
+  "@id": "https://github.com/Fune5tiAtlas/facis-zero-trust-demonstrator/vex/istio-1.31.3",
+  "author": "FACIS Zero Trust Demonstrator",
+  "timestamp": "2026-10-27T12:22:11.669568+00:00",
+  "version": 1,
+  "statements": [
+    {
+      "vulnerability": {
+        "name": "CVE-2019-14993"
+      },
+      "products": [
+        {
+          "@id": "pkg:golang/istio.io/istio@v0.0.0-20261021234053-edd80bca5f71"
+        }
+      ],
+      "status": "fixed",
+      "status_notes": "This exact module revision is the upstream Istio 1.31.3 release, edd80bca5f71bd564711ef43ccd085acb545a6b4, confirmed by its release tag and pilot-agent version output. The scanner treats its v0 pseudo-version as an old release. Upstream records the fix in 1.2.4: https://istio.io/latest/news/releases/1.2.x/announcing-1.2.4/"
+    },
+    {
+      "vulnerability": {
+        "name": "CVE-2021-39155"
+      },
+      "products": [
+        {
+          "@id": "pkg:golang/istio.io/istio@v0.0.0-20261021234053-edd80bca5f71"
+        }
+      ],
+      "status": "fixed",
+      "status_notes": "This exact module revision is the upstream Istio 1.31.3 release, edd80bca5f71bd564711ef43ccd085acb545a6b4, confirmed by its release tag and pilot-agent version output. The scanner treats its v0 pseudo-version as an old release. Upstream records the fix in 1.11.1: https://istio.io/latest/news/security/istio-security-2021-008/"
+    },
+    {
+      "vulnerability": {
+        "name": "CVE-2021-39156"
+      },
+      "products": [
+        {
+          "@id": "pkg:golang/istio.io/istio@v0.0.0-20261021234053-edd80bca5f71"
+        }
+      ],
+      "status": "fixed",
+      "status_notes": "This exact module revision is the upstream Istio 1.31.3 release, edd80bca5f71bd564711ef43ccd085acb545a6b4, confirmed by its release tag and pilot-agent version output. The scanner treats its v0 pseudo-version as an old release. Upstream records the fix in 1.11.1: https://istio.io/latest/news/security/istio-security-2021-008/"
+    },
+    {
+      "vulnerability": {
+        "name": "CVE-2022-23635"
+      },
+      "products": [
+        {
+          "@id": "pkg:golang/istio.io/istio@v0.0.0-20261021234053-edd80bca5f71"
+        }
+      ],
+      "status": "fixed",
+      "status_notes": "This exact module revision is the upstream Istio 1.31.3 release, edd80bca5f71bd564711ef43ccd085acb545a6b4, confirmed by its release tag and pilot-agent version output. The scanner treats its v0 pseudo-version as an old release. Upstream records the fix in 1.13.1: https://istio.io/latest/news/security/istio-security-2022-003/"
+    }
+  ]
+}

@@ -1,0 +1,31 @@
+# Images must already be admitted digests, including Envoy and injected sidecars.
+images:
+  guard: {repository: ghcr.io/eclipse-xfsc/facis-zero-trust-demonstrator/guard, digest: ""}
+  policy: {repository: ghcr.io/eclipse-xfsc/facis-zero-trust-demonstrator/policy-evaluator, digest: ""}
+  # Mirror the pinned Envoy v1.36.10 image without changing its manifest digest.
+  envoy: {repository: ghcr.io/eclipse-xfsc/facis-zero-trust-demonstrator/envoy, digest: "sha256:3a76238cdf52c7a3e33951f44c02d694108e6481feffe6663bf9319f55ec1394"}
+trustDomain: zone-b.trust.invalid
+participantServiceAccount: ztd-participant
+resourceName: ztd-protected-resource
+resourcePort: 8080
+nodeSelector: {}
+podAnnotations: {}
+config:
+  issuer: ""
+  jwks_url: ""
+  inbound_audience: ""
+  upstream_audience: ""
+  published_base_url: ""
+  peer_zone: zone-b
+  policy_url: http://ztd-policy-evaluator:8080
+  store_url: http://ztd-token-store:8080
+  allowed_callers: []
+  scope_tenants: {"report:read": report-read, "report:summary": report-summary}
+policyRevision: m3-v1
+# Added to component-specific service and DNS rules; use only explicit dependency/control peers.
+networkPolicy:
+  istiod: {enabled: false, namespace: istio-system}
+  egress: []
+resources:
+  requests: {cpu: 50m, memory: 64Mi}
+  limits: {memory: 256Mi}

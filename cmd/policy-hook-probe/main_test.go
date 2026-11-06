@@ -14,7 +14,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/eclipse-xfsc/facis-zero-trust-demonstrator/cmd/policy-hook-probe/internal/contractpath"
+	"github.com/eclipse-xfsc/facis-zero-trust-demonstrator/internal/policyhook/contractpath"
 )
 
 func TestUsageAndModes(t *testing.T) {
@@ -42,7 +42,7 @@ func TestUsageAndModes(t *testing.T) {
 // TestEnvoyAPIIsImportedOnlyByEnvoyhook keeps the Envoy types inside the one package that
 // translates the guard's outcome into them.
 func TestEnvoyAPIIsImportedOnlyByEnvoyhook(t *testing.T) {
-	const allowed = "github.com/eclipse-xfsc/facis-zero-trust-demonstrator/cmd/policy-hook-probe/internal/envoyhook"
+	const allowed = "github.com/eclipse-xfsc/facis-zero-trust-demonstrator/internal/policyhook/envoyhook"
 	list := exec.Command("go", "list", "-json=ImportPath,Imports", "./...")
 	list.Dir = contractpath.Root(t)
 	out, err := list.Output()

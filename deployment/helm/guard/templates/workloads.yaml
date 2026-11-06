@@ -1,0 +1,92 @@
+{{- include "guard.validate" . -}}
+{{- range $component := list "guard" "policy-evaluator" }}
+{{- $name := printf "ztd-%s" $component }}
+{{- $image := $.Values.images.policy }}
+{{- $config := "ztd-policy-config" }}
+{{- if eq $component "guard" }}{{- $image = $.Values.images.guard }}{{- $config = "ztd-guard-config" }}{{- end }}
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: {{ $name }}
+  namespace: {{ $.Release.Namespace }}
+automountServiceAccountToken: false
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ $name }}
+  namespace: {{ $.Release.Namespace }}
+spec:
+  replicas: 1
+  selector:
+    matchLabels: {app.kubernetes.io/name: {{ $name }}}
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: {{ $name }}
+        app.kubernetes.io/part-of: facis-zero-trust-demonstrator
+        spiffe.io/spire-managed-identity: "true"
+      annotations:
+        {{- include "guard.annotations" $ | nindent 8 }}
+    spec:
+      serviceAccountName: {{ $name }}
+      automountServiceAccountToken: false
+      enableServiceLinks: false
+      {{- with $.Values.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 65532
+        runAsGroup: 65532
+        fsGroup: 65532
+        seccompProfile: {type: RuntimeDefault}
+      containers:
+        - name: {{ $component }}
+          image: "{{ $image.repository }}@{{ $image.digest }}"
+          args: ["--config=/etc/runtime/config.json"]
+          volumeMounts: [{name: config, mountPath: /etc/runtime, readOnly: true}]
+          ports:
+            - {name: ops, containerPort: {{ if eq $component "guard" }}9090{{ else }}8080{{ end }}}
+          readinessProbe:
+            httpGet: {path: /healthz, port: ops}
+          livenessProbe:
+            httpGet: {path: /healthz, port: ops}
+          resources:
+            {{- toYaml $.Values.resources | nindent 12 }}
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities: {drop: [ALL]}
+        {{- if eq $component "guard" }}
+        - name: envoy
+          image: "{{ $.Values.images.envoy.repository }}@{{ $.Values.images.envoy.digest }}"
+          args: ["-c", "/etc/runtime/envoy.yaml", "--log-level", "warning", "--concurrency", "2"]
+          volumeMounts: [{name: config, mountPath: /etc/runtime, readOnly: true}, {name: tmp, mountPath: /tmp}]
+          ports: [{name: http, containerPort: 8080}]
+          readinessProbe:
+            tcpSocket: {port: http}
+          resources:
+            {{- toYaml $.Values.resources | nindent 12 }}
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities: {drop: [ALL]}
+        {{- end }}
+      volumes:
+        - name: config
+          configMap: {name: {{ $config }}}
+        - name: tmp
+          emptyDir: {sizeLimit: 32Mi}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ $name }}
+  namespace: {{ $.Release.Namespace }}
+spec:
+  selector: {app.kubernetes.io/name: {{ $name }}}
+  ports: [{name: http, port: 8080, targetPort: 8080}]
+{{- end }}

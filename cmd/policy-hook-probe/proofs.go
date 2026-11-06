@@ -12,16 +12,18 @@ import (
 	"sync"
 	"time"
 
-	"github.com/eclipse-xfsc/facis-zero-trust-demonstrator/cmd/policy-hook-probe/internal/hook"
+	"github.com/eclipse-xfsc/facis-zero-trust-demonstrator/internal/policyhook/hook"
+	"github.com/eclipse-xfsc/facis-zero-trust-demonstrator/internal/policyhook/hookfixture"
 )
 
 // proofOrder is the order "prove all" runs the proofs in: the fail-closed proof kills the hook,
 // so it comes last.
-var proofOrder = []string{"header-mutation", "deny-response", "filter-parity", "latency", "fail-closed"}
+var proofOrder = []string{"header-mutation", "host-routing", "deny-response", "filter-parity", "latency", "fail-closed"}
 
 func (h *harness) proofs() map[string]func(context.Context) error {
 	return map[string]func(context.Context) error{
 		"header-mutation": h.proveHeaderMutation,
+		"host-routing":    h.proveHostRouting,
 		"deny-response":   h.proveDenyResponse,
 		"filter-parity":   h.proveFilterParity,
 		"latency":         h.proveLatency,
@@ -46,7 +48,7 @@ func (h *harness) proveHeaderMutation(ctx context.Context) error {
 	if err := h.useEnvoy(ctx, filterExtAuthz); err != nil {
 		return err
 	}
-	sent := callerHeaders("DPoP " + hook.FixtureTokenRead)
+	sent := callerHeaders("DPoP " + hookfixture.FixtureTokenRead)
 	resp, err := h.send(ctx, "/api/data?q=1", sent)
 	if err != nil {
 		return err
@@ -385,7 +387,7 @@ func (h *harness) burst(ctx context.Context, mode string, strike func()) burstRe
 		wg.Go(func() {
 			for time.Since(start) < window {
 				t := time.Now()
-				resp, err := h.send(ctx, "/api/data", callerHeaders("DPoP "+hook.FixtureTokenRead))
+				resp, err := h.send(ctx, "/api/data", callerHeaders("DPoP "+hookfixture.FixtureTokenRead))
 				r := burstResponse{Worker: w, StartedMs: millis(t.Sub(start)), DurationMs: millis(time.Since(t)), Status: resp.Status}
 				if err != nil {
 					r.Error = err.Error()
@@ -470,7 +472,7 @@ func (h *harness) recover(ctx context.Context) recoveryRecord {
 	rec := recoveryRecord{Statuses: map[int]int{}, AfterRecoveryStatuses: map[int]int{}}
 	start := time.Now()
 	for time.Since(start) < 10*time.Second && rec.AfterRecoveryStatuses[http.StatusOK] < 20 {
-		resp, err := h.send(ctx, "/api/data", callerHeaders("DPoP "+hook.FixtureTokenRead))
+		resp, err := h.send(ctx, "/api/data", callerHeaders("DPoP "+hookfixture.FixtureTokenRead))
 		rec.Attempts++
 		if err != nil {
 			time.Sleep(50 * time.Millisecond)
@@ -486,4 +488,31 @@ func (h *harness) recover(ctx context.Context) recoveryRecord {
 		}
 	}
 	return rec
+}
+
+// proveHostRouting checks the actual upstream authority and a no-contact negative control.
+func (h *harness) proveHostRouting(ctx context.Context) error {
+	if err := h.useEnvoy(ctx, filterExtAuthz); err != nil {
+		return err
+	}
+	headers := callerHeaders("DPoP " + hookfixture.FixtureTokenRead)
+	good, err := h.send(ctx, "/api/data", headers)
+	if err != nil {
+		return err
+	}
+	before := h.upstreamCalls.Load()
+	bad, err := h.sendHost(ctx, "/api/data", headers, "foreign.example")
+	if err != nil {
+		return err
+	}
+	checks := map[string]bool{"resource_host": good.Status == 200 && good.Upstream != nil && good.Upstream.Host == "ztd-protected-resource.demo.svc.cluster.local", "foreign_host_refused": bad.Status == 404, "no_upstream_contact": h.upstreamCalls.Load() == before}
+	if err := h.writeJSON("host-routing.json", map[string]any{"checks": checks, "upstream": good.Upstream, "foreign_status": bad.Status, "upstream_calls_before": before, "upstream_calls_after": h.upstreamCalls.Load()}); err != nil {
+		return err
+	}
+	for name, ok := range checks {
+		if !ok {
+			return fmt.Errorf("host routing check failed: %s", name)
+		}
+	}
+	return nil
 }

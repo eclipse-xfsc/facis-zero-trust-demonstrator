@@ -1,0 +1,6 @@
+apiVersion: v2
+name: guard
+description: Namespace-local M3 Envoy guard and deny-default IF-05 evaluator.
+type: application
+version: 0.1.0
+appVersion: 0.1.0

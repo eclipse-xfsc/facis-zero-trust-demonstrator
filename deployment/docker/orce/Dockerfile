@@ -13,7 +13,8 @@
 # library of its release day until the next Helm release, and the image scan fails on every
 # standard-library CVE fixed in between. Here a Go fix is a change of this one pin. The stage
 # runs on the build host's platform and cross-compiles for linux/amd64.
-FROM --platform=$BUILDPLATFORM golang:1.27@sha256:f24164268fc1e741bbdc0066dbadcf1c8426c5a8489f0729c02c3905a53032fd AS helm
+# Override x/net to v0.60.0 to address the tagged Helm source's vulnerable version.
+FROM --platform=$BUILDPLATFORM golang:1.27.3@sha256:f20d83a83e18dbd2a4714b8ffd4b30b287b6243962dd75608e86abcc63ba4efc AS helm
 
 ARG HELM_VERSION=v4.3.0
 ARG HELM_COMMIT=bec5b06ed841fe5269972d864d5177944fd5970f
@@ -24,6 +25,7 @@ RUN set -eux; \
     git clone --depth 1 --branch "${HELM_VERSION}" https://github.com/helm/helm.git /src; \
     cd /src; \
     [ "$(git rev-parse HEAD)" = "${HELM_COMMIT}" ]; \
+    go get golang.org/x/net@v0.60.0; \
     CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -trimpath \
       -ldflags "-w -s \
         -X helm.sh/helm/v4/internal/version.version=${HELM_VERSION} \

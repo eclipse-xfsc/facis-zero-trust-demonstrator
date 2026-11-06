@@ -6,6 +6,22 @@
 # such. Describe
 # the change in docs/oauth2-provider.md, then regenerate this file with
 #   OAUTH2PROVIDER_API_UPDATE=1 go test -run TestContractAPIIsFrozen ./services/connector/internal/oauth2provider
+type Challenge struct
+type Challenge struct, field 0 Value string
+type Challenge struct, field 1 ClientID string
+type Challenge struct, field 2 Audience string
+type Challenge struct, field 3 ExpiresAt time.Time
+type Challenge struct, field 4 ConsumedAt time.Time
+const ChallengeLifetime time.Duration = 120000000000
+type ChallengeStore interface
+type ChallengeStore interface, ConsumeChallenge(context.Context, string, string, string, time.Time) error
+type ChallengeStore interface, CreateChallenge(context.Context, Challenge) error
+type ChallengeStore interface, GetChallenge(context.Context, string) (Challenge, error)
+type ChallengeStore interface, LockChallenge(context.Context, string) (Challenge, error)
+type ClaimScopes struct
+type ClaimScopes struct, field 0 Role string
+type ClaimScopes struct, field 1 Entitlement string
+type ClaimScopes struct, field 2 Scopes []string
 type Client struct
 type Client struct, field 0 ID string
 type Client struct, field 1 SecretHash []byte
@@ -20,6 +36,11 @@ type ClientStore interface, DeleteClient(context.Context, string) error
 type ClientStore interface, GetClient(context.Context, string) (Client, error)
 type ClientStore interface, UpdateClient(context.Context, Client) error
 type Code string
+const CodeCredOutcomeConsumed Code = "CRED-OUTCOME-CONSUMED"
+const CodeCredOutcomeExpired Code = "CRED-OUTCOME-EXPIRED"
+const CodeCredOutcomeMismatch Code = "CRED-OUTCOME-MISMATCH"
+const CodeCredOutcomeNotVerified Code = "CRED-OUTCOME-NOT-VERIFIED"
+const CodeCredOutcomeSignature Code = "CRED-OUTCOME-SIGNATURE"
 const CodeDPoPInvalidATH Code = "dpop_invalid_ath"
 const CodeDPoPInvalidProof Code = "dpop_invalid_proof"
 const CodeDPoPKeyMismatch Code = "dpop_jkt_mismatch"
@@ -36,6 +57,10 @@ type Config struct, field 0 Secret []byte
 type Config struct, field 1 AccessTokenLifespan time.Duration
 type Config struct, field 2 DPoP DPoPConfig
 type Config struct, field 3 Registration RegistrationConfig
+type Config struct, field 4 Issuer string
+type Config struct, field 5 AccessTokenSigner TokenSigner
+type Config struct, field 6 VerifiedPresentation VerifiedPresentationConfig
+type Config struct, field 7 ExclusiveAudiences []string
 type DPoPConfig struct
 type DPoPConfig struct, field 0 Enforce bool
 type DPoPConfig struct, field 1 NonceRequired bool
@@ -56,6 +81,7 @@ type DPoPProofUse struct, field 5 IssuedAt time.Time
 type DPoPProofUse struct, field 6 NotAfter time.Time
 type DPoPReplayStore interface
 type DPoPReplayStore interface, MarkUsed(context.Context, DPoPProofUse) (bool, error)
+var ErrConsumed error
 var ErrNotFound error
 type Error struct
 type Error struct, field 0 Code Code
@@ -65,7 +91,10 @@ method (*Error) Error() string
 method (*Error) Unwrap() error
 const MaxDPoPProofWindow time.Duration = 90000000000
 func NewError(Code, int, error) *Error
+type OutcomeStore interface
+type OutcomeStore interface, ConsumeOutcome(context.Context, VerifiedOutcome, time.Time) error
 type Provider interface
+type Provider interface, ChallengeHandler() net/http.Handler
 type Provider interface, RegistrationHandler() net/http.Handler
 type Provider interface, TokenHandler() net/http.Handler
 type Provider interface, ValidateResourceRequest(*net/http.Request) (ResourceAccess, error)
@@ -74,6 +103,7 @@ type RegistrationConfig struct
 type RegistrationConfig struct, field 0 Secret []byte
 type RegistrationConfig struct, field 1 EndpointURL string
 type RegistrationConfig struct, field 2 GrantTypes []string
+type RegistrationConfig struct, field 3 DelegableScopes map[string][]string
 const RegistrationScope untyped string = "connector:client_registration"
 type ResourceAccess struct
 type ResourceAccess struct, field 0 ClientID string
@@ -86,6 +116,9 @@ type Stores struct, field 1 AccessTokens TokenStore
 type Stores struct, field 2 RegistrationTokens TokenStore
 type Stores struct, field 3 DPoPNonces DPoPNonceStore
 type Stores struct, field 4 DPoPReplay DPoPReplayStore
+type Stores struct, field 5 Challenges ChallengeStore
+type Stores struct, field 6 Outcomes OutcomeStore
+type Stores struct, field 7 Transactions Transactor
 type TokenRecord struct
 type TokenRecord struct, field 0 RequestID string
 type TokenRecord struct, field 1 ClientID string
@@ -95,7 +128,32 @@ type TokenRecord struct, field 4 GrantedScopes []string
 type TokenRecord struct, field 5 RequestedAudience []string
 type TokenRecord struct, field 6 GrantedAudience []string
 type TokenRecord struct, field 7 Session []byte
+type TokenRecord struct, field 8 ExpiresAt time.Time
+type TokenRecord struct, field 9 OutcomeID string
+type TokenRecord struct, field 10 GrantType string
+type TokenSigner interface
+type TokenSigner interface, KeyID() string
+type TokenSigner interface, Public() *crypto/ecdsa.PublicKey
+type TokenSigner interface, Sign(context.Context, []byte) ([]byte, error)
 type TokenStore interface
 type TokenStore interface, CreateToken(context.Context, string, TokenRecord) error
 type TokenStore interface, DeleteToken(context.Context, string) error
 type TokenStore interface, GetToken(context.Context, string) (TokenRecord, error)
+type Transactor interface
+type Transactor interface, BeginTx(context.Context) (context.Context, error)
+type Transactor interface, Commit(context.Context) error
+type Transactor interface, Rollback(context.Context) error
+type VerifiedOutcome struct
+type VerifiedOutcome struct, field 0 ID string
+type VerifiedOutcome struct, field 1 Issuer string
+type VerifiedOutcome struct, field 2 ClientID string
+type VerifiedOutcome struct, field 3 Challenge string
+type VerifiedOutcome struct, field 4 Audience string
+type VerifiedOutcome struct, field 5 Claims encoding/json.RawMessage
+type VerifiedOutcome struct, field 6 CredentialRefs []string
+type VerifiedOutcome struct, field 7 VerifiedAt time.Time
+type VerifiedOutcome struct, field 8 ExpiresAt time.Time
+type VerifiedPresentationConfig struct
+type VerifiedPresentationConfig struct, field 0 TrustedIssuers github.com/eclipse-xfsc/facis-zero-trust-demonstrator/internal/if03.Issuers
+type VerifiedPresentationConfig struct, field 1 Scopes []ClaimScopes
+const VerifiedPresentationGrantType untyped string = "urn:facis:params:oauth:grant-type:verified-presentation"
