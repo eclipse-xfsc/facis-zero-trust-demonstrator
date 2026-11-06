@@ -1,0 +1,59 @@
+# Release `istiod` of the zone: the mesh control plane in sidecar mode, with SPIRE as the only
+# source of workload certificates, installed as the upstream chart ships it.
+#   chart source      Istio 1.31.1 release archive, chart `istiod` 1.31.1
+#                     https://github.com/istio/istio/releases/download/1.31.1/istio-1.31.1-linux-amd64.tar.gz
+#                     (manifests/charts/istio-control/istio-discovery; the archive's sha256 is
+#                     pinned in scripts/install-zone/install.sh)
+#   namespace         istio-system (created by the umbrella chart, never by this release)
+# Pinned in scripts/install-zone/install.sh and docs/dependencies.md. Every value set here is
+# listed with its reason in README.md next to this file. Values marked "zone fact" are filled by
+# scripts/install-zone from the zone file; the installer refuses to render the release when the
+# zone file does not state them.
+meshConfig:
+  trustDomain: ""            # zone fact: zone.trustDomain (required); the SPIRE server's trust domain
+  # The security baseline (ADR 005, docs/adr/tdr-decisions.md) sets TLS 1.3 as the minimum. Istio's
+  # default minimum for mesh mTLS is TLS 1.2, so the mesh-wide minimum is raised here; the CI render
+  # asserts it and scripts/verify-mesh-identity/verify.sh shows TLS 1.3 accepted, TLS 1.2 refused.
+  meshMTLS:
+    minProtocolVersion: TLSV1_3
+# Images, pinned by tag and digest (the multi-arch index digest of the 1.31.1 tag, read from its
+# registry). A value that contains "/" is used by the chart as the whole image reference.
+global:
+  proxy:
+    # The injected proxy; the injector uses the full reference as it stands.
+    image: docker.io/istio/proxyv2:1.31.1@sha256:d86cba0dd1eb15c00b6901c69ce5ae3d2d5f8427a47751098cf8c3ab2a4a62e9
+  proxy_init:
+    # The injected init container (istio-validation, the CNI check); the same image as the proxy.
+    # Left unset, the injector would build `<hub>/proxyv2:<tag>`, a tag without a digest.
+    image: docker.io/istio/proxyv2:1.31.1@sha256:d86cba0dd1eb15c00b6901c69ce5ae3d2d5f8427a47751098cf8c3ab2a4a62e9
+pilot:
+  image: docker.io/istio/pilot:1.31.1@sha256:212ca088ada22f48be1576e6b688972b8aa7495710abb7c5f1febca856a15577
+  env:
+    # Native sidecar containers: the proxy is injected as an init container with
+    # restartPolicy: Always, so it starts before and stops after the application, and Jobs end.
+    # Needs Kubernetes 1.33 or later; the umbrella refuses a sidecar zone below that version.
+    ENABLE_NATIVE_SIDECARS: "true"
+  cni:
+    enabled: true            # traffic redirection by the Istio CNI plugin (release istio-cni), no istio-init container
+sidecarInjectorWebhook:
+  # The `spire` template is added to every injection, not chosen per pod, so a workload cannot opt
+  # out of the SPIRE socket by leaving out an annotation. The default `sidecar` template already
+  # mounts the volume `workload-socket` into the proxy at /var/run/secrets/workload-spiffe-uds (an
+  # emptyDir); this template turns that volume into the SPIFFE CSI driver's read-only volume, which
+  # carries the SPIRE agent's Workload API socket. When the proxy finds the socket there it takes
+  # its certificate (`default`) and trust bundle (`ROOTCA`) from the agent over SDS and never asks
+  # istiod's CA (docs/workload-identity.md, "The SDS contract").
+  templates:
+    spire: |
+      spec:
+        volumes:
+          - name: workload-socket
+            emptyDir: null
+            csi:
+              driver: "csi.spiffe.io"
+              readOnly: true
+  defaultTemplates: [sidecar, spire]
+base:
+  # As in istio-base: Istio renders its validation webhook "fail open" on the first install only, so
+  # a second install would change the manifest. Fail, fixed: fail closed, and every run renders alike.
+  validationFailurePolicy: Fail

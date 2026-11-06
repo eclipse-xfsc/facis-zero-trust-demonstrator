@@ -5,6 +5,7 @@ import (
 	"crypto/sha256"
 	"embed"
 	"encoding/hex"
+	"errors"
 	"fmt"
 	"strings"
 	"sync"
@@ -77,6 +78,41 @@ var schemas = sync.OnceValues(func() (*compiledSchemas, error) {
 	}
 	return out, nil
 })
+
+// ValidateCycloneDX checks a CycloneDX JSON document against the vendored schema of its specVersion,
+// without the image binding admission adds, so the repository SBOM a release carries is checked
+// against the same schemas as the image SBOMs.
+func ValidateCycloneDX(doc []byte) error {
+	s, err := schemas()
+	if err != nil {
+		return err
+	}
+	_, err = validateCycloneDX(s, doc)
+	return err
+}
+
+// validateCycloneDX decodes doc once and checks it against the schema of its specVersion; it returns
+// the decoded document so a caller reads exactly what was validated.
+func validateCycloneDX(s *compiledSchemas, doc []byte) (map[string]any, error) {
+	v, err := jsonschema.UnmarshalJSON(bytes.NewReader(doc))
+	if err != nil {
+		return nil, err
+	}
+	sbom, ok := v.(map[string]any)
+	if !ok {
+		return nil, errors.New("not a JSON object")
+	}
+	format, _ := sbom["bomFormat"].(string)
+	version, _ := sbom["specVersion"].(string)
+	schema, ok := s.sbom[version]
+	if format != "CycloneDX" || !ok {
+		return nil, fmt.Errorf("not CycloneDX 1.5, 1.6 or 1.7 JSON (bomFormat %q, specVersion %q)", truncate(format, 32), truncate(version, 32))
+	}
+	if err := schema.Validate(v); err != nil {
+		return nil, err
+	}
+	return sbom, nil
+}
 
 // ValidateMockPredicate checks a mock-attestation predicate against the schema the verifier enforces,
 // so a producer can refuse to attest what admission would refuse.
