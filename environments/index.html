@@ -63,11 +63,17 @@
                 <li class="toctree-l1"><a class="reference internal" href="../umbrella-chart/">Umbrella chart</a>
                 </li>
               </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../workload-identity/">Workload identity</a>
+                </li>
+              </ul>
               <p class="caption"><span class="caption-text">Environments</span></p>
               <ul class="current">
                   <li class="toctree-l1 current"><a class="reference internal current" href="#">Overview</a>
     <ul class="current">
     <li class="toctree-l2"><a class="reference internal" href="#what-is-common-to-all-three">What is common to all three</a>
+    </li>
+    <li class="toctree-l2"><a class="reference internal" href="#installing-a-zone">Installing a zone</a>
     </li>
     <li class="toctree-l2"><a class="reference internal" href="#reproduction-and-verification">Reproduction and verification</a>
     </li>
@@ -169,6 +175,17 @@
                 <li class="toctree-l1"><a class="reference internal" href="../specifications/">Specification changes</a>
                 </li>
               </ul>
+              <p class="caption"><span class="caption-text">Evidence</span></p>
+              <ul>
+                  <li class="toctree-l1"><a class="reference internal" href="../evidences/mesh-mode-upstream-state/">Mesh mode, upstream state: about</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../evidences/mesh-mode-upstream-state/upstream-state/">Mesh mode, upstream state: record</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../evidences/mesh-identity/">Mesh identity: about</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../evidences/mesh-identity/evidence/">Mesh identity: record</a>
+                  </li>
+              </ul>
               <p class="caption"><span class="caption-text">Architecture decisions</span></p>
               <ul>
                   <li class="toctree-l1"><a class="reference internal" href="../adr/">Overview</a>
@@ -177,7 +194,7 @@
                   </li>
                   <li class="toctree-l1"><a class="reference internal" href="../adr/tdr-decisions/">TDR decisions ADR 001–006</a>
                   </li>
-                  <li class="toctree-l1"><a class="reference internal" href="../adr/0001-service-mesh-mode-istio-ambient-with-cilium/">0001 Service mesh mode</a>
+                  <li class="toctree-l1"><a class="reference internal" href="../adr/0001-service-mesh-mode-istio-ambient-with-cilium/">0001 Service mesh mode (superseded by 0009)</a>
                   </li>
                   <li class="toctree-l1"><a class="reference internal" href="../adr/0002-gatekeeper-external-data-provider-for-cosign-verification/">0002 Gatekeeper external data provider</a>
                   </li>
@@ -186,6 +203,8 @@
                   <li class="toctree-l1"><a class="reference internal" href="../adr/0004-openbao-as-x509-key-value-store/">0004 OpenBao as X.509 key-value store</a>
                   </li>
                   <li class="toctree-l1"><a class="reference internal" href="../adr/0005-three-cluster-reading-of-the-target-environment/">0005 Three-cluster target environment</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../adr/0009-service-mesh-mode-istio-sidecar-with-cilium/">0009 Service mesh mode (sidecar, supersedes 0001)</a>
                   </li>
                   <li class="toctree-l1"><a class="reference internal" href="../adr/0008-envoy-ext-authz-as-the-guard-policy-hook/">0008 Guard policy hook</a>
                   </li>
@@ -255,16 +274,27 @@ Where a step cannot be executed yet it says so, rather than reading as though it
 <h2 id="what-is-common-to-all-three">What is common to all three<a class="headerlink" href="#what-is-common-to-all-three" title="Permanent link">&para;</a></h2>
 <ul>
 <li><strong>Kubernetes 1.29 or later.</strong> Older versions are not supported; the mesh and admission baselines
-  assume it.</li>
+  assume it. A cluster that runs the mesh needs <strong>1.33 or later</strong>, for the native sidecar containers
+  of <a href="../adr/0009-service-mesh-mode-istio-sidecar-with-cilium/">ADR-0009</a>.</li>
 <li><strong>Cilium as CNI</strong> on the clusters that run the mesh, configured with <code>cni.exclusive=false</code> so the
-  Istio CNI plugin can chain behind it
-  (<a href="../adr/0001-service-mesh-mode-istio-ambient-with-cilium/">ADR-0001</a>). The IONOS cluster runs
-  no mesh today and keeps its provider-managed Calico; see its guide.</li>
+  Istio CNI plugin can chain behind it, and <strong>Istio in sidecar mode</strong> on top
+  (<a href="../adr/0009-service-mesh-mode-istio-sidecar-with-cilium/">ADR-0009</a>; ambient is the parked
+  alternative). The IONOS cluster runs no mesh today and keeps its provider-managed Calico; see its
+  guide.</li>
 <li><strong>The clusters are client-provided.</strong> Provisioning them is out of scope; these guides begin at the
   point where a kubeconfig is in hand.</li>
 <li><strong>Nothing is applied by hand.</strong> Every step below is a chart, a script in <code>scripts/</code> or a pipeline
   run. A step that cannot be expressed that way is a defect in the step, not a reason to click.</li>
 </ul>
+<h2 id="installing-a-zone">Installing a zone<a class="headerlink" href="#installing-a-zone" title="Permanent link">&para;</a></h2>
+<p>A zone is installed by one command from one zone file: <code>scripts/install-zone/install.sh install</code>,
+which runs seven Helm releases in order — the umbrella <code>ztd</code>, <code>spire-crds</code>, <code>spire</code>, <code>istio-base</code>,
+<code>istiod</code>, <code>istio-cni</code>, <code>zone-policy</code> — each through the deployment lifecycle step, and exits 0 only
+when every pod of the zone is Ready. The zone file records the cluster's facts (Kubernetes version,
+storage class, load balancer) and, where the mesh runs, the zone's trust domain (the DNS zone
+delegated to the trust zone) and the API server endpoint. The <a href="osc/#2-the-zone-layout">OSC guide</a>
+walks through it step by step with each step's verification; the identity path is described in
+<a href="../workload-identity/">Workload identity</a>.</p>
 <h2 id="reproduction-and-verification">Reproduction and verification<a class="headerlink" href="#reproduction-and-verification" title="Permanent link">&para;</a></h2>
 <p>ZT-16 asks for documentation from which the setup of each cluster can be reproduced step by step.
 Each guide therefore pairs every stage with the check that proves the stage worked — the command,
@@ -273,7 +303,7 @@ and what its output has to say. A stage without a check is not finished.</p>
             </div>
           </div><footer>
     <div class="rst-footer-buttons" role="navigation" aria-label="Footer Navigation">
-        <a href="../umbrella-chart/" class="btn btn-neutral float-left" title="Umbrella chart"><span class="icon icon-circle-arrow-left"></span> Previous</a>
+        <a href="../workload-identity/" class="btn btn-neutral float-left" title="Workload identity"><span class="icon icon-circle-arrow-left"></span> Previous</a>
         <a href="osc/" class="btn btn-neutral float-right" title="T-Systems OSC">Next <span class="icon icon-circle-arrow-right"></span></a>
     </div>
 
@@ -302,7 +332,7 @@ and what its output has to say. A stage without a check is not finished.</p>
         </span>
     
     
-      <span><a href="../umbrella-chart/" style="color: #fcfcfc">&laquo; Previous</a></span>
+      <span><a href="../workload-identity/" style="color: #fcfcfc">&laquo; Previous</a></span>
     
     
       <span><a href="osc/" style="color: #fcfcfc">Next &raquo;</a></span>

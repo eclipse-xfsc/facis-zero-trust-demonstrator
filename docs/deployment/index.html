@@ -77,6 +77,10 @@
                 <li class="toctree-l1"><a class="reference internal" href="../umbrella-chart/">Umbrella chart</a>
                 </li>
               </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../workload-identity/">Workload identity</a>
+                </li>
+              </ul>
               <p class="caption"><span class="caption-text">Environments</span></p>
               <ul>
                   <li class="toctree-l1"><a class="reference internal" href="../environments/">Overview</a>
@@ -177,6 +181,17 @@
                 <li class="toctree-l1"><a class="reference internal" href="../specifications/">Specification changes</a>
                 </li>
               </ul>
+              <p class="caption"><span class="caption-text">Evidence</span></p>
+              <ul>
+                  <li class="toctree-l1"><a class="reference internal" href="../evidences/mesh-mode-upstream-state/">Mesh mode, upstream state: about</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../evidences/mesh-mode-upstream-state/upstream-state/">Mesh mode, upstream state: record</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../evidences/mesh-identity/">Mesh identity: about</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../evidences/mesh-identity/evidence/">Mesh identity: record</a>
+                  </li>
+              </ul>
               <p class="caption"><span class="caption-text">Architecture decisions</span></p>
               <ul>
                   <li class="toctree-l1"><a class="reference internal" href="../adr/">Overview</a>
@@ -185,7 +200,7 @@
                   </li>
                   <li class="toctree-l1"><a class="reference internal" href="../adr/tdr-decisions/">TDR decisions ADR 001–006</a>
                   </li>
-                  <li class="toctree-l1"><a class="reference internal" href="../adr/0001-service-mesh-mode-istio-ambient-with-cilium/">0001 Service mesh mode</a>
+                  <li class="toctree-l1"><a class="reference internal" href="../adr/0001-service-mesh-mode-istio-ambient-with-cilium/">0001 Service mesh mode (superseded by 0009)</a>
                   </li>
                   <li class="toctree-l1"><a class="reference internal" href="../adr/0002-gatekeeper-external-data-provider-for-cosign-verification/">0002 Gatekeeper external data provider</a>
                   </li>
@@ -194,6 +209,8 @@
                   <li class="toctree-l1"><a class="reference internal" href="../adr/0004-openbao-as-x509-key-value-store/">0004 OpenBao as X.509 key-value store</a>
                   </li>
                   <li class="toctree-l1"><a class="reference internal" href="../adr/0005-three-cluster-reading-of-the-target-environment/">0005 Three-cluster target environment</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../adr/0009-service-mesh-mode-istio-sidecar-with-cilium/">0009 Service mesh mode (sidecar, supersedes 0001)</a>
                   </li>
                   <li class="toctree-l1"><a class="reference internal" href="../adr/0008-envoy-ext-authz-as-the-guard-policy-hook/">0008 Guard policy hook</a>
                   </li>
@@ -233,25 +250,88 @@ specific cluster, with the check that proves each stage, see <a href="../environ
 <ul>
 <li>Kubernetes <strong>1.29 or later</strong> on each target cluster.</li>
 <li>A CNI that supports the mesh baseline recorded in
-  <a href="../adr/0001-service-mesh-mode-istio-ambient-with-cilium/">ADR-0001</a>.</li>
+  <a href="../adr/0009-service-mesh-mode-istio-sidecar-with-cilium/">ADR-0009</a>: Cilium with
+  <code>cni.exclusive=false</code>, Istio in sidecar mode chained behind it.</li>
+<li>Kubernetes <strong>1.33 or later</strong> on a cluster that runs the mesh, for the native sidecar containers
+  that record decides on; 1.29 stays the floor for a cluster without the mesh.</li>
 <li>A container registry reachable from the clusters, with credentials available to the cluster.</li>
 <li>DNS delegation for the trust-framework zone, as described in <a href="../train-dns/">TRAIN DNS zone</a>.</li>
 </ul>
 <h2 id="installing-a-zone">Installing a zone<a class="headerlink" href="#installing-a-zone" title="Permanent link">&para;</a></h2>
-<p>The demonstrator installs as a single umbrella Helm chart per zone. The chart lays the zone down
-first: the management and data planes as distinct namespaces, default-deny network policies in
-both directions, the allow-matrix lanes between the planes, and the hook-weight bands that order
-the jobs of the components after it. The platform components install after it, into the layout it
-made. That workload identity exists before any workload becomes ready is a property of the
-identity path, not of an install order, as the
-<a href="../umbrella-chart/#the-hook-weight-scheme">hook-weight scheme</a> explains.</p>
-<pre><code class="language-bash">helm upgrade --install ztd deployment/helm/ztd -n ztd-system --create-namespace \
-  -f deployment/helm/ztd/zones/&lt;zone&gt;.yaml --wait
+<p>A zone installs as seven Helm releases, in a fixed order, from one zone file, with one command:</p>
+<pre><code class="language-bash">ZONE_VALUES=deployment/helm/ztd/zones/&lt;zone&gt;.yaml KUBE_CONTEXT=&lt;context&gt; \
+  scripts/install-zone/install.sh install
 </code></pre>
-<p>The release namespace holds the release and its hook jobs and is not a plane namespace. The zone
-file is written from what the cluster baseline recorded; the chart has no defaults for it. The
-design, the hook-weight scheme and the evidence are in <a href="../umbrella-chart/">Umbrella chart</a>, and
-chart values are documented with each chart under <code>deployment/helm/</code>.</p>
+<table>
+<thead>
+<tr>
+<th>#</th>
+<th>Release</th>
+<th>Namespace</th>
+<th>What it installs</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>1</td>
+<td><code>ztd</code></td>
+<td><code>ztd-system</code></td>
+<td>the umbrella chart: the plane namespaces and the control-plane namespaces, default deny, declared openings, allow-matrix lanes, hook-weight bands</td>
+</tr>
+<tr>
+<td>2</td>
+<td><code>spire-crds</code></td>
+<td><code>spire-system</code></td>
+<td>the SPIRE controller-manager's CRDs (upstream chart)</td>
+</tr>
+<tr>
+<td>3</td>
+<td><code>spire</code></td>
+<td><code>spire-system</code></td>
+<td>SPIRE server, agents, CSI driver, controller-manager (upstream chart)</td>
+</tr>
+<tr>
+<td>4</td>
+<td><code>istio-base</code></td>
+<td><code>istio-system</code></td>
+<td>Istio's CRDs (upstream chart)</td>
+</tr>
+<tr>
+<td>5</td>
+<td><code>istiod</code></td>
+<td><code>istio-system</code></td>
+<td>the mesh control plane, sidecar mode, SPIRE as the certificate source (upstream chart)</td>
+</tr>
+<tr>
+<td>6</td>
+<td><code>istio-cni</code></td>
+<td><code>istio-system</code></td>
+<td>the Istio CNI plugin, chained behind Cilium (upstream chart)</td>
+</tr>
+<tr>
+<td>7</td>
+<td><code>zone-policy</code></td>
+<td><code>istio-system</code></td>
+<td>the workload registration, mesh-wide STRICT mTLS, the identity-band checks</td>
+</tr>
+</tbody>
+</table>
+<p>The umbrella lays the zone down first: the management and data planes as distinct namespaces,
+default-deny network policies in both directions, the allow-matrix lanes between the planes, and
+the hook-weight bands that order the jobs within each release; the installer orders the releases.
+Every release runs through the deployment lifecycle step (<code>scripts/lifecycle.sh</code>), the same step the
+ORCE workflow below runs, and the installer stops at the first release that fails and names it. A
+second run changes nothing. That workload identity exists before any workload becomes ready is a
+property of the identity path, not of an install order, as the
+<a href="../umbrella-chart/#the-hook-weight-scheme">hook-weight scheme</a> explains.</p>
+<p>The upstream charts are installed as they ship, pinned by version, each owning, upgrading and
+removing its own CRDs (<a href="../dependencies/#identity-and-service-mesh">OSS dependencies</a>); the values
+the repository sets on them live in <code>deployment/helm/values/</code>. The release namespace of the
+umbrella holds its release and its hook jobs and is not a plane namespace. The zone file is written
+from what the cluster baseline recorded; the charts have no defaults for it. The design, the
+hook-weight scheme and the evidence are in <a href="../umbrella-chart/">Umbrella chart</a> and
+<a href="../workload-identity/">Workload identity</a>, and chart values are documented with each chart under
+<code>deployment/helm/</code>.</p>
 <h3 id="through-the-orce-workflow">Through the ORCE workflow<a class="headerlink" href="#through-the-orce-workflow" title="Permanent link">&para;</a></h3>
 <p>The same install, redeploy and uninstall run through ORCE with zero manual steps: a
 <code>POST /lifecycle</code> command (<a href="../api-docs/">IF-08</a>) that the <code>ztd-lifecycle</code> node validates, checks
@@ -259,10 +339,12 @@ with a server-side dry-run and applies with Helm, reporting a machine-readable r
 context. The <code>helm</code> commands on this page are the engine-level equivalent.</p>
 <h2 id="teardown">Teardown<a class="headerlink" href="#teardown" title="Permanent link">&para;</a></h2>
 <p>Components uninstall in the reverse order of their installation; the layout goes last:</p>
-<pre><code class="language-bash">helm uninstall ztd -n ztd-system
+<pre><code class="language-bash">ZONE_VALUES=deployment/helm/ztd/zones/&lt;zone&gt;.yaml KUBE_CONTEXT=&lt;context&gt; \
+  scripts/install-zone/install.sh uninstall
 </code></pre>
-<p>Teardown must leave no orphaned namespaces, CRDs or secrets; this is verified by an acceptance
-scenario rather than by inspection.</p>
+<p>Teardown must leave no orphaned namespaces, CRDs or secrets. Every CRD leaves with the release that
+brought it; the installer removes the ones Istio's <code>base</code> chart marks to be kept by Helm. This is
+verified by the mesh identity evidence and by an acceptance scenario rather than by inspection.</p>
 <h2 id="reproducibility">Reproducibility<a class="headerlink" href="#reproducibility" title="Permanent link">&para;</a></h2>
 <p>Every environment is reproducible from this repository plus its values files. No step is performed
 by hand against a cluster; anything that cannot be expressed in a chart or a script belongs in

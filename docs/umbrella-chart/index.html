@@ -77,6 +77,10 @@
     </ul>
                 </li>
               </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../workload-identity/">Workload identity</a>
+                </li>
+              </ul>
               <p class="caption"><span class="caption-text">Environments</span></p>
               <ul>
                   <li class="toctree-l1"><a class="reference internal" href="../environments/">Overview</a>
@@ -177,6 +181,17 @@
                 <li class="toctree-l1"><a class="reference internal" href="../specifications/">Specification changes</a>
                 </li>
               </ul>
+              <p class="caption"><span class="caption-text">Evidence</span></p>
+              <ul>
+                  <li class="toctree-l1"><a class="reference internal" href="../evidences/mesh-mode-upstream-state/">Mesh mode, upstream state: about</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../evidences/mesh-mode-upstream-state/upstream-state/">Mesh mode, upstream state: record</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../evidences/mesh-identity/">Mesh identity: about</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../evidences/mesh-identity/evidence/">Mesh identity: record</a>
+                  </li>
+              </ul>
               <p class="caption"><span class="caption-text">Architecture decisions</span></p>
               <ul>
                   <li class="toctree-l1"><a class="reference internal" href="../adr/">Overview</a>
@@ -185,7 +200,7 @@
                   </li>
                   <li class="toctree-l1"><a class="reference internal" href="../adr/tdr-decisions/">TDR decisions ADR 001–006</a>
                   </li>
-                  <li class="toctree-l1"><a class="reference internal" href="../adr/0001-service-mesh-mode-istio-ambient-with-cilium/">0001 Service mesh mode</a>
+                  <li class="toctree-l1"><a class="reference internal" href="../adr/0001-service-mesh-mode-istio-ambient-with-cilium/">0001 Service mesh mode (superseded by 0009)</a>
                   </li>
                   <li class="toctree-l1"><a class="reference internal" href="../adr/0002-gatekeeper-external-data-provider-for-cosign-verification/">0002 Gatekeeper external data provider</a>
                   </li>
@@ -194,6 +209,8 @@
                   <li class="toctree-l1"><a class="reference internal" href="../adr/0004-openbao-as-x509-key-value-store/">0004 OpenBao as X.509 key-value store</a>
                   </li>
                   <li class="toctree-l1"><a class="reference internal" href="../adr/0005-three-cluster-reading-of-the-target-environment/">0005 Three-cluster target environment</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../adr/0009-service-mesh-mode-istio-sidecar-with-cilium/">0009 Service mesh mode (sidecar, supersedes 0001)</a>
                   </li>
                   <li class="toctree-l1"><a class="reference internal" href="../adr/0008-envoy-ext-authz-as-the-guard-policy-hook/">0008 Guard policy hook</a>
                   </li>
@@ -238,8 +255,16 @@ estserver, admin APIs) live in management-plane namespaces; the demonstrator wor
 data-plane namespaces. The chart creates <code>ztd-mgmt</code> and <code>ztd-data</code>, plus any namespace a component
 task adds through <code>planes.extra</code>, and labels each with <code>ztd.facis.io/plane</code> and the mesh label for
 the zone's mode. Nothing crosses a plane without being named.</p>
+<p><strong>The two control planes, as management-plane namespaces.</strong> A meshed zone lists <code>spire-system</code> (the
+SPIRE server, controller-manager, agents and CSI driver) and <code>istio-system</code> (istiod and the Istio
+CNI agent) in <code>planes.extra</code> with <code>mesh: false</code>: they get the plane label, the default deny and the
+baseline lanes, and <strong>no injection label</strong>, so no control-plane pod receives a sidecar. The chart
+creates them, because the releases that install into them run through the lifecycle step, which
+never creates a namespace. Why both are in the management plane is in
+<a href="../workload-identity/#where-the-control-planes-live">Workload identity</a>.</p>
 <p><strong>Default deny at the network layer.</strong> Every plane namespace gets a <code>default-deny</code> NetworkPolicy in
-both directions. Three openings follow, each declared in <a href="../architecture/">Architecture §6</a>:</p>
+both directions. These openings follow, each declared in <a href="../architecture/">Architecture §6</a>, beside
+the DNS bypass, and each rendered only when the zone enables it:</p>
 <table>
 <thead>
 <tr>
@@ -260,20 +285,40 @@ both directions. Three openings follow, each declared in <a href="../architectur
 <td>who may talk is decided on identity by the mesh layer, not on IP</td>
 </tr>
 <tr>
-<td>management → Kubernetes API</td>
-<td><code>allow-kube-api-egress</code>, only when the zone file turns it on: with Cilium a CiliumNetworkPolicy to the <code>kube-apiserver</code> entity, otherwise a NetworkPolicy to the API endpoint the zone file names</td>
-<td>controllers such as the SPIRE controller-manager need it</td>
+<td>management → Kubernetes API (<code>kubeApi</code>)</td>
+<td><code>allow-kube-api-egress</code>: with Cilium a <code>CiliumNetworkPolicy</code> to the <code>kube-apiserver</code> entity on the <code>kubernetes</code> Service port 443 and on the zone's API port; without Cilium an <code>ipBlock</code> egress to the zone's endpoint</td>
+<td>the SPIRE server, its controller-manager and istiod call the API; required wherever the mesh runs</td>
+</tr>
+<tr>
+<td>meshed plane namespaces → istiod (<code>meshControlPlane</code>)</td>
+<td><code>allow-mesh-control-plane-egress</code> in each namespace with the mesh label, <code>allow-mesh-control-plane-ingress</code> in <code>istio-system</code>, port 15012</td>
+<td>the sidecars fetch their configuration over xDS</td>
+</tr>
+<tr>
+<td>API server → webhooks (<code>controlPlaneWebhooks</code>)</td>
+<td><code>allow-control-plane-openings</code> in <code>istio-system</code> (istiod, 15017) and <code>spire-system</code> (controller-manager, 9443), a <code>CiliumNetworkPolicy</code> from the <code>kube-apiserver</code>, <code>host</code> and <code>remote-node</code> entities</td>
+<td>injection and the admission of <code>PeerAuthentication</code> and <code>ClusterSPIFFEID</code></td>
+</tr>
+<tr>
+<td>SPIRE agents → SPIRE server (<code>identityServer</code>)</td>
+<td>in the same <code>allow-control-plane-openings</code> of <code>spire-system</code>, from the <code>host</code> and <code>remote-node</code> entities, port 8081</td>
+<td>the agents run on the host network and attest to the server</td>
 </tr>
 </tbody>
 </table>
+<p>The openings whose source is not a pod (the API server, the host-networked agents) are Cilium
+policies by entity, because a Kubernetes NetworkPolicy cannot name those sources; with a mesh and
+without Cilium the chart refuses to render and names the derogation another CNI needs. Each Cilium
+rule adds its lane and leaves the deny to <code>default-deny</code> (<code>enableDefaultDeny</code> false). The reasoning
+and the proof are in <a href="../workload-identity/#openings-under-the-default-deny">Workload identity</a>.</p>
 <p><strong>The API lane under Cilium.</strong> Cilium does not select an API server that runs on a cluster node by its
 address: it treats it as the <code>kube-apiserver</code> entity, and a NetworkPolicy <code>ipBlock</code> never matches it,
-so the lane would stay shut. With <code>cni.cilium.enabled</code> the lane is therefore a CiliumNetworkPolicy to
-that entity, and the CIDRs are optional; any that are given still render as the address lane. It opens
-the <code>kubernetes</code> Service port, 443, and the zone's endpoint ports: with kube-proxy, Cilium sees the
-Service port before kube-proxy translates it, without kube-proxy the endpoint port. Opening every port
-instead would open the whole node the API server runs on, the kubelet included. The evidence (section 7) shows the lane shut, then open from the management plane only,
-then shut again, on a kind cluster with Cilium chained as the zones run it.</p>
+so an address lane would stay shut. With <code>cni.cilium.enabled</code> the lane is therefore the entity policy,
+and the zone file's <code>cidrs</code> are recorded, not rendered. It opens the <code>kubernetes</code> Service port, 443,
+and the zone's endpoint port (<code>ports</code>): with kube-proxy, Cilium sees the Service port before
+kube-proxy translates it, without kube-proxy the endpoint port. Opening every port instead would open
+the whole node the API server runs on, the kubelet included. The evidence (section 7) shows the lane
+open from the management plane only, on a kind cluster with Cilium chained as the zones run it.</p>
 <p><strong>The allow matrix, as data.</strong> The lanes of the ZT-55 matrix are entries in <code>allowMatrix</code>, each
 with a source and a destination selector; the chart renders an egress rule in the source namespace
 and an ingress rule in the destination namespace for every lane. The selectors are the label
@@ -323,17 +368,22 @@ L3/L4 lane; the mesh layer, installed later, decides on identity on top. Anythin
 plane into the management plane is denied by both layers, which is the negative case the evidence
 script proves.</p>
 <h2 id="the-mesh-mode-is-one-label">The mesh mode is one label<a class="headerlink" href="#the-mesh-mode-is-one-label" title="Permanent link">&para;</a></h2>
-<p>ADR-0001 baselines Istio ambient and foresees a superseding decision for sidecar mode. Between the two,
-the layout differs in one namespace label — <code>istio.io/dataplane-mode=ambient</code> or
-<code>istio-injection=enabled</code>, never both on the same namespace — so <code>mesh.mode</code> in the zone file is the
-only thing that changes, and the chart is the same either way; the evidence script switches a live
-install from one mode to the other and back. Istio itself is installed by the mesh step after the
-umbrella; until then the label is inert.</p>
-<p>One piece is mode-specific. Under Istio ambient with Cilium as the CNI, the kubelet's health probes
-reach ambient pods SNAT-ed to <code>169.254.7.127</code>, an address Cilium does not exempt from policy, so a
-default-deny NetworkPolicy would fail every probe. Istio's platform prerequisites prescribe a
-cluster-wide Cilium policy admitting that address, and the chart renders it only when the mode is
-ambient and Cilium is enabled.</p>
+<p><a href="../adr/0009-service-mesh-mode-istio-sidecar-with-cilium/">ADR-0009</a> baselines Istio sidecar mode
+with Cilium as the CNI, superseding the ambient baseline of ADR-0001 through the fallback clause
+that record foresaw: the mesh cannot take SPIRE-issued identities under ambient with community
+Istio. Ambient is parked, not abandoned. Between the two modes the layout differs in one namespace
+label — <code>istio-injection=enabled</code> or <code>istio.io/dataplane-mode=ambient</code>, never both on the same
+namespace — so <code>mesh.mode</code> in the zone file is the only thing that changes, and the chart is the
+same either way: the default is <code>sidecar</code>, the value <code>ambient</code> stays accepted, and the evidence
+script switches a live install from the sidecar baseline to ambient and back. Istio itself is
+installed by the mesh step after the umbrella; until then the label is inert.</p>
+<p>One piece is mode-specific, and it belongs to the parked mode. Under Istio ambient with Cilium as
+the CNI, the kubelet's health probes reach ambient pods SNAT-ed to <code>169.254.7.127</code>, an address Cilium
+does not exempt from policy, so a default-deny NetworkPolicy would fail every probe. Istio's platform
+prerequisites prescribe a cluster-wide Cilium policy admitting that address, and the chart renders it
+only when the mode is ambient and Cilium is enabled; in the sidecar baseline of ADR-0009 nothing of
+the kind is rendered, and the template stays so that returning to ambient costs a zone value, not a
+chart change.</p>
 <h2 id="the-hook-weight-scheme">The hook-weight scheme<a class="headerlink" href="#the-hook-weight-scheme" title="Permanent link">&para;</a></h2>
 <p>Helm orders two things. Regular resources — of the chart and of every subchart together — are
 created in Helm's fixed order of kinds, with no waiting between them. Hooks are ordered by
@@ -402,7 +452,17 @@ failed install names the earliest band that is wrong.</p>
 <p>The helper refuses an unknown band or an offset outside the band at render time. The chart's own
 post-install verification job is the first use of the scheme, in the <code>verification</code> band: it reads
 the layout back through the API and fails the release if a plane namespace, its plane label, its
-mesh label or its <code>default-deny</code> policy is missing.</p>
+mesh label or its <code>default-deny</code> policy is missing, or if a control-plane namespace carries an
+injection label. The <code>zone-policy</code> chart uses the <code>identity</code> band (20–39) through a copy of the
+helper, so the scheme reads the same across the charts: <code>server-healthy</code> (20),
+<code>trust-bundle-published</code> (25), <code>registrations-reconciled</code> (30).</p>
+<p><strong>The bands order jobs within a release; the installer orders the releases.</strong> A zone is seven
+releases (the umbrella, the SPIRE and Istio upstream charts, <code>zone-policy</code>), installed in a fixed
+order by <code>scripts/install-zone/install.sh</code>, each waiting on the previous. Helm's hook weights only
+order the hooks of one release, so the bands say where a job sits inside its own chart and what it
+checks; which release's jobs run first is the installer's order. The installer is the unit that
+reaches all-Ready from an empty cluster and repeats idempotently
+(<a href="../deployment/#installing-a-zone">Deployment</a>).</p>
 <p><strong>Identity before workloads.</strong> The guarantee that a workload cannot become READY before its identity
 exists does not come from a weight. It comes from two facts of the identity path. The SPIFFE CSI
 volume is an ephemeral inline mount: the kubelet does not start the container until the driver,
@@ -418,7 +478,11 @@ a hope.</p>
 <h2 id="zone-values-without-defaults">Zone values without defaults<a class="headerlink" href="#zone-values-without-defaults" title="Permanent link">&para;</a></h2>
 <p><code>zone.kubernetesVersion</code>, <code>zone.storageClass</code> and <code>zone.loadBalancer.type</code> are facts about a cluster
 that the cluster baseline records. The chart has no defaults for them and refuses to render until
-the zone file states them, so a zone is never installed on assumed values. The zone files live in
+the zone file states them, so a zone is never installed on assumed values. Where the mesh runs the
+zone file also states <code>zone.trustDomain</code>, the zone's SPIFFE trust domain (the DNS zone delegated to
+the trust zone; <a href="../workload-identity/#the-trust-domain">Workload identity</a>), and enables the API
+lane; the schema refuses a meshed zone without either. In sidecar mode the chart also refuses a
+<code>zone.kubernetesVersion</code> below 1.33, because native sidecar containers need it. The zone files live in
 <code>deployment/helm/ztd/zones/</code>; the CI chart job and the local kind cluster use
 <code>deployment/helm/ztd/ci/values.yaml</code>, filled the same way with what that cluster is.</p>
 <h2 id="release-namespace-and-teardown">Release namespace and teardown<a class="headerlink" href="#release-namespace-and-teardown" title="Permanent link">&para;</a></h2>
@@ -427,23 +491,34 @@ namespace with no plane semantics that holds the release record and the hook job
 namespaces belong to the release and go with <code>helm uninstall ztd -n ztd-system</code>; components
 uninstall before the layout, in the reverse order of their installation.</p>
 <p>The chart is cluster-scoped by nature. It creates the plane namespaces, the cluster role and binding
-of its verification job, and, under ambient mode with Cilium, one cluster-wide Cilium policy; it
-ships no CRD (the Cilium policy is an instance of Cilium's own CRD and is rendered only where Cilium
-is enabled). An identity confined to one namespace cannot install it. That is the design point to
-settle before the umbrella replaces the fixture chart as the release under test of the
-deployment-lifecycle scenarios (TDR-BDD-01 to TDR-BDD-04), whose deployer works inside its pool
-namespaces and never creates one.</p>
+of its verification job, and, only in the parked ambient mode with Cilium (not in the sidecar
+baseline of <a href="../adr/0009-service-mesh-mode-istio-sidecar-with-cilium/">ADR-0009</a>), one cluster-wide
+Cilium policy; it ships no CRD (its Cilium policies are instances of Cilium's own CRDs and are
+rendered only where Cilium is enabled). An identity confined to one namespace cannot install it.
+That is the design point to settle before the umbrella replaces the fixture chart as the release
+under test of the deployment-lifecycle scenarios (TDR-BDD-01 to TDR-BDD-04), whose deployer works
+inside its pool namespaces and never creates one.</p>
+<p>The CRDs of the identity path and of the mesh are not the umbrella's: each upstream chart is its own
+release and installs, upgrades and removes the CRDs it ships in its templates (<code>spire-crds</code>, Istio's
+<code>base</code>). A wrapper chart could not render a custom resource next to its CRD in one release, and
+copying the CRDs into a wrapper's <code>crds/</code> folder would leave them never upgraded and never removed.
+The installer's uninstall removes the CRDs Istio's <code>base</code> chart marks to be kept by Helm, so that
+every CRD leaves with the release that brought it.</p>
 <h2 id="verifying-it">Verifying it<a class="headerlink" href="#verifying-it" title="Permanent link">&para;</a></h2>
 <p>Locally, <code>scripts/dev/kind-cilium-up.sh</code> gives a kind cluster with Cilium chained the way
 the zones run it, and <code>scripts/verify-umbrella/verify.sh</code> produces the evidence: install from an
-empty cluster, install again to show nothing changes, read the layout back, prove with stand-in pods
-that a data-plane workload reaches nothing in the management plane except through a matrix lane,
-switch the mesh mode and back, and tear down without leaving a namespace behind. The last run's
-<code>evidence.md</code> sits next to the script.</p>
+empty cluster in sidecar mode, the baseline, and assert the sidecar label with no ambient label and
+no host-probe policy; install again to show nothing changes; read the layout back; prove with
+stand-in pods that a data-plane workload reaches nothing in the management plane except through a
+matrix lane; switch the live release to the parked ambient mode with the script's excursion fixture
+(<code>ambient-values.yaml</code>) and assert the ambient label and the host-probe policy while the denial and
+the lane still hold; return to sidecar and assert the baseline layout again; and tear down without
+leaving a namespace behind. The last run's <code>evidence.md</code> sits next to the script.</p>
 <p>The evidence also carries the negative proof of the CI chart gate. Section 8 shows the chart refused
 without a zone file and with an unknown mesh mode by <code>helm lint</code> and by <code>helm template</code> alike, because
 both validate the values against <code>values.schema.json</code>; and refused with the API lane enabled but no
-CIDRs on a zone without Cilium by <code>helm template</code> alone, because that guard is a <code>fail</code> call in a template, and Helm's lint
+CIDRs on a zone without Cilium (where the lane is an <code>ipBlock</code>) by <code>helm template</code> alone, because
+that guard is a <code>fail</code> call in a template, and Helm's lint
 mode renders <code>fail</code> as a no-op by design (Helm v4.3.0 logs the message at INFO and reports the chart
 as passing). The "Chart lint and render" job runs lint and then template with <code>ci/values.yaml</code>, so
 each of those cases is a red job: the schema cases at the lint step, the CIDR case at the render
@@ -452,12 +527,15 @@ chart gate (TDR-BDD-11) adds a server-side dry-run against a disposable cluster 
 Cilium and Gatekeeper CRDs, and no candidate is built unless it passes; a later chart publishing or
 promotion job must need the same gate. OpenBao, installed by this chart when a zone turns it on, is
 described in <a href="../secrets/">Secrets</a>.</p>
+<p>The umbrella's evidence covers the layout alone; the identity path and the mesh installed into it,
+with the seven releases, are proven by <code>scripts/verify-mesh-identity/verify.sh</code>
+(<a href="../evidences/mesh-identity/">the mesh identity evidence</a>).</p>
 <p>What waits for the client clusters is the first acceptance criterion — the layout on all three
 clusters — and the per-zone values the baseline records, including the API endpoint for the
 management-plane lane. The two OSC clusters are not yet provided. The IONOS cluster is, and
 <code>zones/ionos.yaml</code> is recorded from it, but the chart is not installed there: that cluster holds no
 demonstration workload and runs no mesh, its CNI is the provider-managed Calico rather than the
-Cilium of <a href="../adr/0001-service-mesh-mode-istio-ambient-with-cilium/">ADR-0001</a>, and whether it needs
+Cilium of <a href="../adr/0009-service-mesh-mode-istio-sidecar-with-cilium/">ADR-0009</a>, and whether it needs
 Cilium and the mesh at all is a decision for its visualization stage. Until then the IONOS zone file
 is validated against that cluster's API with a server-side dry run, which persists nothing.</p>
               
@@ -465,7 +543,7 @@ is validated against that cluster's API with a server-side dry run, which persis
           </div><footer>
     <div class="rst-footer-buttons" role="navigation" aria-label="Footer Navigation">
         <a href="../deployment/" class="btn btn-neutral float-left" title="Deployment"><span class="icon icon-circle-arrow-left"></span> Previous</a>
-        <a href="../environments/" class="btn btn-neutral float-right" title="Overview">Next <span class="icon icon-circle-arrow-right"></span></a>
+        <a href="../workload-identity/" class="btn btn-neutral float-right" title="Workload identity">Next <span class="icon icon-circle-arrow-right"></span></a>
     </div>
 
   <hr/>
@@ -496,7 +574,7 @@ is validated against that cluster's API with a server-side dry run, which persis
       <span><a href="../deployment/" style="color: #fcfcfc">&laquo; Previous</a></span>
     
     
-      <span><a href="../environments/" style="color: #fcfcfc">Next &raquo;</a></span>
+      <span><a href="../workload-identity/" style="color: #fcfcfc">Next &raquo;</a></span>
     
   </span>
 </div>

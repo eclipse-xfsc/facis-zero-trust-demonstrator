@@ -63,6 +63,10 @@
                 <li class="toctree-l1"><a class="reference internal" href="../umbrella-chart/">Umbrella chart</a>
                 </li>
               </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../workload-identity/">Workload identity</a>
+                </li>
+              </ul>
               <p class="caption"><span class="caption-text">Environments</span></p>
               <ul>
                   <li class="toctree-l1"><a class="reference internal" href="../environments/">Overview</a>
@@ -169,6 +173,17 @@
     </ul>
                 </li>
               </ul>
+              <p class="caption"><span class="caption-text">Evidence</span></p>
+              <ul>
+                  <li class="toctree-l1"><a class="reference internal" href="../evidences/mesh-mode-upstream-state/">Mesh mode, upstream state: about</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../evidences/mesh-mode-upstream-state/upstream-state/">Mesh mode, upstream state: record</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../evidences/mesh-identity/">Mesh identity: about</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../evidences/mesh-identity/evidence/">Mesh identity: record</a>
+                  </li>
+              </ul>
               <p class="caption"><span class="caption-text">Architecture decisions</span></p>
               <ul>
                   <li class="toctree-l1"><a class="reference internal" href="../adr/">Overview</a>
@@ -177,7 +192,7 @@
                   </li>
                   <li class="toctree-l1"><a class="reference internal" href="../adr/tdr-decisions/">TDR decisions ADR 001–006</a>
                   </li>
-                  <li class="toctree-l1"><a class="reference internal" href="../adr/0001-service-mesh-mode-istio-ambient-with-cilium/">0001 Service mesh mode</a>
+                  <li class="toctree-l1"><a class="reference internal" href="../adr/0001-service-mesh-mode-istio-ambient-with-cilium/">0001 Service mesh mode (superseded by 0009)</a>
                   </li>
                   <li class="toctree-l1"><a class="reference internal" href="../adr/0002-gatekeeper-external-data-provider-for-cosign-verification/">0002 Gatekeeper external data provider</a>
                   </li>
@@ -186,6 +201,8 @@
                   <li class="toctree-l1"><a class="reference internal" href="../adr/0004-openbao-as-x509-key-value-store/">0004 OpenBao as X.509 key-value store</a>
                   </li>
                   <li class="toctree-l1"><a class="reference internal" href="../adr/0005-three-cluster-reading-of-the-target-environment/">0005 Three-cluster target environment</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../adr/0009-service-mesh-mode-istio-sidecar-with-cilium/">0009 Service mesh mode (sidecar, supersedes 0001)</a>
                   </li>
                   <li class="toctree-l1"><a class="reference internal" href="../adr/0008-envoy-ext-authz-as-the-guard-policy-hook/">0008 Guard policy hook</a>
                   </li>
@@ -238,9 +255,9 @@ the decision.</p>
 <tbody>
 <tr>
 <td>SRS 2.3.3 — secure service mesh with SPIFFE/SPIRE, mode unspecified</td>
-<td>Istio <strong>Ambient</strong> with Cilium as CNI, <code>cni.exclusive=false</code>, one named L7 enforcement owner per traffic path</td>
-<td>The SRS fixes the identity model but not the data-plane mode; leaving it unfixed would put mesh and CNI in contention for L7 enforcement</td>
-<td><a href="../adr/0001-service-mesh-mode-istio-ambient-with-cilium/">ADR-0001</a></td>
+<td>Istio <strong>sidecar</strong> mode with Cilium as CNI, <code>cni.exclusive=false</code>, one named L7 enforcement owner per traffic path, SVIDs consumed by the sidecar over SDS; ambient parked</td>
+<td>The SRS fixes the identity model but not the data-plane mode; the ambient baseline first chosen cannot take SPIRE-issued identities with community Istio (SRS § 5.1.2, ZT-24), so the pre-approved fallback applies</td>
+<td><a href="../adr/0009-service-mesh-mode-istio-sidecar-with-cilium/">ADR-0009</a> (supersedes <a href="../adr/0001-service-mesh-mode-istio-ambient-with-cilium/">ADR-0001</a>)</td>
 </tr>
 <tr>
 <td>ZT-10, ZT-12, ZT-37 — admission must refuse unsigned images</td>
@@ -297,6 +314,12 @@ the decision.</p>
 <td><a href="../adr/0011-mock-tee-evidence-format-and-provisioning/">ADR-0011 § 3</a></td>
 </tr>
 <tr>
+<td>ZT-55 — management-plane components "accessible only via dedicated control channels" and not "reachable from the data plane network"; the separation "enforced at both the Kubernetes network policy layer and the service mesh layer"; compromise of the data plane granting "no access to management plane components"</td>
+<td>The <code>meshControlPlane</code> opening admits every pod of every plane namespace that carries the mesh label (<code>ztd-mgmt</code> among them by default) to istiod on port 15012 (xDS) and to no other port. The allow matrix does not yet dispose this path, and it meets none of the three clauses as written: it is not a dedicated control channel; it has no mesh layer, since an AuthorizationPolicy is enforced by the destination's proxy and istiod runs without one; and a compromised pod gains an xDS session (for its own identity, if istiod's default client authentication holds) and can obtain from istiod's CA, which answers on the same port and cannot be switched off, a certificate that every meshed peer refuses. That istiod serves only clients it has authenticated is Istio's default, neither pinned in <code>deployment/helm/values/istiod.yaml</code> nor proven by the evidence</td>
+<td>The mesh's proxies receive their configuration, the matrix's AuthorizationPolicies included, over xDS; without the opening no proxy is configured and the mesh layer ZT-55 requires does not exist</td>
+<td><a href="../architecture/#declared-openings-of-the-network-baseline">Declared openings</a> · <strong>proposed</strong>, approval of the Technical Design Authority and the Project Leader pending; a follow-up adds the allow-matrix row, pins istiod's client authentication and proves it</td>
+</tr>
+<tr>
 <td>ZT-35, ZT-64 — expected launch digests uploaded to TRAIN by the pipeline and fetched by the peer</td>
 <td>TSPA's trust-list entry has no digest field; the value must ride in an existing <code>Type</code>/<code>Value</code> list, with the connector's identifier in <code>ServiceTypeIdentifier</code> (the TCR lookup key)</td>
 <td>TRAIN's data model was built for credential issuers; the SRS assumes TRAIN stores measurements without fixing where</td>
@@ -311,22 +334,25 @@ the decision.</p>
 </tbody>
 </table>
 <h2 id="deviation-status">Deviation status<a class="headerlink" href="#deviation-status" title="Permanent link">&para;</a></h2>
-<p>Every reading above is declared rather than assumed. The five governing ADRs were submitted to FACIS
-as the F-05 deviation package and the OpenBao licence exception as F-07; both are open at the time of
-writing. A reading found after that package was submitted is recorded here as soon as it is found and
+<p>Every reading above is declared rather than assumed. The five governing ADRs of 2026-09-08 (0001 to
+0005) were submitted to FACIS as the F-05 deviation package and the OpenBao licence exception as F-07;
+both are open at the time of writing. ADR-0009, which supersedes 0001 through the fallback clause that
+record foresaw, was proposed after the package was submitted and accepted on 2026-10-23, and is
+carried into its next update. A reading found after that package was submitted is recorded here as soon as it is found and
 carried into the next update of the package. A reading that FACIS declines is handled as a plan change
 under the written-agreement rule, not absorbed into the implementation.</p>
-<p>Four readings postdate that package and are not yet part of a submitted one: the CI workflow reading,
+<p>Five readings postdate that package and are not yet part of a submitted one: the CI workflow reading,
 added when the first Go module arrived; the reuse of the attestation component's own report format for
-the mock attestation; the channel binding the report actually carries; and the placement of the
-expected launch digest in the trust list. They are declared here so that they are not mistaken for
-omissions.</p>
+the mock attestation; the channel binding the report actually carries; the placement of the expected
+launch digest in the trust list; and the meshed namespaces' opening to istiod's xDS port under
+ZT-55, which awaits the approval of the Technical Design Authority and the Project Leader. They are
+declared here so that they are not mistaken for omissions.</p>
               
             </div>
           </div><footer>
     <div class="rst-footer-buttons" role="navigation" aria-label="Footer Navigation">
         <a href="../licenses/" class="btn btn-neutral float-left" title="Licenses"><span class="icon icon-circle-arrow-left"></span> Previous</a>
-        <a href="../adr/" class="btn btn-neutral float-right" title="Overview">Next <span class="icon icon-circle-arrow-right"></span></a>
+        <a href="../evidences/mesh-mode-upstream-state/" class="btn btn-neutral float-right" title="Mesh mode, upstream state: about">Next <span class="icon icon-circle-arrow-right"></span></a>
     </div>
 
   <hr/>
@@ -357,7 +383,7 @@ omissions.</p>
       <span><a href="../licenses/" style="color: #fcfcfc">&laquo; Previous</a></span>
     
     
-      <span><a href="../adr/" style="color: #fcfcfc">Next &raquo;</a></span>
+      <span><a href="../evidences/mesh-mode-upstream-state/" style="color: #fcfcfc">Next &raquo;</a></span>
     
   </span>
 </div>

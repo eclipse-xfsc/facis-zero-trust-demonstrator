@@ -63,6 +63,10 @@
                 <li class="toctree-l1"><a class="reference internal" href="../umbrella-chart/">Umbrella chart</a>
                 </li>
               </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../workload-identity/">Workload identity</a>
+                </li>
+              </ul>
               <p class="caption"><span class="caption-text">Environments</span></p>
               <ul>
                   <li class="toctree-l1"><a class="reference internal" href="../environments/">Overview</a>
@@ -197,6 +201,17 @@
                 <li class="toctree-l1"><a class="reference internal" href="../specifications/">Specification changes</a>
                 </li>
               </ul>
+              <p class="caption"><span class="caption-text">Evidence</span></p>
+              <ul>
+                  <li class="toctree-l1"><a class="reference internal" href="../evidences/mesh-mode-upstream-state/">Mesh mode, upstream state: about</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../evidences/mesh-mode-upstream-state/upstream-state/">Mesh mode, upstream state: record</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../evidences/mesh-identity/">Mesh identity: about</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../evidences/mesh-identity/evidence/">Mesh identity: record</a>
+                  </li>
+              </ul>
               <p class="caption"><span class="caption-text">Architecture decisions</span></p>
               <ul>
                   <li class="toctree-l1"><a class="reference internal" href="../adr/">Overview</a>
@@ -205,7 +220,7 @@
                   </li>
                   <li class="toctree-l1"><a class="reference internal" href="../adr/tdr-decisions/">TDR decisions ADR 001–006</a>
                   </li>
-                  <li class="toctree-l1"><a class="reference internal" href="../adr/0001-service-mesh-mode-istio-ambient-with-cilium/">0001 Service mesh mode</a>
+                  <li class="toctree-l1"><a class="reference internal" href="../adr/0001-service-mesh-mode-istio-ambient-with-cilium/">0001 Service mesh mode (superseded by 0009)</a>
                   </li>
                   <li class="toctree-l1"><a class="reference internal" href="../adr/0002-gatekeeper-external-data-provider-for-cosign-verification/">0002 Gatekeeper external data provider</a>
                   </li>
@@ -214,6 +229,8 @@
                   <li class="toctree-l1"><a class="reference internal" href="../adr/0004-openbao-as-x509-key-value-store/">0004 OpenBao as X.509 key-value store</a>
                   </li>
                   <li class="toctree-l1"><a class="reference internal" href="../adr/0005-three-cluster-reading-of-the-target-environment/">0005 Three-cluster target environment</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../adr/0009-service-mesh-mode-istio-sidecar-with-cilium/">0009 Service mesh mode (sidecar, supersedes 0001)</a>
                   </li>
                   <li class="toctree-l1"><a class="reference internal" href="../adr/0008-envoy-ext-authz-as-the-guard-policy-hook/">0008 Guard policy hook</a>
                   </li>
@@ -657,7 +674,16 @@ and every evidence directory records that it is fixture evidence. A fixture pass
 acceptance of the umbrella release. The umbrella chart (<code>deployment/helm/ztd</code>) is cluster-scoped: it
 creates the plane namespaces and a cluster role, which the pool-confined deployer cannot do. Before
 it may replace the fixture, those cluster-scoped deploy rights must be designed
-(<a href="../umbrella-chart/#release-namespace-and-teardown">Umbrella chart</a>); it then needs its own run.</p>
+(<a href="../umbrella-chart/#release-namespace-and-teardown">Umbrella chart</a>); it then needs its own run.
+The ownership and removal of CRDs is answered by the shape of the zone: one Helm release per upstream
+chart, so every CRD is installed, upgraded and removed by the release that ships it in its
+templates (<code>spire-crds</code>, Istio's <code>base</code>), and the umbrella itself ships none. <code>spire-crds</code> drops
+the chart's <code>helm.sh/resource-policy: keep</code> in its values, so <code>helm uninstall</code> removes its CRDs;
+Istio's <code>base</code> sets that policy in its files, so the zone installer deletes that release's CRDs
+after uninstalling it. The zone installer,
+<code>scripts/install-zone/install.sh</code>, runs the releases in order through the same lifecycle step this
+pack exercises, and its uninstall leaves no SPIRE or Istio CRD behind, as the
+<a href="../evidences/mesh-identity/">mesh identity evidence</a> shows.</p>
 <h3 id="evidence">Evidence<a class="headerlink" href="#evidence" title="Permanent link">&para;</a></h3>
 <p>Per row, target and example: <code>bundles/bdd/evidence/bdd-tdr-00n/&lt;target&gt;/&lt;example&gt;/</code> holds the
 commands and acknowledgements, the ORCE context entry of each command (with the masked Helm output,

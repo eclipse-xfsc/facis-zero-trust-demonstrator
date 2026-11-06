@@ -63,6 +63,10 @@
                 <li class="toctree-l1"><a class="reference internal" href="../../umbrella-chart/">Umbrella chart</a>
                 </li>
               </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../../workload-identity/">Workload identity</a>
+                </li>
+              </ul>
               <p class="caption"><span class="caption-text">Environments</span></p>
               <ul class="current">
                   <li class="toctree-l1"><a class="reference internal" href="../">Overview</a>
@@ -185,6 +189,17 @@
                 <li class="toctree-l1"><a class="reference internal" href="../../specifications/">Specification changes</a>
                 </li>
               </ul>
+              <p class="caption"><span class="caption-text">Evidence</span></p>
+              <ul>
+                  <li class="toctree-l1"><a class="reference internal" href="../../evidences/mesh-mode-upstream-state/">Mesh mode, upstream state: about</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../evidences/mesh-mode-upstream-state/upstream-state/">Mesh mode, upstream state: record</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../evidences/mesh-identity/">Mesh identity: about</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../evidences/mesh-identity/evidence/">Mesh identity: record</a>
+                  </li>
+              </ul>
               <p class="caption"><span class="caption-text">Architecture decisions</span></p>
               <ul>
                   <li class="toctree-l1"><a class="reference internal" href="../../adr/">Overview</a>
@@ -193,7 +208,7 @@
                   </li>
                   <li class="toctree-l1"><a class="reference internal" href="../../adr/tdr-decisions/">TDR decisions ADR 001–006</a>
                   </li>
-                  <li class="toctree-l1"><a class="reference internal" href="../../adr/0001-service-mesh-mode-istio-ambient-with-cilium/">0001 Service mesh mode</a>
+                  <li class="toctree-l1"><a class="reference internal" href="../../adr/0001-service-mesh-mode-istio-ambient-with-cilium/">0001 Service mesh mode (superseded by 0009)</a>
                   </li>
                   <li class="toctree-l1"><a class="reference internal" href="../../adr/0002-gatekeeper-external-data-provider-for-cosign-verification/">0002 Gatekeeper external data provider</a>
                   </li>
@@ -202,6 +217,8 @@
                   <li class="toctree-l1"><a class="reference internal" href="../../adr/0004-openbao-as-x509-key-value-store/">0004 OpenBao as X.509 key-value store</a>
                   </li>
                   <li class="toctree-l1"><a class="reference internal" href="../../adr/0005-three-cluster-reading-of-the-target-environment/">0005 Three-cluster target environment</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../adr/0009-service-mesh-mode-istio-sidecar-with-cilium/">0009 Service mesh mode (sidecar, supersedes 0001)</a>
                   </li>
                   <li class="toctree-l1"><a class="reference internal" href="../../adr/0008-envoy-ext-authz-as-the-guard-policy-hook/">0008 Guard policy hook</a>
                   </li>
@@ -259,7 +276,7 @@ against the clusters on first stand-up, as the <a href="../ionos/">IONOS guide</
 <li>Helm v4.3.0, the version the pipeline pins, and kubectl;</li>
 <li>this repository checked out, and the values file for the zone you are installing.</li>
 </ul>
-<p>Check the version first — everything below assumes 1.29 or later:</p>
+<p>Check the version first — everything below assumes 1.29 or later, and the mesh needs 1.33 or later:</p>
 <pre><code class="language-bash">kubectl version -o json | jq -r '.serverVersion.gitVersion'
 </code></pre>
 <h2 id="1-cni">1. CNI<a class="headerlink" href="#1-cni" title="Permanent link">&para;</a></h2>
@@ -270,35 +287,153 @@ directory, or the Istio CNI plugin cannot chain behind it:</p>
 </code></pre>
 <p><strong>Verify:</strong> every Cilium pod is <code>Running</code>, and <code>cilium status</code> reports the cluster healthy.</p>
 <h2 id="2-the-zone-layout">2. The zone layout<a class="headerlink" href="#2-the-zone-layout" title="Permanent link">&para;</a></h2>
-<p>The umbrella chart lays the zone down before any component is installed: the management and
-data-plane namespaces, default-deny network policies in both directions, the allow-matrix lanes
-from the data plane into the management plane, and the hook-weight bands the jobs of the
-components plug into. It installs into its own release namespace, which is not a plane namespace,
-from the zone's values file:</p>
-<pre><code class="language-bash">helm upgrade --install ztd deployment/helm/ztd -n ztd-system --create-namespace \
-  -f deployment/helm/ztd/zones/&lt;zone&gt;.yaml --wait
+<p>Steps 2 to 4 are one command. The zone installer installs the zone from its zone file as seven Helm
+releases, in this order, each through the deployment lifecycle step (<code>scripts/lifecycle.sh</code>: a
+server-side dry run, then <code>helm upgrade --install --wait</code> with rollback on failure), each waiting on
+the previous, and stops at the first release that fails, naming it:</p>
+<table>
+<thead>
+<tr>
+<th>#</th>
+<th>Release</th>
+<th>Namespace</th>
+<th>Chart</th>
+<th>Step</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>1</td>
+<td><code>ztd</code></td>
+<td><code>ztd-system</code></td>
+<td><code>deployment/helm/ztd</code>, the umbrella</td>
+<td>2</td>
+</tr>
+<tr>
+<td>2</td>
+<td><code>spire-crds</code></td>
+<td><code>spire-system</code></td>
+<td><code>spire-crds</code> 0.6.1</td>
+<td>3</td>
+</tr>
+<tr>
+<td>3</td>
+<td><code>spire</code></td>
+<td><code>spire-system</code></td>
+<td><code>spire</code> 0.30.2 (SPIRE v1.15.3)</td>
+<td>3</td>
+</tr>
+<tr>
+<td>4</td>
+<td><code>istio-base</code></td>
+<td><code>istio-system</code></td>
+<td>Istio <code>base</code> 1.31.1</td>
+<td>4</td>
+</tr>
+<tr>
+<td>5</td>
+<td><code>istiod</code></td>
+<td><code>istio-system</code></td>
+<td>Istio <code>istiod</code> 1.31.1</td>
+<td>4</td>
+</tr>
+<tr>
+<td>6</td>
+<td><code>istio-cni</code></td>
+<td><code>istio-system</code></td>
+<td>Istio <code>cni</code> 1.31.1</td>
+<td>4</td>
+</tr>
+<tr>
+<td>7</td>
+<td><code>zone-policy</code></td>
+<td><code>istio-system</code></td>
+<td><code>deployment/helm/zone-policy</code></td>
+<td>3 and 4</td>
+</tr>
+</tbody>
+</table>
+<p>First fill the zone file, <code>deployment/helm/ztd/zones/&lt;zone&gt;.yaml</code>, from the cluster
+(<code>zones/zone-a.example.yaml</code> shows each fact with the command that reads it). Besides the cluster
+facts, a zone that runs the mesh states:</p>
+<ul>
+<li><code>zone.trustDomain</code>: the zone's SPIFFE trust domain, which is <strong>the DNS zone delegated to this
+  trust zone</strong>, confirmed by the Technical Design Authority. It is fixed at the first install
+  (<a href="../../workload-identity/#the-trust-domain">Workload identity</a>); without it nothing renders.</li>
+<li><code>networkPolicy.kubeApi</code>: enabled, with the API server's port as the endpoint slice of the
+  <code>kubernetes</code> Service shows it (<code>kubectl get endpointslices -n default -l
+  kubernetes.io/service-name=kubernetes</code>).</li>
+<li><code>zone.kubernetesVersion</code> 1.33 or later, <code>cni.cilium.enabled: true</code>, the control-plane namespaces
+  <code>spire-system</code> and <code>istio-system</code> in <code>planes.extra</code> with <code>mesh: false</code>, and the openings
+  <code>meshControlPlane</code>, <code>controlPlaneWebhooks</code> and <code>identityServer</code> enabled.</li>
+</ul>
+<p>Then plan, and install:</p>
+<pre><code class="language-bash">ZONE_VALUES=deployment/helm/ztd/zones/&lt;zone&gt;.yaml KUBE_CONTEXT=&lt;context&gt; \
+  scripts/install-zone/install.sh plan
+ZONE_VALUES=deployment/helm/ztd/zones/&lt;zone&gt;.yaml KUBE_CONTEXT=&lt;context&gt; \
+  scripts/install-zone/install.sh install
 </code></pre>
+<p>The installer exits 0 only when every release is deployed and every pod of the plane and
+control-plane namespaces is Ready; run again, it changes nothing. Its
+<a href="https://github.com/eclipse-xfsc/facis-zero-trust-demonstrator/tree/main/scripts/install-zone">README</a>
+lists the tools it needs.</p>
+<p>The first release, the umbrella, lays the zone down before any component is installed: the
+management and data-plane namespaces and the two control-plane namespaces, default-deny network
+policies in both directions, the declared openings, the allow-matrix lanes from the data plane
+into the management plane, and the hook-weight bands the jobs of the components plug into. It
+creates every namespace the later releases install into; they create none.</p>
 <p><strong>Verify:</strong> <code>ztd-mgmt</code> and <code>ztd-data</code> exist with their <code>ztd.facis.io/plane</code> label and the mesh
-label for the zone's mode, each holds a <code>default-deny</code> NetworkPolicy, and the release's
-post-install verification job completed; the release fails on its own if the layout is not what
-the chart declared. The design, the bands and the evidence script are in
-<a href="../../umbrella-chart/">Umbrella chart</a>.</p>
+label for the zone's mode, <code>spire-system</code> and <code>istio-system</code> with the plane label and without the
+mesh label, each holds a <code>default-deny</code> NetworkPolicy, and the release's post-install verification
+job completed; the release fails on its own if the layout is not what the chart declared. The
+design, the bands and the evidence script are in <a href="../../umbrella-chart/">Umbrella chart</a>.</p>
 <h2 id="3-workload-identity">3. Workload identity<a class="headerlink" href="#3-workload-identity" title="Permanent link">&para;</a></h2>
-<p>SPIRE is installed into the management plane laid down in step 2, with its controller-manager and
-the SPIFFE CSI driver, so that SVIDs reach workloads through a mounted volume rather than through a
-secret. Registrations are regular resources that the controller-manager reconciles into entries,
-never hook jobs; the jobs that check the server, the trust bundle and the entries sit in the
-<code>identity</code> band of the hook-weight scheme.</p>
-<p><strong>Verify:</strong> the SPIRE server has an entry for each registered workload selector, and a test pod
-receives an SVID whose SPIFFE ID matches its service account.</p>
+<p>Releases 2 and 3 install SPIRE into <code>spire-system</code>, in this order: <code>spire-crds</code> (its CRDs), then
+<code>spire</code> (the server, the agents on every node, the SPIFFE CSI driver and the controller-manager), so
+that SVIDs reach workloads through a mounted volume rather than through a secret. Release 7,
+<code>zone-policy</code>, registers the workloads by
+selector: every pod with <code>spiffe.io/spire-managed-identity: "true"</code> in a plane namespace gets
+<code>spiffe://&lt;trust domain&gt;/ns/&lt;namespace&gt;/sa/&lt;service account&gt;</code>. The registration is a regular
+resource that the controller-manager reconciles into entries, never a hook job; the jobs that check
+the server, the trust bundle and the entries sit in the <code>identity</code> band of the hook-weight scheme
+and fail the release when identity is not there. Details: <a href="../../workload-identity/">Workload identity</a>.</p>
+<p>The zone facts this step needs, in the zone file <code>deployment/helm/ztd/zones/&lt;zone&gt;.yaml</code>:</p>
+<ul>
+<li><code>zone.trustDomain</code>: the zone's SPIFFE trust domain, the DNS zone delegated to this trust zone,
+  confirmed by the Technical Design Authority and fixed at the first install;</li>
+<li><code>spire-system</code> in <code>planes.extra</code> with <code>mesh: false</code>, and the openings <code>identityServer</code> and
+  <code>controlPlaneWebhooks</code> enabled;</li>
+<li><code>networkPolicy.kubeApi</code> enabled with the API server's port, which the agents and the
+  controller-manager need.</li>
+</ul>
+<p>The same installer command as step 2 installs these releases, after <code>ztd</code>:</p>
+<pre><code class="language-bash">ZONE_VALUES=deployment/helm/ztd/zones/&lt;zone&gt;.yaml KUBE_CONTEXT=&lt;context&gt; \
+  scripts/install-zone/install.sh install
+</code></pre>
+<p><strong>Verify:</strong> the installer reports <code>spire-crds</code>, <code>spire</code> and <code>zone-policy</code> deployed (the identity checks passed);
+<code>kubectl -n spire-system exec spire-server-0 -c spire-server -- /opt/spire/bin/spire-server agent
+list</code> shows one attested agent per node that runs workloads; a labelled test pod receives, over the
+mounted socket, an SVID whose SPIFFE ID matches its service account
+(<a href="../../workload-identity/#checking-an-identity">Checking an identity</a>).</p>
 <h2 id="4-mesh">4. Mesh<a class="headerlink" href="#4-mesh" title="Permanent link">&para;</a></h2>
-<p>Istio is installed in the mode the zone's values file names (<code>mesh.mode</code>: ambient under
-ADR-0001, sidecar if a superseding decision flips it); the plane namespaces already carry the matching
-label. Exactly one component enforces L7 policy on any given traffic path — where a waypoint proxy
-does it, Cilium is held to L3/L4 for that path, and the assignment is recorded in the mesh
-configuration.</p>
-<p><strong>Verify:</strong> the ztunnel daemonset is ready on every node, and a request between two meshed workloads
-carries an identity the waypoint can name.</p>
+<p>Releases 4 to 6 install Istio in sidecar mode, with the default, unrevisioned istiod (sidecar under
+<a href="../../adr/0009-service-mesh-mode-istio-sidecar-with-cilium/">ADR-0009</a>, which superseded the ambient
+baseline of ADR-0001; ambient is the parked alternative) into <code>istio-system</code>: its CRDs, istiod, and
+the Istio CNI plugin chained behind Cilium. Sidecar mode is the only mode the installer installs:
+it refuses, before it renders or installs anything, a zone file whose <code>mesh.mode</code> is not <code>sidecar</code>
+(absent counts as sidecar) or whose <code>mesh.revision</code> is set, and names the setting. The plane namespaces already carry the matching label,
+<code>istio-injection=enabled</code>. Sidecars are injected as native sidecar containers, which is why the
+cluster's Kubernetes version is recorded in the zone file against that requirement. The sidecar
+takes its certificate and its trust bundle from the SPIRE agent over SDS, never from istiod, and
+release 7 makes mutual TLS <code>STRICT</code> mesh-wide, so a workload without a SPIRE entry has no mesh
+identity and no mesh connection. Exactly one component enforces L7 policy on any given traffic
+path — where the sidecar does it, Cilium is held to L3/L4 for that path, and the assignment is
+recorded in the mesh configuration.</p>
+<p><strong>Verify:</strong> every pod in a plane namespace carries the injected proxy as a native sidecar
+(<code>istio-proxy</code> among its init containers with <code>restartPolicy: Always</code>); <code>istioctl proxy-config
+secret &lt;pod&gt;</code> shows <code>default</code> and <code>ROOTCA</code> issued by the SPIRE CA; a request between two meshed
+workloads carries a SPIRE-issued identity. The executed proof of all of it on kind is
+<a href="../../evidences/mesh-identity/">the mesh identity evidence</a>.</p>
 <h2 id="5-admission-control">5. Admission control<a class="headerlink" href="#5-admission-control" title="Permanent link">&para;</a></h2>
 <p>OPA Gatekeeper is installed together with the signature-verification external-data provider. From
 this point an image whose Cosign signature does not verify against the client key material cannot
@@ -320,8 +455,16 @@ the software they are running, and that evidence is bound to the TLS connection 
 <p><strong>Verify:</strong> run the successful journey end to end from zone A, then the tampered-measurement
 journey, and confirm the second one aborts the handshake before any application traffic flows.</p>
 <h2 id="teardown">Teardown<a class="headerlink" href="#teardown" title="Permanent link">&para;</a></h2>
-<p>Components uninstall in the reverse order of their installation; the layout goes last:</p>
-<pre><code class="language-bash">helm uninstall ztd -n ztd-system
+<p>Components uninstall in the reverse order of their installation; the layout goes last. The
+installer does it for the seven releases of steps 2 to 4. Helm removes the SPIRE CRDs with
+<code>spire-crds</code>; Istio's <code>base</code> chart marks its CRDs to be kept by Helm, so the installer deletes the
+CRDs that release owned:</p>
+<pre><code class="language-bash">ZONE_VALUES=deployment/helm/ztd/zones/&lt;zone&gt;.yaml KUBE_CONTEXT=&lt;context&gt; \
+  scripts/install-zone/install.sh uninstall
+</code></pre>
+<p>The umbrella's release namespace <code>ztd-system</code> remains: the installer creates it before the first
+release and no release owns it. It holds nothing once the umbrella is uninstalled; delete it last:</p>
+<pre><code class="language-bash">kubectl --context &lt;context&gt; delete namespace ztd-system
 </code></pre>
 <p><strong>Verify:</strong> no namespace, CRD or secret belonging to the demonstrator survives. This is asserted by
 an acceptance scenario, not by eye.</p>

@@ -1,0 +1,358 @@
+<!DOCTYPE html>
+<html class="writer-html5" lang="en" >
+<head>
+    <meta charset="utf-8" />
+    <meta http-equiv="X-UA-Compatible" content="IE=edge" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+      <link rel="shortcut icon" href="../../../img/favicon.ico" />
+    <title>Mesh mode, upstream state: record - FACIS Zero Trust Demonstrator</title>
+    <link rel="stylesheet" href="../../../css/theme.css" />
+    <link rel="stylesheet" href="../../../css/theme_extra.css" />
+        <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.8.0/styles/github.min.css" />
+    
+      <script>
+        // Current page data
+        var mkdocs_page_name = "Mesh mode, upstream state: record";
+        var mkdocs_page_input_path = "evidences/mesh-mode-upstream-state/upstream-state.md";
+        var mkdocs_page_url = null;
+      </script>
+    
+    <!--[if lt IE 9]>
+      <script src="../../../js/html5shiv.min.js"></script>
+    <![endif]-->
+      <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.8.0/highlight.min.js"></script>
+      <script>hljs.highlightAll();</script> 
+</head>
+
+<body class="wy-body-for-nav" role="document">
+
+  <div class="wy-grid-for-nav">
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side stickynav">
+    <div class="wy-side-scroll">
+      <div class="wy-side-nav-search">
+          <a href="../../.." class="icon icon-home"> FACIS Zero Trust Demonstrator
+        </a><div role="search">
+  <form id ="rtd-search-form" class="wy-form" action="../../../search.html" method="get">
+      <input type="text" name="q" placeholder="Search docs" aria-label="Search docs" title="Type search term here" />
+  </form>
+</div>
+      </div>
+
+      <div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../../..">Home</a>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../../../features/">Features and journeys</a>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../../../architecture/">Architecture</a>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../../../usage/">Using the demonstrator</a>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../../../deployment/">Deployment</a>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../../../umbrella-chart/">Umbrella chart</a>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../../../workload-identity/">Workload identity</a>
+                </li>
+              </ul>
+              <p class="caption"><span class="caption-text">Environments</span></p>
+              <ul>
+                  <li class="toctree-l1"><a class="reference internal" href="../../../environments/">Overview</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../../environments/osc/">T-Systems OSC</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../../environments/ionos/">IONOS Cloud</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../../environments/application-workloads/">Application workloads</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../../environments/capabilities/">Capability sheets</a>
+                  </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../../../packaging/">Packaging and containers</a>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../../../application-services/">Application services</a>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../../../application-services-verification/">Application service verification</a>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../../../flows/">Orchestrated flows</a>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../../../scenarios/">Scenario decisions</a>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../../../keycloak/">Keycloak integration</a>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../../../demonstrator-handoff/">Demonstrator UI and identity</a>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../../../identity-model/">Identity model</a>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../../../oauth2-provider/">Connector OAuth2 provider</a>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../../../policy-hook/">Guard policy hook</a>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../../../api-docs/">API documentation</a>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../../../contracts/">Interface contracts</a>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../../../tspa-publish-api/">TRAIN trust-list publishing</a>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../../../train-dns/">TRAIN DNS zone</a>
+                </li>
+              </ul>
+              <p class="caption"><span class="caption-text">BDD acceptance</span></p>
+              <ul>
+                  <li class="toctree-l1"><a class="reference internal" href="../../../bdd/">Harness and pack</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../../bdd-catalogue/">Catalogue</a>
+                  </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../../../ci-cd/">CI/CD</a>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../../../secrets/">Secrets</a>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../../../troubleshooting/">Troubleshooting</a>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../../../dependencies/">OSS dependencies</a>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../../../licenses/">Licenses</a>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../../../specifications/">Specification changes</a>
+                </li>
+              </ul>
+              <p class="caption"><span class="caption-text">Evidence</span></p>
+              <ul class="current">
+                  <li class="toctree-l1"><a class="reference internal" href="../">Mesh mode, upstream state: about</a>
+                  </li>
+                  <li class="toctree-l1 current"><a class="reference internal current" href="#">Mesh mode, upstream state: record</a>
+    <ul class="current">
+    <li class="toctree-l2"><a class="reference internal" href="#verdict">Verdict</a>
+    </li>
+    <li class="toctree-l2"><a class="reference internal" href="#condition-1-a-community-istio-release-whose-ztunnel-takes-workload-certificates-from-the-spire-agent-documented-as-supported-in-ambient-mode">Condition 1: a community Istio release whose ztunnel takes workload certificates from the SPIRE agent, documented as supported in ambient mode</a>
+    </li>
+    <li class="toctree-l2"><a class="reference internal" href="#condition-2-a-spire-release-in-which-the-broker-api-is-a-stable-agent-feature-outside-the-experimental-block">Condition 2: a SPIRE release in which the Broker API is a stable agent feature, outside the experimental block</a>
+    </li>
+    <li class="toctree-l2"><a class="reference internal" href="#how-it-was-fetched">How it was fetched</a>
+    </li>
+    </ul>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../mesh-identity/">Mesh identity: about</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../mesh-identity/evidence/">Mesh identity: record</a>
+                  </li>
+              </ul>
+              <p class="caption"><span class="caption-text">Architecture decisions</span></p>
+              <ul>
+                  <li class="toctree-l1"><a class="reference internal" href="../../../adr/">Overview</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../../adr/decision-ledger/">Decision ledger</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../../adr/tdr-decisions/">TDR decisions ADR 001–006</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../../adr/0001-service-mesh-mode-istio-ambient-with-cilium/">0001 Service mesh mode (superseded by 0009)</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../../adr/0002-gatekeeper-external-data-provider-for-cosign-verification/">0002 Gatekeeper external data provider</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../../adr/0003-oauth2-authorisation-surface-in-the-go-connector/">0003 OAuth2 surface in the Go connector</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../../adr/0004-openbao-as-x509-key-value-store/">0004 OpenBao as X.509 key-value store</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../../adr/0005-three-cluster-reading-of-the-target-environment/">0005 Three-cluster target environment</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../../adr/0009-service-mesh-mode-istio-sidecar-with-cilium/">0009 Service mesh mode (sidecar, supersedes 0001)</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../../adr/0008-envoy-ext-authz-as-the-guard-policy-hook/">0008 Guard policy hook</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../../adr/0011-mock-tee-evidence-format-and-provisioning/">0011 Mock TEE evidence</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../../adr/0016-oauth2-library-behind-the-connector-provider-contract/">0016 OAuth2 library</a>
+                  </li>
+              </ul>
+      </div>
+    </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap">
+      <nav class="wy-nav-top" role="navigation" aria-label="Mobile navigation menu">
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="../../..">FACIS Zero Trust Demonstrator</a>
+        
+      </nav>
+      <div class="wy-nav-content">
+        <div class="rst-content"><div role="navigation" aria-label="breadcrumbs navigation">
+  <ul class="wy-breadcrumbs">
+    <li><a href="../../.." class="icon icon-home" aria-label="Docs"></a></li>
+          <li class="breadcrumb-item">Evidence</li>
+      <li class="breadcrumb-item active">Mesh mode, upstream state: record</li>
+    <li class="wy-breadcrumbs-aside">
+          <a href="https://github.com/eclipse-xfsc/facis-zero-trust-demonstrator/edit/main/docs/evidences/mesh-mode-upstream-state/upstream-state.md" class="icon icon-github"> Edit on GitHub</a>
+    </li>
+  </ul>
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+            <div class="section" itemprop="articleBody">
+              
+                <h1 id="mesh-mode-upstream-state-2026-10-21t100803z">Mesh mode: upstream state (2026-10-21T10:08:03Z)<a class="headerlink" href="#mesh-mode-upstream-state-2026-10-21t100803z" title="Permanent link">&para;</a></h1>
+<p>Generated by <code>scripts/mesh-mode/check-upstream-state.sh</code> on commit <code>ea5bac7cdf12</code>. Never edited by hand.
+This is the documentary evidence behind <a href="../../../adr/0009-service-mesh-mode-istio-sidecar-with-cilium/">ADR-0009</a> and the check of its reopen trigger: both conditions below must be met, in released versions, for the decision to be reopened.</p>
+<h2 id="verdict">Verdict<a class="headerlink" href="#verdict" title="Permanent link">&para;</a></h2>
+<p>The premises of ADR-0009 hold: SPIRE as the certificate provider is still documented as unsupported in ambient mode, no ztunnel client for the SPIRE agent has merged, and the SPIRE Broker API is still experimental. The decision stays closed.</p>
+<h2 id="condition-1-a-community-istio-release-whose-ztunnel-takes-workload-certificates-from-the-spire-agent-documented-as-supported-in-ambient-mode">Condition 1: a community Istio release whose ztunnel takes workload certificates from the SPIRE agent, documented as supported in ambient mode<a class="headerlink" href="#condition-1-a-community-istio-release-whose-ztunnel-takes-workload-certificates-from-the-spire-agent-documented-as-supported-in-ambient-mode" title="Permanent link">&para;</a></h2>
+<ul>
+<li>Latest Istio release: 1.31.2 (2026-10-16T00:13:18Z)</li>
+<li>Migration guide: <a href="https://istio.io/latest/docs/ambient/migrate/">https://istio.io/latest/docs/ambient/migrate/</a> (page version Istio 1.31.2)</li>
+<li>Entry "SPIRE as the certificate provider" under <em>What is not supported</em>: <strong>present</strong></li>
+</ul>
+<blockquote>
+<p>…release notes for updates specific to your Istio version. The following are hard blockers, migration is not possible until these are resolved: VM workloads in the mesh. VM-based workloads cannot join the ambient mesh. SPIRE as the certificate provider. Ambient mode does not support SPIRE integration. PeerAuthentication with mode: DISABLE . Ambient always enforces mTLS…
+- Tracking issue istio/istio#42339 "SPIRE integration with Ambient": open (reopened), last updated 2026-09-18T14:25:35Z</p>
+</blockquote>
+<table>
+<thead>
+<tr>
+<th>ztunnel pull request</th>
+<th>Role</th>
+<th>State</th>
+<th>Merged</th>
+<th>Labels</th>
+<th>Last updated</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><a href="https://github.com/istio/ztunnel/pull/1676">#1676</a> "Provide Spire Workload Attestation Support to ztunnel"</td>
+<td>Delegated Identity API client (ztunnel as a SPIRE delegate)</td>
+<td>open</td>
+<td>no</td>
+<td>size/XXL, needs-ok-to-test, needs-rebase</td>
+<td>2026-07-05T21:41:11Z</td>
+</tr>
+<tr>
+<td><a href="https://github.com/istio/ztunnel/pull/1936">#1936</a> "[DONOTMERGE] WIP for SPIFFE Broker API"</td>
+<td>SPIFFE Broker API client</td>
+<td>open (draft)</td>
+<td>no</td>
+<td>size/XXL, needs-ok-to-test, needs-rebase, do-not-merge/work-in-progress</td>
+<td>2026-08-24T23:33:10Z</td>
+</tr>
+<tr>
+<td><a href="https://github.com/istio/ztunnel/pull/2067">#2067</a> "identity: support per-workload keys in the certificate cache"</td>
+<td>per-workload keys in the certificate cache (groundwork only)</td>
+<td>closed</td>
+<td>2026-09-22T20:00:43Z</td>
+<td>ok-to-test, size/XL</td>
+<td>2026-09-22T20:16:32Z</td>
+</tr>
+</tbody>
+</table>
+<p>The premise moves when the entry disappears from the guide or when #1676 or #1936 merges; #2067 is groundwork and is recorded for context.</p>
+<h2 id="condition-2-a-spire-release-in-which-the-broker-api-is-a-stable-agent-feature-outside-the-experimental-block">Condition 2: a SPIRE release in which the Broker API is a stable agent feature, outside the <code>experimental</code> block<a class="headerlink" href="#condition-2-a-spire-release-in-which-the-broker-api-is-a-stable-agent-feature-outside-the-experimental-block" title="Permanent link">&para;</a></h2>
+<ul>
+<li>Latest SPIRE release: v1.15.5 (2026-10-20T18:35:18Z)</li>
+<li>Agent documentation read: <a href="https://raw.githubusercontent.com/spiffe/spire/v1.15.5/doc/spire_agent.md">https://raw.githubusercontent.com/spiffe/spire/v1.15.5/doc/spire_agent.md</a></li>
+<li>Broker API in <code>doc/spire_agent.md</code> at v1.15.5: documented, <strong>under the <code>experimental</code> block</strong> ("<strong>Status:</strong> experimental. The Broker API is being stabilized as the upstream SPIFFE specification matures; breaking changes may land before this configuration moves out of <code>experimental</code>.")</li>
+</ul>
+<p>The premise moves when the <code>broker</code> key leaves the <code>experimental</code> table of the agent configuration at the latest release.</p>
+<h2 id="how-it-was-fetched">How it was fetched<a class="headerlink" href="#how-it-was-fetched" title="Permanent link">&para;</a></h2>
+<p>GitHub API through <code>gh</code>; the migration guide and the SPIRE document through <code>curl</code>. Host, tool versions and commit are in <code>environment.json</code> next to this file.</p>
+              
+            </div>
+          </div><footer>
+    <div class="rst-footer-buttons" role="navigation" aria-label="Footer Navigation">
+        <a href="../" class="btn btn-neutral float-left" title="Mesh mode, upstream state: about"><span class="icon icon-circle-arrow-left"></span> Previous</a>
+        <a href="../../mesh-identity/" class="btn btn-neutral float-right" title="Mesh identity: about">Next <span class="icon icon-circle-arrow-right"></span></a>
+    </div>
+
+  <hr/>
+
+  <div role="contentinfo">
+    <!-- Copyright etc -->
+      <p>Apache-2.0</p>
+  </div>
+
+  Built with <a href="https://www.mkdocs.org/">MkDocs</a> using a <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a> provided by <a href="https://readthedocs.org">Read the Docs</a>.
+</footer>
+          
+        </div>
+      </div>
+
+    </section>
+
+  </div>
+
+  <div class="rst-versions" role="note" aria-label="Versions">
+  <span class="rst-current-version" data-toggle="rst-current-version">
+    
+        <span>
+          <a href="https://github.com/eclipse-xfsc/facis-zero-trust-demonstrator" class="fa fa-github" style="color: #fcfcfc"> GitHub</a>
+        </span>
+    
+    
+      <span><a href="../" style="color: #fcfcfc">&laquo; Previous</a></span>
+    
+    
+      <span><a href="../../mesh-identity/" style="color: #fcfcfc">Next &raquo;</a></span>
+    
+  </span>
+</div>
+    <script src="../../../js/jquery-3.6.0.min.js"></script>
+    <script>var base_url = "../../..";</script>
+    <script src="../../../js/theme_extra.js"></script>
+    <script src="../../../js/theme.js"></script>
+      <script src="../../../search/main.js"></script>
+    <script>
+        jQuery(function () {
+            SphinxRtdTheme.Navigation.enable(true);
+        });
+    </script>
+
+</body>
+</html>

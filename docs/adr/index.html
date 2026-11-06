@@ -63,6 +63,10 @@
                 <li class="toctree-l1"><a class="reference internal" href="../umbrella-chart/">Umbrella chart</a>
                 </li>
               </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../workload-identity/">Workload identity</a>
+                </li>
+              </ul>
               <p class="caption"><span class="caption-text">Environments</span></p>
               <ul>
                   <li class="toctree-l1"><a class="reference internal" href="../environments/">Overview</a>
@@ -163,6 +167,17 @@
                 <li class="toctree-l1"><a class="reference internal" href="../specifications/">Specification changes</a>
                 </li>
               </ul>
+              <p class="caption"><span class="caption-text">Evidence</span></p>
+              <ul>
+                  <li class="toctree-l1"><a class="reference internal" href="../evidences/mesh-mode-upstream-state/">Mesh mode, upstream state: about</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../evidences/mesh-mode-upstream-state/upstream-state/">Mesh mode, upstream state: record</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../evidences/mesh-identity/">Mesh identity: about</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../evidences/mesh-identity/evidence/">Mesh identity: record</a>
+                  </li>
+              </ul>
               <p class="caption"><span class="caption-text">Architecture decisions</span></p>
               <ul class="current">
                   <li class="toctree-l1 current"><a class="reference internal current" href="#">Overview</a>
@@ -181,7 +196,7 @@
                   </li>
                   <li class="toctree-l1"><a class="reference internal" href="tdr-decisions/">TDR decisions ADR 001–006</a>
                   </li>
-                  <li class="toctree-l1"><a class="reference internal" href="0001-service-mesh-mode-istio-ambient-with-cilium/">0001 Service mesh mode</a>
+                  <li class="toctree-l1"><a class="reference internal" href="0001-service-mesh-mode-istio-ambient-with-cilium/">0001 Service mesh mode (superseded by 0009)</a>
                   </li>
                   <li class="toctree-l1"><a class="reference internal" href="0002-gatekeeper-external-data-provider-for-cosign-verification/">0002 Gatekeeper external data provider</a>
                   </li>
@@ -190,6 +205,8 @@
                   <li class="toctree-l1"><a class="reference internal" href="0004-openbao-as-x509-key-value-store/">0004 OpenBao as X.509 key-value store</a>
                   </li>
                   <li class="toctree-l1"><a class="reference internal" href="0005-three-cluster-reading-of-the-target-environment/">0005 Three-cluster target environment</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="0009-service-mesh-mode-istio-sidecar-with-cilium/">0009 Service mesh mode (sidecar, supersedes 0001)</a>
                   </li>
                   <li class="toctree-l1"><a class="reference internal" href="0008-envoy-ext-authz-as-the-guard-policy-hook/">0008 Guard policy hook</a>
                   </li>
@@ -230,35 +247,50 @@ is a change with a named cost, not a discussion.</p>
 <p>Every decision, its record, status and evidence — including those still in open pull requests and
 numbers allocated but not yet written — is listed in the <a href="decision-ledger/">Decision ledger</a>.</p>
 <h2 id="governing-decisions">Governing decisions<a class="headerlink" href="#governing-decisions" title="Permanent link">&para;</a></h2>
-<p>These five were taken by the project's Technical Design Authority and Project Leader on
-2026-09-08 and govern everything built afterwards.</p>
+<p>The first five were taken by the project's Technical Design Authority and Project Leader on
+2026-09-08 and govern everything built afterwards. 0009 is the superseding record that the
+first one's fallback clause foresaw, under the number planning allocated to it: it was proposed by
+the delivery team on 2026-10-03 for the same deciders, who accepted it on 2026-10-23, and it replaces 0001 as the governing
+mesh-mode decision. A superseded record keeps
+its text and is read through the record that supersedes it.</p>
 <table>
 <thead>
 <tr>
 <th>ADR</th>
 <th>Decision</th>
+<th>Status</th>
 </tr>
 </thead>
 <tbody>
 <tr>
 <td><a href="0001-service-mesh-mode-istio-ambient-with-cilium/">0001</a></td>
 <td>Service mesh mode — Istio Ambient with Cilium</td>
+<td>Superseded by 0009</td>
 </tr>
 <tr>
 <td><a href="0002-gatekeeper-external-data-provider-for-cosign-verification/">0002</a></td>
 <td>Gatekeeper external data provider for cosign verification</td>
+<td>Accepted</td>
 </tr>
 <tr>
 <td><a href="0003-oauth2-authorisation-surface-in-the-go-connector/">0003</a></td>
 <td>OAuth2 authorisation surface in the Go connector</td>
+<td>Accepted</td>
 </tr>
 <tr>
 <td><a href="0004-openbao-as-x509-key-value-store/">0004</a></td>
 <td>OpenBao as X.509 key-value store</td>
+<td>Accepted</td>
 </tr>
 <tr>
 <td><a href="0005-three-cluster-reading-of-the-target-environment/">0005</a></td>
 <td>Three-cluster reading of the target environment</td>
+<td>Accepted</td>
+</tr>
+<tr>
+<td><a href="0009-service-mesh-mode-istio-sidecar-with-cilium/">0009</a></td>
+<td>Service mesh mode — Istio sidecar with Cilium (supersedes 0001)</td>
+<td>Accepted</td>
 </tr>
 </tbody>
 </table>
@@ -306,7 +338,7 @@ decision itself, and the consequences — including the trigger that would flip 
             </div>
           </div><footer>
     <div class="rst-footer-buttons" role="navigation" aria-label="Footer Navigation">
-        <a href="../specifications/" class="btn btn-neutral float-left" title="Specification changes"><span class="icon icon-circle-arrow-left"></span> Previous</a>
+        <a href="../evidences/mesh-identity/evidence/" class="btn btn-neutral float-left" title="Mesh identity: record"><span class="icon icon-circle-arrow-left"></span> Previous</a>
         <a href="decision-ledger/" class="btn btn-neutral float-right" title="Decision ledger">Next <span class="icon icon-circle-arrow-right"></span></a>
     </div>
 
@@ -335,7 +367,7 @@ decision itself, and the consequences — including the trigger that would flip 
         </span>
     
     
-      <span><a href="../specifications/" style="color: #fcfcfc">&laquo; Previous</a></span>
+      <span><a href="../evidences/mesh-identity/evidence/" style="color: #fcfcfc">&laquo; Previous</a></span>
     
     
       <span><a href="decision-ledger/" style="color: #fcfcfc">Next &raquo;</a></span>
