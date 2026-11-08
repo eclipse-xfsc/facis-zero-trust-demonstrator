@@ -4,10 +4,10 @@
 # node affinity, that asks the node's SPIRE agent for its SVID over the mounted csi.spiffe.io socket.
 # It carries the identity label and no proxy: the SPIRE namespace is a plane namespace without the
 # injection label on every cluster the proof accepts, so the pod needs no opt-out, and the fetch is a
-# node-local read over a Unix socket that needs no lane. The placement is not the pin of a
-# participant cluster: these pods spread the proof over every node on purpose and are never passed
-# to the pin. Nothing here is part of a zone; the proof removes the pods and the ServiceAccount with
-# the other stand-ins in every case.
+# read over a Unix socket to the agent of the pod's own node that needs no lane. The placement
+# spreads the proof over every node on purpose, like the meshed stand-ins of mesh-on-node.yaml; it
+# holds no pod to istiod's node. Nothing here is part of a zone; the proof removes the pods and the
+# ServiceAccount with the other stand-ins in every case.
 apiVersion: v1
 kind: ServiceAccount
 metadata: { name: stand-in, namespace: spire-system }
