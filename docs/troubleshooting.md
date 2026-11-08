@@ -30,7 +30,11 @@ whether the reason is the one you expected.
 | A pod in a plane namespace is refused with `ValidatingAdmissionPolicy 'proxy-takes-spire-socket' … denied request: capture rule` | The pod's capture annotations differ from the injector's defaults, or it carries an outbound or interface exclusion, `status.sidecar.istio.io/port`, `proxy.istio.io/config`, a proxy image, bootstrap or volume annotation, `proxy.istio.io/overrides` (its own `istio-proxy` container), or, in a namespace with the injection label, the injection opt-out `sidecar.istio.io/inject` (annotation or label); any of these would let traffic reach or leave the application outside its proxy, or replace the proxy | First, if every injected pod is refused, the two status ports differ: `zone-policy` `proxySocketPolicy.statusPort` must equal `istiod` `global.proxy.statusPort` (both `15020` by default). Otherwise remove the capture and proxy annotations and the opt-out from the pod template; an exception is declared mesh-wide in the charts, never per pod ([the capture rule](workload-identity.md#the-capture-rule)) |
 | A pod in a plane namespace is refused with `ValidatingAdmissionPolicy 'proxy-takes-spire-socket' … denied request: proxy rule` | A mesh proxy of the pod is not the injector's `istio-proxy`: a second proxy under another name, a proxy in a namespace without the injection label, another image, a command, arguments other than the injector's, `envFrom`, an environment variable the injector does not write (such as `ISTIO_BOOTSTRAP_OVERRIDE`) or one at another value (`PROXY_CONFIG` other than `{}`), a volume mount the injector does not write, or a lifecycle hook, probe or `securityContext` other than the injector's (including `sidecar.istio.io/capNetBindService: "true"`, which runs the proxy as root) | First, if every injected pod is refused, the two proxy images differ: `zone-policy` `proxySocketPolicy.proxyImage` must equal `istiod` `global.proxy.image` (`scripts/install-zone/install.sh` refuses such a zone before it installs). Otherwise remove the pod's own proxy container, `proxyv2` or `pilot-agent` container, or a pre-set `sidecar.istio.io/status` annotation ([the capture rule](workload-identity.md#the-capture-rule)) |
 | `install-zone: the zone file sets mesh.revision "<revision>"` (or `mesh.mode "<mode>"`), `but this installer installs the default, unrevisioned istiod in sidecar mode only`, and nothing is rendered or installed | The zone file asks for a revisioned mesh or for a mode other than sidecar (ambient, or `none`), which `scripts/install-zone/install.sh` does not install; the umbrella would otherwise label the plane namespaces for an injector that never comes | Set `mesh.mode: sidecar` and remove `mesh.revision` from the zone file; a zone without a mesh (`none`, such as the IONOS zone) installs the umbrella alone through `scripts/lifecycle.sh`, not through the installer ([install-zone](https://github.com/eclipse-xfsc/facis-zero-trust-demonstrator/tree/main/scripts/install-zone)) |
+| An entry nothing holds, a certificate without an entry, or a certificate that could not be read | Section 14 (`registration-inventory`) of the proof's record names it: an entry whose pod is gone and that the controller-manager has not yet removed (recorded, not failed), a certificate whose SPIFFE ID no entry of its pod lists, issued outside the registration rule (failed, with its issuer), or a proxy or Workload API client whose read errored or timed out (failed, with the error) | For an entry without a pod, wait one reconcile of the controller-manager and read `spire-server entry show` again. For a certificate without an entry, find the issuer the record prints and the pod that holds it. Never create entries by hand: a hand-made entry is reported as not created by the registration rule; a missing one is a missing label. For a certificate that could not be read, fix the reader (RBAC on `pods/exec` or `pods/portforward`, a hung proxy admin port) and run again: a failed read is never taken for a pod without a certificate ([declared workloads](workload-identity.md#declared-workloads-and-the-registration-inventory)) |
 | The `zone-policy` release fails at an identity check | The check's job names what is missing: the server or an agent not Ready, no bundle, a trust domain that differs from the zone file, or a labelled pod without an entry | `kubectl -n istio-system logs job/zone-policy-<check>`; the failed job is kept for an hour |
+| `ztd-openbao-0` is Running but not Ready after a restart the installer did not cause (eviction, node reboot, out-of-memory kill), and `ztd-verify-openbao` fails with `not initialised and unsealed` | OpenBao seals itself on every restart; the bootstrap Job unseals it on install and on an upgrade that changes a value, not after a restart outside the lifecycle ([Secrets](secrets.md#after-a-restart-manual-unseal)) | `kubectl -n ztd-mgmt exec ztd-openbao-0 -c openbao -- bao status` exits 2 when sealed; run `scripts/secrets/unseal.sh` against the zone's cluster, then upgrade or rerun the installer to rerun the verification |
+| An upgrade of `ztd-openbao` times out and its bootstrap Job `ztd-openbao-bootstrap-<hash>` ends with `pod ztd-openbao-0 does not run revision …` | The server pod restarted outside the lifecycle before the upgrade and is sealed, so it is not ready, and the StatefulSet replaces only a ready pod. The Job unseals such a pod itself with the stored key; it cannot when the pod is not initialised, does not answer, or the Secret `ztd-openbao-bootstrap` is missing ([Secrets](secrets.md#bootstrap)) | `kubectl -n ztd-mgmt logs job/ztd-openbao-bootstrap-<hash>` names what it found; `kubectl -n ztd-mgmt get statefulset ztd-openbao -o jsonpath='{.status.updateRevision}'` against the pod's `controller-revision-hash` label. Unseal by hand (`scripts/secrets/unseal.sh`), then rerun the upgrade |
+| On zone A or zone B a pod of `ztd-openbao` (the server, `ztd-openbao-bootstrap-<hash>` or `ztd-verify-openbao`) stays `Init:1/2` or `Pending`, and the release times out | The release is pinned to istiod's node ([the node pin of OpenBao](environments/osc.md#the-node-pin-of-openbao)): a pod on another node never passes its proxy's readiness on the provider's masqueraded pod network, and `istiod-node-not-found` in its node affinity means istiod had no node when the installer read it. If istiod moved since the first install, the server is pinned to the new node while its volume (`csi.onmetal.de`, bound at the first install) stays on the old one | `kubectl -n ztd-mgmt get pods -o wide` and `kubectl -n istio-system get pod -l app=istiod -o wide`: every pod of the release must be on istiod's node. A volume left on another node: uninstall the zone (`scripts/install-zone/install.sh uninstall`) and install it again, a destructive reset of the store |
 
 ## Admission control rejections
 
@@ -94,6 +98,60 @@ Met while building and running the lifecycle pack (TDR-BDD-01..06) on kind and I
 ## Logs
 
 Records sent through the ORCE logging API are one JSON object per line
-([ORCE logging](flows.md#orce-logging)); output outside that API is not. The Go services'
-logging convention is set with the observability stack (ZT-27). Correlate by the request identifier
-carried across hops rather than by timestamp.
+([ORCE logging](flows.md#orce-logging)); output outside that API is not. The node collectors read every
+pod's log lines; a line that is an IF-01 event keeps `correlation_id`, `run_id` and `seq` as fields,
+and any other line is kept as it is ([ADR-0017](adr/0017-central-observability-backends.md)).
+Correlate by the request identifier carried across hops rather than by timestamp. The records are
+exported to files on the demonstrator cluster: one file per zone, `/var/lib/ztd-logs/<zone>.jsonl`
+on the receiving collector's volume `otel-entry-logs`, one OTLP JSON object per line, with rotated
+backups next to it. No log query service is installed; read the files from a pod that mounts the
+volume read-only, as the proof's `log-export-reader` fixture does, and search them for the
+`correlation_id`. A zone whose file stops growing is a silent zone, or a zone whose node collectors
+stopped.
+
+## Observability and alerts
+
+The alerts are Prometheus's alerting rules on the demonstrator cluster: an alert is emitted when its
+rule reaches the `firing` state. Read them from
+Prometheus (`kubectl -n ztd-observability port-forward svc/prometheus-server 9090:80`, then
+`/api/v1/alerts`, where `state` is `pending` or `firing`, or the query
+`ALERTS{alertstate="firing",ztd_source="collector"}`); Jaeger (`svc/jaeger`, port 16686) is reached the same way, with
+cluster access only. The proof records each firing alert, with its detection time, as evidence.
+
+**Detection budget.** Every alert fires within 30 seconds of the failure, by construction. The firing
+state is the alert, so no routing delay is added:
+
+| Alert | Built from | Worst case |
+|---|---|---|
+| `SpireServerDown`, `SpireControllerManagerDown`, `SpireAgentDown` (a missing target, `up == 0`) | scrape 5 s + batch 1 s + export at most 2 s + evaluation 5 s + `for` 10 s | 23 s |
+| `ZoneSilent` (no uptime sample of the zone gateway) | absence window 15 s + evaluation 5 s + `for` 5 s | 25 s |
+| `SpireAgentsMissing` (fewer agents report than the zone has ready nodes the agent DaemonSet targets) | window 10 s + evaluation 5 s + `for` 10 s | 25 s |
+| `RevocationEndpointDown` (the probe of the status list fails) | probe 5 s + probe timeout 2 s + batch 1 s + export at most 2 s + evaluation 5 s + `for` 10 s | 25 s |
+
+The silent-zone rule's 15 s window already holds the alert back, so its `for` is 5 s: with 10 s its
+worst case would be 30 s, not below the limit. The export term covers the zone gateway's send, the
+entry's batch and its remote write to Prometheus. The probe's request is bounded by its timeout, below
+the probe interval and the rule's lookback: an unbounded probe that hangs would leave no sample, and
+the alert would never fire. The budget counts from the moment the failed component stops answering.
+The proof measures from the command that injects the failure and polls the alerts every second, so
+its figures also hold the time the stopped component takes to stop answering (a pod's termination,
+the mesh's endpoint update) and the poll; they stay below 30 s as well.
+`scripts/verify-observability/test-alert-rules.sh` checks that the rendered values are these.
+
+| Symptom | Likely cause | Check |
+|---|---|---|
+| `SpireServerDown` or `SpireControllerManagerDown` for a zone | the SPIRE server pod is down, or the lane `observabilityScrape` is missing | `kubectl -n spire-system get pods`; `kubectl -n spire-system get svc spire-server-metrics`; the policies `allow-observability-scrape-*` in `spire-system` and the management namespace |
+| `SpireAgentDown` naming a node | the agent on that node is down or no longer bound to `127.0.0.1:9988` | `kubectl -n spire-system get pods -o wide -l app.kubernetes.io/name=agent` |
+| `SpireAgentsMissing` for a zone, without `SpireAgentDown` | a node collector is gone, so its agent's series vanished | `kubectl -n ztd-otel-node get ds otel-node-agent` (desired against ready) |
+| `ZoneSilent` for a zone | the zone gateway is down, its egress to the entry is cut, the zone's client certificate is missing or expired, or the zone is down | `kubectl -n ztd-mgmt get pods -l app.kubernetes.io/instance=otel-gateway`; `kubectl -n ztd-mgmt get networkpolicy allow-telemetry-export-egress`; `kubectl -n ztd-mgmt get secret ztd-telemetry-client`; the gateway's log for TLS errors |
+| `ZoneSilent` for every zone at once | the entry or Prometheus on the demonstrator cluster is down, or the entry's address changed | `kubectl -n ztd-observability get pods`; `telemetryExport.entry` in the zone files |
+| `RevocationEndpointDown` | the status list does not answer, or answers an error | the alert names the URL (`telemetryExport.revocationStatusListUrl`) |
+| After an outage of the entry, one signal of a zone (often the zone gateway's metrics) arrives a minute later than the others | each signal has its own gRPC connection to the entry, and each reconnects on gRPC's backoff, which grows through the outage (about 40 s apart after a 60 s outage); the buffered data is kept and follows once its connection is back | wait; `otelcol_exporter_queue_size` of the collector falls to 0 once it has sent the backlog, and nothing is lost unless `otelcol_exporter_enqueue_failed_*` or `otelcol_exporter_send_failed_*` grew |
+| A zone's collectors log `certificate required` or `unknown authority` | the zone's client certificate was not copied, or was renewed on the demonstrator side and not copied again | rerun `install.sh telemetry-client-certs` with `TELEMETRY_ZONES`, then restart the zone's collectors (`kubectl -n ztd-otel-node rollout restart ds/otel-node-agent`, `kubectl -n ztd-mgmt rollout restart deploy/otel-gateway`): they read the certificate at start |
+| `install.sh install` stops before `otel-node` | the zone's client certificate is not in the zone yet | run `telemetry-client-certs` from the demonstrator side, then install again ([install-zone](https://github.com/eclipse-xfsc/facis-zero-trust-demonstrator/blob/main/scripts/install-zone/README.md)) |
+
+**Image-signature admission and the upstream images.** Admission by image signature is opt-in per
+namespace today (`deployment/helm/admission-pool`), and neither `ztd-mgmt` nor `ztd-otel-node` is
+covered. The collectors run the upstream OpenTelemetry Collector contrib image, pinned by digest in
+`scripts/tools/pins.env`, which the project does not sign. The change that extends admission to these
+namespaces adds the upstream repositories to its trust policy, or the collectors stop starting there.

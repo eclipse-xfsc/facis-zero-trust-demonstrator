@@ -37,6 +37,7 @@ planes:
   extra:
     - { name: spire-system, plane: management, mesh: false }
     - { name: istio-system, plane: management, mesh: false }
+    - { name: ztd-otel-node, plane: management, mesh: false }   # the node collectors: host network, no sidecar
   # The provider's webhook kubernetes-service-host.resources.gardener.cloud (kubectl get
   # mutatingwebhookconfiguration gardener-resource-manager-shoot) sets KUBERNETES_SERVICE_HOST in
   # every new pod to the API server's public name, which Cilium sees as world, not as the
@@ -75,3 +76,29 @@ networkPolicy:
         type: tunnel
   identityServer:
     enabled: true
+  observabilityScrape:
+    enabled: true
+
+# The secret store, release ztd-openbao (deployment/helm/ztd-openbao), installed by
+# scripts/install-zone/install.sh after zone-policy with this zone's storage class (zone.storageClass)
+# and the umbrella's management namespace. TEMPORARY pin: the provider's pod network masquerades
+# cross-node pod traffic, so a meshed pod on another node than istiod never passes its proxy's
+# readiness; the installer pins the OpenBao server and both of its jobs to istiod's node (required
+# node affinity on kubernetes.io/hostname). The server's volume (WaitForFirstConsumer) binds on that
+# node. The pin falls when the provider's network is fixed, the criterion that gates mesh enrolment
+# on this cluster (docs/environments/osc.md, "The node pin of OpenBao").
+openbao:
+  pinToMeshNode: true
+
+# The telemetry export to the demonstrator cluster (docs/adr/0017-central-observability-backends.md).
+# This zone's listener on the entry is 4417. The entry's address (the public address of its
+# LoadBalancer during the contingency period, the CUG address after the move) and the revocation
+# status-list URL are recorded once the demonstrator role is installed; until then the installer
+# refuses to render or install this zone's telemetry releases (otel-node, otel-gateway), and the
+# other releases are unaffected. The zone gateway takes the node pin of ztd-openbao (pinToMeshNode).
+telemetryExport:
+  entry:
+    address: ""
+    port: 4417
+    transport: contingency-public-transit
+  revocationStatusListUrl: ""

@@ -1,0 +1,29 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "telemetry-issuers chart values",
+  "type": "object",
+  "required": ["zones", "serverName", "durations", "privateKey"],
+  "additionalProperties": false,
+  "properties": {
+    "zones": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "required": ["name"],
+        "properties": { "name": { "type": "string", "pattern": "^[a-z0-9-]+$" }, "port": { "type": "integer" } }
+      }
+    },
+    "serverName": { "type": "string", "minLength": 1 },
+    "durations": {
+      "type": "object",
+      "required": ["root", "intermediate", "server", "client"],
+      "additionalProperties": { "type": "string", "pattern": "^[0-9]+h$" }
+    },
+    "privateKey": {
+      "type": "object",
+      "required": ["algorithm", "size"],
+      "properties": { "algorithm": { "enum": ["ECDSA", "RSA", "Ed25519"] }, "size": { "type": "integer" } }
+    }
+  }
+}

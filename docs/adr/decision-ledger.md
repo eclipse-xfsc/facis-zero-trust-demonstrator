@@ -29,6 +29,7 @@ here before it counts as settled.
 | Mock TEE evidence | 0011 | [Format and provisioning](0011-mock-tee-evidence-format-and-provisioning.md) | Accepted for the format; provisioning items open | Mock-attestation samples in `docs/contracts/samples` |
 | Policy artefact chains (Gatekeeper and TSA) | 0012 | not written | Planning record: decided. The client has since answered that infrastructure policies load into Gatekeeper before TSA exists and software policies go through TSA; not yet recorded here | — |
 | Interface registry (IF-01 to IF-08) | 0015 | not written | Implemented as the registry in [API documentation](../api-docs.md) | Contract checks in CI |
+| Observability placement: collectors per cluster, backends central on the demonstrator cluster | 0017 | [Central observability backends](0017-central-observability-backends.md) | Proposed, refines 0005 | Observability proof in `scripts/verify-observability/` |
 | TRAIN launch-digest carrier | — | none | Open: no entry field exists. Asked of the client, who has defined no variant and asked us to propose one; our proposal is a `Type`/`Value` list ([Specification changes](../specifications.md)), not yet confirmed | TSPA API verification |
 | Observability without Grafana | — | [Specification changes](../specifications.md) | Declared deviation: the SRS's alternative clause is taken (Grafana is AGPL-3.0) | — |
 | Gateway API scope: a `GatewayClass`-scoped operator | — | [Specification changes](../specifications.md) | Declared reading, pending the client's confirmation | — |

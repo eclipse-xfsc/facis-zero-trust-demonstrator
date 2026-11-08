@@ -1,7 +1,8 @@
 # zone-policy — the identity policy of one zone
 
-The one project chart of the identity path, and the last of the seven releases of a zone
-(`scripts/install-zone/install.sh`), because it uses the CRDs the SPIRE and Istio releases own. It
+The one project chart of the identity path, and the seventh of the eight releases of a zone
+(`scripts/install-zone/install.sh`), because it uses the CRDs the SPIRE and Istio releases own; the
+secret store `ztd-openbao` follows it, so that its pods are registered at creation. It
 installs into `istio-system`, the mesh root namespace:
 
 - **`ClusterSPIFFEID` `plane-workloads`**: the registration by selector. Every pod with
@@ -31,7 +32,7 @@ installs into `istio-system`, the mesh root namespace:
 |---|---|---|
 | `server-healthy` | 20 | the SPIRE server's StatefulSet is not Ready (its readiness probe is the server's health endpoint) or an agent is not Ready |
 | `trust-bundle-published` | 25 | the server has published no X.509 authority in `spire-bundle`, or the controller-manager or the mesh runs with another trust domain than `trustDomain` |
-| `registrations-reconciled` | 30 | the controller-manager reports an entry or render failure, a selected pod without its entry, or fewer selected pods than the running labelled pods of the plane namespaces |
+| `registrations-reconciled` | 30 | the controller-manager reports an entry or render failure, a selected pod without its entry, or fewer selected pods than the labelled pods of the plane namespaces past Pending (running, or finished: the controller-manager selects a completed job's pod too) |
 
 Each check waits up to `checks.timeoutSeconds` for its condition. A failed job is kept for an hour
 so that its log can be read; a successful one is removed by the hook delete policy.
@@ -189,6 +190,7 @@ two proxy images or two status ports differ, and CI runs that check with every r
 | `registration.identityLabel` | `spiffe.io/spire-managed-identity: "true"` | The switch a workload carries to get an identity |
 | `registration.planeLabel` | `ztd.facis.io/plane` | The umbrella's plane label; namespaces that carry it are selected |
 | `peerAuthentication.mode` | `STRICT` | The only value accepted |
+| `tracing.enabled`, `tracing.provider`, `tracing.randomSamplingPercentage` | `true`, `ztd-otel-gateway`, `100` | A mesh-wide `Telemetry` resource in the mesh root namespace that enables istiod's OpenTelemetry provider (`deployment/helm/values/istiod.yaml`, same name): every proxy reports a span per request to the zone gateway and propagates `traceparent` |
 | `proxySocketPolicy.name` | `proxy-takes-spire-socket` | Name of the admission policy and its binding |
 | `proxySocketPolicy.volume`, `proxySocketPolicy.mountPath`, `proxySocketPolicy.driver` | `workload-socket`, `/var/run/secrets/workload-spiffe-uds`, `csi.spiffe.io` | The volume, mount path and CSI driver every mesh proxy must have; those of Istio's `sidecar` template and the istiod values file |
 | `proxySocketPolicy.statusPort` | `15020` | The proxy's status port, the one inbound port the capture rule lets the injector exclude; must equal the `istiod` release's `global.proxy.statusPort` (integer, required) |

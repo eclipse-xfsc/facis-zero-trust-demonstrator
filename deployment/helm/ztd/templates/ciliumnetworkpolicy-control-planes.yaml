@@ -26,7 +26,7 @@ under the default deny, and another CNI needs a declared derogation.
 {{- if and (ne .Values.mesh.mode "none") (not .Values.cni.cilium.enabled) }}
 {{- fail (printf "mesh.mode %s needs Cilium (cni.cilium.enabled): the control-plane openings (controlPlaneWebhooks, identityServer and the kubeApi lane) have the API server and the host-networked SPIRE agents as sources, which only a Cilium policy can name. A zone on another CNI needs a declared derogation of the preferred stack before it is installed (docs/workload-identity.md)." .Values.mesh.mode) }}
 {{- end }}
-{{- if .Values.cni.cilium.enabled }}
+{{- if and .Values.cni.cilium.enabled (ne (include "ztd.role" .) "demonstrator") }}
 {{- /* namespace -> list of ingress rules */ -}}
 {{- $byNs := dict }}
 {{- if $np.controlPlaneWebhooks.enabled }}

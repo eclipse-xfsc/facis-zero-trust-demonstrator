@@ -221,9 +221,31 @@ Not installed on this cluster yet. Each gets its stage and its check when it is.
   digest, with the key restricted to protected workflows.
 - **Registry access.** Pushing images and signatures to the client's registry, and pulling from it
   on the OSC clusters, with a robot account rather than a personal one.
-- **Visualization.** The demonstrator UI and the observability interfaces — Prometheus and Jaeger.
-  There is no Grafana; the reason is recorded in
+- **Visualization.** The demonstrator UI. The observability interfaces are a stage of their own,
+  below. There is no Grafana; the reason is recorded in
   [specification changes](../specifications.md#readings-and-additions).
+
+## The observability backends
+
+The cluster is the demonstrator cluster of the observability stack
+([ADR-0017](../adr/0017-central-observability-backends.md)): its zone file sets `zone.role:
+demonstrator`, and `scripts/install-zone/install.sh` installs, into `ztd-observability`, the
+receiving collector (the entry), Prometheus with the alert rules, and Jaeger, with the telemetry CA as
+cert-manager resources (cert-manager runs here already, v1.21.2). The cluster takes no plane and no
+mesh: it sits outside both trust domains. The Prometheus and Jaeger interfaces are
+ClusterIP Services, reached with cluster access only (`kubectl port-forward`), until the demonstrator
+UI defines its own access; they are the visualization of the observability data on IONOS (ZT-15).
+
+The entry is the cluster's first `LoadBalancer`: per-zone mutual-TLS listeners only (zone A 4317,
+zone B 4417), with the zones' egress addresses as source ranges. The installer refuses the zone file
+while those addresses are empty, so they are recorded first, then the entry's public address goes
+into both zone files (`telemetryExport.entry.address`). Not installed yet: the install and the zone
+evidence wait for the go-ahead on the shared clusters.
+
+```bash
+ZONE_VALUES=deployment/helm/ztd/zones/ionos.yaml KUBE_CONTEXT=cluster-admin@ZeroTrustDemonstrator \
+  scripts/install-zone/install.sh plan
+```
 
 ## Teardown
 

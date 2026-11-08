@@ -16,7 +16,7 @@ specific cluster, with the check that proves each stage, see [Environments](envi
 
 ## Installing a zone
 
-A zone installs as seven Helm releases, in a fixed order, from one zone file, with one command:
+A zone installs as eight Helm releases, in a fixed order, from one zone file, with one command:
 
 ```bash
 ZONE_VALUES=deployment/helm/ztd/zones/<zone>.yaml KUBE_CONTEXT=<context> \
@@ -32,6 +32,7 @@ ZONE_VALUES=deployment/helm/ztd/zones/<zone>.yaml KUBE_CONTEXT=<context> \
 | 5 | `istiod` | `istio-system` | the mesh control plane, sidecar mode, SPIRE as the certificate source (upstream chart) |
 | 6 | `istio-cni` | `istio-system` | the Istio CNI plugin, chained behind Cilium (upstream chart) |
 | 7 | `zone-policy` | `istio-system` | the workload registration, mesh-wide STRICT mTLS, the identity-band checks |
+| 8 | `ztd-openbao` | `ztd-mgmt` | OpenBao, its bootstrap Job and its verification hook (project chart wrapping the upstream chart); last, so its pods are created with a sidecar and an SVID ([Secrets](secrets.md)) |
 
 The umbrella lays the zone down first: the management and data planes as distinct namespaces,
 default-deny network policies in both directions, the allow-matrix lanes between the planes, and
@@ -44,7 +45,10 @@ property of the identity path, not of an install order, as the
 
 The upstream charts are installed as they ship, pinned by version, each owning, upgrading and
 removing its own CRDs ([OSS dependencies](dependencies.md#identity-and-service-mesh)); the values
-the repository sets on them live in `deployment/helm/values/`. The release namespace of the
+the repository sets on them live in `deployment/helm/values/`. The upstream OpenBao chart is the one
+exception: it is a dependency of the project chart `deployment/helm/ztd-openbao`, built from that
+chart's `Chart.lock` and checked against the archive digest committed beside it. Every release after the umbrella reads the zone facts it needs from the
+umbrella's defaults with the zone file on top. The release namespace of the
 umbrella holds its release and its hook jobs and is not a plane namespace. The zone file is written
 from what the cluster baseline recorded; the charts have no defaults for it. The design, the
 hook-weight scheme and the evidence are in [Umbrella chart](umbrella-chart.md) and
@@ -60,7 +64,8 @@ context. The `helm` commands on this page are the engine-level equivalent.
 
 ## Teardown
 
-Components uninstall in the reverse order of their installation; the layout goes last:
+Components uninstall in the reverse order of their installation, `ztd-openbao` first; the layout goes
+last:
 
 ```bash
 ZONE_VALUES=deployment/helm/ztd/zones/<zone>.yaml KUBE_CONTEXT=<context> \

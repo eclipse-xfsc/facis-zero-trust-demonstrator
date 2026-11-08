@@ -1,0 +1,24 @@
+# A pod on the demonstrator side, in the backends' namespace, without the mesh: from here the proof
+# tries to open connections into the zone (no-route-into-zone) and reaches the backends from inside
+# (the positive control). Placeholders: ${NS_BACKENDS}, ${CLIENT_IMAGE}.
+apiVersion: v1
+kind: Pod
+metadata:
+  name: obs-demonstrator-probe
+  namespace: ${NS_BACKENDS}
+  labels:
+    app.kubernetes.io/name: obs-demonstrator-probe
+    app.kubernetes.io/part-of: verify-observability
+spec:
+  securityContext:
+    runAsNonRoot: true
+    runAsUser: 100
+    seccompProfile: { type: RuntimeDefault }
+  containers:
+    - name: client
+      image: ${CLIENT_IMAGE}
+      command: ["sleep", "86400"]
+      securityContext:
+        allowPrivilegeEscalation: false
+        readOnlyRootFilesystem: true
+        capabilities: { drop: ["ALL"] }

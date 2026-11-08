@@ -10,7 +10,8 @@
 # and packages only the charts under deployment/helm/: a fixture is never released. Charts named on
 # the command line are both checked and packaged. A chart's valid baseline values are its
 # ci/values.yaml when it has one; a chart with dependencies is built from its committed Chart.lock
-# first.
+# first, and its archives must match the sha256 digests committed in its dependencies.sha256
+# (scripts/ci/verify-chart-dependencies.sh).
 #
 # --server-dry-run makes `helm install --dry-run=server` mandatory: the current kube context is used,
 # and no reachable cluster is a failure, never a pass. Without it the server dry-run is recorded as
@@ -143,15 +144,36 @@ for dir in "${charts[@]}"; do
     sed -n 's/^ *repository: *"\{0,1\}\(https:[^"]*\)"\{0,1\}$/\1/p' "$dir/Chart.yaml" | sort -u | while read -r url; do
       helm repo add "dep-$(printf '%s' "$url" | sha256sum | cut -c1-8)" "$url" >/dev/null 2>&1 || true
     done
-    record "dependencies built from Chart.lock" helm dependency build "$dir"
+    # The lock's digest covers the list of dependencies, not the archives' bytes: each built
+    # archive must match the sha256 committed in the chart's dependencies.sha256.
+    # shellcheck disable=SC2016 # expanded by the inner shell
+    record "dependencies built from Chart.lock" sh -c 'helm dependency build "$1" && "$2" "$1"' _ \
+      "$dir" "$root/scripts/ci/verify-chart-dependencies.sh"
     deps=$result
   fi
 
   gate "$dir" "$name" ${values[@]+"${values[@]}"}
 
+  # Refusals: each ci/refused/<case>.yaml, layered over the baseline, must fail to render, and the
+  # error must name what its "# expect:" line says (the schema path or the value the chart refuses).
+  refused=not-run
+  if [ -d "$dir/ci/refused" ]; then
+    refused=passed
+    for case in "$dir"/ci/refused/*.yaml; do
+      want=$(sed -n 's/^# expect: *//p' "$case" | head -1)
+      # shellcheck disable=SC2016 # expanded by the inner shell
+      record "refuses $(basename "$case" .yaml)" sh -c '
+        want=$1; shift
+        if out=$(helm template "$@" 2>&1 >/dev/null); then echo "rendered, expected a refusal naming $want"; exit 1; fi
+        [ -z "$want" ] || printf "%s\n" "$out" | grep -qF -- "$want" || { printf "%s\n" "$out"; echo "the refusal does not name $want"; exit 1; }
+      ' _ "$want" check "$dir" ${values[@]+"${values[@]}"} -f "$case"
+      [ "$result" = passed ] || refused=failed
+    done
+  fi
+
   if [ -n "$evidence" ]; then
-    printf '{"chart":"%s","version":"%s","path":"%s","dependencies":"%s","lint":"%s","template":"%s","serverDryRun":"%s"}\n' \
-      "$name" "$version" "${dir#"$root"/}" "$deps" "$lint" "$template" "$dryrun" > "$evidence/$name.json"
+    printf '{"chart":"%s","version":"%s","path":"%s","dependencies":"%s","lint":"%s","template":"%s","refusals":"%s","serverDryRun":"%s"}\n' \
+      "$name" "$version" "${dir#"$root"/}" "$deps" "$lint" "$template" "$refused" "$dryrun" > "$evidence/$name.json"
   fi
 done
 

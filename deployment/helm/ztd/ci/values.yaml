@@ -3,8 +3,11 @@
 # with what the chart would like it to be. Mesh mode sidecar, the ADR-0009 baseline; the parked
 # ambient mode is exercised by scripts/verify-umbrella/ambient-values.yaml, not here. The CI chart
 # job renders every chart with its ci/values.yaml, and scripts/install-zone/install.sh installs the
-# kind zone from this file (the umbrella reads all of it; the SPIRE, Istio and zone-policy releases
-# read the zone facts they need).
+# kind zone from this file (the umbrella reads all of it; the SPIRE, Istio, zone-policy and
+# ztd-openbao releases read the zone facts they need, over the umbrella's defaults). OpenBao is on:
+# every zone the installer installs gets the release ztd-openbao, unpinned on kind. The telemetry
+# releases (otel-node, otel-gateway) export to the receiving collector of ci/demonstrator-values.yaml,
+# installed into the same cluster.
 zone:
   name: kind
   kubernetesVersion: v1.35.8
@@ -26,6 +29,10 @@ planes:
     - name: istio-system
       plane: management
       mesh: false
+    # The node collectors (release otel-node): host network, no sidecar.
+    - name: ztd-otel-node
+      plane: management
+      mesh: false
 networkPolicy:
   # The API server of the kind cluster listens on 6443 on the control-plane node, an address in
   # kind's Docker network 172.18.0.0/16 (`kubectl get endpointslices -n default -l
@@ -41,11 +48,20 @@ networkPolicy:
     enabled: true
   identityServer:
     enabled: true
-# OpenBao is on in the kind zone, so the CI render, the release gate's dry-run and the secrets
-# baseline cover it. Its bootstrap reaches the Kubernetes API from the management plane over the
-# kubeApi lane above, which a meshed zone has on in any case (docs/secrets.md).
-openbao:
-  enabled: true
-  server:
-    dataStorage:
-      storageClass: standard
+  observabilityScrape:
+    enabled: true
+# The telemetry export of the kind zone. The demonstrator role runs in the same cluster
+# (ci/demonstrator-values.yaml), so the entry is a pod: the egress names its namespace and labels, the
+# collectors dial its Service, and every record of the proof names the transport in-cluster. The
+# revocation probe reads the proof's static server of the fixture status list
+# (scripts/verify-observability/fixtures/status-list.yaml) in the management namespace.
+telemetryExport:
+  entry:
+    port: 4317
+    transport: in-cluster
+    inCluster:
+      namespace: ztd-observability
+      podSelector:
+        app.kubernetes.io/name: otel-entry
+      host: otel-entry.ztd-observability.svc.cluster.local
+  revocationStatusListUrl: http://status-list.ztd-mgmt.svc.cluster.local:8080/status/1

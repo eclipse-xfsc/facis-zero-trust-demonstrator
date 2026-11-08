@@ -3,7 +3,8 @@ The chart's own use of the hook-weight scheme, band "verification": after instal
 Job reads the layout back through the API and fails the release when a plane namespace, its
 plane label, its mesh label or its default-deny policy is missing, or when a control-plane
 namespace (a planes.extra entry with mesh: false) carries an injection label: SPIRE and istiod
-must never receive a sidecar. It runs in the release
+must never receive a sidecar. On the demonstrator cluster it checks the backends' namespace instead:
+its role label, no plane or mesh label, and its default deny. It runs in the release
 namespace, outside the default-deny, with read-only access to namespaces and network policies.
 */ -}}
 {{- if .Values.verification.enabled }}
@@ -116,6 +117,20 @@ spec:
                 [ "$code" = 200 ] || { echo "FAIL $ns: default-deny policy: HTTP $code"; nsfail=1; }
               fi
               [ "$nsfail" = 0 ] && echo "ok $ns plane=$plane$meshnote default-deny"
+              fail=$((fail + nsfail))
+              {{- end }}
+              {{- if eq (include "ztd.role" .) "demonstrator" }}
+              ns={{ .Values.observabilityBackends.namespace }}; nsfail=0
+              code=$(get "/api/v1/namespaces/$ns")
+              if [ "$code" != 200 ]; then
+                echo "FAIL namespace $ns: HTTP $code"; nsfail=1
+              else
+                grep -qE '"ztd.facis.io/role": ?"observability-backends"' /tmp/body || { echo "FAIL $ns: role label missing"; nsfail=1; }
+                if grep -qE '"(ztd\.facis\.io/plane|istio-injection|istio\.io/rev|istio\.io/dataplane-mode)":' /tmp/body; then echo "FAIL $ns: the backends' namespace carries a plane or mesh label"; nsfail=1; fi
+                code=$(get "/apis/networking.k8s.io/v1/namespaces/$ns/networkpolicies/default-deny")
+                [ "$code" = 200 ] || { echo "FAIL $ns: default-deny policy: HTTP $code"; nsfail=1; }
+              fi
+              [ "$nsfail" = 0 ] && echo "ok $ns role=observability-backends no-plane-label default-deny"
               fail=$((fail + nsfail))
               {{- end }}
               [ "$fail" = 0 ] || { echo "layout verification failed ($fail namespace(s))"; exit 1; }

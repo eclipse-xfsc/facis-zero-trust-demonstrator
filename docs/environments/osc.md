@@ -80,8 +80,8 @@ done
 
 ## 2. The zone layout
 
-Steps 2 to 4 are one command. The zone installer installs the zone from its zone file as seven Helm
-releases, in this order, each through the deployment lifecycle step (`scripts/lifecycle.sh`: a
+Steps 2 to 4 and the secret store are one command. The zone installer installs the zone from its
+zone file as eight Helm releases, in this order, each through the deployment lifecycle step (`scripts/lifecycle.sh`: a
 server-side dry run, then `helm upgrade --install --wait` with rollback on failure), each waiting on
 the previous, and stops at the first release that fails, naming it:
 
@@ -94,6 +94,7 @@ the previous, and stops at the first release that fails, naming it:
 | 5 | `istiod` | `istio-system` | Istio `istiod` 1.31.1 | 4 |
 | 6 | `istio-cni` | `istio-system` | Istio `cni` 1.31.1 | 4 |
 | 7 | `zone-policy` | `istio-system` | `deployment/helm/zone-policy` | 3 and 4 |
+| 8 | `ztd-openbao` | `ztd-mgmt` | `deployment/helm/ztd-openbao`, wrapping `openbao` 0.28.3 (OpenBao v2.5.4) | [the secret store](#the-secret-store) |
 
 The zone files record each cluster: `deployment/helm/ztd/zones/zone-a.yaml` and `zone-b.yaml`
 (`zones/zone-a.example.yaml` shows each fact with the command that reads it). Each states:
@@ -117,7 +118,13 @@ The zone files record each cluster: `deployment/helm/ztd/zones/zone-a.yaml` and 
   `kubernetes-service-host.resources.gardener.cloud` sets `KUBERNETES_SERVICE_HOST` in every new pod
   to the API server's public name, which Cilium sees as `world`: SPIRE and istiod could not reach
   the API through the `kubeApi` lane, which admits the `kube-apiserver` entity only. With the label
-  the pods use the `kubernetes` Service, as on any other cluster.
+  the pods use the `kubernetes` Service, as on any other cluster;
+- `openbao.pinToMeshNode: true`: the installer pins the secret store, release 8, to istiod's node
+  ([the node pin of OpenBao](#the-node-pin-of-openbao)).
+
+The releases after the umbrella read the zone facts they need from the umbrella's defaults with the
+zone file on top, so the management namespace (`ztd-mgmt`) and the Cilium switch reach `ztd-openbao`
+without the zone file repeating them; `zone.storageClass` it states.
 
 Then plan, and install:
 
@@ -181,7 +188,10 @@ ZONE_VALUES=deployment/helm/ztd/zones/<zone>.yaml KUBE_CONTEXT=<context> \
 `kubectl -n spire-system exec spire-server-0 -c spire-server -- /opt/spire/bin/spire-server agent
 list` shows one attested agent per node that runs workloads; a labelled test pod receives, over the
 mounted socket, an SVID whose SPIFFE ID matches its service account
-([Checking an identity](../workload-identity.md#checking-an-identity)).
+([Checking an identity](../workload-identity.md#checking-an-identity)). The record of the mesh-identity
+proof now carries the registration inventory too (section 14, `registration-inventory`): every
+entry on the server next to the pod that holds it and its certificate in use, by SPIFFE ID
+([declared workloads](../workload-identity.md#declared-workloads-and-the-registration-inventory)).
 
 ## 4. Mesh
 
@@ -204,6 +214,62 @@ recorded in the mesh configuration.
 secret <pod>` shows `default` and `ROOTCA` issued by the SPIRE CA; a request between two meshed
 workloads carries a SPIRE-issued identity. The mesh identity proof shows all of it, on kind and on
 these clusters: the next section.
+
+### The secret store
+
+Release 8, `ztd-openbao`, installs OpenBao into the management plane after `zone-policy`, so its
+server, its bootstrap Job and its verification hook are created with a sidecar, a SPIRE entry and an
+SVID ([Secrets](../secrets.md)). The bootstrap initialises and unseals the server and keeps the unseal
+key in the Secret `ztd-openbao-bootstrap`; the verification hook fails the release unless the store is
+unsealed with KV version 2 and transit.
+
+**Verify:** the installer reports `ztd-openbao` deployed (the verification hook passed);
+`kubectl -n ztd-mgmt logs job/ztd-verify-openbao -c verify` ends with `OpenBao verified`; the
+mesh-identity proof lists `ztd-mgmt/ztd-openbao-0` as a matched declared workload. After a restart
+the installer did not cause, the server is sealed until `scripts/secrets/unseal.sh` is run against
+the zone's cluster (the script uses the current kube context).
+
+#### The node pin of OpenBao
+
+The provider's pod network masquerades pod traffic between nodes (below, "The limitation"), so a
+meshed pod on another node than istiod never passes its proxy's readiness: its proxy cannot reach
+istiod on 15012, and the pod stays in `Init:1/2`. The zone files of zone A and zone B therefore set
+`openbao.pinToMeshNode: true`, and the installer reads the node istiod runs on once the istiod
+release is deployed and pins the OpenBao server and both of its jobs to it, a required node
+affinity on `kubernetes.io/hostname` (`istiod-node-not-found`, which matches no node, when istiod
+has none, so nothing runs unpinned). The server's volume (StorageClass `default`,
+`WaitForFirstConsumer`) binds on that node at the first install. If istiod is later rescheduled, a
+reinstall pins the server to the new node while its volume stays on the old one, which a
+`csi.onmetal.de` volume may not follow ([Troubleshooting](../troubleshooting.md)).
+
+The pin is **temporary**: it falls when the provider's pod network keeps a pod's address between
+nodes, the same change that lets the proof run without its own pin; the zone files then drop the
+switch and the zones are reinstalled. The kind zone is not pinned. The zone gateway of the
+observability stack takes the same pin ([Observability](#observability)).
+
+### Observability
+
+The zone runs collectors only; the backends are on the demonstrator cluster
+([ADR-0017](../adr/0017-central-observability-backends.md)). Two releases, last in the zone's order:
+
+- `otel-node`, the node collectors: a host-network DaemonSet in `ztd-otel-node` (no mesh) that reads
+  every pod's log lines from `/var/log/pods` (read-only) and scrapes its node's SPIRE agent on the
+  loopback. It is not pinned: it runs on every node the SPIRE agents run on, and a node that joins the
+  zone gets one without any change to the zone file. It reaches the demonstrator cluster from the
+  host, so the provider's masquerading does not affect it.
+- `otel-gateway`, the zone gateway, in the management namespace, meshed: OTLP from the workloads and
+  the proxies, the SPIRE server and controller-manager scrapes, node readiness, the probe of the
+  revocation status list. It is pinned to istiod's node like OpenBao, because the workloads and the
+  proxies reach it under mTLS; the proof's trace check runs its pods on that node too.
+
+Both export to the demonstrator cluster's entry, whose address is a zone-file value
+(`telemetryExport.entry`): during the contingency period the public address of its `LoadBalancer`,
+reached over the zone's public egress; after the move, the CUG address. The zone's client certificate
+is copied in by the demonstrator side (`install.sh telemetry-client-certs`). Until the demonstrator
+role is installed, the entry's address and the status-list URL are empty in the zone files and the
+installer refuses these two releases; the zone's other releases are unaffected. The proof is
+`scripts/verify-observability/verify.sh` with `ZONE_CONTEXT` and `DEMONSTRATOR_CONTEXT`; its record
+names the transport in use.
 
 ## Proving steps 2 to 4: the mesh-identity proof
 
@@ -231,9 +297,10 @@ KUBE_CONTEXT=zerotrust-a ZTD_CONFIRM_CLUSTER=zerotrust-a ZTD_KEEP_ZONE=zerotrust
   ZONE_VALUES=deployment/helm/ztd/zones/zone-a.yaml scripts/verify-mesh-identity/verify.sh
 ```
 
-With `ZTD_KEEP_ZONE`, a run whose every check passed leaves the seven releases installed in
-`ztd-system`, `spire-system` and `istio-system` with the two plane namespaces, removes its stand-in
-pods, and ends its evidence with "What remains installed": the releases `deployed`, the SPIRE
+With `ZTD_KEEP_ZONE`, a run whose every check passed leaves the eight releases installed in
+`ztd-system`, `spire-system`, `istio-system` and `ztd-mgmt` with the two plane namespaces, removes its
+stand-in pods, and ends its evidence with "What remains installed": the releases `deployed`, the
+OpenBao server ready, the SPIRE
 server and controller-manager ready, one agent and one CSI driver pod ready per node, one attested
 agent per node, and the trust domain in use. A failed check or an interrupted run tears the zone
 down whatever the opt-in; without it the run always does. A kept zone runs on its **interim trust
@@ -242,8 +309,8 @@ re-run of the proof on a kept zone starts from its clean slate, which uninstalls
 (and so regenerates the SPIRE root CA and every SVID).
 
 SPIRE's metrics endpoints are exposed on fixed ports (the server and the agents on 9988, the
-agents' bound to the node's loopback; the controller-manager on 8082) but nothing in the zone
-scrapes them yet: that belongs to the observability work.
+agents' bound to the node's loopback; the controller-manager on 8082). The zone's telemetry releases
+scrape them ([Observability](#observability), below).
 
 Each run writes its record (`evidence.md`, `environment.json`) to a run directory outside the
 repository, `ZTD_EVIDENCE_DIR` when set, else a new directory under
@@ -257,8 +324,10 @@ that asked for it. What a run shows, section by section, is in
 
 The proof has been run on both participant clusters, zone A then zone B, with the keep opt-in and
 with the proof's pods pinned to istiod's node; every check passed on both, and both zones are
-**left installed** on their interim trust domains. The pin is in the proof alone: the chart, the
-policies and the zone files carry none of it.
+**left installed** on their interim trust domains. Those runs installed the zone without OpenBao: they predate
+the secret store as release 8, which the next run of the proof on each zone installs, pinned by the
+zone file ([the node pin of OpenBao](#the-node-pin-of-openbao)). The proof's own pin is in the proof
+alone; the charts and the policies carry none of it.
 
 **The limitation: the mesh is proven node-locally only.** The provider's Cilium runs in native
 routing with `ipv4-native-routing-cidr` covering the node network only and masquerading on, so a
@@ -307,7 +376,8 @@ journey, and confirm the second one aborts the handshake before any application 
 ## Teardown
 
 Components uninstall in the reverse order of their installation; the layout goes last. The
-installer does it for the seven releases of steps 2 to 4. Helm removes the SPIRE CRDs with
+installer does it for the eight releases, `ztd-openbao` first, which destroys the store (its volume
+and its bootstrap Secret go with the management namespace). Helm removes the SPIRE CRDs with
 `spire-crds`; Istio's `base` chart marks its CRDs to be kept by Helm, so the installer deletes the
 CRDs that release owned:
 
@@ -329,9 +399,12 @@ an acceptance scenario, not by eye.
 
 ## Operations
 
-- **Logs and traces** are collected by the OpenTelemetry Collector and read through the Prometheus
-  and Jaeger interfaces; there is no Grafana in this deployment, and
-  [why](../specifications.md#readings-and-additions) is recorded.
+- **Logs, metrics and traces** are collected in the zone by the OpenTelemetry Collector and sent to
+  the demonstrator cluster. Metrics and traces are read through the Prometheus and Jaeger interfaces;
+  the logs are written to one file per zone (`/var/lib/ztd-logs/<zone>.jsonl` on the volume
+  `otel-entry-logs`) and read from a pod that mounts the volume read-only
+  ([Troubleshooting](../troubleshooting.md)). There is no Grafana and no log query service in this
+  deployment, and [why](../specifications.md#readings-and-additions) is recorded.
 - **A refusal is diagnosed by its reason code**, not by grepping for stack traces — see
   [Troubleshooting](../troubleshooting.md).
 - **Certificate and key material** lives in OpenBao and is never written into a chart value or a
