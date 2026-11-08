@@ -1,9 +1,10 @@
 {{/*
 COPY of the hook helpers of the umbrella chart (deployment/helm/ztd/templates/_helpers.tpl,
 "ztd.hook.weight" and "ztd.hook.annotations"), under this chart's names, so that the hook-weight
-scheme reads the same across the charts. Change both together; docs/umbrella-chart.md describes
-the scheme. The bands order jobs within one release; the order between the releases of a zone is
-the installer's (scripts/install-zone/install.sh).
+scheme reads the same across the charts. Change the umbrella and every copy (zone-policy,
+ztd-openbao) together; docs/umbrella-chart.md describes the scheme. The bands order jobs within
+one release; the order between the releases of a zone is the installer's
+(scripts/install-zone/install.sh).
   preflight       0-19   checks that must hold before anything is installed
   identity       20-39   SPIRE: checks on the server, the trust bundle and the registration entries
   platform       40-59   jobs of OpenBao, Harbor, TSPA, estserver, observability and admission

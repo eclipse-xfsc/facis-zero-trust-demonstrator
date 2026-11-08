@@ -113,7 +113,7 @@ The JavaScript packages above are pinned by exact version with integrity hashes 
 | OPA Gatekeeper (Helm chart) | 3.23.1 | Apache-2.0 | admission control with the first-party external-data provider |
 | PostgreSQL | 16.10 (test service) | PostgreSQL License | token-store integration tests |
 | OpenBao | 2.7.0 (test service) | MPL-2.0 | token-store integration tests only; its use in the demonstrator is the declared licence exception |
-| OpenBao (Helm chart `openbao`) | chart 0.28.3, server v2.5.4 | MPL-2.0 | the umbrella's X.509 key-value store when a zone turns it on ([Secrets](secrets.md)); covered by the declared licence exception |
+| OpenBao (Helm chart `openbao`) | chart 0.28.3, server v2.5.4 | MPL-2.0 | the zone's X.509 key-value store, the release `ztd-openbao`: a dependency of the project chart `deployment/helm/ztd-openbao`, locked in its `Chart.lock`, its archive pinned by sha256 in `dependencies.sha256` ([Secrets](secrets.md)); covered by the declared licence exception |
 | Docker Distribution registry | 2.8.3 (test service) | Apache-2.0 | a local registry for signing and verification tests in CI |
 
 ## Go dependencies being added

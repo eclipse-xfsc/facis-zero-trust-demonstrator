@@ -211,45 +211,11 @@ verification:
   image: docker.io/curlimages/curl:8.10.1@sha256:d9b4541e214bcd85196d6e92e2753ac6d0ea699f0af5741f8c6cccbfcf00ef4b
 
 # --------------------------------------------------------------------------------------------
-# OpenBao (ZT-11, ADR-0004; docs/secrets.md). Off by default: a zone turns it on. Everything under
-# `openbao` except `enabled` goes to the upstream chart (0.28.3, OpenBao v2.5.4), which installs one
-# standalone server with file storage on a volume in the management plane. Two values must repeat
-# facts the umbrella already has, because Helm does not template a subchart's values: the namespace
-# (= planes.management.namespace) and the storage class (= zone.storageClass); the chart refuses to
-# render when they differ. The server listens without TLS inside the management plane; transport
-# protection between workloads is the mesh layer's (ADR-0001).
+# OpenBao (ZT-11, ADR-0004; docs/secrets.md) is not part of this chart: it is the release
+# `ztd-openbao` (deployment/helm/ztd-openbao), the last of a zone, installed after zone-policy so its
+# pods hold a mesh identity from their first start. The schema refuses the values this chart once
+# took for it (openbao.enabled and the rest of openbao.*, openbaoBootstrap, openbaoExternal). The
+# one key a zone file may set under `openbao` is read by scripts/install-zone/install.sh, not here:
+#   openbao.pinToMeshNode: true   pin ztd-openbao to istiod's node (temporary; participant zones on
+#                                 a provider-masqueraded pod network, docs/environments/osc.md)
 # --------------------------------------------------------------------------------------------
-openbao:
-  enabled: false
-  global:
-    namespace: ztd-mgmt
-  injector:
-    enabled: false
-  server:
-    image:
-      tag: "2.5.4@sha256:436eaf9778cad75507ff70ea26ace30dcbe15606e619ac3823495663d7f7c115"
-    # The Kubernetes auth method is not used yet (deferred with the ZT-11 signing flow), so the
-    # cluster-wide auth-delegator binding is not created.
-    authDelegator:
-      enabled: false
-    standalone:
-      enabled: true
-    dataStorage:
-      size: 1Gi
-      storageClass: null
-
-# Bootstrap of the bundled OpenBao: a regular Job (not a hook - a sealed server is not ready, and
-# post-install hooks wait for readiness) that initialises the server once, keeps the unseal key in
-# the Kubernetes Secret `ztd-openbao-bootstrap`, enables kv-v2 at secret/ and transit at transit/,
-# issues a narrow periodic verification token and revokes the root token. It talks to the
-# Kubernetes API from the management plane, so networkPolicy.kubeApi must be open there.
-# After a restart the server is sealed until it is unsealed by hand (scripts/secrets/unseal.sh).
-openbaoBootstrap:
-  image: docker.io/curlimages/curl:8.10.1@sha256:d9b4541e214bcd85196d6e92e2753ac6d0ea699f0af5741f8c6cccbfcf00ef4b
-
-# An OpenBao the umbrella does not own, such as the one the XFSC ArgoCD deployment installs. When
-# `address` is set, openbao.enabled must be false: nothing is installed or initialised, and only the
-# verification hook runs, with the token in the named Secret of the management namespace.
-openbaoExternal:
-  address: ""
-  verifyTokenSecret: ""

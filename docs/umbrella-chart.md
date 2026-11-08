@@ -117,7 +117,7 @@ components is a lookup and not a convention remembered by hand:
 |---|---|---|
 | `preflight` | 0–19 | checks that must hold before anything is installed |
 | `identity` | 20–39 | SPIRE: checks on the server, the trust bundle and the registration entries |
-| `platform` | 40–59 | jobs of OpenBao, Harbor, TSPA, estserver, observability and admission |
+| `platform` | 40–59 | jobs of OpenBao (the `ztd-openbao` chart's verification hook, offset 10), Harbor, TSPA, estserver, observability and admission |
 | `policy` | 60–79 | jobs of the mesh and admission policy that depends on identity and platform |
 | `workloads` | 80–99 | jobs of the demonstrator workloads |
 | `verification` | 100–119 | read-back checks that fail the release when the layout is wrong |
@@ -139,11 +139,16 @@ the layout back through the API and fails the release if a plane namespace, its 
 mesh label or its `default-deny` policy is missing, or if a control-plane namespace carries an
 injection label. The `zone-policy` chart uses the `identity` band (20–39) through a copy of the
 helper, so the scheme reads the same across the charts: `server-healthy` (20),
-`trust-bundle-published` (25), `registrations-reconciled` (30).
+`trust-bundle-published` (25), `registrations-reconciled` (30). The `ztd-openbao` chart uses the
+`platform` band through another copy: `ztd-verify-openbao` (50), whose ServiceAccount is a hook
+of weight 49 so that Helm creates it just before the Job.
 
-**The bands order jobs within a release; the installer orders the releases.** A zone is seven
-releases (the umbrella, the SPIRE and Istio upstream charts, `zone-policy`), installed in a fixed
-order by `scripts/install-zone/install.sh`, each waiting on the previous. Helm's hook weights only
+**The bands order jobs within a release; the installer orders the releases.** A zone is eight
+releases (the umbrella, the SPIRE and Istio upstream charts, `zone-policy`, `ztd-openbao`), installed
+in a fixed order by `scripts/install-zone/install.sh`, each waiting on the previous. A component
+whose pods must hold a mesh identity from their first start is installed after `zone-policy`, as
+OpenBao is: whatever the umbrella creates exists before istiod and the registration rule, so it
+could never get a sidecar or an SVID at creation. Helm's hook weights only
 order the hooks of one release, so the bands say where a job sits inside its own chart and what it
 checks; which release's jobs run first is the installer's order. The installer is the unit that
 reaches all-Ready from an empty cluster and repeats idempotently
@@ -220,11 +225,12 @@ each of those cases is a red job: the schema cases at the lint step, the CIDR ca
 step. The chart is verified with Helm v4.3.0, the version the pipeline pins. The release workflow's
 chart gate (TDR-BDD-11) adds a server-side dry-run against a disposable cluster that serves the
 Cilium and Gatekeeper CRDs, and no candidate is built unless it passes; a later chart publishing or
-promotion job must need the same gate. OpenBao, installed by this chart when a zone turns it on, is
-described in [Secrets](secrets.md).
+promotion job must need the same gate. The chart installs no OpenBao: the secret store is the
+release `ztd-openbao`, the last of a zone, from `deployment/helm/ztd-openbao`
+([Secrets](secrets.md)), and the schema refuses the values this chart once took for it.
 
 The umbrella's evidence covers the layout alone; the identity path and the mesh installed into it,
-with the seven releases, are proven by `scripts/verify-mesh-identity/verify.sh`
+with the eight releases, are proven by `scripts/verify-mesh-identity/verify.sh`
 (what a run shows: `scripts/verify-mesh-identity/README.md`).
 
 What waits for the client clusters is the first acceptance criterion — the layout on all three
