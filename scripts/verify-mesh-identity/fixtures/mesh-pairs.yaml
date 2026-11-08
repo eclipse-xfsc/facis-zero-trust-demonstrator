@@ -1,0 +1,49 @@
+# The proof's own pairs at the mesh layer (scripts/verify-mesh-identity/verify.sh). Under the mesh
+# default deny of zone-policy (an empty ALLOW policy in the mesh root namespace) a stand-in is served
+# only through a declared pair. The allow-matrix row pdp-adapter-to-tsa is the zone's own (zone-policy
+# renders its rule from the umbrella's allowMatrix); the pairs between the proof's own stand-ins are
+# declared here, as a release declares the pairs between its own pods, and applied by verify.sh once
+# zone-policy is installed and before any stand-in is called (section 5). __DATA__ is the data-plane
+# namespace and __TD__ the zone's trust domain. The document that holds __FROM__ and __TO__ is
+# rendered once per call of the cross-node ring (section 10): node i's stand-in mesh-on-<node i> to
+# node i+1's. Each rule admits one caller by its SPIFFE principal on the destination's HTTP port and
+# names nothing else, as the zone's rules do. No pair is declared for unregistered, unregistered-svid,
+# pdp-impostor or unpaired, which stay refused. Every object carries app.kubernetes.io/part-of:
+# verify-mesh-identity and app.kubernetes.io/name: verify-mesh-pairs, by which the proof removes them.
+apiVersion: security.istio.io/v1
+kind: AuthorizationPolicy
+metadata:
+  name: proof-caller-to-peer
+  namespace: __DATA__
+  labels: { app.kubernetes.io/name: verify-mesh-pairs, app.kubernetes.io/part-of: verify-mesh-identity }
+spec:
+  selector:
+    matchLabels: { app.kubernetes.io/name: peer }
+  action: ALLOW
+  rules:
+    - from:
+        - source:
+            principals: ["__TD__/ns/__DATA__/sa/caller"]
+      to:
+        - operation:
+            ports: ["8080"]
+---
+apiVersion: security.istio.io/v1
+kind: AuthorizationPolicy
+metadata:
+  # Named after its destination, as that stand-in's Service is (a node name fits there): each node's
+  # stand-in is called by exactly one caller, the previous node's in the ring.
+  name: mesh-on-__TO__
+  namespace: __DATA__
+  labels: { app.kubernetes.io/name: verify-mesh-pairs, app.kubernetes.io/part-of: verify-mesh-identity }
+spec:
+  selector:
+    matchLabels: { app.kubernetes.io/instance: mesh-on-__TO__ }
+  action: ALLOW
+  rules:
+    - from:
+        - source:
+            principals: ["__TD__/ns/__DATA__/sa/mesh-on-__FROM__"]
+      to:
+        - operation:
+            ports: ["8080"]

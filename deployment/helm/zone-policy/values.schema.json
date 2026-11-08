@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "title": "zone-policy chart values",
   "type": "object",
-  "required": ["trustDomain", "spire", "mesh", "registration", "peerAuthentication", "proxySocketPolicy", "checks"],
+  "required": ["trustDomain", "spire", "mesh", "registration", "peerAuthentication", "proxySocketPolicy", "checks", "pairs", "planes", "denialLog"],
   "properties": {
     "trustDomain": {
       "type": "string",
@@ -78,9 +78,86 @@
         "image": { "type": "string", "pattern": "@sha256:[0-9a-f]{64}$" },
         "timeoutSeconds": { "type": "integer", "minimum": 10, "maximum": 1800 }
       }
+    },
+    "pairs": {
+      "type": "array",
+      "description": "The declared pairs; each renders one AuthorizationPolicy allow-<name> in the destination's namespace.",
+      "items": { "$ref": "#/$defs/pair" }
+    },
+    "planes": {
+      "type": "object",
+      "required": ["management", "data"],
+      "properties": {
+        "management": { "type": "object", "required": ["namespace"], "properties": { "namespace": { "$ref": "#/$defs/optionalName" } } },
+        "data": { "type": "object", "required": ["namespace"], "properties": { "namespace": { "$ref": "#/$defs/optionalName" } } }
+      }
+    },
+    "denialLog": {
+      "type": "object",
+      "required": ["provider"],
+      "properties": {
+        "provider": { "$ref": "#/$defs/name", "description": "The istiod release's access-log provider that the denial Telemetry enables." }
+      }
     }
   },
   "$defs": {
-    "name": { "type": "string", "pattern": "^[a-z0-9]([-a-z0-9]*[a-z0-9])?$", "maxLength": 63 }
+    "name": { "type": "string", "pattern": "^[a-z0-9]([-a-z0-9]*[a-z0-9])?$", "maxLength": 63 },
+    "optionalName": { "type": "string", "pattern": "^([a-z0-9]([-a-z0-9]*[a-z0-9])?)?$", "maxLength": 63 },
+    "planeName": { "type": "string", "enum": ["management", "data"] },
+    "pair": {
+      "type": "object",
+      "required": ["name", "from", "to"],
+      "additionalProperties": false,
+      "properties": {
+        "name": {
+          "type": "string",
+          "pattern": "^[a-z0-9]([-a-z0-9]*[a-z0-9])?$",
+          "maxLength": 57,
+          "description": "The rule is allow-<name>, a Kubernetes name of at most 63 characters."
+        },
+        "from": { "$ref": "#/$defs/pairSource" },
+        "to": { "$ref": "#/$defs/pairDestination" }
+      }
+    },
+    "pairSource": {
+      "type": "object",
+      "description": "The caller: a plane or a namespace, and either the service account of its SPIFFE ID or wholePlane (every workload of that namespace); never both, never neither.",
+      "additionalProperties": false,
+      "properties": {
+        "plane": { "$ref": "#/$defs/planeName" },
+        "namespace": { "$ref": "#/$defs/name" },
+        "serviceAccount": { "$ref": "#/$defs/name" },
+        "wholePlane": { "const": true }
+      },
+      "allOf": [
+        { "oneOf": [{ "required": ["plane"] }, { "required": ["namespace"] }] },
+        { "oneOf": [{ "required": ["serviceAccount"] }, { "required": ["wholePlane"] }] }
+      ]
+    },
+    "pairDestination": {
+      "type": "object",
+      "description": "The destination: a plane or a namespace, the pod labels that select it, and optionally its ports.",
+      "additionalProperties": false,
+      "required": ["podSelector"],
+      "properties": {
+        "plane": { "$ref": "#/$defs/planeName" },
+        "namespace": { "$ref": "#/$defs/name" },
+        "podSelector": { "type": "object", "minProperties": 1, "additionalProperties": { "type": "string" } },
+        "ports": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "type": "object",
+            "required": ["port"],
+            "additionalProperties": false,
+            "properties": {
+              "port": { "type": "integer", "minimum": 1, "maximum": 65535 },
+              "protocol": { "type": "string", "enum": ["TCP"], "description": "The mesh authorizes TCP only." }
+            }
+          }
+        }
+      },
+      "oneOf": [{ "required": ["plane"] }, { "required": ["namespace"] }]
+    }
   }
 }

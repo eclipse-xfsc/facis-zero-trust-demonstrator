@@ -16,6 +16,26 @@ meshConfig:
   # asserts it and scripts/verify-mesh-identity/verify.sh shows TLS 1.3 accepted, TLS 1.2 refused.
   meshMTLS:
     minProtocolVersion: TLSV1_3
+  # The denial log of the mesh authorization (docs/workload-identity.md, "Mesh authorization"): an
+  # Envoy file access log to the proxy's stdout, one JSON line per entry. Defined here, enabled by
+  # zone-policy's Telemetry `mesh-default` for denied requests and connections only (its
+  # denialLog.provider names this provider). On the destination's proxy the downstream peer is the
+  # caller, so one line holds both SPIFFE IDs; no body and no header beyond the authority is logged.
+  # No meshConfig.accessLogFile is set: the mesh writes no access log of served requests.
+  extensionProviders:
+    - name: denial-log
+      envoyFileAccessLog:
+        path: /dev/stdout
+        logFormat:
+          labels:
+            source: "%DOWNSTREAM_PEER_URI_SAN%"
+            destination: "%DOWNSTREAM_LOCAL_URI_SAN%"
+            authority: "%REQ(:authority)%"
+            code: "%RESPONSE_CODE%"
+            detail: "%RESPONSE_CODE_DETAILS%"            # an HTTP request's decision
+            termination: "%CONNECTION_TERMINATION_DETAILS%"  # a TCP connection's decision
+            flags: "%RESPONSE_FLAGS%"
+            time: "%START_TIME%"
 # Images, pinned by tag and digest (the multi-arch index digest of the 1.31.1 tag, read from its
 # registry). A value that contains "/" is used by the chart as the whole image reference.
 global:
