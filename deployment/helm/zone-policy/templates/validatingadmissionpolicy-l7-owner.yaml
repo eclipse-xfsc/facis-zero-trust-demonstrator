@@ -1,0 +1,127 @@
+{{- /*
+One L7 owner per path (SRS 2.3.3, Table 4: L7 policies MUST NOT be enforced by both Istio and
+Cilium; ADR-0009, point 2). On every path between plane namespaces the L7 owner is the mesh: the
+destination's Envoy sidecar, recorded per path as ztd.facis.io/l7-owner on the umbrella's
+NetworkPolicy pair and on the allow rule allow-<name> of this chart. Anything that sends such a
+path's traffic to Cilium's own Envoy proxy would add a second L7 decision point on it, whoever
+applies it (by hand, or another release). This policy refuses it at admission.
+
+Match: CiliumNetworkPolicy and CiliumEnvoyConfig in a namespace carrying the plane label (binding
+<name>, by the same namespaceSelector as the proxy policy), and every CiliumClusterwideNetworkPolicy
+and CiliumClusterwideEnvoyConfig (binding <name>-clusterwide): a cluster-wide object has no namespace
+and can select plane pods (endpointSelector) or name plane Services (services[].namespace), and the
+zone has no legitimate cluster-wide L7 configuration. Each binding names its resources in
+matchResources, since a namespaceSelector never excludes a cluster-scoped object.
+
+Refused, network policies: in spec and in every entry of specs, for ingress, egress, ingressDeny and
+egressDeny, every toPorts[] field that sends the port's traffic to Cilium's L7 proxy (cilium.io/v2
+PortRule, read from the CRDs of 1.19.6, the zones' version, and of 1.20.2, the pinned
+CILIUM_CRDS_VERSION):
+  - rules.http, .kafka, .l7 and .l7proto, the L7 rule kinds (L7Rules). 1.19.6 defines dns, http,
+    kafka, l7 and l7proto; 1.20.2 defines dns and http only (the others are not in its schema and
+    never reach this policy);
+  - listener: "redirected to" a custom Envoy listener of a CiliumEnvoyConfig;
+  - serverNames: an allow-list of TLS SNI values, decided by the proxy (the mesh's mTLS sends its SNI
+    in the clear, so it is a decision on a meshed path; the CRDs require at least one item);
+  - terminatingTLS and originatingTLS: TLS "terminated by the L7 proxy" or originated by it.
+  The four last exist in both versions. The deny directions carry only ports in either version (the
+  schema prunes anything else) and are checked all the same.
+Admitted: rules.dns. DNS goes to the cluster resolver in plaintext, outside the mesh, on a path whose
+L7 owner is none, so a DNS-aware rule adds no second decision point on a meshed path (and ZT-26 keeps
+that bypass). The CEL guards every optional field with has(), so a policy without toPorts is admitted.
+
+Refused, Envoy configurations: every CiliumEnvoyConfig in a plane namespace and every
+CiliumClusterwideEnvoyConfig, whatever it holds. Its services[] redirect a Service's traffic to
+Cilium's Envoy without any network policy (a CiliumEnvoyConfig's services are always in its own
+namespace, so one outside the planes cannot name a plane Service), and its listeners are what a
+policy's listener field points to.
+
+failurePolicy Fail: a rule the API server cannot evaluate refuses the object. Existing objects are
+not acted on, only their updates.
+*/ -}}
+{{- $l := .Values.l7OwnerPolicy }}
+{{- if $l.enabled }}
+---
+apiVersion: admissionregistration.k8s.io/v1
+kind: ValidatingAdmissionPolicy
+metadata:
+  name: {{ $l.name }}
+  labels:
+    {{- include "zone-policy.labels" . | nindent 4 }}
+spec:
+  failurePolicy: Fail
+  matchConstraints:
+    resourceRules:
+      - apiGroups: ["cilium.io"]
+        apiVersions: ["*"]
+        operations: ["CREATE", "UPDATE"]
+        resources:
+          - ciliumnetworkpolicies
+          - ciliumclusterwidenetworkpolicies
+          - ciliumenvoyconfigs
+          - ciliumclusterwideenvoyconfigs
+  variables:
+    - name: envoyConfig
+      expression: >-
+        object.kind in ["CiliumEnvoyConfig", "CiliumClusterwideEnvoyConfig"]
+    - name: specs
+      expression: >-
+        variables.envoyConfig ? [] :
+        (has(object.spec) ? [object.spec] : []) + (has(object.specs) ? object.specs : [])
+  validations:
+    - expression: >-
+        !variables.envoyConfig
+      message: >-
+        {{ $l.name }}: a CiliumEnvoyConfig in a plane namespace, or a CiliumClusterwideEnvoyConfig, may
+        not be created or changed: it sends Service traffic to Cilium's Envoy proxy. The L7 owner of
+        the plane namespaces' paths is the mesh's sidecar (ztd.facis.io/l7-owner, docs/architecture.md
+        section 6); Cilium's proxy would be a second L7 decision point on the same path.
+      reason: Forbidden
+{{- range $field := list "rules.http" "rules.kafka" "rules.l7" "rules.l7proto" "listener" "serverNames" "terminatingTLS" "originatingTLS" }}
+    - expression: >-
+        !({{ include "zone-policy.ciliumL7Rule" $field | nindent 10 | trim }})
+      message: >-
+        {{ $l.name }}: a Cilium policy in a plane namespace, or cluster-wide, may not send traffic to
+        Cilium's L7 proxy: found toPorts[].{{ $field }}. The L7 owner of the plane namespaces' paths is
+        the mesh's sidecar (ztd.facis.io/l7-owner, docs/architecture.md section 6); Cilium's proxy
+        would be a second L7 decision point on the same path. Cilium policies stay L3/L4 here (ports
+        only); rules.dns is admitted.
+      reason: Forbidden
+{{- end }}
+---
+apiVersion: admissionregistration.k8s.io/v1
+kind: ValidatingAdmissionPolicyBinding
+metadata:
+  name: {{ $l.name }}
+  labels:
+    {{- include "zone-policy.labels" . | nindent 4 }}
+spec:
+  policyName: {{ $l.name }}
+  validationActions: [Deny]
+  matchResources:
+    namespaceSelector:
+      matchExpressions:
+        - key: {{ .Values.registration.planeLabel }}
+          operator: Exists
+    resourceRules:
+      - apiGroups: ["cilium.io"]
+        apiVersions: ["*"]
+        operations: ["CREATE", "UPDATE"]
+        resources: ["ciliumnetworkpolicies", "ciliumenvoyconfigs"]
+---
+apiVersion: admissionregistration.k8s.io/v1
+kind: ValidatingAdmissionPolicyBinding
+metadata:
+  name: {{ $l.name }}-clusterwide
+  labels:
+    {{- include "zone-policy.labels" . | nindent 4 }}
+spec:
+  policyName: {{ $l.name }}
+  validationActions: [Deny]
+  matchResources:
+    resourceRules:
+      - apiGroups: ["cilium.io"]
+        apiVersions: ["*"]
+        operations: ["CREATE", "UPDATE"]
+        resources: ["ciliumclusterwidenetworkpolicies", "ciliumclusterwideenvoyconfigs"]
+{{- end }}

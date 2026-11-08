@@ -69,6 +69,18 @@ proxySocketPolicy:
   # every injected pod. An Istio upgrade changes both.
   proxyImage: docker.io/istio/proxyv2:1.31.1@sha256:d86cba0dd1eb15c00b6901c69ce5ae3d2d5f8427a47751098cf8c3ab2a4a62e9
 
+# One L7 owner per path (templates/validatingadmissionpolicy-l7-owner.yaml, README.md "The L7 owner
+# rule"). The mesh's sidecar is the L7 owner of every path between plane namespaces, so Cilium's proxy
+# may not take a second L7 decision there: a CiliumNetworkPolicy in a plane namespace, or any
+# CiliumClusterwideNetworkPolicy, carrying a toPorts[] field that sends traffic to Cilium's L7 proxy
+# (rules.http, kafka, l7 or l7proto, listener, serverNames, terminatingTLS, originatingTLS) is refused
+# at admission, and so is every CiliumEnvoyConfig in a plane namespace and every
+# CiliumClusterwideEnvoyConfig. rules.dns is admitted (plaintext DNS, outside the mesh). The policy's
+# binding is `name` (namespaced kinds), and `<name>-clusterwide` for the cluster-wide kinds.
+l7OwnerPolicy:
+  enabled: true
+  name: l7-owner-is-the-mesh
+
 # Identity-band checks (hook-weight band "identity", 20-39): post-install and post-upgrade Jobs that
 # only read, through the Kubernetes API, and fail the release when identity is not there. They run
 # in the release namespace under its default deny, through the DNS bypass and the API lane.
@@ -77,3 +89,42 @@ checks:
   image: docker.io/curlimages/curl:8.10.1@sha256:d9b4541e214bcd85196d6e92e2753ac6d0ea699f0af5741f8c6cccbfcf00ef4b
   # How long each check waits for the condition before it fails the release.
   timeoutSeconds: 180
+
+# Mesh authorization (docs/workload-identity.md, "Mesh authorization"). The chart renders the
+# mesh-wide default deny (an AuthorizationPolicy `default-deny` with an empty spec in
+# mesh.namespace: an ALLOW policy that matches nothing, so every meshed workload refuses every
+# request no pair admits; never a DENY policy, which would take precedence over every pair) and one
+# AuthorizationPolicy `allow-<name>` per pair, in the destination's namespace: it selects the
+# destination by its pod labels and admits the caller by its SPIFFE principal
+# (<trustDomain>/ns/<namespace>/sa/<serviceAccount>), or every workload of the source namespace
+# when the source is a whole plane, on the destination ports when the pair names any. No rule names
+# a path, a method, a host or an address.
+# Filled by scripts/install-zone: the umbrella's allowMatrix rows followed by its intraPlanePairs,
+# both written once in the zone values (deployment/helm/ztd/values.yaml); the installer refuses a
+# zone whose rendered rules are not exactly one per row and pair (pairs_coupling). A release that
+# needs pairs between its own pods declares them in its own chart (ztd-openbao), not here.
+#   - name: pdp-adapter-to-tsa                          # the rule is allow-<name>
+#     from: { plane: data, serviceAccount: pdp-adapter }  # or namespace: <ns>; or wholePlane: true
+#     to:
+#       plane: management                               # or namespace: <ns>
+#       podSelector: { app.kubernetes.io/name: tsa-policy-engine }
+#       ports: [{ port: 8443, protocol: TCP }]          # optional; omitted: every port
+pairs: []
+
+# The plane namespaces a pair's `plane` resolves to (zone facts: planes.management.namespace and
+# planes.data.namespace, filled by scripts/install-zone). Required when a pair names a plane; a
+# pair that names its namespace needs neither.
+planes:
+  management:
+    namespace: ""
+  data:
+    namespace: ""
+
+# The denial log: a Telemetry `mesh-default` in mesh.namespace enables this access-log provider,
+# defined by the istiod release (meshConfig.extensionProviders in deployment/helm/values/istiod.yaml),
+# for requests and connections the mesh's authorization refused only (the RBAC filter's decision
+# detail, never the status code: an application's own 403 is not logged). The destination's proxy
+# writes one JSON line to its stdout with both SPIFFE IDs; read it with
+# `kubectl logs <pod> -c istio-proxy`. The name MUST equal the istiod release's provider name.
+denialLog:
+  provider: denial-log

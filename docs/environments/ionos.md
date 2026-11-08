@@ -43,8 +43,11 @@ kubectl get storageclass
 
 The common baseline ([Environments](index.md)) names Cilium with `cni.exclusive=false`, for the
 service mesh ([ADR-0009](../adr/0009-service-mesh-mode-istio-sidecar-with-cilium.md)). This cluster
-runs no mesh and no demonstration workload, so its provider CNI is kept; whether the visualization
-stage needs the mesh here is decided with that stage.
+keeps its provider CNI. SPIRE and the mesh here are in progress and not installed yet: Istio in
+sidecar mode as on the zones, the Istio CNI plugin chained behind Calico, the SPIRE datastore on a
+persistent volume, the trust domain decided with the final trust domains. Until that work sets it,
+the zone file keeps `mesh.mode: none`; what is met on which cluster is stated in [the mesh and SPIRE
+on each cluster](../specifications.md#the-mesh-and-spire-on-each-cluster).
 
 ## 2. The ORCE image
 
@@ -159,13 +162,15 @@ npm run bdd:cluster
 back to its baseline (`kubectl -n ztd-bdd-tdr-001 get all` shows nothing). Stop the port-forward and
 delete `observer.kubeconfig` and `ca.crt` afterwards; the token expires on its own.
 
-## 6. Admission proof (non-target)
+## 6. Admission proof (interim key)
 
 An early admission proof on this cluster: Gatekeeper and the image-verification provider, with the
 constraints in [deployment/admission](../../deployment/admission), enforcing only in the namespaces
 labelled `facis.ztd/admission-proof=true` (`ztd-adm-001`, `ztd-adm-002`). The images it verifies are
 signed with the **interim key** ([docs/contracts/keys/interim-cosign.pub](../contracts/keys/interim-cosign.pub)),
-not the client trust chain; this cluster is not a target environment. Everything it records says so.
+not the client trust chain, so it is not acceptance evidence for the admission requirements.
+The fault-injection run marks its evidence that way, in its own words: "interim signing key; not
+the client trust chain".
 
 ```bash
 # Gatekeeper, the provider (by digest, from the release candidate job), the policy and the pool.

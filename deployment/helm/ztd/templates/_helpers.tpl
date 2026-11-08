@@ -63,6 +63,7 @@ is a lookup and not a convention remembered by hand:
   identity       20-39   SPIRE: checks on the server, the trust bundle and the registration entries
                          (the zone-policy chart, through a copy of these helpers)
   platform       40-59   jobs of OpenBao, Harbor, TSPA, estserver, observability and admission
+                         (OpenBao: the ztd-openbao chart, through a copy of these helpers)
   policy         60-79   jobs of the mesh and admission policy that depends on identity and platform
   workloads      80-99   jobs of the demonstrator workloads
   verification 100-119   read-back checks that fail the release when the layout is wrong
@@ -72,7 +73,7 @@ resource needs in order to become ready is a post-install hook either: with --wa
 hooks only after every regular resource is ready, so the install would time out. That is why a
 registration is a regular resource and not a hook job.
 The bands order jobs within one release. The order between releases (the umbrella, SPIRE, Istio,
-zone-policy) is the installer's, scripts/install-zone/install.sh.
+zone-policy, ztd-openbao) is the installer's, scripts/install-zone/install.sh.
 */}}
 {{- define "ztd.hook.weight" -}}
 {{- $bands := dict "preflight" 0 "identity" 20 "platform" 40 "policy" 60 "workloads" 80 "verification" 100 -}}

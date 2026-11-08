@@ -1,8 +1,10 @@
 # zone-policy — the identity policy of one zone
 
-The one project chart of the identity path, and the last of the seven releases of a zone
-(`scripts/install-zone/install.sh`), because it uses the CRDs the SPIRE and Istio releases own. It
-installs into `istio-system`, the mesh root namespace:
+The one project chart of the identity path, and the seventh of the eight releases of a zone
+(`scripts/install-zone/install.sh`), because it uses the CRDs the SPIRE and Istio releases own; the
+secret store `ztd-openbao` follows it, so that its pods are registered at creation. It
+installs into `istio-system`, the mesh root namespace (the pair rules go into their destination's
+namespace):
 
 - **`ClusterSPIFFEID` `plane-workloads`**: the registration by selector. Every pod with
   `spiffe.io/spire-managed-identity: "true"` in a namespace that carries the umbrella's plane label
@@ -23,6 +25,16 @@ installs into `istio-system`, the mesh root namespace:
   below refuses them. A program without these marks can still ask istiod's CA for a certificate;
   no peer trusts it (docs/workload-identity.md, "The proxy").
   The same policy holds **the capture rule** and **the proxy rule** (see below).
+- **`ValidatingAdmissionPolicy` `l7-owner-is-the-mesh`** and its two bindings (see
+  [The L7 owner rule](#the-l7-owner-rule)): a Cilium policy in a plane namespace, or any cluster-wide
+  one, may not carry a port field that sends traffic to Cilium's L7 proxy (an HTTP, Kafka or generic
+  L7 rule, a custom Envoy listener, an SNI allow-list, TLS termination or origination), and no
+  Cilium Envoy configuration may be created in a plane namespace or cluster-wide, so the mesh's
+  sidecar stays the single L7 owner of every path between plane namespaces. DNS rules are admitted.
+- **The mesh authorization** (see [Mesh authorization](#mesh-authorization)): the
+  `AuthorizationPolicy` `default-deny` with an empty spec in `istio-system`, one
+  `AuthorizationPolicy` `allow-<name>` per declared pair by SPIFFE identity, and the `Telemetry`
+  `mesh-default` that logs every denial with both identities.
 - **The identity-band checks**: three post-install and post-upgrade Jobs in the `identity` band of
   the hook-weight scheme (`templates/_hooks.tpl` is a copy of the umbrella's helper). They only read,
   through the Kubernetes API, with a read-only ServiceAccount, and a failure fails the release:
@@ -31,12 +43,61 @@ installs into `istio-system`, the mesh root namespace:
 |---|---|---|
 | `server-healthy` | 20 | the SPIRE server's StatefulSet is not Ready (its readiness probe is the server's health endpoint) or an agent is not Ready |
 | `trust-bundle-published` | 25 | the server has published no X.509 authority in `spire-bundle`, or the controller-manager or the mesh runs with another trust domain than `trustDomain` |
-| `registrations-reconciled` | 30 | the controller-manager reports an entry or render failure, a selected pod without its entry, or fewer selected pods than the running labelled pods of the plane namespaces |
+| `registrations-reconciled` | 30 | the controller-manager reports an entry or render failure, a selected pod without its entry, or fewer selected pods than the labelled pods of the plane namespaces past Pending (running, or finished: the controller-manager selects a completed job's pod too) |
 
 Each check waits up to `checks.timeoutSeconds` for its condition. A failed job is kept for an hour
 so that its log can be read; a successful one is removed by the hook delete policy.
 
 The design is in [docs/workload-identity.md](../../../docs/workload-identity.md).
+
+## Mesh authorization
+
+STRICT peer authentication makes every mesh connection carry a SPIRE identity; the authorization
+decides which identity may reach which workload. The chart renders it in three parts, none of them
+naming a path, a method, a host or an address:
+
+- **The default deny.** `default-deny` in the mesh root namespace (`mesh.namespace`) with an empty
+  spec: an ALLOW policy without rules, which matches nothing (Istio's "allow-nothing"). Every meshed
+  workload of the zone then refuses, with `403 RBAC: access denied`, every request that no pair's
+  rule admits. It is not a DENY policy: Istio evaluates DENY before ALLOW, and a DENY that matched
+  everything would refuse the pairs too. In the root namespace it covers every plane namespace,
+  those a component task adds included.
+- **One rule per pair.** Each entry of `pairs` renders `allow-<name>` in the destination's
+  namespace, with `selector.matchLabels` the destination's `podSelector`, the caller in
+  `rules[0].from[0].source.principals` as `<trustDomain>/ns/<namespace>/sa/<serviceAccount>` (the
+  SPIFFE ID without its scheme), or in `source.namespaces` when the source is a whole plane, and the
+  destination's `ports` in `rules[0].to[0].operation.ports` when the pair names any. A pair names
+  its caller by `serviceAccount` or by `wholePlane: true`, never both and never neither (the schema
+  refuses either); an endpoint names a `plane` (resolved through `planes.<plane>.namespace`) or a
+  `namespace`. Pair names are unique: the template refuses two of the same name. Each rule carries
+  its pair's L7 owner as the annotation `ztd.facis.io/l7-owner` (`l7Owner`, `sidecar` or `none`,
+  default `sidecar`), the record of the path's single L7 decision point: the installer copies it from
+  the umbrella's `allowMatrix` row, and an intra-plane pair, which names none, records `sidecar`. The
+  rules themselves take no L7 decision (no path, method or host); the owner is the destination's
+  sidecar, and [the L7 owner rule](#the-l7-owner-rule) keeps Cilium from adding a second one.
+- **The denial log.** `mesh-default`, a `Telemetry` in the mesh root namespace, enables the
+  access-log provider `denialLog.provider` (`denial-log`, defined by the `istiod` release in
+  `deployment/helm/values/istiod.yaml`) with the filter
+  `response.code_details.startsWith("rbac_access_denied") || connection.termination_details.startsWith("rbac_access_denied")`:
+  only the requests (HTTP) and connections (TCP) the proxy's authorization refused. The filter is
+  on the authorization decision, not on the status code, so an application's own `403` and every
+  served request leave no line. The destination's proxy writes one JSON line to its stdout with the
+  caller's SPIFFE ID (`source`), its own (`destination`), the authority, the code and the decision
+  detail (`rbac_access_denied_matched_policy[none]`); read it with
+  `kubectl logs <pod> -c istio-proxy`. A workload refused during the mutual TLS handshake (no
+  SPIRE entry) presents no identity, so it leaves no such line.
+
+The pairs come from three places, rendered by one template here or by the release that owns them:
+
+| Where a pair is declared | How it reaches a rule |
+|---|---|
+| a row of the umbrella's `allowMatrix` (data plane → management plane), with the caller's `serviceAccount`, or a whole-plane source (`podSelector: {}`) | `scripts/install-zone/install.sh` copies the merged rows into `pairs`; the umbrella renders the network-policy lane of the same row |
+| an entry of the umbrella's `intraPlanePairs` (two components of different releases in one plane) | copied after the rows into `pairs`; the umbrella renders nothing for it, as the network layer is open inside a plane |
+| a release whose own pods call one another (the secret store's jobs → its server) | that release's chart renders its own `AuthorizationPolicy` (`deployment/helm/ztd-openbao`), not this one |
+
+The installer refuses a zone whose rendered `allow-*` rules are not exactly one per row and
+intra-plane pair, with the row's namespaces, selector, principal or source namespace and ports
+(`pairs_coupling`, beside the proxy-image coupling), so the two layers cannot drift apart.
 
 ## The capture rule
 
@@ -175,6 +236,84 @@ If the two differ, every injected pod in a plane namespace is refused by the pro
 upgrade changes both. `scripts/install-zone/install.sh` refuses to render or install a zone whose
 two proxy images or two status ports differ, and CI runs that check with every render.
 
+## The L7 owner rule
+
+On every path between plane namespaces the L7 enforcement owner is the mesh: the destination's Envoy
+sidecar, recorded per path as the annotation `ztd.facis.io/l7-owner` on the umbrella's NetworkPolicy
+pair and on the rule `allow-<name>` of this chart (the umbrella's `allowMatrix` field `l7Owner`). SRS
+2.3.3 (Table 4) forbids the mesh and Cilium to enforce L7 policy on the same traffic. Anything that
+sends a meshed path's traffic to Cilium's own Envoy proxy, a `CiliumNetworkPolicy` with HTTP rules
+or a `CiliumEnvoyConfig`, applied by hand or by another release, would be a second L7 decision point
+on it. The `ValidatingAdmissionPolicy` `l7-owner-is-the-mesh`
+(`templates/validatingadmissionpolicy-l7-owner.yaml`, values `l7OwnerPolicy`) refuses it at the API
+server, with `failurePolicy: Fail`:
+
+- **What it refuses, in a network policy.** On `CREATE` and `UPDATE`, a policy whose `spec`, or any
+  entry of whose `specs` list, carries under `ingress`, `egress`, `ingressDeny` or `egressDeny` a
+  `toPorts[]` field that sends the port's traffic to Cilium's L7 proxy, read from the Cilium CRDs
+  (`PortRule`):
+  - `rules.http`, `rules.kafka`, `rules.l7` or `rules.l7proto`, the L7 rule kinds. 1.19, the zones'
+    version, defines all four (and `dns`); 1.20, the pinned `CILIUM_CRDS_VERSION`, defines `http`
+    (and `dns`) only, so there the others are refused by the CRD schema before the rule sees them;
+  - `listener`, a redirect to a custom Envoy listener of a `CiliumEnvoyConfig`;
+  - `serverNames`, an allow-list of TLS SNI values decided by the proxy (Istio's mTLS sends its SNI in
+    the clear, so this is a decision on a meshed path);
+  - `terminatingTLS` and `originatingTLS`, TLS terminated or originated by the proxy.
+
+  The four last are in both versions. The deny directions carry only `ports` in either version (the
+  schema refuses or prunes anything else); the rule checks them all the same. The refusal message
+  names the field found and the sidecar as the L7 owner. An update that adds such a field to an
+  admitted policy is refused the same way.
+- **What it refuses, in an Envoy configuration.** Every `CiliumEnvoyConfig` in a plane namespace and
+  every `CiliumClusterwideEnvoyConfig`, on `CREATE` and `UPDATE`, whatever it holds: its `services`
+  send a Service's traffic to Cilium's Envoy without any network policy, and its listeners are what a
+  policy's `listener` points to. A `CiliumEnvoyConfig` in another namespace is not refused. Its
+  `services[]` are forced into its own namespace, so it cannot redirect a plane Service, but its
+  `backendServices[]` may name one (their namespace only defaults to the configuration's), and it is
+  admitted; so is the configuration of Cilium's Ingress in shared mode, which lives in Cilium's own
+  namespace. That traffic starts outside the planes and reaches plane pods in plaintext from Cilium's
+  Envoy, where the plane's default-deny NetworkPolicy and the destination sidecar's STRICT mTLS still
+  refuse it: it is not a second L7 decision on a path between planes. A provider feature that
+  creates an Envoy configuration in a plane namespace (Cilium's Ingress or Gateway API there) is
+  refused, which is the point; none is expected on a zone, and the listing below shows it before
+  installing.
+- **Why DNS is admitted.** `rules.dns` is not matched. DNS goes to the cluster resolver in plaintext,
+  outside the mesh, on a path whose L7 owner is `none` (the DNS lane `allow-dns-egress` carries
+  `ztd.facis.io/l7-owner: none`), so a DNS-aware rule adds no second decision point on a meshed path,
+  and ZT-26 keeps that bypass open.
+- **Two bindings.** `l7-owner-is-the-mesh` matches `ciliumnetworkpolicies` and `ciliumenvoyconfigs`
+  in the namespaces that carry the plane label (`registration.planeLabel`), like the proxy policy; a
+  policy with an HTTP rule in any other namespace is not refused. The binding follows the label: a
+  namespace from which the label is removed leaves this rule (and the proxy policy), so who may
+  label namespaces is part of the trust in it. The umbrella's verification hook fails the release,
+  after each install or upgrade, when a plane namespace lacks its label; between releases nothing
+  watches it. `l7-owner-is-the-mesh-clusterwide` matches every
+  `ciliumclusterwidenetworkpolicies` and `ciliumclusterwideenvoyconfigs`: a cluster-wide object has
+  no namespace, can select plane pods through its `endpointSelector` or name plane Services, and the
+  zone has no legitimate cluster-wide L7 configuration. A future one would need a declared exception.
+  Each binding names its resources, since a `namespaceSelector` never excludes a cluster-scoped
+  object.
+- **Existing objects.** An admission policy does not act on what is stored, only on its updates.
+  Before installing or upgrading to this chart on a zone, list the Cilium policies that already send
+  traffic to the proxy, and the Envoy configurations; none is expected:
+
+  ```bash
+  kubectl get cnp,ccnp -A -o json | jq -r '.items[]
+    | . as $p | [($p.spec // empty), ($p.specs // [])[]][]
+    | [.ingress, .egress, .ingressDeny, .egressDeny][]?[]?.toPorts[]? // empty
+    | select((.rules // {} | has("http") or has("kafka") or has("l7") or has("l7proto"))
+        or has("listener") or has("serverNames") or has("terminatingTLS") or has("originatingTLS"))
+    | "\($p.kind) \($p.metadata.namespace // "<cluster>")/\($p.metadata.name)"' | sort -u
+  kubectl get ciliumenvoyconfigs,ciliumclusterwideenvoyconfigs -A
+  ```
+
+The charts themselves render none of these: `scripts/ci/check-policy-l7-owner.sh` fails the
+pipeline on any Cilium policy rendered with such a field, on any Cilium Envoy configuration rendered
+in any namespace, and on any rendered allow-matrix policy without its owner annotation. The mesh
+identity proof sends every case of its fixture to the API server and records each refusal and
+admission (`scripts/verify-mesh-identity/README.md`, `cilium-l7-refused-in-planes`). Rollback:
+uninstall or roll back this release; the `l7Owner` record is inert without the rule.
+
 ## Values
 
 | Key | Default | Meaning |
@@ -193,11 +332,18 @@ two proxy images or two status ports differ, and CI runs that check with every r
 | `proxySocketPolicy.volume`, `proxySocketPolicy.mountPath`, `proxySocketPolicy.driver` | `workload-socket`, `/var/run/secrets/workload-spiffe-uds`, `csi.spiffe.io` | The volume, mount path and CSI driver every mesh proxy must have; those of Istio's `sidecar` template and the istiod values file |
 | `proxySocketPolicy.statusPort` | `15020` | The proxy's status port, the one inbound port the capture rule lets the injector exclude; must equal the `istiod` release's `global.proxy.statusPort` (integer, required) |
 | `proxySocketPolicy.proxyImage` | `docker.io/istio/proxyv2:1.31.1@sha256:d86c…` | The injected proxy's whole image reference, by digest; the proxy rule admits no other image for a mesh proxy; must equal the `istiod` release's `global.proxy.image` (string, required) |
+| `pairs` | `[]` | The declared pairs, each `{name, from: {plane\|namespace, serviceAccount \| wholePlane: true}, to: {plane\|namespace, podSelector, ports?}, l7Owner?}` (`l7Owner`: `sidecar` or `none`, default `sidecar`, rendered as the annotation `ztd.facis.io/l7-owner`); each renders `allow-<name>` in the destination's namespace. Filled by the installer from the umbrella's `allowMatrix` and `intraPlanePairs` |
+| `planes.management.namespace`, `planes.data.namespace` | `""` | The namespaces a pair's `plane` resolves to (zone facts; required when a pair names that plane) |
+| `denialLog.provider` | `denial-log` | The `istiod` release's access-log provider the `Telemetry` `mesh-default` enables for denials; must equal the provider's name in `deployment/helm/values/istiod.yaml` |
+| `l7OwnerPolicy.enabled` | `true` | The L7 owner rule ([The L7 owner rule](#the-l7-owner-rule)) |
+| `l7OwnerPolicy.name` | `l7-owner-is-the-mesh` | Name of the admission policy and its namespaced binding; the cluster-wide binding is `<name>-clusterwide` |
 | `checks.enabled` | `true` | The identity-band jobs |
 | `checks.image` | `curlimages/curl` by digest | Image of the jobs (the umbrella's verification image) |
 | `checks.timeoutSeconds` | `180` | How long each check waits before it fails the release |
 
-`ci/values.yaml` is the kind zone, the file the CI chart job renders with.
+`ci/values.yaml` is the kind zone, the file the CI chart job renders with: its trust domain, its
+plane namespaces, the five `allowMatrix` rows in the shape the installer hands over, and one
+intra-plane pair that exists only there, so the render shows a same-plane rule as well.
 
 ```bash
 helm lint deployment/helm/zone-policy -f deployment/helm/zone-policy/ci/values.yaml

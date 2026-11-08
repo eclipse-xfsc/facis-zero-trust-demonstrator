@@ -14,6 +14,7 @@ mesh:
 cni:
   cilium:
     enabled: true              # `kubectl -n kube-system get ds cilium`; another CNI needs a declared derogation
+    version: 1.19.6            # `kubectl -n kube-system get ds cilium -o jsonpath='{.spec.template.spec.containers[0].image}'`: the tag without the leading v; required with Cilium
 planes:
   extra:                       # the control planes: management plane, no mesh label
     - { name: spire-system, plane: management, mesh: false }
