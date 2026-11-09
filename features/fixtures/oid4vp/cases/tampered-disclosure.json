@@ -1,0 +1,16 @@
+{
+  "fixture": true,
+  "case": "tampered-disclosure",
+  "what": "the role disclosure's value was changed after issuance; its digest is not in the credential",
+  "input": {
+    "vp_token": "eyJhbGciOiJFUzI1NiIsInR5cCI6ImRjK3NkLWp3dCIsImtpZCI6ImZpeHR1cmUtaXNzdWVyLTEifQ.eyJfc2QiOlsiNWlnUjBxczF2enRBeUxUWEZoRm1DbG5UUkFVeGtaMnBfTUJjX0R5WGtZQSIsIld1YXExaGs4WkU1RkdVZk5tU25CdHVLRU9obmJjdmlONUc0NWdyWkt4ZkEiLCJCZFdiSUVTQ3BkTkx4TXVyeEVyOWEyTGlsRksxTGhHWjN1SFVaLVV6cDBvIl0sIl9zZF9hbGciOiJzaGEtMjU2IiwiY25mIjp7Imp3ayI6eyJrdHkiOiJFQyIsImNydiI6IlAtMjU2IiwieCI6InRhRUV0c3F0LWhXbS01NnprNUkzS0UxQVRwMlVocmNHUVJSWG9XOFM2RW8iLCJ5IjoiR0x2cjJYNVNXR2NIVkVLOVV3NmswcDduclljNmdxWXVnRXZqd0k0MHlkWSJ9fSwiZXhwIjoyMDgyNzU4NDAwLCJpYXQiOjE3ODg4Njg4MDAsImlzcyI6Imh0dHBzOi8vaXNzdWVyLmZpeHR1cmUuaW52YWxpZCIsImp0aSI6InVybjp1dWlkOjAwMDAwMDAwLTAwMDAtNDAwMC04MDAwLTAwMDAwMDAwMDBhYSIsIm5iZiI6MTc4ODg2ODgwMCwic3RhdHVzIjp7InN0YXR1c19saXN0Ijp7ImlkeCI6NDIsInVyaSI6Imh0dHBzOi8vc3RhdHVzLmZpeHR1cmUuaW52YWxpZC9saXN0cy9wYXJ0aWNpcGFudC5qd3QifX0sInZjdCI6Imh0dHBzOi8vZmFjaXMuZXhhbXBsZS9jcmVkZW50aWFscy9wYXJ0aWNpcGFudCJ9.zNpzZmX9YVLYXhGCPi9fw-i_WJYwpELNlxuZfIauq6e-nQoHLbeH-OawyKwwDVn3GEJz9u2rVIk92XyFLuHSwA~WyJ0YW1wZXJlZCIsInJvbGUiLCJhZG1pbiJd~WyI2UDI3OXFVZ3ZUM012R2IxeXBFc3lnIiwiZW50aXRsZW1lbnQiLCJyZWFkIl0~eyJhbGciOiJFUzI1NiIsInR5cCI6ImtiK2p3dCJ9.eyJhdWQiOiJodHRwczovL3pvbmUtYi5leGFtcGxlL3Jlc291cmNlIiwiaWF0IjoxNzg4OTU1MTk1LCJub25jZSI6ImZ4LWNoYWxsZW5nZS0wMTIzNDU2Nzg5YWJjZGVmIiwic2RfaGFzaCI6IjdiWThidU1mUmFkT2pRRHlMWXZZYkVoUUhPRndHOTY1WkI1ajRMblo2a1EifQ.12gssIDsNhOZgaKwVbH0VBahxf8CgOZYFr3Xxn5DRTOMIy9yQEdY9J32j-wZmfz2frBGzR9PxtySuoyvj-PgdA",
+    "nonce": "fx-challenge-0123456789abcdef",
+    "audience": "https://zone-b.example/resource",
+    "now": "2026-09-09T12:00:00Z"
+  },
+  "status_list": "clear",
+  "expect": {
+    "status": "failed",
+    "reason_code": "CRED-INVALID"
+  }
+}

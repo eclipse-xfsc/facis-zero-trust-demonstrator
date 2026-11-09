@@ -48,16 +48,17 @@ status.
 | `MESH` | identity and mesh policy | none (connection refused) | `BLOCKED-IDENTITY` | — |
 | `TOK` | token authentication | 401 | `DENIED-TOKEN` | `TOK-SCOPE` 403, `TOK-REQUEST-INVALID` 400, `TOK-REGISTRATION-REJECTED` 400, `TOK-NO-UPSTREAM` 409, `TOK-CALLER-DENIED` 403, `TOK-ROUTE-DENIED` 403, `TOK-STORE-UNAVAILABLE` 503, `TOK-SERVER-ERROR` 500 |
 | `POL` | policy decision | 403 | `DENIED-POLICY` | `POL-PRESENTATION-REQUIRED` 401, `POL-PDP-UNAVAILABLE` 503, `POL-BUNDLE-STALE` 503 |
-| `CRED` | credential verification | 403 | `DENIED-CREDENTIAL` | — |
+| `CRED` | credential verification | 403 | `DENIED-CREDENTIAL` | `CRED-REQUEST-INVALID` 400, `CRED-REQUEST-UNKNOWN` 404 |
 | `CHAN` | attested channel | none (handshake refused) | `CHANNEL-DOWN` | — |
 | `CFG` | configuration governance | 422 | `CHANGE-REJECTED` | `CFG-NOT-AUTHORISED` 403 |
 | `VIS` | display | none (display state) | `UNKNOWN` | — |
 
-The status is what a protected resource — the guard — returns to its caller. Two surfaces keep
+The status is what a protected resource — the guard — returns to its caller. Three surfaces keep
 statuses of their own: the connector's token and registration endpoints answer with the OAuth 2.0
 statuses (400 for a DPoP proof or nonce problem at the token endpoint, for example; see
-[IF-02](contracts/if02-connector.v1.openapi.yaml)), and the token store's internal API states its
-own; the guard maps both to the caller's refusal.
+[IF-02](contracts/if02-connector.v1.openapi.yaml)), the token store's internal API states its
+own, and the verification service's request endpoints answer with the two `CRED-REQUEST-*`
+statuses above; the guard maps all of them to the caller's refusal.
 
 Admission refusals, one code per cause: `ADM-UNSIGNED`, `ADM-NO-ATTESTATION`,
 `ADM-ATTESTATION-INVALID`, `ADM-SBOM-MISSING`, `ADM-SBOM-INVALID`, `ADM-NOT-LINUX`,
@@ -170,6 +171,22 @@ issuance consumes it. The outcome is an object, never a boolean.
     - `outcome_id` has not been consumed before; it is recorded in the same transaction that
       issues the grant → else `CRED-OUTCOME-CONSUMED`.
 - A `failed` or `revoked` outcome carries its `CRED-*` reason; a `verified` one carries none.
+- **Production.** The producer judges an SD-JWT VC presentation (`dc+sd-jwt`, a key-binding JWT
+  whose `nonce` is the connector's challenge and whose `aud` is the audience, revocation through
+  an IETF Token Status List; the profile is in
+  [the conformance fixtures' README](../features/fixtures/oid4vp/README.md)) and writes one of
+  four results: `verified`; `failed` with `CRED-ISSUER-UNTRUSTED` (the issuer or its `kid` is not
+  in the trust set), `CRED-INVALID` (anything else about the presentation: signature, envelope,
+  disclosures, key binding, missing role or status reference) or `CRED-STATUS-UNAVAILABLE` (the
+  status list could not be fetched, verified or read; fail closed); `revoked` with
+  `CRED-REVOKED` (the status entry is set). `claims` and `credential_refs` carry the credential's
+  role, entitlement and `<iss>#<jti>` (`<iss>#<vct>` for a credential without `jti`) once the
+  credential was read, so a `revoked` or
+  status-unavailable outcome names the credential it is about. Before that point no role is known,
+  and the schema requires one: such an outcome carries `claims.role` `unverified`, a sentinel a
+  consumer never maps to an entitlement (it reaches no grant, since only a `verified` outcome
+  does). The policy lives in `internal/presentation`; the fixtures under
+  `features/fixtures/oid4vp/` pin it.
 
 ## IF-04 — observability and evidence
 
@@ -247,7 +264,9 @@ operator uses.
 - under `contracts/fixtures/<schema>/`, every `valid-*` fixture passes and every `invalid-*`
   fixture fails, and each schema has at least one of each;
 - the registry is well formed, every code sits in its family, and every reason code used in a
-  fixture, an OpenAPI document or this page is registered;
+  fixture, an OpenAPI document or any Markdown page under `docs/` or `features/` is registered (a
+  trailing `-*` is a glob and must match at least one registered code; dash look-alikes count as
+  hyphens);
 - every OpenAPI document parses without duplicate keys, validates against the official OpenAPI
   3.1 schema (vendored with its checksum), resolves every reference, and every Schema Object in it
   compiles as strict JSON Schema 2020-12.

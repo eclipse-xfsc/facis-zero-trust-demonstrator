@@ -7,6 +7,7 @@ import (
 	"crypto/rand"
 	"crypto/sha256"
 	"encoding/base64"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"math/big"
@@ -41,12 +42,12 @@ func fixed(k *ecdsa.PrivateKey) KeyFunc {
 // signRaw signs an arbitrary header JSON, so header refusals are tested with a valid signature.
 func signRaw(t *testing.T, k *ecdsa.PrivateKey, header, payload string) string {
 	t.Helper()
-	in := b64([]byte(header)) + "." + b64([]byte(payload))
+	in := B64([]byte(header)) + "." + B64([]byte(payload))
 	sig, err := signer(k)(context.Background(), []byte(in))
 	if err != nil {
 		t.Fatal(err)
 	}
-	return in + "." + b64(sig)
+	return in + "." + B64(sig)
 }
 
 func jwkJSON(k *ecdsa.PrivateKey) string {
@@ -89,7 +90,7 @@ func TestSign_AlwaysWritesES256(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	raw, _ := decodeB64(strings.Split(tok, ".")[0])
+	raw, _ := DecodeB64(strings.Split(tok, ".")[0])
 	if string(raw) != `{"alg":"ES256","typ":"at+jwt","kid":"k"}` {
 		t.Errorf("header = %s", raw)
 	}
@@ -159,7 +160,7 @@ func TestVerify_RefusesEveryAlgButES256(t *testing.T) {
 		}
 	})
 	t.Run("alg none with empty signature", func(t *testing.T) {
-		tok := b64([]byte(`{"alg":"none","typ":"at+jwt","kid":"k"}`)) + "." + b64([]byte(`{}`)) + "."
+		tok := B64([]byte(`{"alg":"none","typ":"at+jwt","kid":"k"}`)) + "." + B64([]byte(`{}`)) + "."
 		if _, _, err := Verify(tok, atPolicy, fixed(k)); err == nil {
 			t.Error("unsigned token accepted")
 		}
@@ -202,9 +203,9 @@ func TestVerify_HeaderPolicy(t *testing.T) {
 
 func offCurveJWK(k *ecdsa.PrivateKey) string {
 	j := PublicJWK(&k.PublicKey)
-	y, _ := decodeB64(j.Y)
+	y, _ := DecodeB64(j.Y)
 	y[31] ^= 1
-	return fmt.Sprintf(`{"kty":"EC","crv":"P-256","x":%q,"y":%q}`, j.X, b64(y))
+	return fmt.Sprintf(`{"kty":"EC","crv":"P-256","x":%q,"y":%q}`, j.X, B64(y))
 }
 
 func TestVerify_RefusesMalformedCompactForm(t *testing.T) {
@@ -238,9 +239,9 @@ func TestVerify_RefusesMalformedCompactForm(t *testing.T) {
 func TestVerify_RefusesSignatureOfWrongLength(t *testing.T) {
 	k := newKey(t)
 	p := strings.Split(signRaw(t, k, `{"alg":"ES256","typ":"at+jwt","kid":"k"}`, `{}`), ".")
-	sig, _ := decodeB64(p[2])
+	sig, _ := DecodeB64(p[2])
 	for _, s := range [][]byte{nil, sig[:63], append(sig, 0), append([]byte{0}, sig...)} {
-		tok := p[0] + "." + p[1] + "." + b64(s)
+		tok := p[0] + "." + p[1] + "." + B64(s)
 		if _, _, err := Verify(tok, atPolicy, fixed(k)); !errors.Is(err, ErrSignature) {
 			t.Errorf("%d-byte signature: err = %v, want ErrSignature", len(s), err)
 		}
@@ -250,7 +251,7 @@ func TestVerify_RefusesSignatureOfWrongLength(t *testing.T) {
 func TestVerify_RAndSMustBeIn1ToNMinus1(t *testing.T) {
 	k := newKey(t)
 	p := strings.Split(signRaw(t, k, `{"alg":"ES256","typ":"at+jwt","kid":"k"}`, `{}`), ".")
-	sig, _ := decodeB64(p[2])
+	sig, _ := DecodeB64(p[2])
 	r, s := new(big.Int).SetBytes(sig[:32]), new(big.Int).SetBytes(sig[32:])
 	n := elliptic.P256().Params().N
 	max := new(big.Int).Sub(new(big.Int).Lsh(big.NewInt(1), 256), big.NewInt(1))
@@ -272,7 +273,7 @@ func TestVerify_RAndSMustBeIn1ToNMinus1(t *testing.T) {
 				return
 			}
 			raw := append(tc.r.FillBytes(make([]byte, 32)), tc.s.FillBytes(make([]byte, 32))...)
-			if _, _, err := Verify(p[0]+"."+p[1]+"."+b64(raw), atPolicy, fixed(k)); !errors.Is(err, ErrSignature) {
+			if _, _, err := Verify(p[0]+"."+p[1]+"."+B64(raw), atPolicy, fixed(k)); !errors.Is(err, ErrSignature) {
 				t.Errorf("err = %v, want ErrSignature", err)
 			}
 		})
@@ -281,7 +282,7 @@ func TestVerify_RAndSMustBeIn1ToNMinus1(t *testing.T) {
 	// itself valid. Replay protection never keys on signature bytes, so this is documented, not refused.
 	t.Run("high-S twin verifies by design", func(t *testing.T) {
 		twin := append(r.FillBytes(make([]byte, 32)), new(big.Int).Sub(n, s).FillBytes(make([]byte, 32))...)
-		if _, _, err := Verify(p[0]+"."+p[1]+"."+b64(twin), atPolicy, fixed(k)); err != nil {
+		if _, _, err := Verify(p[0]+"."+p[1]+"."+B64(twin), atPolicy, fixed(k)); err != nil {
 			t.Errorf("err = %v", err)
 		}
 	})
@@ -291,7 +292,7 @@ func TestVerify_RefusesTamperingAndWrongKey(t *testing.T) {
 	k := newKey(t)
 	good := signRaw(t, k, `{"alg":"ES256","typ":"at+jwt","kid":"k"}`, `{"sub":"a"}`)
 	p := strings.Split(good, ".")
-	tampered := p[0] + "." + b64([]byte(`{"sub":"b"}`)) + "." + p[2]
+	tampered := p[0] + "." + B64([]byte(`{"sub":"b"}`)) + "." + p[2]
 	if _, _, err := Verify(tampered, atPolicy, fixed(k)); !errors.Is(err, ErrSignature) {
 		t.Errorf("tampered payload: err = %v", err)
 	}
@@ -310,21 +311,21 @@ func TestVerify_RefusesTamperingAndWrongKey(t *testing.T) {
 func TestPublicKey_RefusesAnythingButAValidP256Point(t *testing.T) {
 	k := newKey(t)
 	good := PublicJWK(&k.PublicKey)
-	x, _ := decodeB64(good.X)
+	x, _ := DecodeB64(good.X)
 	off := good
-	y, _ := decodeB64(good.Y)
+	y, _ := DecodeB64(good.Y)
 	y[0] ^= 0x80
-	off.Y = b64(y)
+	off.Y = B64(y)
 	for name, j := range map[string]JWK{
 		"wrong kty":           {Kty: "RSA", Crv: "P-256", X: good.X, Y: good.Y},
 		"wrong crv":           {Kty: "EC", Crv: "P-384", X: good.X, Y: good.Y},
 		"lowercase crv":       {Kty: "EC", Crv: "p-256", X: good.X, Y: good.Y},
-		"x 31 bytes":          {Kty: "EC", Crv: "P-256", X: b64(x[1:]), Y: good.Y},
-		"x 33 bytes":          {Kty: "EC", Crv: "P-256", X: b64(append([]byte{0}, x...)), Y: good.Y},
+		"x 31 bytes":          {Kty: "EC", Crv: "P-256", X: B64(x[1:]), Y: good.Y},
+		"x 33 bytes":          {Kty: "EC", Crv: "P-256", X: B64(append([]byte{0}, x...)), Y: good.Y},
 		"x padded base64":     {Kty: "EC", Crv: "P-256", X: good.X + "=", Y: good.Y},
 		"off-curve point":     off,
-		"point at zero":       {Kty: "EC", Crv: "P-256", X: b64(make([]byte, 32)), Y: b64(make([]byte, 32))},
-		"coordinate above p":  {Kty: "EC", Crv: "P-256", X: b64(bytesFF(32)), Y: good.Y},
+		"point at zero":       {Kty: "EC", Crv: "P-256", X: B64(make([]byte, 32)), Y: B64(make([]byte, 32))},
+		"coordinate above p":  {Kty: "EC", Crv: "P-256", X: B64(bytesFF(32)), Y: good.Y},
 		"missing coordinates": {Kty: "EC", Crv: "P-256"},
 	} {
 		t.Run(name, func(t *testing.T) {
@@ -376,8 +377,8 @@ func TestThumbprint_MatchesRepoTestMinter(t *testing.T) {
 		canonical := fmt.Sprintf(`{"crv":%q,"kty":%q,"x":%q,"y":%q}`, j.Crv, j.Kty, j.X, j.Y)
 		d := sha256.Sum256([]byte(canonical))
 		got, err := j.Thumbprint()
-		if err != nil || got != b64(d[:]) {
-			t.Fatalf("thumbprint = %s (%v), want %s", got, err, b64(d[:]))
+		if err != nil || got != B64(d[:]) {
+			t.Fatalf("thumbprint = %s (%v), want %s", got, err, B64(d[:]))
 		}
 	}
 }
@@ -465,4 +466,23 @@ func TestErrors_NeverCarryInputOrCallbackText(t *testing.T) {
 			t.Errorf("signer deadline: err = %v", err)
 		}
 	})
+}
+
+func TestInteger(t *testing.T) {
+	for raw, want := range map[string]int64{"0": 0, "7": 7, " 42 ": 42, "123456789012345678": 123456789012345678} {
+		if n, ok := Integer(json.RawMessage(raw)); !ok || n != want {
+			t.Errorf("Integer(%q) = %d, %v", raw, n, ok)
+		}
+	}
+	for _, raw := range []string{"", "null", "true", `"1"`, "-1", "1.0", "1e3", "01", "+1", "1234567890123456789", "0x10", " "} {
+		if n, ok := Integer(json.RawMessage(raw)); ok {
+			t.Errorf("Integer(%q) accepted as %d", raw, n)
+		}
+	}
+}
+
+func TestIsB64URL(t *testing.T) {
+	if !IsB64URL("") || !IsB64URL("AZaz09-_") || IsB64URL("a+b") || IsB64URL("a/b") || IsB64URL("a=") || IsB64URL("a\nb") {
+		t.Error("alphabet check")
+	}
 }

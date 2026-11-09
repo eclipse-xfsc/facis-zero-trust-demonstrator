@@ -74,6 +74,10 @@ Direct dependencies of the Go module. Transitive dependencies are listed in the 
 | `github.com/jackc/pgx/v5` | v5.11.0 | MIT | PostgreSQL driver of the token store: the schema migrations today (`services/token-store`), the service's queries as they land |
 | `google.golang.org/grpc` | v1.83.2 | Apache-2.0 | gRPC transport of the policy hook's Envoy services |
 
+The SD-JWT VC, Token Status List and OID4VP handling (`internal/sdjwt`, `internal/statuslist`,
+`internal/oid4vp`) is written on the standard library (`crypto/ecdsa`, `crypto/sha256`,
+`compress/zlib`, `net/http`) over the in-house JOSE subset (`internal/jose`); it adds no module.
+
 The admission check validates SBOMs against the official CycloneDX 1.5, 1.6 and 1.7 JSON Schemas and
 the schemas they reference (CycloneDX specification tag 1.7.2, Apache-2.0), vendored in
 `internal/cosignverify/schemas/` and pinned by SHA-256. CycloneDX 1.7 is accepted because it is what
