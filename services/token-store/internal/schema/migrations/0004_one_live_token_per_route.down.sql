@@ -1,0 +1,1 @@
+DROP INDEX upstream_token_one_live_per_route;

@@ -1,0 +1,13 @@
+{
+  "https://issuer.fixture.invalid": {
+    "keys": [
+      {
+        "kty": "EC",
+        "crv": "P-256",
+        "x": "pXrnCb2Jf5UGRabqV3E483egNHLMBhPk8dTcpGEwc-c",
+        "y": "W9pLizISYuCWK52orJwlfGoitZFKLfp6f7EGkRTDi5Q",
+        "kid": "fixture-issuer-1"
+      }
+    ]
+  }
+}

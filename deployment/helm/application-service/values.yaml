@@ -10,6 +10,20 @@ port: 8080
 healthPath: /health
 # Environment of the process, as name: value. No secret values here.
 env: {}
+# Opt-in runtime wiring; existing sample deployments keep their default account.
+serviceAccount:
+  create: false
+  name: ""
+identity:
+  spireManagedIdentity: false
+podAnnotations: {}
+nodeSelector: {}
+# NAME: {name: existing-secret, key: secret-key}; values never contain credentials.
+secretEnv: {}
+# Each mount: {name: unique-volume-name, secretName: existing-secret, mountPath: /absolute/path}.
+secretMounts: []
+# Each mount: {name: unique-volume-name, configMapName: existing-config, mountPath: /absolute/path}.
+configMapMounts: []
 resources:
   requests:
     cpu: 100m
