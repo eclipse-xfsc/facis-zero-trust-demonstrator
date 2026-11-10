@@ -219,8 +219,8 @@ migrations only add, so an older build runs against a newer schema and treats it
 
 ## Verification
 
-Two proofs, both run by `.github/workflows/token-store.yml` on every change to the store, its image,
-its chart or the pinned images:
+Three proofs, all run by `.github/workflows/token-store.yml` on every change to the store, its
+image, its chart or the pinned images:
 
 - **The runner, the queries and the service against an ephemeral database.**
   `go test ./services/token-store/...` with `TOKEN_STORE_TEST_DATABASE_URL` set runs against a
@@ -264,6 +264,21 @@ its chart or the pinned images:
   (`runtime-openbao-down-readyz.json`, `runtime-store-logs.txt`). The records and the verdict are
   the run's artefact and go to the job summary; nothing is committed. Locally, the script writes to
   the git-ignored `.dev/token-store-evidence/`.
+- **The failure catalogue on kind.** `scripts/verify-token-store-failures/verify.sh` runs the
+  store from the chart in runtime mode, with the real connector from the working tree as the peer
+  zone's issuer and one route registered at it through dynamic client registration, and induces
+  each failure the store was designed for, one at a time, as the guard would see it: a caller and
+  a target the routes refuse, a replay storm of one proof, PostgreSQL unreachable and then
+  crash-recovered (the unlogged replay record emptied, the bounded exposure logged and observed
+  once), OpenBao unreachable, the issuer down through a renewal until the row ends `failed` and
+  substitution answers `TOK-NO-UPSTREAM`, every token expired, and a renewer that died holding its
+  claim. Each row is recorded with its status, reason code, readiness words and audit rows and
+  judged against this page; recovery is always the dependency coming back, the two rows whose
+  state the run cannot reach in time are induced with one `UPDATE` each, and every statement the
+  script ran is listed, so "no manual database surgery" is checked, not assumed. The matrix, what
+  each row expects and what is left to the Go tests are in
+  `scripts/verify-token-store-failures/README.md`; the records are the negative evidence of the
+  token-storage requirement.
 - **Key custody in the Go tests.** Against a real OpenBao (`TRANSIT_TEST_ADDR`,
   `TRANSIT_TEST_TOKEN`): the transit client's rotation and signing floor
   (`TestOpenBaoMinSigningVersionRefusesOlderVersions`), the database refusing a second active

@@ -1,9 +1,10 @@
 name: Token store
 
 # The authorization database's schema, proven on every change to the store, its image, its chart
-# or the pinned images. Two jobs: the migration runner and the store's queries against a
-# PostgreSQL from the pinned image, and the chart's lifecycle (install, upgrade, uninstall) on a
-# kind cluster. Nothing is committed; the lifecycle records are the run's artefact.
+# or the pinned images. Three jobs: the migration runner and the store's queries against a
+# PostgreSQL from the pinned image, the chart's lifecycle (install, upgrade, uninstall) on a kind
+# cluster, and the store's failure catalogue on kind. Nothing is committed; the lifecycle and the
+# catalogue records are the run's artefacts.
 on:
   pull_request:
     paths:
@@ -20,6 +21,7 @@ on:
       - deployment/docker/protected-resource/**
       - deployment/helm/token-store/**
       - scripts/verify-token-store/**
+      - scripts/verify-token-store-failures/**
       - scripts/tools/pins.env
       - go.mod
       - go.sum
@@ -40,6 +42,7 @@ on:
       - deployment/docker/protected-resource/**
       - deployment/helm/token-store/**
       - scripts/verify-token-store/**
+      - scripts/verify-token-store-failures/**
       - scripts/tools/pins.env
       - go.mod
       - go.sum
@@ -149,6 +152,54 @@ jobs:
           if-no-files-found: error
 
       # The proof writes outside the checkout; the checkout must be as it was.
+      - name: The repository is unchanged
+        if: ${{ !cancelled() }}
+        run: |
+          if [ -n "$(git status --porcelain)" ]; then
+            git status --porcelain
+            echo "::error::the proof changed files in the repository"
+            exit 1
+          fi
+
+  failures:
+    name: Failure catalogue on kind
+    runs-on: ubuntu-24.04
+    timeout-minutes: 40
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+
+      - name: Set up Helm
+        uses: azure/setup-helm@1a275c3b69536ee54be43f2070a358922e12c8d4 # v4
+        with:
+          version: v4.3.0
+
+      - name: Install the pinned kind and kubectl
+        run: scripts/tools/install.sh "$RUNNER_TEMP/bin" kind kubectl
+
+      # The store, the connector as the peer issuer, and every induced failure of the matrix; the
+      # records go to the runner's temp directory, outside the checkout.
+      - name: Induce each failure of the store and record its reason code and recovery
+        run: BIN="$RUNNER_TEMP/bin" scripts/verify-token-store-failures/verify.sh --out "$RUNNER_TEMP/failures"
+
+      - name: Write the verdict and the matrix to the job summary
+        if: ${{ !cancelled() }}
+        run: |
+          {
+            echo '```'
+            cat "$RUNNER_TEMP/failures/verdict.txt"
+            if [ -f "$RUNNER_TEMP/failures/matrix.tsv" ]; then echo; cat "$RUNNER_TEMP/failures/matrix.tsv"; fi
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload this run's records
+        if: ${{ !cancelled() }}
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: token-store-failure-catalogue
+          path: ${{ runner.temp }}/failures
+          if-no-files-found: error
+
       - name: The repository is unchanged
         if: ${{ !cancelled() }}
         run: |
