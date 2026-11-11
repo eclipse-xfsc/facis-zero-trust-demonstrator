@@ -26,8 +26,10 @@ that the parked path still works.
 The kind zone file also lists the two control-plane namespaces, `spire-system` and `istio-system`,
 as management-plane namespaces without the mesh label, with the openings of the control planes;
 the script asserts their layout and that they go with the release. The umbrella alone installs no
-SPIRE and no Istio: the whole zone, the seven releases of `scripts/install-zone/install.sh`, is
-proven by `scripts/verify-mesh-identity/verify.sh`.
+SPIRE, no Istio and no OpenBao: the whole zone, the eight releases of
+`scripts/install-zone/install.sh`, is proven by `scripts/verify-mesh-identity/verify.sh`. The
+stand-in `openbao-standin` carries only the allow-matrix label of the store; the store itself is the
+release `ztd-openbao`.
 
 The stand-in pods carry only the labels of the allow matrix; nothing else about them is real, and
 none of their images is consumed by a zone.

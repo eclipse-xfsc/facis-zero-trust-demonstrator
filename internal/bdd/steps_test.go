@@ -70,18 +70,28 @@ func withMode(user, mode string) string {
 func TestMain(m *testing.M) {
 	testing.Init()
 	flag.Parse()
+	os.Exit(m.Run())
+}
 
+// TestFeatures runs the godog suite as an ordinary test, next to the package's plain unit tests (the
+// matrix.csv decider of the ZT-55 scenario), in every mode. Running it inside the test binary's
+// test log, not before it, matters to the go command's test cache: the environment it reads
+// (BDD_MODE, GODOG_CUCUMBER_OUT, the cluster variables) and the feature files it opens are recorded
+// as the run's inputs, so a run with another mode is never answered from the result of the last
+// one. A run that writes a report is never cached at all: the report is a file of the module the
+// test opened and has just written, which the go command refuses as a cache input - a cached result
+// would leave no report behind.
+func TestFeatures(t *testing.T) {
 	mode, ok := modes[os.Getenv("BDD_MODE")]
 	if !ok {
-		fmt.Fprintf(os.Stderr, "BDD_MODE=%q: want strict (the default), catalogue, cluster or cluster-dryrun\n", os.Getenv("BDD_MODE"))
-		os.Exit(1)
+		t.Fatalf("BDD_MODE=%q: want strict (the default), catalogue, cluster or cluster-dryrun", os.Getenv("BDD_MODE"))
 	}
-	opts.Tags = withMode(opts.Tags, mode.tags)
-	opts.Strict = mode.strict
+	suiteOpts := opts
+	suiteOpts.Tags = withMode(opts.Tags, mode.tags)
+	suiteOpts.Strict = mode.strict
 
 	// The cucumber formatter writes to a file so the report survives the run and
 	// can be merged; without it the human-readable format stays on stdout.
-	closeReport := func() error { return nil }
 	if path := os.Getenv("GODOG_CUCUMBER_OUT"); path != "" {
 		// The test binary runs in its own package directory; a relative report
 		// path is resolved against the repository root so it lands where the
@@ -90,32 +100,30 @@ func TestMain(m *testing.M) {
 			path = repoPath(path)
 		}
 		if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
-			fmt.Fprintln(os.Stderr, err)
-			os.Exit(1)
+			t.Fatal(err)
 		}
 		file, err := os.Create(path)
 		if err != nil {
-			fmt.Fprintln(os.Stderr, err)
-			os.Exit(1)
+			t.Fatal(err)
 		}
-		closeReport = file.Close
-		opts.Format = "cucumber"
-		opts.Output = file
+		// A failure to flush the report would otherwise leave a truncated
+		// report looking like a clean run.
+		defer func() {
+			if err := file.Close(); err != nil {
+				t.Errorf("closing the report: %v", err)
+			}
+		}()
+		suiteOpts.Format = "cucumber"
+		suiteOpts.Output = file
 	}
 
-	status := godog.TestSuite{
+	if status := (godog.TestSuite{
 		Name:                "facis-ztd",
 		ScenarioInitializer: InitializeScenario,
-		Options:             &opts,
-	}.Run()
-
-	// os.Exit skips deferred calls, so the report is closed here - a failure to
-	// flush it would otherwise leave a truncated report looking like a clean run.
-	if err := closeReport(); err != nil {
-		fmt.Fprintln(os.Stderr, "closing the report:", err)
-		os.Exit(1)
+		Options:             &suiteOpts,
+	}.Run()); status != 0 {
+		t.Errorf("godog suite exited with status %d", status)
 	}
-	os.Exit(status)
 }
 
 type hygieneCheck struct {
@@ -203,6 +211,7 @@ func InitializeScenario(ctx *godog.ScenarioContext) {
 	registerAdmissionProof(ctx, dryRun)
 	registerChartGate(ctx, dryRun)
 	registerSecretsBaseline(ctx, dryRun)
+	registerPlaneSeparationProof(ctx, dryRun)
 	registerPending(ctx)
 }
 

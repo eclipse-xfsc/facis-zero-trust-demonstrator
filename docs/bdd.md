@@ -99,11 +99,41 @@ scenarios. It runs strict in CI and asserts that the matrices in the
 and consistent: every path from the data plane to the management plane is disposed at both the
 network policy layer and the service mesh layer, in agreement with its verdict, and the catch-all
 row denies every management-plane destination without a row of its own. It reaches no network, so
-it carries no row tag and ZT-55 stays pending. The row is covered by the reachability scenario,
-not yet written, which runs when the matrix is executed against a cluster and asserts that a
-management-plane destination without a row is unreachable from the data plane at both layers. It
-is the scenario the section refers to when it says what the plane-separation test asserts for a
-destination it probes and does not find listed.
+it carries no row tag. The row `@ZT-55 @BDD-ZT-055` is decided by the reachability scenario,
+*Management Plane / Data Plane Separation* in `features/go/plane-separation.feature`. It runs in the
+cluster mode (`BDD_MODE=cluster`, `internal/bdd/plane_separation_cluster_test.go`) against an
+installed zone, and the cluster dry run lists it as not run. The scenario runs the verifier
+[`scripts/verify-plane-separation/verify.sh`](https://github.com/eclipse-xfsc/facis-zero-trust-demonstrator/blob/main/scripts/verify-plane-separation/README.md),
+which executes every row of the matrix from every data-plane namespace, and the
+[management plane → data plane](architecture.md#management-plane-data-plane) row from every
+management-plane namespace. It passes only when every row of the verifier's `matrix.csv` is green or
+declared and the record holds both directions. It is the scenario the section refers to
+when it says what the plane-separation test asserts for a destination it probes and does not find
+listed:
+
+- every port of that destination is unreachable from the data plane at the network layer;
+- a destination with a mesh proxy is also refused by its proxy behind a network opening scoped to
+  the probe. On a port a Service exposes, a meshed prober is refused with `403 RBAC` and a denial line
+  that names both identities. On a pod port no Service exposes, a plain-text request without an
+  identity is reset by the proxy under mutual TLS `STRICT`.
+
+From the management plane, every port of every Service of every data-plane namespace is unreachable
+at the network layer. Behind a probe-scoped opening, a meshed data-plane destination refuses a
+meshed management-plane caller with `403 RBAC` and a denial line. It resets a caller without a proxy,
+such as a pod of the SPIRE or Istio namespace, under mutual TLS `STRICT`.
+
+These cases are recorded rather than asserted at both layers:
+
+- a destination without a mesh proxy (the SPIRE server, istiod, or a data-plane workload without
+  one) is recorded `mesh: n/a`, since it has no mesh layer;
+- the export row admits every identity and every pod of its namespace, so it has no impostor and no
+  unlabelled caller: both are recorded `n/a`;
+- istiod's xDS port is recorded open as the declared opening (proposed), and is counted neither as a
+  denial nor as a control channel.
+
+The ALLOW rows are green when their legitimate caller is served over mutual TLS. Their impostor
+(the row's labels, another identity) must be refused by the mesh, and their unlabelled caller (the
+row's identity, not its labels) by the network.
 
 ### Running one Annex row
 

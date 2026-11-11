@@ -1,0 +1,7 @@
+row,role,namespace,probe,caller,destination,port,expected,outcome,layer,evidence,kind,verdict
+"pdp-adapter-to-tsa","Policy Engine","ztd-data","legitimate caller","pdp-adapter-to-tsa-caller","tsa.ztd-mgmt.svc","8080","200 over mTLS","200 ok, with a comma","control channel","the caller's proxy counted 1 request(s) to ""spiffe://td/ns/ztd-mgmt/sa/tsa""","stand-in","pass"
+"spire-server","SPIRE control plane","ztd-data","TCP, proxy-less","probe-0","spire-system/spire-server (spire-server-0)","8081","denied","denied(28)","network","Hubble drop: a, b","real","pass"
+"spire-server","SPIRE control plane","ztd-data","mesh layer","-","spire-system/spire-server","","n/a","not probed","mesh","mesh: n/a, the destination has no proxy","real","n/a"
+"management-to-data","any data-plane workload (from the management plane)","ztd-mgmt","TCP, proxy-less","probe-0","ztd-data/data-target (data-target)","8080","dropped","denied(28)","network","ev","stand-in","pass"
+"management-to-data","any data-plane workload (from the management plane)","ztd-mgmt","behind a probe-scoped opening","mesh-prober-0","ztd-data/data-target","8080","refused","403 RBAC: access denied","mesh","ev","stand-in","pass"
+"management-to-data","any data-plane workload (from the management plane)","spire-system","plain text, no identity, behind a probe-scoped opening","probe-0","ztd-data/data-target","8080","reset","denied(56)","mesh","ev","stand-in","pass"

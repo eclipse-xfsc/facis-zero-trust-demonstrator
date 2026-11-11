@@ -116,6 +116,7 @@ installer's uninstall removes the CRDs the release owned.
 |---|---|---|
 | `meshConfig.trustDomain` | zone fact | the mesh's trust domain equals SPIRE's; a mismatch fails silently at the first mTLS handshake |
 | `meshConfig.meshMTLS.minProtocolVersion` | `TLSV1_3` | the security baseline sets TLS 1.3 as the minimum (ADR 005, `docs/adr/tdr-decisions.md`) and Istio's default minimum for mesh mTLS is TLS 1.2; the CI render asserts the value in the rendered `istio` ConfigMap, and `scripts/verify-mesh-identity/verify.sh` shows a TLS 1.3 handshake accepted and one capped at TLS 1.2 refused. Only mesh mTLS is set: `tlsDefaults` governs traffic that is not `ISTIO_MUTUAL`, of which the zone has none |
+| `meshConfig.extensionProviders` | `denial-log`: `envoyFileAccessLog` to `/dev/stdout`, JSON labels `source` (`%DOWNSTREAM_PEER_URI_SAN%`), `destination` (`%DOWNSTREAM_LOCAL_URI_SAN%`), `authority`, `code`, `detail` (`%RESPONSE_CODE_DETAILS%`, an HTTP request's decision), `termination` (`%CONNECTION_TERMINATION_DETAILS%`, a TCP connection's), `flags`, `time` | the denial log of the mesh authorization: the destination's proxy writes one line per refused request with the caller's and its own SPIFFE ID, the authority and the decision detail (`rbac_access_denied_matched_policy[none]`), and nothing of the body or other headers. Defined here, enabled only for denials by the `Telemetry` `mesh-default` of `zone-policy` (its `denialLog.provider`); no `accessLogFile` is set, so served requests are not logged. The CI render asserts the provider and its two identity labels in the rendered `istio` ConfigMap |
 | `pilot.env.ENABLE_NATIVE_SIDECARS` | `"true"` | the proxy is injected as an init container with `restartPolicy: Always` (Kubernetes 1.33 or later) |
 | `pilot.cni.enabled` | `true` | traffic redirection by the Istio CNI plugin (release `istio-cni`), so the injected pod has no privileged `istio-init` container |
 | `sidecarInjectorWebhook.templates.spire` | a patch of the pod's `workload-socket` volume into the `csi.spiffe.io` read-only volume | the default sidecar template mounts `workload-socket` into the proxy at `/var/run/secrets/workload-spiffe-uds`; with the SPIRE agent's socket there the proxy takes its certificate and bundle from SPIRE over SDS and never from istiod's CA |
@@ -149,6 +150,6 @@ The CI chart job renders every release from its pinned chart with these files an
 facts, and never installs:
 
 ```bash
-scripts/install-zone/install.sh render            # all seven releases, no cluster
+scripts/install-zone/install.sh render            # all eight releases, no cluster
 scripts/install-zone/install.sh render spire      # one release
 ```

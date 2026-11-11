@@ -1,0 +1,58 @@
+# The verifier's own probers, one pair per node with a SPIRE agent, in each probing namespace __NS__ (every
+# data-plane namespace, and every management-plane namespace for the management plane -> data plane
+# direction; scripts/verify-plane-separation/verify.sh); __NODE__ is the node, __I__ its index. Neither
+# carries the labels of an allowMatrix row.
+# - probe-__I__: no proxy, so its TCP probe is a plain connection from the pod's address, and its plain-text
+#   probe behind a probe-scoped opening (opening.yaml, by its run and prober labels) carries no identity. It
+#   opts out of injection, which the capture rule of zone-policy refuses in an injected plane namespace: the
+#   verifier creates it there with that one validation lifted and puts it back (capture_lift_create,
+#   scripts/lib/probe.sh); in a namespace without injection it is created as written.
+# - mesh-prober-__I__: meshed and registered under a service account of its own (no row names it), the
+#   caller behind a probe-scoped opening (opening.yaml), so the destination's proxy logs its SPIFFE ID. Only
+#   created in a namespace with injection.
+apiVersion: v1
+kind: Pod
+metadata:
+  name: probe-__I__
+  namespace: __NS__
+  labels: { app.kubernetes.io/name: probe, app.kubernetes.io/part-of: verify-plane-separation, verify-plane-separation/run: "__RUN__", verify-plane-separation/prober: probe-__I__ }
+  annotations: { sidecar.istio.io/inject: "false", verify-plane-separation/role: probe }
+spec:
+  activeDeadlineSeconds: 7200   # a stand-in left by a killed run stops on its own after 2 h
+  terminationGracePeriodSeconds: 2
+  automountServiceAccountToken: false
+  affinity:
+    nodeAffinity:
+      requiredDuringSchedulingIgnoredDuringExecution:
+        nodeSelectorTerms: [{ matchExpressions: [{ key: kubernetes.io/hostname, operator: In, values: [__NODE__] }] }]
+  containers:
+    - name: app
+      image: docker.io/curlimages/curl:8.10.1@sha256:d9b4541e214bcd85196d6e92e2753ac6d0ea699f0af5741f8c6cccbfcf00ef4b
+      command: [sleep, "3600"]
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: mesh-prober
+  namespace: __NS__
+  labels: { app.kubernetes.io/part-of: verify-plane-separation }
+---
+apiVersion: v1
+kind: Pod
+metadata:
+  name: mesh-prober-__I__
+  namespace: __NS__
+  labels: { app.kubernetes.io/name: mesh-prober, app.kubernetes.io/part-of: verify-plane-separation, spiffe.io/spire-managed-identity: "true", verify-plane-separation/run: "__RUN__", verify-plane-separation/prober: mesh-prober-__I__ }
+  annotations: { verify-plane-separation/role: mesh-prober }
+spec:
+  activeDeadlineSeconds: 7200   # a stand-in left by a killed run stops on its own after 2 h
+  terminationGracePeriodSeconds: 2
+  serviceAccountName: mesh-prober
+  affinity:
+    nodeAffinity:
+      requiredDuringSchedulingIgnoredDuringExecution:
+        nodeSelectorTerms: [{ matchExpressions: [{ key: kubernetes.io/hostname, operator: In, values: [__NODE__] }] }]
+  containers:
+    - name: app
+      image: docker.io/curlimages/curl:8.10.1@sha256:d9b4541e214bcd85196d6e92e2753ac6d0ea699f0af5741f8c6cccbfcf00ef4b
+      command: [sleep, "3600"]

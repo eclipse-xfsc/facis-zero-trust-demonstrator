@@ -1,0 +1,75 @@
+# Stand-ins of the allowMatrix row workloads-to-otel-collector (scripts/verify-plane-separation/verify.sh). Each object carries
+# app.kubernetes.io/part-of: verify-plane-separation; each pod carries exactly the row's labels and service
+# account (verify_test.sh holds them to the rendered row), plus the SPIRE registration label. __TO__ is the
+# destination's namespace, __FROM__ the data-plane namespace the callers run in. The destination is
+# created only when the zone runs no pod matching the row's selector and service account (design D6);
+# the callers are always stand-ins.
+# The destination: agnhost porter answers on every port it is given (SERVE_PORT_<port>).
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: otel-collector
+  namespace: __TO__
+  labels: { app.kubernetes.io/part-of: verify-plane-separation }
+---
+apiVersion: v1
+kind: Pod
+metadata:
+  name: otel-collector
+  namespace: __TO__
+  labels: { app.kubernetes.io/name: otel-collector, app.kubernetes.io/part-of: verify-plane-separation, spiffe.io/spire-managed-identity: "true" }
+  annotations: { verify-plane-separation/role: destination }
+spec:
+  activeDeadlineSeconds: 7200   # a stand-in left by a killed run stops on its own after 2 h
+  terminationGracePeriodSeconds: 2
+  serviceAccountName: otel-collector
+  containers:
+    - name: app
+      image: registry.k8s.io/e2e-test-images/agnhost:2.53
+      args: [porter]
+      env:
+        - { name: SERVE_PORT_4317, value: otel-collector-4317 }
+        - { name: SERVE_PORT_4318, value: otel-collector-4318 }
+        - { name: SERVE_PORT_8080, value: otel-collector-8080 }
+      ports:
+        - { containerPort: 4317 }
+        - { containerPort: 4318 }
+        - { containerPort: 8080 }
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: otel-collector
+  namespace: __TO__
+  labels: { app.kubernetes.io/part-of: verify-plane-separation }
+spec:
+  selector: { app.kubernetes.io/name: otel-collector }
+  ports:
+    - { name: http-4317, port: 4317 }
+    - { name: http-4318, port: 4318 }
+    - { name: http-8080, port: 8080 }
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: workloads-to-otel-collector-caller
+  namespace: __FROM__
+  labels: { app.kubernetes.io/part-of: verify-plane-separation }
+---
+# The caller: the row admits every workload of the data-plane namespace, so any registered pod; it
+# also calls the destination off the row's ports.
+apiVersion: v1
+kind: Pod
+metadata:
+  name: workloads-to-otel-collector-caller
+  namespace: __FROM__
+  labels: { app.kubernetes.io/part-of: verify-plane-separation, spiffe.io/spire-managed-identity: "true" }
+  annotations: { verify-plane-separation/role: caller }
+spec:
+  activeDeadlineSeconds: 7200   # a stand-in left by a killed run stops on its own after 2 h
+  terminationGracePeriodSeconds: 2
+  serviceAccountName: workloads-to-otel-collector-caller
+  containers:
+    - name: app
+      image: docker.io/curlimages/curl:8.10.1@sha256:d9b4541e214bcd85196d6e92e2753ac6d0ea699f0af5741f8c6cccbfcf00ef4b
+      command: [sleep, "3600"]

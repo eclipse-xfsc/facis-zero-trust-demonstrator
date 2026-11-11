@@ -3,8 +3,9 @@
 # with what the chart would like it to be. Mesh mode sidecar, the ADR-0009 baseline; the parked
 # ambient mode is exercised by scripts/verify-umbrella/ambient-values.yaml, not here. The CI chart
 # job renders every chart with its ci/values.yaml, and scripts/install-zone/install.sh installs the
-# kind zone from this file (the umbrella reads all of it; the SPIRE, Istio and zone-policy releases
-# read the zone facts they need).
+# kind zone from this file (the umbrella reads all of it; the SPIRE, Istio, zone-policy and
+# ztd-openbao releases read the zone facts they need, over the umbrella's defaults). OpenBao is on:
+# every zone the installer installs gets the release ztd-openbao, unpinned on kind.
 zone:
   name: kind
   kubernetesVersion: v1.35.8
@@ -41,11 +42,3 @@ networkPolicy:
     enabled: true
   identityServer:
     enabled: true
-# OpenBao is on in the kind zone, so the CI render, the release gate's dry-run and the secrets
-# baseline cover it. Its bootstrap reaches the Kubernetes API from the management plane over the
-# kubeApi lane above, which a meshed zone has on in any case (docs/secrets.md).
-openbao:
-  enabled: true
-  server:
-    dataStorage:
-      storageClass: standard

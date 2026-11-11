@@ -1,0 +1,3 @@
+row,role,namespace,probe,caller,destination,port,expected,outcome,layer,evidence,kind,verdict
+"management-to-data","any data-plane workload (from the management plane)","ztd-mgmt","TCP, proxy-less","probe-0","ztd-data/data-target (data-target)","8080","dropped","denied(28)","network","ev","stand-in","pass"
+"management-to-data","any data-plane workload (from the management plane)","ztd-mgmt","behind a probe-scoped opening","mesh-prober-0","ztd-data/data-target","8080","refused","403 RBAC: access denied","mesh","ev","stand-in","pass"
