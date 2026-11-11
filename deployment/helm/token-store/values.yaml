@@ -1,0 +1,87 @@
+# The token-store image, by digest only - the chart refuses a tag.
+image:
+  repository: ghcr.io/eclipse-xfsc/facis-zero-trust-demonstrator/token-store
+  digest: ""
+
+# The PostgreSQL the store owns. The chart does not run the database and never carries its
+# credential: the connection URL lives in a Secret of the release namespace, created before the
+# install, and the migration Jobs and the service read it from there.
+database:
+  # Required: the Secret holding the connection URL.
+  existingSecret: ""
+  # The key of the connection URL in that Secret.
+  secretKey: url
+
+# The zone's key-value store, reached inside the management plane; the mesh carries the traffic
+# as mTLS, so the address is plain HTTP. Scheme and host only: the store appends its own paths.
+# The service asks it whether it is initialised and unsealed and is not ready until it is, so the
+# store at this address must exist: the default is the umbrella chart's OpenBao under the release
+# name ztd, which the umbrella ships disabled; enable it there or point this at the zone's.
+openbao:
+  address: http://ztd-openbao.ztd-mgmt.svc:8200
+
+# The service.
+replicas: 1
+# Runtime endpoints and renewal are opt-in; all sensitive files are mounted from an existing Secret.
+runtime:
+  enabled: false
+  existingConfigMap: ""
+  configKey: acquisition.json
+  credentialsSecret: ""
+  openbaoTokenKey: openbao-token
+  replayCallers: []
+podAnnotations: {}
+nodeSelector: {}
+networkPolicy:
+  # Schema hooks need their own database lanes, independent of the server.
+  schemaEgress: []
+  istiodNamespace: istio-system
+  enabled: false
+  ingressFrom: []
+  egress: []
+server:
+  # Budget of one /readyz evaluation, both dependencies asked at once. The readiness probe's
+  # timeoutSeconds renders as this plus one, so the kubelet never cuts an evaluation short.
+  readinessTimeoutSeconds: 2
+  # On SIGTERM, how long /readyz answers 503 while the listeners stay open: the time routing needs
+  # to leave the pod. 0 closes at once.
+  drainDelaySeconds: 5
+  # Drain of the listeners after that delay. terminationGracePeriodSeconds renders as the drain
+  # delay plus this plus the readiness budget plus five, the service's worst case.
+  shutdownTimeoutSeconds: 10
+  # debug, info, warn or error.
+  logLevel: info
+
+# The store's identities in the mesh: a ServiceAccount for the service and another for the
+# migration Jobs, each the last segment of a SPIFFE ID (spiffe://<trust domain>/ns/<namespace>/sa/
+# <name>), and the pod label the SPIRE registration selects. The migration runner holds the
+# schema's DDL and the service never does, so they are distinct principals; the schema account is
+# created as a hook, one weight below the Jobs, since Helm creates hooks before the release's own
+# resources, and it is kept across uninstall as hook resources are. With create off both accounts
+# are managed outside the chart and must exist. No pod mounts an account's token; the label is
+# harmless where SPIRE is absent and required where it runs.
+serviceAccount:
+  create: true
+  name: ztd-token-store
+  schemaName: ztd-token-store-schema
+identity:
+  spireManagedIdentity: true
+
+schema:
+  # Revert every migration on uninstall (helm uninstall runs `migrate down --to 0`), leaving an
+  # empty schema. Off by default: a production database outlives the release. On in ci/values.yaml.
+  dropOnUninstall: false
+  # Hook weight of the migration Jobs, inside the platform band (40-59) of the umbrella chart's
+  # hook-weight scheme.
+  hookWeight: 41
+  # The Job's whole run, lock wait included, and how often Kubernetes retries a failed pod.
+  timeout: 2m
+  backoffLimit: 2
+
+# For the service's container and the migration Jobs alike.
+resources:
+  requests:
+    cpu: 50m
+    memory: 64Mi
+  limits:
+    memory: 128Mi

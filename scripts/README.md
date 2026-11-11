@@ -51,3 +51,39 @@ No record is committed. The workflow `.github/workflows/policy-hook.yml` runs th
 pull request that touches the hook, uploads the records as an artefact and writes the verdict to
 the job summary; those are the numbers of a Linux host. `envoy/` holds the three bootstrap
 templates the probe renders.
+## Token-store chart lifecycle and readiness (`verify-token-store/`)
+
+`verify.sh` proves the token-store chart's lifecycle and the service's readiness on a throwaway
+kind cluster: the image built from the working tree, a registry on the kind network, PostgreSQL
+and OpenBao from the pinned images inside the cluster with the connection URL in a Secret; then an
+install that applies the schema to an empty database and brings the service up ready; the service
+not ready and still alive while PostgreSQL, then OpenBao, is gone, and ready again when each is
+back; a caller's `x-request-id` and trace context on the service's records, every request record
+correlated, no credential among them, no restart; the pod as its own ServiceAccount with the
+identity label; an upgrade that changes nothing, an uninstall with `schema.dropOnUninstall` that
+leaves the schema empty, and a default uninstall that keeps it; then, in runtime mode with a
+least-privilege service token, the store's key custody: the key created in transit by `token-store
+keys ensure` and registered by reference and thumbprint only, the thumbprint recomputed with
+openssl, export refused, `keys rotate` retiring the previous version with transit no longer signing
+with it, and readiness failing closed with OpenBao gone while no key material or token reaches the
+database or the records. Records and the verdict go to `--out` (default the git-ignored
+`.dev/token-store-evidence/`). Needs docker, helm, kind, kubectl, curl, jq and openssl; `BIN=` names
+the directory `scripts/tools/install.sh kind kubectl` installed to. The
+`Token store` workflow runs it on every change to the store, its image, its chart or the pinned
+images. Design: [Token store](../docs/token-store.md).
+
+## Token-store failure catalogue (`verify-token-store-failures/`)
+
+`verify.sh` proves the token store's failure matrix on a throwaway kind cluster: the store from the
+chart in runtime mode on PostgreSQL and OpenBao from the pinned images, the real connector from the
+working tree as the peer zone's issuer with one route registered through dynamic client
+registration, and the script as the guard, substituting and replay-checking with the forwarded
+client certificate the sidecar would set. One failure at a time: a caller and a target the routes
+refuse, a replay storm, PostgreSQL unreachable and PostgreSQL crash-recovered, OpenBao unreachable,
+the issuer down through a renewal, every token expired, a renewer that died holding its claim. Each
+row is recorded with the status, the reason code, the readiness words and the audit rows the
+design documents for it; recovery is the dependency coming back, and every statement the script
+ran against the database is listed. Records, `matrix.tsv` and the verdict go to `--out` (default
+the git-ignored `.dev/token-store-failures/`); the matrix is in its
+[README](verify-token-store-failures/README.md). Needs docker, helm, kind, kubectl, curl, jq and
+openssl. The `Token store` workflow runs it as its own job.
