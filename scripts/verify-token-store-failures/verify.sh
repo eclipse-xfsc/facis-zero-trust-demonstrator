@@ -369,6 +369,25 @@ curl_image=$(sed -n 's/^ *image: *\(docker\.io\/curlimages\/curl:[^ ]*\).*/\1/p'
 echo "  token-store $reg/token-store@$digest"
 echo "  connector   $reg/connector@$connector_digest"
 
+# The lane into the connector's pods, applied at setup and again after row 8b removes it: without
+# it the default deny drops every packet to the issuer, which is the silent face of a peer that is
+# down.
+connector_ingress_lane() {
+  kubectl -n "$ns" apply -f - <<'YAML' >/dev/null
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata: {name: connector-ingress}
+spec:
+  podSelector: {matchLabels: {app: connector}}
+  policyTypes: [Ingress]
+  ingress:
+    - from:
+        - podSelector: {matchLabels: {app.kubernetes.io/name: ztd-token-store}}
+        - podSelector: {matchLabels: {app: client}}
+      ports: [{port: 8080, protocol: TCP}]
+YAML
+}
+
 step "PostgreSQL, OpenBao and the policies of the namespace"
 kubectl create namespace "$ns" >/dev/null
 # Default-deny first; then each lane by name. The store's own lanes come with its chart.
@@ -393,18 +412,6 @@ spec:
         - podSelector: {matchLabels: {app.kubernetes.io/name: ztd-token-store}}
         - podSelector: {matchLabels: {app: connector}}
       ports: [{port: 5432, protocol: TCP}, {port: 8200, protocol: TCP}]
----
-apiVersion: networking.k8s.io/v1
-kind: NetworkPolicy
-metadata: {name: connector-ingress}
-spec:
-  podSelector: {matchLabels: {app: connector}}
-  policyTypes: [Ingress]
-  ingress:
-    - from:
-        - podSelector: {matchLabels: {app.kubernetes.io/name: ztd-token-store}}
-        - podSelector: {matchLabels: {app: client}}
-      ports: [{port: 8080, protocol: TCP}]
 ---
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
@@ -447,6 +454,7 @@ spec:
         - podSelector: {matchLabels: {app: openbao}}
       ports: [{port: 8200, protocol: TCP}]
 YAML
+connector_ingress_lane
 pass "the namespace denies ingress and egress by default; each lane is named"
 kubectl -n "$ns" create secret generic "$secret" --from-literal=url="$db_url" >/dev/null
 kubectl -n "$ns" create secret generic connector-database --from-literal=url="$connector_db_url" >/dev/null
@@ -936,10 +944,63 @@ fi
 code=$(substitute openbao-back)
 expect "row 6" "substitution with the key-value store back" 200 "" "$code" "$(reason "$out/openbao-back-substitute.json")"
 
-step "Row 7: the issuer down through a renewal"
+# The issuer down has two faces, and the design page answers each differently: a peer that refuses
+# the connection has "definitively answered without a token", 409 TOK-NO-UPSTREAM; a peer that
+# never answers runs the caller out of its deadline, 503 TOK-STORE-UNAVAILABLE. A Service with no
+# endpoints shows one face or the other depending on the datapath (refused at once on one kernel,
+# dropped on another: the first CI run of this proof saw the silent face where every local run had
+# seen the refusing one), so each face is induced on purpose. Refusing: the connector scaled to zero
+# and, under its label, a pod that listens on nothing, so the Service resolves to it and its kernel
+# answers every SYN with a reset. Silent: the lane into the connector's pods removed, so the default
+# deny drops every packet.
+issuer_refusing() {
+  kubectl -n "$ns" scale deploy/connector --replicas=0 >/dev/null
+  kubectl -n "$ns" wait --for=delete pod -l app=connector --timeout=90s >/dev/null 2>&1 || true
+  kubectl -n "$ns" apply -f - <<EOF >/dev/null
+apiVersion: v1
+kind: Pod
+metadata:
+  name: issuer-standin
+  labels: {app: connector}
+spec:
+  containers:
+    - name: nothing
+      image: "$curl_image"
+      command: [sh, -c, 'while true; do sleep 3600; done']
+      securityContext:
+        allowPrivilegeEscalation: false
+        capabilities: {drop: [ALL]}
+EOF
+  kubectl -n "$ns" wait --for=condition=Ready pod/issuer-standin --timeout=120s >/dev/null
+  wait_until 30 standin_is_the_endpoint || true
+  connector_endpoints > "$out/$1-endpoints.txt"
+}
+connector_endpoints() {
+  kubectl -n "$ns" get endpointslices -l kubernetes.io/service-name=connector \
+    -o jsonpath='{range .items[*].endpoints[*]}{.targetRef.name}{" "}{end}' 2>/dev/null | tr -d ' \n' || true
+  echo
+}
+standin_is_the_endpoint() { [ "$(connector_endpoints)" = issuer-standin ]; }
+standin_check() {
+  if [ "$(cat "$out/$2-endpoints.txt")" = issuer-standin ]; then
+    pass "$1: the connector is gone and its Service resolves to a pod that listens on nothing: every connection is refused"
+  else
+    fail "$1: the Service's endpoints are '$(cat "$out/$2-endpoints.txt")', want the stand-in alone"
+  fi
+}
+issuer_silent() { kubectl -n "$ns" delete networkpolicy connector-ingress >/dev/null; }
+issuer_back() {
+  kubectl -n "$ns" delete pod issuer-standin --wait=true >/dev/null 2>&1 || true
+  kubectl -n "$ns" scale deploy/connector --replicas=1 >/dev/null
+  kubectl -n "$ns" rollout status deploy/connector --timeout=180s >/dev/null
+  wait_until 60 jwks_served || true   # the Service's endpoints follow the pod's readiness
+}
+audit_after() { [ "$(last_audit)" -gt "$1" ]; }
+
+step "Row 7: the issuer down and refusing, through a renewal"
 # The row the issuer will fail to renew is chosen before the issuer goes, with its renewal at least
-# 30 s away: the scale-down and the substitution below then happen before the worker claims it.
-# Read after the scale-down instead, the row could already have been claimed and given up, and
+# 30 s away: the induction and the substitution below then happen before the worker claims it.
+# Read after the induction instead, the row could already have been claimed and given up, and
 # there would be no live row to follow.
 live=$(live_row)
 if [ -n "$live" ] && [ $(( $(renew_epoch "$live") - $(date +%s) )) -lt 30 ]; then
@@ -950,8 +1011,8 @@ fi
 if [ -z "$live" ]; then fail "row 7: no live row before the issuer goes down"; fi
 renew_at=$(renew_epoch "$live")
 since=$(last_audit)
-kubectl -n "$ns" scale deploy/connector --replicas=0 >/dev/null
-kubectl -n "$ns" wait --for=delete pod -l app=connector --timeout=90s >/dev/null 2>&1 || true
+issuer_refusing issuer-down
+standin_check "row 7" issuer-down
 code=$(substitute issuer-down-valid)
 expect "row 7" "substitution while the token is still valid" 200 "" "$code" "$(reason "$out/issuer-down-valid-substitute.json")"
 # Recorded, not judged: a passing issuer-separation check is cached for five minutes, so readiness
@@ -975,7 +1036,7 @@ else
 fi
 since=$(last_audit)
 code=$(substitute issuer-down)
-expect "row 7" "substitution with the row failed and the issuer down" 409 TOK-NO-UPSTREAM "$code" "$(reason "$out/issuer-down-substitute.json")"
+expect "row 7" "substitution with the row failed and the issuer refusing" 409 TOK-NO-UPSTREAM "$code" "$(reason "$out/issuer-down-substitute.json")"
 audit_since "$since" "$out/issuer-down-ondemand-audit.txt"
 if grep -q " upstream.failed ACQ-CHALLENGE-FAILED " "$out/issuer-down-ondemand-audit.txt"; then
   pass "row 7: the on-demand attempt is audited upstream.failed ACQ-CHALLENGE-FAILED"
@@ -983,9 +1044,7 @@ else
   fail "row 7: on-demand audit $(tr '\n' ';' < "$out/issuer-down-ondemand-audit.txt")"
 fi
 since=$(last_audit)
-kubectl -n "$ns" scale deploy/connector --replicas=1 >/dev/null
-kubectl -n "$ns" rollout status deploy/connector --timeout=180s >/dev/null
-wait_until 60 jwks_served || true   # the Service's endpoints follow the pod's readiness
+issuer_back
 code=$(substitute issuer-back)
 expect "row 7" "substitution with the issuer back" 200 "" "$code" "$(reason "$out/issuer-back-substitute.json")"
 audit_since "$since" "$out/issuer-back-audit.txt"
@@ -997,19 +1056,50 @@ else
   fail "row 7: live $new_live (was $live, now $(row_state "$live")); audit $(tr '\n' ';' < "$out/issuer-back-audit.txt")"
 fi
 
-step "Row 8: everything expired (induced), the issuer down"
+step "Row 8: everything expired (induced), the issuer refusing; row 8b: the issuer silent"
 live=$(live_row)
 if [ -z "$live" ]; then fail "row 8: no live row to expire"; fi
-kubectl -n "$ns" scale deploy/connector --replicas=0 >/dev/null
-kubectl -n "$ns" wait --for=delete pod -l app=connector --timeout=90s >/dev/null 2>&1 || true
+issuer_refusing expired
+standin_check "row 8" expired
 induce "UPDATE upstream_token SET expires_at = now() - interval '1 second', renew_after = now() - interval '1 second' WHERE token_id::text = '$live'" >/dev/null
 rows "$out/expired-rows.txt"
 code=$(substitute expired)
-expect "row 8" "substitution with every token expired" 409 TOK-NO-UPSTREAM "$code" "$(reason "$out/expired-substitute.json")"
+expect "row 8" "substitution with every token expired and the issuer refusing" 409 TOK-NO-UPSTREAM "$code" "$(reason "$out/expired-substitute.json")"
 if ! jq -e '.authorization // .dpop' "$out/expired-substitute.json" >/dev/null 2>&1; then pass "row 8: no credential in the refusal"; else fail "row 8: a credential in the refusal"; fi
-kubectl -n "$ns" scale deploy/connector --replicas=1 >/dev/null
-kubectl -n "$ns" rollout status deploy/connector --timeout=180s >/dev/null
-wait_until 60 jwks_served || true   # the Service's endpoints follow the pod's readiness
+# With the issuer refusing, the worker claims the expired row at its next cycle (renew_after is in
+# the past) and fails it after three fast attempts. Row 8b starts from that settled state: a failed
+# row is left alone by later cycles, so the one audit row written during the silent face is the
+# on-demand attempt's.
+if wait_until 60 row_is failed "$live"; then
+  pass "row 8: the worker claimed the expired row and failed it against the refusing issuer"
+else
+  fail "row 8: the expired row is $(row_state "$live") after 60s, want failed"
+fi
+# Row 8b, the silent face: the lane into the issuer's pods removed, every packet to it dropped. The
+# call is bounded by the caller's deadline (10 s), not answered by the peer: 503
+# TOK-STORE-UNAVAILABLE, no credential, and the attempt's audit row still written, the cleanup the
+# design page says survives the deadline.
+since=$(last_audit)
+issuer_silent
+started=$(date +%s)
+code=$(substitute expired-silent)
+elapsed=$(( $(date +%s) - started ))
+expect "row 8b" "substitution with every token expired and the issuer silent" 503 TOK-STORE-UNAVAILABLE "$code" "$(reason "$out/expired-silent-substitute.json")"
+if [ "$elapsed" -ge 9 ]; then
+  pass "row 8b: the refusal came at the caller's deadline (${elapsed}s), bounded by the store, not answered by the peer"
+else
+  fail "row 8b: the refusal came after ${elapsed}s; a silent peer should run the caller's 10s deadline out"
+fi
+if ! jq -e '.authorization // .dpop' "$out/expired-silent-substitute.json" >/dev/null 2>&1; then pass "row 8b: no credential in the refusal"; else fail "row 8b: a credential in the refusal"; fi
+wait_until 10 audit_after "$since" || true
+audit_since "$since" "$out/expired-silent-audit.txt"
+if grep -q " upstream.failed ACQ-CHALLENGE-FAILED " "$out/expired-silent-audit.txt"; then
+  pass "row 8b: the attempt is audited upstream.failed ACQ-CHALLENGE-FAILED although the deadline cut the call"
+else
+  fail "row 8b: audit $(tr '\n' ';' < "$out/expired-silent-audit.txt")"
+fi
+connector_ingress_lane
+issuer_back
 code=$(substitute expired-back)
 expect "row 8" "substitution with the issuer back" 200 "" "$code" "$(reason "$out/expired-back-substitute.json")"
 rows "$out/expired-back-rows.txt"

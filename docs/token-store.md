@@ -271,12 +271,13 @@ image, its chart or the pinned images:
   a target the routes refuse, a replay storm of one proof, PostgreSQL unreachable and then
   crash-recovered (the unlogged replay record emptied, the bounded exposure logged and observed
   once), OpenBao unreachable, the issuer down through a renewal until the row ends `failed` and
-  substitution answers `TOK-NO-UPSTREAM`, every token expired, and a renewer that died holding its
-  claim. Each row is recorded with its status, reason code, readiness words and audit rows and
-  judged against this page; recovery is always the dependency coming back, the two rows whose
-  state the run cannot reach in time are induced with one `UPDATE` each, and every statement the
-  script ran is listed, so "no manual database surgery" is checked, not assumed. The matrix, what
-  each row expects and what is left to the Go tests are in
+  substitution answers `TOK-NO-UPSTREAM`, every token expired with the issuer refusing
+  (`TOK-NO-UPSTREAM` at once) and then silent (`TOK-STORE-UNAVAILABLE` at the caller's deadline),
+  and a renewer that died holding its claim. Each row is recorded with its status, reason code,
+  readiness words and audit rows and judged against this page; recovery is always the dependency
+  coming back, the two rows whose state the run cannot reach in time are induced with one `UPDATE`
+  each, and every statement the script ran is listed, so "no manual database surgery" is checked,
+  not assumed. The matrix, what each row expects and what is left to the Go tests are in
   `scripts/verify-token-store-failures/README.md`; the records are the negative evidence of the
   token-storage requirement.
 - **Key custody in the Go tests.** Against a real OpenBao (`TRANSIT_TEST_ADDR`,
