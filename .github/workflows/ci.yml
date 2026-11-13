@@ -158,6 +158,19 @@ jobs:
       - name: Run the inspector cases
         run: bash scripts/verify-train-dns/verify_test.sh
 
+  # The TRAIN publication step: publish.sh against a stand-in that copies the trust-list API's write
+  # semantics (create-only PUT, PATCH, the 200-with-empty-body quirk, 401, 403), one case per outcome
+  # a rollout may be gated on. Seconds; the proof against a real TSPA on kind follows as its own job.
+  train-publish:
+    name: TRAIN publication step
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+
+      - name: Run the publisher's cases against the TSPA stand-in
+        run: bash scripts/train-publish/publish_test.sh
+
   # The whole admission catalogue in a real Gatekeeper: a kind cluster with Gatekeeper (pinned chart,
   # cache off), the provider and a local registry of test images signed with the release script and
   # an ephemeral key. Includes provider-down, Gatekeeper-down and trust-removal cases.

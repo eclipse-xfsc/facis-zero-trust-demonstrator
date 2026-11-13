@@ -12,6 +12,7 @@ Bash is the language for scripts under `scripts/` per the Technical Development 
 | `verify-umbrella/verify.sh` | evidence for the umbrella chart alone on kind |
 | `verify-mesh-identity/verify.sh` | evidence that the mesh identities are SPIRE's, the whole zone on kind |
 | `mesh-mode/check-upstream-state.sh` | the upstream-state record behind ADR-0009 and its reopen check |
+| `train-publish/publish.sh` | publish an attested component's reference measurement into TRAIN through the TSPA before its rollout and prune it after; the read-back of the trust list is the proof, `publish_test.sh` the fast test |
 ## Guard policy-hook proofs (`verify-policy-hook/`)
 
 `verify-policy-hook/verify.sh` proves the behaviour of the guard's policy hook against a real
