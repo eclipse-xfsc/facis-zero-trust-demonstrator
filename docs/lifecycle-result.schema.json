@@ -14,7 +14,7 @@
         "required": ["action", "step", "status"],
         "properties": {
           "action": { "enum": ["deploy", "uninstall"] },
-          "step": { "enum": ["validate", "dry-run", "deploy", "uninstall"] },
+          "step": { "enum": ["validate", "publish", "dry-run", "deploy", "prune", "uninstall"] },
           "status": { "enum": ["running", "succeeded", "failed"] }
         }
       }
@@ -50,7 +50,12 @@
                     "properties": { "apiVersion": { "type": "string" }, "kind": { "type": "string" }, "namespace": { "type": ["string", "null"] }, "name": { "type": "string" }, "uid": { "type": "string" } }
                   }
                 },
-                "output": { "description": "Helm output, credentials masked.", "type": "string" }
+                "output": { "description": "Helm output, credentials masked.", "type": "string" },
+                "publication": {
+                  "description": "The TRAIN publication step's evidence, when LIFECYCLE_PUBLISH_RECORD named a record: the publisher's evidence line per step (scripts/train-publish/README.md), present also on a failed result.",
+                  "type": "object",
+                  "properties": { "publish": { "type": "object" }, "prune": { "type": "object" } }
+                }
               }
             },
             "ui": { "type": "object" },
@@ -60,7 +65,7 @@
                 "fields": { "description": "Parameter name to message.", "type": "object", "additionalProperties": { "type": "string" } },
                 "action": {
                   "description": "Reason code of a refused or failed action.",
-                  "enum": ["valuesSchemaRejected", "dryRunRejected", "deployFailed", "uninstallFailed", "releaseNotFound", "clusterUnreachable", "duplicateRequest", "invalidAction", "systemError"]
+                  "enum": ["valuesSchemaRejected", "dryRunRejected", "deployFailed", "uninstallFailed", "releaseNotFound", "clusterUnreachable", "duplicateRequest", "invalidAction", "systemError", "publishRefused", "publishNotProven", "pruneNotProven"]
                 }
               }
             }

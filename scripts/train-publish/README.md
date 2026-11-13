@@ -94,5 +94,5 @@ cluster, no network beyond localhost.
 
 The proof against the real TSPA on kind, the publisher gating the rollouts of a stand-in component
 through the days of the story, is [`scripts/verify-train-publish/`](../verify-train-publish/README.md);
-its `evidence.md` is the last local run. Wiring the two steps into `scripts/lifecycle.sh` is the next
-step of this work.
+its `evidence.md` is the last local run. `scripts/lifecycle.sh` runs the two steps around a deploy when
+`LIFECYCLE_PUBLISH_RECORD` names a record ([docs/train-publish.md](../../docs/train-publish.md)).

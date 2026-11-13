@@ -1,6 +1,7 @@
 # First-party ORCE image for the FACIS ZTD deployment workflow: upstream ORCE plus the pinned
 # Helm (built from source) and kubectl the lifecycle Builder Node needs, the node itself, its
-# flow, the lifecycle script and the lifecycle fixture chart. Built with the repository root as the context:
+# flow, the lifecycle script with the TRAIN publication step it calls, and the lifecycle fixture
+# chart. Built with the repository root as the context:
 #
 #   docker build --platform linux/amd64 -f deployment/docker/orce/Dockerfile .
 #
@@ -70,9 +71,12 @@ COPY deployment/docker/orce/settings.js /data/settings.js
 COPY flows/lifecycle.json /data/lifecycle.json
 COPY ui/nodes/ztd-lifecycle/ /data/nodes/ztd-lifecycle/
 COPY scripts/lifecycle.sh /opt/ztd/scripts/lifecycle.sh
+# The publisher the lifecycle script runs when LIFECYCLE_PUBLISH_RECORD is set (docs/train-publish.md);
+# it needs bash, curl, jq, python3 and sha256sum, all in the upstream image.
+COPY scripts/train-publish/publish.sh scripts/train-publish/entry.tmpl.json /opt/ztd/scripts/train-publish/
 COPY features/fixtures/charts/lifecycle-fixture/ /opt/ztd/charts/lifecycle-fixture/
 
-RUN chown -R node-red:node-red /data && chmod 0755 /opt/ztd/scripts/lifecycle.sh
+RUN chown -R node-red:node-red /data && chmod 0755 /opt/ztd/scripts/lifecycle.sh /opt/ztd/scripts/train-publish/publish.sh
 
 # Flatten: deleting files in a layer leaves them readable in the layers below, and the upstream
 # layers carry the demo flows' live credential. Only the cleaned filesystem is shipped.

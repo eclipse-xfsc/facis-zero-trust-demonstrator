@@ -160,7 +160,8 @@ jobs:
 
   # The TRAIN publication step: publish.sh against a stand-in that copies the trust-list API's write
   # semantics (create-only PUT, PATCH, the 200-with-empty-body quirk, 401, 403), one case per outcome
-  # a rollout may be gated on. Seconds; the proof against a real TSPA on kind follows as its own job.
+  # a rollout may be gated on. Seconds; the proof against the real TSPA on kind, and the lifecycle
+  # step's gate, are .github/workflows/train-publish.yml.
   train-publish:
     name: TRAIN publication step
     runs-on: ubuntu-latest

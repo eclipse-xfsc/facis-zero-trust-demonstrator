@@ -62,8 +62,9 @@ are running; the running container itself is not measured (ADR-0011, open items)
 
 - The client's TSPA: URL, framework, OIDC client and Zone Manager are still unanswered on the
   client's side; every parameter is configuration, nothing here is specific to kind.
-- The lifecycle wrapper's wiring: the proof drives the same two steps around the rollout that
-  `scripts/lifecycle.sh` will call; that step comes next.
+- The lifecycle wrapper itself: the proof drives the same two steps around the rollout that
+  `scripts/lifecycle.sh` runs with `LIFECYCLE_PUBLISH_RECORD`; the wrapper's own gate is held by
+  `scripts/lifecycle_test.sh` against stubs, not by a rollout on kind.
 - The TCR reading the entry: the lookup key is asserted on the list, not resolved through a TCR.
 - A transport failure on the write itself (the lanes are closed before the first read).
 
