@@ -6,12 +6,14 @@ Bash is the language for scripts under `scripts/` per the Technical Development 
 
 | Script | What |
 |---|---|
-| `lifecycle.sh` | deploy or uninstall one Helm release: server-side dry run, then upgrade with rollback; the ORCE lifecycle node runs it |
+| `lifecycle.sh` | deploy or uninstall one Helm release: server-side dry run, then upgrade with rollback; the ORCE lifecycle node runs it. With `LIFECYCLE_PUBLISH_RECORD` the TRAIN publication step gates the deploy: `publish` proven before the dry run, `prune` after the release is ready; `lifecycle_test.sh` holds it to that against stubs |
 | `install-zone/install.sh` | install, upgrade, render or uninstall a zone as its seven releases in order, each through `lifecycle.sh` |
 | `dev/kind-cilium-up.sh` | the local kind cluster with Cilium chained (`cni.exclusive=false`) |
 | `verify-umbrella/verify.sh` | evidence for the umbrella chart alone on kind |
 | `verify-mesh-identity/verify.sh` | evidence that the mesh identities are SPIRE's, the whole zone on kind |
 | `mesh-mode/check-upstream-state.sh` | the upstream-state record behind ADR-0009 and its reopen check |
+| `train-publish/publish.sh` | publish an attested component's reference measurement into TRAIN through the TSPA before its rollout and prune it after; the read-back of the trust list is the proof, `publish_test.sh` the fast test |
+| `verify-train-publish/verify.sh` | evidence for the publication step against the real TSPA on kind: real measurement records, the publisher gating a stand-in's rollouts through the induced days of `matrix.tsv`, pod imageID equal to the published digest; `.github/workflows/train-publish.yml` runs it with the TSPA image cached |
 ## Guard policy-hook proofs (`verify-policy-hook/`)
 
 `verify-policy-hook/verify.sh` proves the behaviour of the guard's policy hook against a real

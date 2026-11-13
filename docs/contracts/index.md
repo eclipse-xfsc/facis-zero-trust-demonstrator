@@ -14,6 +14,7 @@ a deliberate, agreed act rather than a surprise to whoever consumes it.
 | Contract | Covers |
 |---|---|
 | [`mock-attestation.schema.json`](mock-attestation.schema.json) | The mock attestation document — the evidence a Trusted Execution Environment would emit, produced in software |
+| [`measurement-record.v1.schema.json`](measurement-record.v1.schema.json) | The reference measurement record — one attested component's launch measurement, with the digest of the image it was taken for, as the pipeline hands it to the step that publishes it into TRAIN |
 
 ### Mock attestation
 
@@ -31,3 +32,13 @@ it, is in [ADR 0011](../adr/0011-mock-tee-evidence-format-and-provisioning.md).
 The same document serves both ends of the evidence path — the artefact attached to a release and
 checked at admission, and the report exchanged inside the attested channel — which is why one
 format is fixed here rather than one per consumer.
+
+### Reference measurement record
+
+ZT-35 makes publishing a component's launch measurement a pipeline duty. The measurement is the
+CMC template hash of the component as deployed (ADR-0011, 4.1), so the step that measures and the
+step that publishes are different programs, and this record is what passes between them: the
+component and its zone, the lookup string the verifying connector will ask the TCR for, the image by
+digest, the measurement with the two halves it was built from, and the revision of the code that
+measured. `scripts/train-publish/publish.sh` consumes it and refuses anything else; the value is
+published as a `TEEM-sha256` pair in the trust-list entry (ADR-0011, 4.2).

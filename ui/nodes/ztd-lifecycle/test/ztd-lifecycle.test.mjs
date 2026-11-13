@@ -118,6 +118,25 @@ test('a script error naming a parameter becomes errors.fields', async () => {
   assert.deepEqual(final.errors, { fields: { namespace: 'not in the pool' } })
 })
 
+test('the TRAIN publication evidence travels in data.publication, on success and on failure', async () => {
+  const rt = runtime()
+  const ok = stub(['RESULT_JSON={"ok":true,"revision":2,"publication":{"publish":{"outcome":"published","after":["a"]},"prune":{"outcome":"pruned","after":["a"]}}}'])
+  await send(rt.node({ script: ok.script }), deploy('r8'))
+  const final = await finalResult(rt, 'r8')
+  assert.equal(final.ok, true)
+  assert.equal(final.data.publication.publish.outcome, 'published')
+  assert.equal(final.data.publication.prune.outcome, 'pruned')
+  const notProven = stub(['RESULT_JSON={"ok":false,"error":{"code":"publishNotProven","message":"no"},"publication":{"publish":{"outcome":"token-failed"}}}'])
+  await send(rt.node({ script: notProven.script }), deploy('r9'))
+  const failed = await finalResult(rt, 'r9')
+  assert.equal(failed.ok, false)
+  assert.equal(failed.errors.action, 'publishNotProven')
+  assert.equal(failed.data.publication.publish.outcome, 'token-failed')
+  const plain = stub(['RESULT_JSON={"ok":true,"revision":1}'])
+  await send(rt.node({ script: plain.script }), deploy('r11'))
+  assert.equal('publication' in (await finalResult(rt, 'r11')).data, false)
+})
+
 test('a script that prints no result is a systemError, never a silent success', async () => {
   const rt = runtime(); const s = stub(['nothing useful'])
   await send(rt.node({ script: s.script }), deploy('r6'))

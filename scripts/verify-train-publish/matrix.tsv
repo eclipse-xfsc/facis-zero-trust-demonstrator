@@ -1,0 +1,9 @@
+id	day	induction	expect_outcome	expect_exit	expect_rollout
+first-publication	normal day	none: no entry yet and no pods; the first record (v1)	published	0	converged
+wrong-secret	day 2	OIDC_CLIENT_SECRET wrong; the new record (v2) approved	token-failed	1	not-started
+token-without-role	day 2	TSPA_TOKEN_FILE: a valid token whose realm roles lack enrolltf (testuser)	write-rejected	1	not-started
+malformed-token	day 2	TSPA_TOKEN_FILE: not.a.jwt	write-rejected	1	not-started
+lane-closed-refused	day 5	TSPA_URL: a closed port on localhost	transport-failure	1	not-started
+lane-closed-blackhole	day 5	TSPA_URL: a black-holed address, TRAIN_PUBLISH_TIMEOUT=5	transport-failure	1	not-started
+new-version	normal day, days 3 and 4	none: the new record (v2) for the same endpoint	published	0	converged
+republish-same	day 3	none: the same record (v2) again	published	0	converged
