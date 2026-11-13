@@ -92,5 +92,7 @@ and configuration refused before any call, and that no secret or token reaches a
 stand-in's request log included. Not covered: a transport failure on the write itself. Needs bash 5, curl, jq, python3 and sha256sum; seconds, no
 cluster, no network beyond localhost.
 
-The proof against a real TSPA on kind, with the lifecycle step gating a rollout, is
-`scripts/verify-train-publish/` (next step of this work).
+The proof against the real TSPA on kind, the publisher gating the rollouts of a stand-in component
+through the days of the story, is [`scripts/verify-train-publish/`](../verify-train-publish/README.md);
+its `evidence.md` is the last local run. Wiring the two steps into `scripts/lifecycle.sh` is the next
+step of this work.
