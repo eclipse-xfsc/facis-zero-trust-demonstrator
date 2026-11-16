@@ -1,0 +1,50 @@
+{{- if .Values.networkPolicy.enabled }}
+{{- if not .Values.networkPolicy.schemaEgress }}
+{{- fail "networkPolicy.schemaEgress must include the database lane when networkPolicy.enabled is true" }}
+{{- end }}
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: {{ include "token-store.name" . }}-schema
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "token-store.labels" . | nindent 4 }}
+    app.kubernetes.io/component: schema
+  annotations:
+    helm.sh/hook: pre-install,pre-upgrade,pre-delete
+    helm.sh/hook-weight: {{ sub (int .Values.schema.hookWeight) 1 | quote }}
+    helm.sh/hook-delete-policy: before-hook-creation
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: {{ include "token-store.name" . }}
+      app.kubernetes.io/instance: {{ .Release.Name }}
+      app.kubernetes.io/component: schema
+  policyTypes: [Egress]
+  egress:
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: kube-system
+          podSelector:
+            matchLabels:
+              k8s-app: kube-dns
+      ports:
+        - {port: 53, protocol: UDP}
+        - {port: 53, protocol: TCP}
+        - {port: 8053, protocol: UDP}
+        - {port: 8053, protocol: TCP}
+    {{- if .Values.runtime.enabled }}
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: {{ .Values.networkPolicy.istiodNamespace | quote }}
+          podSelector:
+            matchLabels:
+              app: istiod
+      ports: [{port: 15012, protocol: TCP}]
+    {{- end }}
+    {{- with .Values.networkPolicy.schemaEgress }}
+    {{- toYaml . | nindent 4 }}
+    {{- end }}
+{{- end }}

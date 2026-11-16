@@ -1,0 +1,11 @@
+# Renders the chart in CI: a placeholder digest, the name of the Secret the lifecycle proof
+# creates before the install and the key-value store it starts inside the cluster; never deployed
+# as is.
+image:
+  digest: sha256:0000000000000000000000000000000000000000000000000000000000000000
+database:
+  existingSecret: token-store-database
+openbao:
+  address: http://openbao:8200
+schema:
+  dropOnUninstall: true

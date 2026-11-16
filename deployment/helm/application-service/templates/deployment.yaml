@@ -15,23 +15,53 @@ spec:
     metadata:
       labels:
         {{- include "app.labels" . | nindent 8 }}
+        {{- if .Values.identity.spireManagedIdentity }}
+        spiffe.io/spire-managed-identity: "true"
+        {{- end }}
+      {{- with .Values.podAnnotations }}
+      annotations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
     spec:
+      {{- with .Values.serviceAccount.name }}
+      serviceAccountName: {{ . | quote }}
+      {{- end }}
+      {{- with .Values.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
       automountServiceAccountToken: false
       enableServiceLinks: false
       securityContext:
         runAsNonRoot: true
         runAsUser: 65532
         runAsGroup: 65532
+        fsGroup: 65532
         seccompProfile:
           type: RuntimeDefault
       containers:
         - name: {{ .Values.name }}
           image: "{{ .Values.image.repository }}@{{ .Values.image.digest }}"
-          {{- with .Values.env }}
+          {{- if or .Values.env .Values.secretEnv }}
           env:
-            {{- range $k, $v := . }}
+            {{- range $k, $v := .Values.env }}
             - name: {{ $k }}
               value: {{ $v | toString | quote }}
+            {{- end }}
+            {{- range $name, $ref := .Values.secretEnv }}
+            - name: {{ $name }}
+              valueFrom:
+                secretKeyRef:
+                  name: {{ $ref.name | quote }}
+                  key: {{ $ref.key | quote }}
+            {{- end }}
+          {{- end }}
+          {{- if or .Values.secretMounts .Values.configMapMounts }}
+          volumeMounts:
+            {{- range concat .Values.secretMounts .Values.configMapMounts }}
+            - name: {{ .name }}
+              mountPath: {{ .mountPath | quote }}
+              readOnly: true
             {{- end }}
           {{- end }}
           ports:
@@ -54,3 +84,17 @@ spec:
             readOnlyRootFilesystem: true
             capabilities:
               drop: [ALL]
+      {{- if or .Values.secretMounts .Values.configMapMounts }}
+      volumes:
+        {{- range .Values.secretMounts }}
+        - name: {{ .name }}
+          secret:
+            secretName: {{ .secretName | quote }}
+            defaultMode: 0440
+        {{- end }}
+        {{- range .Values.configMapMounts }}
+        - name: {{ .name }}
+          configMap:
+            name: {{ .configMapName | quote }}
+        {{- end }}
+      {{- end }}

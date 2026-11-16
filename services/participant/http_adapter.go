@@ -72,6 +72,20 @@ func (a *HTTPSampleAdapter) Request(ctx context.Context, request AdapterRequest)
 	}
 	defer func() { _ = response.Body.Close() }()
 
+	return decodeResourceResponse(response, request, ModeSample)
+}
+
+// decodeResourceResponse validates a Resource answer against the documented contract for mode and
+// rebuilds the result from known fields only.
+func decodeResourceResponse(response *http.Response, request AdapterRequest, mode string) (*AdapterResult, error) {
+	raw, err := readResourceBody(response)
+	if err != nil {
+		return nil, err
+	}
+	return decodeResourceBody(response.StatusCode, raw, request, mode)
+}
+
+func readResourceBody(response *http.Response) ([]byte, error) {
 	if response.StatusCode >= 300 && response.StatusCode < 400 {
 		return nil, ErrInvalidUpstreamResponse
 	}
@@ -83,6 +97,10 @@ func (a *HTTPSampleAdapter) Request(ctx context.Context, request AdapterRequest)
 	if len(raw) == 0 || len(raw) > maxUpstreamResponseBytes {
 		return nil, ErrInvalidUpstreamResponse
 	}
+	return raw, nil
+}
+
+func decodeResourceBody(status int, raw []byte, request AdapterRequest, mode string) (*AdapterResult, error) {
 
 	decoder := json.NewDecoder(bytes.NewReader(raw))
 	decoder.DisallowUnknownFields()
@@ -93,11 +111,11 @@ func (a *HTTPSampleAdapter) Request(ctx context.Context, request AdapterRequest)
 	if err := decoder.Decode(&struct{}{}); !errors.Is(err, io.EOF) {
 		return nil, ErrInvalidUpstreamResponse
 	}
-	if !validProtectedResourceResponse(response.StatusCode, request, upstream) {
+	if !validProtectedResourceResponse(status, request, upstream, mode) {
 		return nil, ErrInvalidUpstreamResponse
 	}
 
-	safeData, ok := sanitizeSafeData(upstream.Outcome, upstream.SafeData)
+	safeData, ok := sanitizeSafeData(upstream.Outcome, upstream.SafeData, mode)
 	if !ok {
 		return nil, ErrInvalidUpstreamResponse
 	}
@@ -115,8 +133,9 @@ const (
 
 // sanitizeSafeData rebuilds safeData from the documented shape only.
 // success: {resource:"sample-report", action:"read", report:{id,title,content}}
+// token mode success may instead carry summary:{id,title,summary}
 // every other outcome: {} (empty object).
-func sanitizeSafeData(outcome Outcome, data map[string]any) (map[string]any, bool) {
+func sanitizeSafeData(outcome Outcome, data map[string]any, mode string) (map[string]any, bool) {
 	if outcome != OutcomeSuccess {
 		if len(data) != 0 {
 			return nil, false
@@ -126,19 +145,23 @@ func sanitizeSafeData(outcome Outcome, data map[string]any) (map[string]any, boo
 	if len(data) != 3 || data["resource"] != "sample-report" || data["action"] != "read" {
 		return nil, false
 	}
-	report, ok := data["report"].(map[string]any)
+	kind, fields := "report", []string{"id", "title", "content"}
+	if _, isSummary := data["summary"]; isSummary && mode == ModeToken {
+		kind, fields = "summary", []string{"id", "title", "summary"}
+	}
+	report, ok := data[kind].(map[string]any)
 	if !ok || len(report) != 3 {
 		return nil, false
 	}
 	clean := make(map[string]any, 3)
-	for _, key := range []string{"id", "title", "content"} {
+	for _, key := range fields {
 		value, ok := report[key].(string)
 		if !ok || !safeText(value, maxUpstreamSafeTextBytes) {
 			return nil, false
 		}
 		clean[key] = value
 	}
-	return map[string]any{"resource": "sample-report", "action": "read", "report": clean}, true
+	return map[string]any{"resource": "sample-report", "action": "read", kind: clean}, true
 }
 
 func safeText(value string, maxBytes int) bool {
@@ -153,9 +176,9 @@ func safeText(value string, maxBytes int) bool {
 	return true
 }
 
-func validProtectedResourceResponse(status int, request AdapterRequest, response protectedResourceResponse) bool {
+func validProtectedResourceResponse(status int, request AdapterRequest, response protectedResourceResponse, mode string) bool {
 	if response.RequestID != request.RequestID || response.CorrelationID != request.CorrelationID ||
-		response.Source != "sample" || response.Mode != "sample" ||
+		response.Source != "sample" || response.Mode != mode ||
 		!safeText(response.Explanation, maxUpstreamExplanationBytes) ||
 		response.Timestamp.IsZero() || response.SafeData == nil {
 		return false
@@ -163,7 +186,7 @@ func validProtectedResourceResponse(status int, request AdapterRequest, response
 	if !statusMatchesUpstreamOutcome(status, response.Outcome) {
 		return false
 	}
-	return validProtectedResourceReason(response.Outcome, status, response.ReasonCode)
+	return validProtectedResourceReason(response.Outcome, status, response.ReasonCode, mode)
 }
 
 func statusMatchesUpstreamOutcome(status int, outcome Outcome) bool {
@@ -181,7 +204,7 @@ func statusMatchesUpstreamOutcome(status int, outcome Outcome) bool {
 	}
 }
 
-func validProtectedResourceReason(outcome Outcome, status int, reason string) bool {
+func validProtectedResourceReason(outcome Outcome, status int, reason, mode string) bool {
 	if outcome == OutcomeError {
 		if status != http.StatusBadRequest && status != http.StatusNotFound && status < http.StatusInternalServerError {
 			return false
@@ -202,6 +225,16 @@ func validProtectedResourceReason(outcome Outcome, status int, reason string) bo
 		"SAMPLE_RESOURCE_NOT_FOUND":                 OutcomeError,
 		"SAMPLE_REQUEST_TOO_LARGE":                  OutcomeError,
 		"SAMPLE_ADAPTER_FAILURE":                    OutcomeError,
+	}
+	if mode == ModeToken {
+		// Scope-table results replace the scenario successes; 401/403/503 are mapped before decoding.
+		for _, sampleSuccess := range []string{"SAMPLE_RESOURCE_RETURNED", "SAMPLE_SLOW_RESOURCE_RETURNED", "SAMPLE_ALTERNATIVE_RESOURCE_RETURNED", "SAMPLE_ALTERNATIVE_SLOW_RESOURCE_RETURNED"} {
+			delete(allowed, sampleSuccess)
+		}
+		allowed["RESOURCE_REPORT_RETURNED"] = OutcomeSuccess
+		allowed["RESOURCE_SUMMARY_RETURNED"] = OutcomeSuccess
+		allowed["RESOURCE_SCENARIO_NOT_ALLOWED"] = OutcomeError
+		allowed["RESOURCE_IDENTITY_MISSING"] = OutcomeError
 	}
 	return allowed[reason] == outcome
 }

@@ -78,7 +78,10 @@
         "CRED-OUTCOME-MISMATCH": { "meaning": "The outcome's client, challenge or audience does not match the grant request" },
         "CRED-OUTCOME-EXPIRED": { "meaning": "The verification outcome is outside its validity interval (expired, not yet valid, or valid for too long)" },
         "CRED-OUTCOME-CONSUMED": { "meaning": "The verification outcome was already used" },
-        "CRED-OUTCOME-NOT-VERIFIED": { "meaning": "The outcome's status is not verified" }
+        "CRED-OUTCOME-NOT-VERIFIED": { "meaning": "The outcome's status is not verified" },
+        "CRED-STATUS-UNAVAILABLE": { "meaning": "The credential's status list could not be fetched, verified or read, so its revocation state is unknown - fail closed" },
+        "CRED-REQUEST-INVALID": { "meaning": "A verification request or a presentation response is malformed, or a request for this challenge is already open", "http": 400 },
+        "CRED-REQUEST-UNKNOWN": { "meaning": "The verification request is unknown, expired or already answered; a presentation posted twice lands here", "http": 404 }
       }
     },
     "CHAN": {

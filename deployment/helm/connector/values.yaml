@@ -1,0 +1,60 @@
+# All credentials are existing Secret references, never inline values.
+image:
+  repository: ghcr.io/eclipse-xfsc/facis-zero-trust-demonstrator/connector
+  digest: ""
+database:
+  existingSecret: ""
+  secretKey: url
+credentials:
+  existingSecret: ""
+  keys:
+    openbaoToken: openbao-token
+    tokenHMAC: token-hmac
+    registrationHMAC: registration-hmac
+    registrarSecret: registrar-secret
+openbao:
+  address: http://ztd-openbao.ztd-mgmt.svc:8200
+  signingKey: ""
+  signingKeyVersion: 1
+oauth:
+  issuer: ""
+  registrationEndpoint: ""
+  registrarID: ztd-registrar
+  registrarScopes: [connector:client_registration]
+  registrarAudiences: []
+  registrarDelegableScopes: []
+  exclusiveAudiences: []
+  allowAudienceMigration: false
+  accessTokenLifespanSeconds: 300
+dpop:
+  enforce: true
+  nonce: true
+verifiedPresentation:
+  enabled: true
+  # Public configuration only: trusted issuer JWKs and claim-to-scope mapping JSON.
+  existingConfigMap: ""
+  issuersKey: trusted-issuers.json
+  scopeMapKey: scope-map.json
+replicas: 1
+serviceAccount:
+  create: true
+  name: ztd-connector
+identity:
+  spireManagedIdentity: true
+podAnnotations: {}
+nodeSelector: {}
+server:
+  readinessTimeoutSeconds: 2
+  drainDelaySeconds: 5
+  shutdownTimeoutSeconds: 10
+  logLevel: info
+networkPolicy:
+  # Empty ingress denies callers; dependency egress must be specified for the environment.
+  ingressFrom: []
+  egress: []
+resources:
+  requests:
+    cpu: 100m
+    memory: 128Mi
+  limits:
+    memory: 256Mi
