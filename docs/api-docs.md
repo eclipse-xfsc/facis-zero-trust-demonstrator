@@ -10,7 +10,7 @@ compatible addition; anything else is a v2.
 | Interface | Purpose | v1 artefacts | Status |
 |---|---|---|---|
 | IF-01 | Security-state event stream to the demonstrator UI | [event](contracts/if01-event.v1.schema.json), [snapshot](contracts/if01-snapshot.v1.schema.json), [feed API](contracts/if01-feed.v1.openapi.yaml) | v1 |
-| IF-02 | Connector authorization surface — registration and token issuance | [connector API](contracts/if02-connector.v1.openapi.yaml) | v1 |
+| IF-02 | Connector authorization surface — registration and token issuance | [connector API](contracts/if02-connector.v1.openapi.yaml), [rules](#if-02-connector-authorization-surface) | v1 (1.1.1) |
 | IF-03 | Credential verification outcome | [JWS payload](contracts/if03-verification-outcome.v1.schema.json), [JWS header](contracts/if03-jws-header.v1.schema.json), [signing rules](#if-03-signed-verification-outcome) | v1 |
 | IF-04 | Observability and evidence | The IF-01 event schema, as a JSON log line; [rules](#if-04-observability-and-evidence) | v1 |
 | IF-05 | Policy decision input and output | [input](contracts/if05-policy-input.v1.schema.json), [decision](contracts/if05-policy-decision.v1.schema.json), [header rules](#header-propagation-guard-to-gateway) | v1 |
@@ -20,7 +20,8 @@ compatible addition; anything else is a v2.
 
 Internal to a zone, and not a numbered interface: the token store's API,
 [token-store.v1.openapi.yaml](contracts/token-store.v1.openapi.yaml) — substitution for the guard
-and DPoP replay detection for the connector and the guard.
+and DPoP replay detection for the connector and the guard. The database behind it, its schema and
+how the schema is applied are described in [Token store](token-store.md).
 
 Three agreements are conventions rather than interfaces, and are documented where they live:
 
@@ -84,6 +85,7 @@ registry's codes; the HTTP status stays the connector's:
 | `dpop_use_nonce` | `TOK-NONCE` |
 | `dpop_jkt_mismatch` | `TOK-JKT-MISMATCH` |
 | `dpop_invalid_ath` | `TOK-ATH-MISMATCH` |
+| `CRED-OUTCOME-SIGNATURE`, `CRED-OUTCOME-NOT-VERIFIED`, `CRED-OUTCOME-MISMATCH`, `CRED-OUTCOME-EXPIRED`, `CRED-OUTCOME-CONSUMED` | The same code (verified-presentation grant, below) |
 
 IF-08 keeps the `errors.action` vocabulary it was delivered with (below); it reports the outcome of
 an operator command, not an access refusal, so it is not part of the registry.
@@ -104,6 +106,54 @@ way.
 - **Content.** A decision or admission event is `allowed` or `denied`, and a denial names its
   reason code. Events carry no secrets or tokens; `detail` is at most 512 characters.
 
+## IF-02 — connector authorization surface
+
+The connector's token, registration and challenge endpoints
+([connector API](contracts/if02-connector.v1.openapi.yaml), v1.1.1;
+[Connector OAuth2 provider](oauth2-provider.md)). Version 1.1 adds, compatibly, the
+verified-presentation grant, which consumes IF-03 outcomes; 1.1.1 names the `audience` member of
+the client metadata, which registrations already carried:
+
+- **Challenge.** `POST /oauth2/challenge`, client authentication as at the token endpoint, form
+  `audience` — exactly one of the client's registered audiences. The client must be registered for
+  the grant. The answer, `{"challenge", "expires_in": 120}` with `Cache-Control: no-store`, is a
+  single-use value of at least 128 random bits, bound to that client and audience.
+- **Grant.** `POST /oauth2/token` with
+  `grant_type=urn:facis:params:oauth:grant-type:verified-presentation`, `outcome` (the IF-03 compact
+  JWS), `challenge` and a single `audience`, and a DPoP proof, which this grant always requires. The
+  checks run in this order, each refusing with `400 invalid_grant` and its code: signature
+  (`CRED-OUTCOME-SIGNATURE`); status (`CRED-OUTCOME-NOT-VERIFIED`); the outcome's client, challenge
+  and audience against the authenticated client and the form, and the stored challenge's binding to
+  that client and audience (`CRED-OUTCOME-MISMATCH`); the outcome's and the challenge's validity
+  (`CRED-OUTCOME-EXPIRED`); the outcome and the challenge unconsumed (`CRED-OUTCOME-CONSUMED`). A
+  refusal never repeats the outcome.
+- **Consumption.** The challenge, the outcome (recorded in `verified_outcome`) and the issued token
+  (`oauth2_token.outcome_id`) are written in one transaction, which locks the challenge first and
+  judges validity at an instant taken after the lock is held, and is settled before the response is
+  written. A second use of an outcome or a challenge is `CRED-OUTCOME-CONSUMED` and is never signed
+  again; of concurrent uses exactly one is issued a token. When the commit's outcome is unknown the
+  answer is `500` without the token and the consumption stands; the client starts again with a fresh
+  challenge and outcome.
+- **Scopes.** The outcome's `role` and `entitlement` map to scopes by configuration, limited to the
+  client's registered scopes; claims that map to nothing are refused (`invalid_scope`). Those scopes
+  are never issued through `client_credentials`. The token is an RFC 9068 JWT with `cnf.jkt` and the
+  one `aud`.
+- **Registration.** A deployment may admit the grant type in dynamic registration. A registrar can
+  grant a client a verified-presentation scope only through a delegation ceiling the server
+  configures for it, since its own token can never carry such a scope. The connector's own
+  registration policy ([Connector service](connector.md#the-policy)) requires a `client_name`,
+  `grant_types`, a `client_secret_basic` client, `dpop_bound_access_tokens: true`, a `scope` and
+  one or more absolute `audience` URLs, and admits no member outside those six; a violation is
+  refused as `400 invalid_client_metadata` with the reason `registration_rejected` and a
+  description naming the rule, the shape of the library's own refusal. Every registration
+  decision is audited (`TOK-REGISTRATION-REJECTED` for a refused registration).
+- **Why 1.1.1 is a compatible change.** The policy refuses metadata that 1.1.0 did not forbid in
+  so many words. RFC 7591 section 3.2.2 lets an authorization server refuse any client metadata
+  value with `invalid_client_metadata`, and IF-02 always allowed that refusal on this endpoint, so
+  a refusal under the policy is one of the answers a 1.1.0 client already had to handle. Nothing a
+  1.1.0 client receives changed shape, and the one member 1.1.1 adds, `audience`, was already sent
+  by every registrar. A client that sends what the policy requires is accepted under both.
+
 ## IF-03 — signed verification outcome
 
 The verification service signs the outcome of an OID4VP presentation check; the connector's
@@ -118,6 +168,10 @@ issuance consumes it. The outcome is an object, never a boolean.
 - **Key selection.** The verifier holds a configured set of trusted issuers, each with its keys.
   `kid` selects one key; the payload's `iss` must be the issuer that key belongs to. An unknown
   `kid`, a key of another issuer, or a signature that does not verify → `CRED-OUTCOME-SIGNATURE`.
+  A header or payload that does not follow its schema (an unknown or differently cased member, a
+  `null` where a value is required, a malformed `uri` or `date-time`) is refused with the same code:
+  whoever signed it, it is not an outcome in the agreed form, so nothing in it is used
+  (`internal/if03`).
 - **Consumption.** An outcome is consumed only when all hold, otherwise the grant is refused with
   the code named:
     - `status` is `verified` → else `CRED-OUTCOME-NOT-VERIFIED`;
