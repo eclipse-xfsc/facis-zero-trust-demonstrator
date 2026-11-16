@@ -1,0 +1,333 @@
+{
+  "$schema": "https://json-schema.org/draft-07/schema#",
+  "type": "object",
+  "properties": {
+    "image": {
+      "type": "object",
+      "properties": {
+        "repository": {
+          "type": "string",
+          "minLength": 1
+        },
+        "digest": {
+          "type": "string",
+          "pattern": "^sha256:[a-f0-9]{64}$"
+        }
+      },
+      "required": [
+        "repository",
+        "digest"
+      ],
+      "additionalProperties": false
+    },
+    "database": {
+      "type": "object",
+      "properties": {
+        "existingSecret": {
+          "type": "string",
+          "minLength": 1
+        },
+        "secretKey": {
+          "type": "string",
+          "minLength": 1
+        }
+      },
+      "required": [
+        "existingSecret",
+        "secretKey"
+      ],
+      "additionalProperties": false
+    },
+    "credentials": {
+      "type": "object",
+      "properties": {
+        "existingSecret": {
+          "type": "string",
+          "minLength": 1
+        },
+        "keys": {
+          "type": "object",
+          "properties": {
+            "openbaoToken": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9_.-]+$"
+            },
+            "tokenHMAC": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9_.-]+$"
+            },
+            "registrationHMAC": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9_.-]+$"
+            },
+            "registrarSecret": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9_.-]+$"
+            }
+          },
+          "required": [
+            "openbaoToken",
+            "tokenHMAC",
+            "registrationHMAC",
+            "registrarSecret"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "required": [
+        "existingSecret",
+        "keys"
+      ],
+      "additionalProperties": false
+    },
+    "openbao": {
+      "type": "object",
+      "properties": {
+        "address": {
+          "type": "string",
+          "minLength": 1
+        },
+        "signingKey": {
+          "type": "string",
+          "minLength": 1
+        },
+        "signingKeyVersion": {
+          "type": "integer",
+          "minimum": 1
+        }
+      },
+      "required": [
+        "address",
+        "signingKey",
+        "signingKeyVersion"
+      ],
+      "additionalProperties": false
+    },
+    "oauth": {
+      "type": "object",
+      "properties": {
+        "issuer": {
+          "type": "string",
+          "minLength": 1
+        },
+        "registrationEndpoint": {
+          "type": "string",
+          "minLength": 1
+        },
+        "registrarID": {
+          "type": "string",
+          "minLength": 1
+        },
+        "registrarScopes": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "registrarAudiences": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "registrarDelegableScopes": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "accessTokenLifespanSeconds": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "exclusiveAudiences": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "allowAudienceMigration": {
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "issuer",
+        "registrationEndpoint",
+        "registrarID",
+        "registrarScopes",
+        "registrarAudiences",
+        "registrarDelegableScopes",
+        "accessTokenLifespanSeconds"
+      ],
+      "additionalProperties": false
+    },
+    "dpop": {
+      "type": "object",
+      "properties": {
+        "enforce": {
+          "type": "boolean",
+          "const": true
+        },
+        "nonce": {
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "enforce",
+        "nonce"
+      ],
+      "additionalProperties": false
+    },
+    "verifiedPresentation": {
+      "type": "object",
+      "properties": {
+        "enabled": {
+          "type": "boolean"
+        },
+        "existingConfigMap": {
+          "type": "string"
+        },
+        "issuersKey": {
+          "type": "string",
+          "minLength": 1
+        },
+        "scopeMapKey": {
+          "type": "string",
+          "minLength": 1
+        }
+      },
+      "required": [
+        "enabled",
+        "existingConfigMap",
+        "issuersKey",
+        "scopeMapKey"
+      ],
+      "additionalProperties": false
+    },
+    "replicas": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "serviceAccount": {
+      "type": "object",
+      "properties": {
+        "create": {
+          "type": "boolean"
+        },
+        "name": {
+          "type": "string",
+          "minLength": 1
+        }
+      },
+      "required": [
+        "create",
+        "name"
+      ],
+      "additionalProperties": false
+    },
+    "identity": {
+      "type": "object",
+      "properties": {
+        "spireManagedIdentity": {
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "spireManagedIdentity"
+      ],
+      "additionalProperties": false
+    },
+    "podAnnotations": {
+      "type": "object",
+      "additionalProperties": {
+        "type": "string"
+      }
+    },
+    "nodeSelector": {
+      "type": "object",
+      "additionalProperties": {
+        "type": "string"
+      }
+    },
+    "server": {
+      "type": "object",
+      "properties": {
+        "readinessTimeoutSeconds": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "drainDelaySeconds": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "shutdownTimeoutSeconds": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "logLevel": {
+          "enum": [
+            "debug",
+            "info",
+            "warn",
+            "error"
+          ]
+        }
+      },
+      "required": [
+        "readinessTimeoutSeconds",
+        "drainDelaySeconds",
+        "shutdownTimeoutSeconds",
+        "logLevel"
+      ],
+      "additionalProperties": false
+    },
+    "networkPolicy": {
+      "type": "object",
+      "properties": {
+        "ingressFrom": {
+          "type": "array",
+          "items": {
+            "type": "object"
+          }
+        },
+        "egress": {
+          "type": "array",
+          "items": {
+            "type": "object"
+          }
+        }
+      },
+      "required": [
+        "ingressFrom",
+        "egress"
+      ],
+      "additionalProperties": false
+    },
+    "resources": {
+      "type": "object"
+    }
+  },
+  "required": [
+    "image",
+    "database",
+    "credentials",
+    "openbao",
+    "oauth",
+    "dpop",
+    "verifiedPresentation",
+    "replicas",
+    "serviceAccount",
+    "identity",
+    "podAnnotations",
+    "nodeSelector",
+    "server",
+    "networkPolicy",
+    "resources"
+  ],
+  "additionalProperties": false
+}

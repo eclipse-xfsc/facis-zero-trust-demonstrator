@@ -1,0 +1,128 @@
+{{- include "connector.validate" . -}}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: ztd-connector
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "connector.labels" . | nindent 4 }}
+spec:
+  replicas: {{ .Values.replicas }}
+  selector:
+    matchLabels:
+      {{- include "connector.selector" . | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "connector.labels" . | nindent 8 }}
+        {{- if .Values.identity.spireManagedIdentity }}
+        spiffe.io/spire-managed-identity: "true"
+        {{- end }}
+      {{- with .Values.podAnnotations }}
+      annotations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+    spec:
+      serviceAccountName: {{ .Values.serviceAccount.name | quote }}
+      automountServiceAccountToken: false
+      enableServiceLinks: false
+      {{- with .Values.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      terminationGracePeriodSeconds: {{ add (int .Values.server.drainDelaySeconds) (int .Values.server.shutdownTimeoutSeconds) (int .Values.server.readinessTimeoutSeconds) 5 }}
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 65532
+        runAsGroup: 65532
+        fsGroup: 65532
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: connector
+          image: "{{ .Values.image.repository }}@{{ .Values.image.digest }}"
+          args: [serve]
+          env:
+            - name: CONNECTOR_DATABASE_URL
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.database.existingSecret | quote }}
+                  key: {{ .Values.database.secretKey | quote }}
+            {{- $env := dict
+              "CONNECTOR_ADDR" ":8080"
+              "CONNECTOR_OPS_ADDR" ":9090"
+              "CONNECTOR_OPENBAO_URL" .Values.openbao.address
+              "CONNECTOR_OPENBAO_TOKEN_FILE" "/var/run/connector/credentials/openbao-token"
+              "CONNECTOR_SIGNING_KEY" .Values.openbao.signingKey
+              "CONNECTOR_SIGNING_KEY_VERSION" (.Values.openbao.signingKeyVersion | toString)
+              "CONNECTOR_ISSUER" .Values.oauth.issuer
+              "CONNECTOR_REGISTRATION_ENDPOINT" .Values.oauth.registrationEndpoint
+              "CONNECTOR_TOKEN_SECRET_FILE" "/var/run/connector/credentials/token-hmac"
+              "CONNECTOR_REGISTRATION_SECRET_FILE" "/var/run/connector/credentials/registration-hmac"
+              "CONNECTOR_REGISTRAR_SECRET_FILE" "/var/run/connector/credentials/registrar-secret"
+              "CONNECTOR_EXCLUSIVE_AUDIENCES" (join "," .Values.oauth.exclusiveAudiences)
+              "CONNECTOR_ALLOW_AUDIENCE_MIGRATION" (.Values.oauth.allowAudienceMigration | toString)
+              "CONNECTOR_REGISTRAR_ID" .Values.oauth.registrarID
+              "CONNECTOR_REGISTRAR_SCOPES" (join "," .Values.oauth.registrarScopes)
+              "CONNECTOR_REGISTRAR_AUDIENCES" (join "," .Values.oauth.registrarAudiences)
+              "CONNECTOR_REGISTRAR_DELEGABLE_SCOPES" (join "," .Values.oauth.registrarDelegableScopes)
+              "CONNECTOR_ACCESS_TOKEN_LIFESPAN" (printf "%ds" (int .Values.oauth.accessTokenLifespanSeconds))
+              "CONNECTOR_DPOP_ENFORCE" (.Values.dpop.enforce | toString)
+              "CONNECTOR_DPOP_NONCE" (.Values.dpop.nonce | toString)
+              "CONNECTOR_READINESS_TIMEOUT" (printf "%ds" (int .Values.server.readinessTimeoutSeconds))
+              "CONNECTOR_DRAIN_DELAY" (printf "%ds" (int .Values.server.drainDelaySeconds))
+              "CONNECTOR_SHUTDOWN_TIMEOUT" (printf "%ds" (int .Values.server.shutdownTimeoutSeconds))
+              "CONNECTOR_LOG_LEVEL" .Values.server.logLevel }}
+            {{- if .Values.verifiedPresentation.enabled }}
+            {{- $_ := set $env "CONNECTOR_VP_TRUSTED_ISSUERS_FILE" "/etc/connector/verification/trusted-issuers.json" }}
+            {{- $_ := set $env "CONNECTOR_VP_SCOPE_MAP_FILE" "/etc/connector/verification/scope-map.json" }}
+            {{- end }}
+            {{- range $name, $value := $env }}
+            - name: {{ $name }}
+              value: {{ $value | quote }}
+            {{- end }}
+          volumeMounts:
+            - name: credentials
+              mountPath: /var/run/connector/credentials
+              readOnly: true
+            {{- if .Values.verifiedPresentation.enabled }}
+            - name: verification
+              mountPath: /etc/connector/verification
+              readOnly: true
+            {{- end }}
+          ports:
+            - name: http
+              containerPort: 8080
+            - name: ops
+              containerPort: 9090
+          readinessProbe:
+            httpGet: {path: /readyz, port: ops}
+            timeoutSeconds: {{ add (int .Values.server.readinessTimeoutSeconds) 1 }}
+          livenessProbe:
+            httpGet: {path: /healthz, port: ops}
+            periodSeconds: 10
+          resources:
+            {{- toYaml .Values.resources | nindent 12 }}
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: [ALL]
+      volumes:
+        - name: credentials
+          secret:
+            secretName: {{ .Values.credentials.existingSecret | quote }}
+            defaultMode: 0440
+            items:
+              - {key: {{ .Values.credentials.keys.openbaoToken | quote }}, path: openbao-token}
+              - {key: {{ .Values.credentials.keys.tokenHMAC | quote }}, path: token-hmac}
+              - {key: {{ .Values.credentials.keys.registrationHMAC | quote }}, path: registration-hmac}
+              - {key: {{ .Values.credentials.keys.registrarSecret | quote }}, path: registrar-secret}
+        {{- if .Values.verifiedPresentation.enabled }}
+        - name: verification
+          configMap:
+            name: {{ .Values.verifiedPresentation.existingConfigMap | quote }}
+            items:
+              - {key: {{ .Values.verifiedPresentation.issuersKey | quote }}, path: trusted-issuers.json}
+              - {key: {{ .Values.verifiedPresentation.scopeMapKey | quote }}, path: scope-map.json}
+        {{- end }}
