@@ -24,13 +24,21 @@ func TestInterface_TokenEndpointStatuses(t *testing.T) {
 	key := dpoptest.NewKey(t)
 	form := url.Values{"grant_type": {"client_credentials"}}
 
+	// An unbound client without a proof gets a bearer token when tokens are opaque. Signed tokens
+	// always carry cnf.jkt, so with them the same request is refused as a DPoP error.
 	issued := h.token("plain", "", []string{resourceScope}, "")
-	if issued.status != http.StatusOK || issued.str("token_type") != "bearer" {
-		t.Errorf("no proof: status %d token_type %q, want 200 bearer", issued.status, issued.str("token_type"))
-	}
+	unboundStatus, unboundReason := http.StatusOK, oauth2provider.Code("")
 
-	if expires, _ := issued.body["expires_in"].(float64); expires < 1 {
-		t.Errorf("expires_in = %v, want a positive lifetime", issued.body["expires_in"])
+	if h.signed {
+		unboundStatus, unboundReason = http.StatusBadRequest, oauth2provider.CodeDPoPInvalidProof
+	} else {
+		if issued.status != http.StatusOK || issued.str("token_type") != "bearer" {
+			t.Errorf("no proof: status %d token_type %q, want 200 bearer", issued.status, issued.str("token_type"))
+		}
+
+		if expires, _ := issued.body["expires_in"].(float64); expires < 1 {
+			t.Errorf("expires_in = %v, want a positive lifetime", issued.body["expires_in"])
+		}
 	}
 
 	used := h.tokenProof(key)
@@ -44,7 +52,7 @@ func TestInterface_TokenEndpointStatuses(t *testing.T) {
 		status int
 		reason oauth2provider.Code
 	}{
-		{"issued without proof", issued, http.StatusOK, ""},
+		{"unbound client without proof", issued, unboundStatus, unboundReason},
 		{"wrong client secret", h.tokenWithSecret("plain", "not-the-secret", "", form), http.StatusUnauthorized, oauth2provider.CodeInvalidClient},
 		{"unknown client", h.tokenWithSecret("nobody", testSecret, "", form), http.StatusUnauthorized, oauth2provider.CodeInvalidClient},
 		{"unsupported grant", h.tokenWithSecret("plain", testSecret, "", url.Values{"grant_type": {"password"}}), http.StatusBadRequest, oauth2provider.CodeInvalidRequest},

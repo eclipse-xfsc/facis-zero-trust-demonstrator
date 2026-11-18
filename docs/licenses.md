@@ -41,4 +41,4 @@ client's decision is open and tracked as follow-up requirement F-07.
 
 The ORCE image carries a time-boxed **vulnerability** scan exception for findings inside the
 upstream ORCE runtime ([CI/CD](ci-cd.md#image-scan-exceptions)). It concerns security findings, not
-licences, and it expires on 13 November 2026.
+licences, and it expires on 16 December 2026.

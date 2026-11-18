@@ -1,0 +1,18 @@
+{
+  "version": "v1",
+  "report": {
+    "id": "FACIS-SAMPLE-REPORT-001",
+    "title": "FACIS deterministic sample report",
+    "content": "Local sample data for F04 / WP09 / ZT-75 testing only."
+  },
+  "alternativeReport": {
+    "id": "FACIS-SAMPLE-REPORT-ALT-001",
+    "title": "FACIS alternative deterministic sample report",
+    "content": "Alternative local sample data for F09 / WP09 / ZT-77 adapter testing only."
+  },
+  "summary": {
+    "id": "FACIS-SAMPLE-REPORT-001",
+    "title": "FACIS deterministic sample report",
+    "summary": "Summary view of the local sample report."
+  }
+}

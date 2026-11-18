@@ -9,20 +9,62 @@ import (
 	"github.com/eclipse-xfsc/facis-zero-trust-demonstrator/services/connector/internal/oauth2provider"
 )
 
+// registrarToken is a token for the registration endpoint. With opaque tokens it is a bearer
+// token; signed tokens are issued only to a proof, so it is then bound to key.
+type registrarToken struct {
+	token string
+	key   *dpoptest.Key
+}
+
 // seedRegistrar provisions the client that is allowed to register others and
 // returns a token for the registration endpoint.
-func seedRegistrar(t *testing.T, h *harness) string {
+func seedRegistrar(t *testing.T, h *harness) registrarToken {
 	t.Helper()
 
 	scopes := []string{oauth2provider.RegistrationScope, resourceScope}
 	h.seedClient("registrar", false, scopes, []string{h.registerURL})
 
-	issued := h.token("registrar", "", scopes, h.registerURL)
-	if issued.status != http.StatusOK {
-		t.Fatalf("registrar token: status %d, body %v", issued.status, issued.body)
+	return h.registrarToken(scopes)
+}
+
+// registrarToken requests a token for the registration endpoint as the registrar.
+func (h *harness) registrarToken(scopes []string) registrarToken {
+	h.t.Helper()
+
+	var key *dpoptest.Key
+
+	proof, audience := "", h.registerURL
+	if h.signed {
+		// The token also carries the audience the registrant registers for: a registration
+		// cannot name an audience its token does not.
+		key = dpoptest.NewKey(h.t)
+		proof, audience = h.tokenProof(key), h.registerURL+" "+h.defaultAudience
 	}
 
-	return issued.str("access_token")
+	issued := h.token("registrar", proof, scopes, audience)
+	if issued.status != http.StatusOK {
+		h.t.Fatalf("registrar token: status %d, body %v", issued.status, issued.body)
+	}
+
+	return registrarToken{token: issued.str("access_token"), key: key}
+}
+
+// registerWith registers metadata with token, under the scheme its binding calls for. With signed
+// tokens the registrant also names the default audience, since a token is only issued for one.
+func (h *harness) registerWith(token registrarToken, metadata map[string]any) result {
+	h.t.Helper()
+
+	if _, named := metadata["audience"]; h.signed && !named {
+		metadata["audience"] = []string{h.defaultAudience}
+	}
+
+	if token.key == nil {
+		return h.register("Bearer "+token.token, metadata)
+	}
+
+	proof := dpoptest.Mint(h.t, token.key, dpoptest.Proof{Method: http.MethodPost, URL: h.registerURL, AccessToken: token.token})
+
+	return h.registerWithProof("DPoP "+token.token, proof, metadata)
 }
 
 func participantMetadata() map[string]any {
@@ -40,7 +82,7 @@ func participantMetadata() map[string]any {
 // audience and carries the registration scope.
 func TestRegistration_RequiresAnAuthorisedToken(t *testing.T) {
 	h := newHarness(t, nil)
-	registrarToken := seedRegistrar(t, h)
+	registrar := seedRegistrar(t, h)
 
 	anonymous := h.register("", participantMetadata())
 	if anonymous.status != http.StatusUnauthorized || anonymous.reason() != oauth2provider.CodeInvalidToken {
@@ -53,17 +95,14 @@ func TestRegistration_RequiresAnAuthorisedToken(t *testing.T) {
 	}
 
 	// A valid token for the right audience but without the registration scope.
-	unscoped := h.token("registrar", "", []string{resourceScope}, h.registerURL)
-	if unscoped.status != http.StatusOK {
-		t.Fatalf("unscoped token: status %d, body %v", unscoped.status, unscoped.body)
-	}
+	unscoped := h.registrarToken([]string{resourceScope})
 
-	refused := h.register("Bearer "+unscoped.str("access_token"), participantMetadata())
+	refused := h.registerWith(unscoped, participantMetadata())
 	if refused.status != http.StatusForbidden || refused.reason() != oauth2provider.CodeInsufficientScope {
 		t.Errorf("unscoped token: status %d reason %q, want 403 %q", refused.status, refused.reason(), oauth2provider.CodeInsufficientScope)
 	}
 
-	registered := h.register("Bearer "+registrarToken, participantMetadata())
+	registered := h.registerWith(registrar, participantMetadata())
 	if registered.status != http.StatusCreated {
 		t.Fatalf("authorised token: status %d, body %v", registered.status, registered.body)
 	}
@@ -78,7 +117,7 @@ func TestRegistration_RequiresAnAuthorisedToken(t *testing.T) {
 func TestRegistration_RegisteredClientObtainsBoundToken(t *testing.T) {
 	h := newHarness(t, nil)
 
-	registered := h.register("Bearer "+seedRegistrar(t, h), participantMetadata())
+	registered := h.registerWith(seedRegistrar(t, h), participantMetadata())
 	if registered.status != http.StatusCreated {
 		t.Fatalf("registration: status %d, body %v", registered.status, registered.body)
 	}
@@ -89,6 +128,9 @@ func TestRegistration_RegisteredClientObtainsBoundToken(t *testing.T) {
 
 	clientID, secret := registered.str("client_id"), registered.str("client_secret")
 	form := url.Values{"grant_type": {"client_credentials"}, "scope": {resourceScope}}
+	if h.signed {
+		form.Set("audience", h.defaultAudience)
+	}
 
 	withoutProof := h.tokenWithSecret(clientID, secret, "", form)
 	if withoutProof.status == http.StatusOK {
@@ -115,7 +157,7 @@ func TestRegistration_RegisteredClientObtainsBoundToken(t *testing.T) {
 func TestRegistration_SecretIsStoredHashed(t *testing.T) {
 	h := newHarness(t, nil)
 
-	registered := h.register("Bearer "+seedRegistrar(t, h), participantMetadata())
+	registered := h.registerWith(seedRegistrar(t, h), participantMetadata())
 	if registered.status != http.StatusCreated {
 		t.Fatalf("registration: status %d, body %v", registered.status, registered.body)
 	}
@@ -154,7 +196,7 @@ func TestRegistration_CannotExceedTheRegistrar(t *testing.T) {
 			metadata := participantMetadata()
 			metadata[tc.member] = tc.value
 
-			got := h.register("Bearer "+seedRegistrar(t, h), metadata)
+			got := h.registerWith(seedRegistrar(t, h), metadata)
 			if got.status != http.StatusBadRequest || got.reason() != oauth2provider.CodeRegistrationRejected {
 				t.Fatalf("status %d reason %q body %v, want 400 %q", got.status, got.reason(), got.body, oauth2provider.CodeRegistrationRejected)
 			}

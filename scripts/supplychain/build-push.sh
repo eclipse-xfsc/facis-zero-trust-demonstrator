@@ -16,6 +16,9 @@ for dockerfile in deployment/docker/*/Dockerfile; do
   docker build --platform linux/amd64 --provenance=false --sbom=false \
     --label eu.facis.ztd.signing-key=interim --label "org.opencontainers.image.revision=$revision" \
     -f "$dockerfile" -t "$ref" .
+  case "$name" in
+    participant|protected-resource) python3 scripts/ci/check-runtime-files.py "$ref" "$name" ;;
+  esac
   docker push -q "$ref" >/dev/null
   digest="$(docker inspect --format '{{range .RepoDigests}}{{println .}}{{end}}' "$ref" | grep -m1 "^$repository/$name@sha256:")"
   echo "$digest" >> "$list"

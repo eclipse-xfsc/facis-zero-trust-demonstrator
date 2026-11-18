@@ -65,7 +65,7 @@ Direct dependencies of the Go module. Transitive dependencies are listed in the 
 | Dependency | Version | Licence | Purpose |
 |---|---|---|---|
 | `authelia.com/provider/oauth2` | v0.3.2 | Apache-2.0 | OAuth 2.0 framework behind the connector's provider adapter: RFC 7591 client registration and RFC 9449 DPoP. Requires Go 1.27.x. |
-| `golang.org/x/crypto` | v0.57.0 | BSD-3-Clause | bcrypt hashing of client secrets |
+| `golang.org/x/crypto` | v0.58.0 | BSD-3-Clause | bcrypt hashing of client secrets |
 | `github.com/cucumber/godog` | v0.16.0 | MIT | runs the Go acceptance scenarios (`internal/bdd`) |
 | `github.com/cucumber/gherkin/go/v42` | v42.0.0 | MIT | parses the feature files for the Annex verbatim check (`cmd/bddpack`) |
 | `github.com/cucumber/messages/go/v34` | v34.2.0 | MIT | the Gherkin document model used with it |

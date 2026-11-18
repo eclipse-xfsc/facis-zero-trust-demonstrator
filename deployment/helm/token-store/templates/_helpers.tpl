@@ -55,6 +55,36 @@ app.kubernetes.io/component: server
 {{- if not (has (.Values.server.logLevel | toString) (list "debug" "info" "warn" "error")) -}}
 {{- fail "server.logLevel must be debug, info, warn or error" -}}
 {{- end -}}
+{{- if .Values.runtime.enabled -}}
+{{- if not (and .Values.runtime.existingConfigMap .Values.runtime.configKey .Values.runtime.credentialsSecret .Values.runtime.openbaoTokenKey) -}}
+{{- fail "runtime requires acquisition ConfigMap and credential Secret key references" -}}
+{{- end -}}
+{{- if not (regexMatch "^[A-Za-z0-9._-]+$" .Values.runtime.openbaoTokenKey) -}}{{ fail "runtime.openbaoTokenKey must be a Secret data key" }}{{- end -}}
+{{- if not .Values.identity.spireManagedIdentity -}}{{ fail "runtime requires SPIRE-managed identity" }}{{- end -}}
+{{- if not .Values.networkPolicy.enabled -}}{{ fail "runtime requires networkPolicy.enabled" }}{{- end -}}
+{{- range .Values.runtime.replayCallers -}}
+{{- if not (regexMatch "^spiffe://[^/]+/ns/[^/]+/sa/[^/]+$" .) -}}{{ fail "runtime.replayCallers must contain SPIFFE service account identities" }}{{- end -}}
+{{- end -}}
+{{- end -}}
+{{- end -}}
+
+{{/* Preserve per-pod overrides but enforce the inbound XFCC prerequisite in runtime mode. */}}
+{{- define "token-store.annotations" -}}
+{{- $annotations := deepCopy .Values.podAnnotations -}}
+{{- if .Values.runtime.enabled -}}
+{{- $_ := set $annotations "sidecar.istio.io/nativeSidecar" "true" -}}
+{{- $proxy := dict -}}
+{{- if hasKey $annotations "proxy.istio.io/config" -}}
+{{- $proxy = fromYaml (index $annotations "proxy.istio.io/config") -}}
+{{- if hasKey $proxy "Error" -}}{{ fail "proxy.istio.io/config must be a YAML mapping" }}{{- end -}}
+{{- end -}}
+{{- $_ := set $proxy "proxyHeaders" (mergeOverwrite (get $proxy "proxyHeaders" | default dict) (dict "forwardedClientCert" "SANITIZE_SET")) -}}
+{{- $_ := set $annotations "proxy.istio.io/config" (toJson $proxy) -}}
+{{- end -}}
+{{- if $annotations }}
+annotations:
+  {{- toYaml $annotations | nindent 2 }}
+{{- end -}}
 {{- end -}}
 
 {{/* The migration container: one definition for the install/upgrade Job and the uninstall Job. */}}

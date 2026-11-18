@@ -8,8 +8,24 @@ on:
   pull_request:
     paths:
       - services/token-store/**
+      - services/connector/**
+      - services/participant/**
+      - services/protectedresource/**
+      - services/guard/**
+      - services/policyevaluator/**
+      - cmd/guard/**
+      - cmd/policy-evaluator/**
+      - cmd/participant/**
+      - cmd/protected-resource/**
+      - internal/**
       - deployment/docker/token-store/**
+      - deployment/docker/connector/**
+      - deployment/docker/participant/**
+      - deployment/docker/protected-resource/**
       - deployment/helm/token-store/**
+      - deployment/helm/guard/**
+      - deployment/docker/guard/**
+      - deployment/docker/policy-evaluator/**
       - scripts/verify-token-store/**
       - scripts/tools/pins.env
       - go.mod
@@ -19,8 +35,24 @@ on:
     branches: [main]
     paths:
       - services/token-store/**
+      - services/connector/**
+      - services/participant/**
+      - services/protectedresource/**
+      - services/guard/**
+      - services/policyevaluator/**
+      - cmd/guard/**
+      - cmd/policy-evaluator/**
+      - cmd/participant/**
+      - cmd/protected-resource/**
+      - internal/**
       - deployment/docker/token-store/**
+      - deployment/docker/connector/**
+      - deployment/docker/participant/**
+      - deployment/docker/protected-resource/**
       - deployment/helm/token-store/**
+      - deployment/helm/guard/**
+      - deployment/docker/guard/**
+      - deployment/docker/policy-evaluator/**
       - scripts/verify-token-store/**
       - scripts/tools/pins.env
       - go.mod
@@ -35,7 +67,7 @@ jobs:
   schema:
     name: Schema and store queries on an ephemeral database
     runs-on: ubuntu-24.04
-    timeout-minutes: 15
+    timeout-minutes: 45
     steps:
       - name: Checkout repository
         uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
@@ -56,19 +88,43 @@ jobs:
           done
           docker exec postgres pg_isready -h 127.0.0.1 -U postgres
 
-      # Migrates up, up again, down to empty and back; refuses an edited migration; serialises
-      # concurrent runners; then runs the store's queries against the migrated schema.
-      - name: Migrate, revert and run the store queries
+      # The token path needs a real OpenBao too: transit signing, the KV store of upstream tokens.
+      - name: Start OpenBao from the pinned image
+        run: |
+          . scripts/tools/pins.env
+          docker run -d --name openbao -e BAO_DEV_ROOT_TOKEN_ID=ci -p 127.0.0.1:8200:8200 "$OPENBAO_IMAGE" server -dev
+          for _ in $(seq 1 30); do
+            curl -sf http://127.0.0.1:8200/v1/sys/health >/dev/null && break
+            sleep 1
+          done
+          curl -sf -X POST -H 'X-Vault-Token: ci' -d '{"type":"transit"}' http://127.0.0.1:8200/v1/sys/mounts/transit
+
+      # Everything on the token path against PostgreSQL and OpenBao: the schema's migrations and
+      # queries, the store (replay check, acquisition with its recovery, substitution, renewal) with
+      # the real connector binary as the peer zone, the connector's conformance suite on the database
+      # stores, the shared packages, and the Participant and Protected Resource end to end through
+      # the real connector. Run twice, once per access-token form the connector issues.
+      # A skipped test means a missing dependency, so it fails the job.
+      - name: Run the token path with opaque and with signed access tokens
         run: |
           set -o pipefail
-          go test -count=1 -race -v ./services/token-store/... | tee "$RUNNER_TEMP/go-test.log"
-          # The database tests skip without the variable; here a skip is a broken job, not a pass.
-          if grep -q -- '--- SKIP' "$RUNNER_TEMP/go-test.log"; then
-            echo "::error::a database test was skipped; this job must run them against PostgreSQL"
-            exit 1
-          fi
+          for tokens in opaque jwt; do
+            CONNECTOR_TEST_TOKENS=$tokens go test -count=1 -race -timeout 20m -v \
+              ./services/token-store/... ./services/connector/... ./internal/... \
+              ./services/participant/... ./services/protectedresource/... \
+              ./cmd/participant/... ./cmd/protected-resource/... \
+              ./services/guard/... ./services/policyevaluator/... ./cmd/guard/... ./cmd/policy-evaluator/... \
+              | tee "$RUNNER_TEMP/token-path-$tokens.log"
+            if grep -q -- '--- SKIP' "$RUNNER_TEMP/token-path-$tokens.log"; then
+              echo "::error::a test was skipped with $tokens tokens; this job must run them against PostgreSQL and OpenBao"
+              exit 1
+            fi
+          done
         env:
+          CONNECTOR_TEST_STORE: pg
           TOKEN_STORE_TEST_DATABASE_URL: postgres://postgres:ci@127.0.0.1:5432/postgres?sslmode=disable
+          TRANSIT_TEST_ADDR: http://127.0.0.1:8200
+          TRANSIT_TEST_TOKEN: ci
 
   chart:
     name: Chart lifecycle on kind

@@ -1,10 +1,15 @@
 package server
 
 import (
+	"context"
 	"errors"
 	"net/url"
 	"strings"
 	"time"
+
+	"github.com/eclipse-xfsc/facis-zero-trust-demonstrator/internal/meshcaller"
+	"github.com/eclipse-xfsc/facis-zero-trust-demonstrator/internal/transit"
+	"github.com/eclipse-xfsc/facis-zero-trust-demonstrator/services/token-store/internal/acquire"
 )
 
 // Config is the service's configuration surface. The command line and the environment fill it;
@@ -26,6 +31,28 @@ type Config struct {
 	DrainDelay time.Duration
 	// ShutdownTimeout is how long a stopping service then drains its listeners before it exits.
 	ShutdownTimeout time.Duration
+	// ReplayCallers are the SPIFFE IDs allowed to call /internal/replay-check (the connector and
+	// the guard). With none, every call to it is refused.
+	ReplayCallers []string
+	// Callers authenticates the store's internal callers. Nil means the forwarded client certificate
+	// (meshcaller.XFCC) checked against the allow-lists above and the substitution routes' callers;
+	// tests inject their own.
+	Callers meshcaller.Authenticator
+	// Acquisition is the routes file (--acquire-config): the routes /internal/substitute authorizes
+	// and acquires tokens for. Nil refuses every substitution meshcaller.
+	Acquisition *acquire.Loaded
+	// OpenBao signs the store's proofs and holds the upstream token values; required with
+	// Acquisition.
+	OpenBao OpenBao
+	// Instance names this replica in renewal claims (the pod's name); empty means a random name.
+	Instance string
+}
+
+// OpenBao is the key-value store as the store uses it: transit signing and KV v2.
+type OpenBao interface {
+	transit.Signer
+	LatestKey(context.Context, string) (transit.KeyVersion, error)
+	transit.Secrets
 }
 
 // Validate reports the first thing the service cannot run with.
@@ -50,6 +77,12 @@ func (c Config) Validate() error {
 	}
 	if c.ShutdownTimeout <= 0 {
 		return errors.New("the shutdown timeout must be longer than 0")
+	}
+	if _, err := meshcaller.NewXFCC(c.ReplayCallers); err != nil {
+		return errors.New("the replay-check callers must be spiffe:// IDs")
+	}
+	if c.Acquisition != nil && c.OpenBao == nil {
+		return errors.New("substitution needs the key-value store's token")
 	}
 	return nil
 }
