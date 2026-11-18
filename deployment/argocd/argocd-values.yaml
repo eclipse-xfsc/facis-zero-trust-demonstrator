@@ -1,0 +1,227 @@
+# Values for the Argo CD chart (argoproj.github.io/argo-helm, version and digests in
+# scripts/tools/pins.env), installed by scripts/argocd/install.sh. One Argo CD per zone, reconciling
+# its own cluster only: a zone never holds credentials for another cluster (docs/architecture.md,
+# section 6). The image tags are set by the installer from the pins, so every image is referenced by
+# digest; the installer refuses to install when one is not.
+#
+# What runs: the application controller, the repo server, the API server and redis. Dex (SSO),
+# notifications and the ApplicationSet controller are off: nothing here needs them, and each is a
+# process with cluster rights. The UI is not exposed; it is reached with a port-forward when needed.
+
+crds:
+  install: true
+  keep: true
+
+dex:
+  enabled: false
+notifications:
+  enabled: false
+applicationSet:
+  replicas: 0   # the chart has no enabled switch for it; zero replicas keeps it out of the cluster
+
+# Least privilege. The chart's default gives the controller and the API server '*' on everything.
+# The controller may read everything (its resource cache and the status it shows) and write only
+# what the admission policy consists of: Gatekeeper's templates, constraints and config. The API
+# server reads only.
+createClusterRoles: true
+controller:
+  clusterRoleRules:
+    enabled: true
+    rules:
+      - apiGroups: ["*"]
+        resources: ["*"]
+        verbs: [get, list, watch]
+      - apiGroups: [templates.gatekeeper.sh, constraints.gatekeeper.sh, config.gatekeeper.sh]
+        resources: ["*"]
+        verbs: ["*"]
+      - apiGroups: [""]
+        resources: [events]
+        verbs: [create, list]
+  metrics:
+    enabled: true
+    service:
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "8082"
+server:
+  clusterRoleRules:
+    enabled: true
+    rules:
+      - apiGroups: ["*"]
+        resources: ["*"]
+        verbs: [get, list, watch]
+      - apiGroups: [""]
+        resources: [events]
+        verbs: [list, create]
+      - apiGroups: [argoproj.io]
+        resources: [applications, applicationsets]
+        verbs: [get, list, update, watch]
+  metrics:
+    enabled: true
+    service:
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "8083"
+repoServer:
+  metrics:
+    enabled: true
+    service:
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "8084"
+
+configs:
+  cm:
+    # Managed resources are tracked by an annotation, not by a label: the objects in the cluster stay
+    # equal to the files in Git, with one annotation added.
+    application.resourceTrackingMethod: annotation
+    # No users: the admin account is disabled and no SSO is configured, so the API server accepts no
+    # login at all. The state is read and the Applications are written with kubectl, as the installer
+    # and the checks do; the installer also deletes the initial admin password Secret.
+    admin.enabled: "false"
+
+# Network layer: default deny in both directions, as in every plane namespace of the umbrella chart,
+# with the lanes Argo CD needs and nothing else. The chart's own policies are off: its API-server
+# policy admits ingress from anywhere, so every policy is written here instead. Ingress: each
+# component admits its peers on its service port, and any namespace on its metrics port (the zone's
+# collector lives elsewhere); the API server admits only this namespace. Egress: within the
+# namespace, to DNS, and from the repo server to Git over HTTPS. The lane to the Kubernetes API is a
+# zone fact and is added by the installer (CILIUM=1 or KUBE_API_CIDRS, with KUBE_API_PORTS).
+global:
+  networkPolicy:
+    create: false
+extraObjects:
+  - apiVersion: networking.k8s.io/v1
+    kind: NetworkPolicy
+    metadata:
+      name: default-deny
+    spec:
+      podSelector: {}
+      policyTypes: [Ingress, Egress]
+  - apiVersion: networking.k8s.io/v1
+    kind: NetworkPolicy
+    metadata:
+      name: allow-intra-namespace-egress
+    spec:
+      podSelector: {}
+      policyTypes: [Egress]
+      egress:
+        - to:
+            - podSelector: {}
+  - apiVersion: networking.k8s.io/v1
+    kind: NetworkPolicy
+    metadata:
+      name: allow-dns-egress
+    spec:
+      podSelector: {}
+      policyTypes: [Egress]
+      egress:
+        - to:
+            - namespaceSelector:
+                matchLabels:
+                  kubernetes.io/metadata.name: kube-system
+              podSelector:
+                matchLabels:
+                  k8s-app: kube-dns
+          ports:
+            # 53 where CoreDNS listens on the standard port; 8053 where the cluster's CoreDNS listens
+            # there (the port the umbrella's zone file records as networkPolicy.dns.ports).
+            - { port: 53, protocol: UDP }
+            - { port: 53, protocol: TCP }
+            - { port: 8053, protocol: UDP }
+            - { port: 8053, protocol: TCP }
+  - apiVersion: networking.k8s.io/v1
+    kind: NetworkPolicy
+    metadata:
+      name: allow-git-egress
+    spec:
+      # The repo server is the only component that fetches from Git, and HTTPS is the only protocol.
+      podSelector:
+        matchLabels:
+          app.kubernetes.io/name: argocd-repo-server
+      policyTypes: [Egress]
+      egress:
+        - to:
+            - ipBlock:
+                cidr: 0.0.0.0/0
+          ports:
+            - { port: 443, protocol: TCP }
+  - apiVersion: networking.k8s.io/v1
+    kind: NetworkPolicy
+    metadata:
+      name: allow-repo-server-ingress
+    spec:
+      # Rendering requests from the controller and the API server; metrics from any namespace.
+      podSelector:
+        matchLabels:
+          app.kubernetes.io/name: argocd-repo-server
+      policyTypes: [Ingress]
+      ingress:
+        - from:
+            - podSelector:
+                matchLabels:
+                  app.kubernetes.io/name: argocd-application-controller
+            - podSelector:
+                matchLabels:
+                  app.kubernetes.io/name: argocd-server
+          ports:
+            - { port: 8081, protocol: TCP }
+        - from:
+            - namespaceSelector: {}
+          ports:
+            - { port: 8084, protocol: TCP }
+  - apiVersion: networking.k8s.io/v1
+    kind: NetworkPolicy
+    metadata:
+      name: allow-redis-ingress
+    spec:
+      podSelector:
+        matchLabels:
+          app.kubernetes.io/name: argocd-redis
+      policyTypes: [Ingress]
+      ingress:
+        - from:
+            - podSelector:
+                matchLabels:
+                  app.kubernetes.io/name: argocd-application-controller
+            - podSelector:
+                matchLabels:
+                  app.kubernetes.io/name: argocd-repo-server
+            - podSelector:
+                matchLabels:
+                  app.kubernetes.io/name: argocd-server
+          ports:
+            - { port: 6379, protocol: TCP }
+  - apiVersion: networking.k8s.io/v1
+    kind: NetworkPolicy
+    metadata:
+      name: allow-controller-metrics-ingress
+    spec:
+      podSelector:
+        matchLabels:
+          app.kubernetes.io/name: argocd-application-controller
+      policyTypes: [Ingress]
+      ingress:
+        - from:
+            - namespaceSelector: {}
+          ports:
+            - { port: 8082, protocol: TCP }
+  - apiVersion: networking.k8s.io/v1
+    kind: NetworkPolicy
+    metadata:
+      name: allow-server-ingress
+    spec:
+      # The API server answers this namespace only (it has no users anyway); metrics from any namespace.
+      podSelector:
+        matchLabels:
+          app.kubernetes.io/name: argocd-server
+      policyTypes: [Ingress]
+      ingress:
+        - from:
+            - podSelector: {}
+          ports:
+            - { port: 8080, protocol: TCP }
+        - from:
+            - namespaceSelector: {}
+          ports:
+            - { port: 8083, protocol: TCP }
