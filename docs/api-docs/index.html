@@ -117,6 +117,10 @@
                 </li>
               </ul>
               <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../token-store/">Token store</a>
+                </li>
+              </ul>
+              <ul>
                 <li class="toctree-l1"><a class="reference internal" href="../policy-hook/">Guard policy hook</a>
                 </li>
               </ul>
@@ -321,7 +325,8 @@ compatible addition; anything else is a v2.</p>
 </table>
 <p>Internal to a zone, and not a numbered interface: the token store's API,
 <a href="../contracts/token-store.v1.openapi.yaml">token-store.v1.openapi.yaml</a> — substitution for the guard
-and DPoP replay detection for the connector and the guard.</p>
+and DPoP replay detection for the connector and the guard. The database behind it, its schema and
+how the schema is applied are described in <a href="../token-store/">Token store</a>.</p>
 <p>Three agreements are conventions rather than interfaces, and are documented where they live:</p>
 <table>
 <thead>

@@ -1,0 +1,418 @@
+<!DOCTYPE html>
+<html class="writer-html5" lang="en" >
+<head>
+    <meta charset="utf-8" />
+    <meta http-equiv="X-UA-Compatible" content="IE=edge" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+      <link rel="shortcut icon" href="../img/favicon.ico" />
+    <title>Token store - FACIS Zero Trust Demonstrator</title>
+    <link rel="stylesheet" href="../css/theme.css" />
+    <link rel="stylesheet" href="../css/theme_extra.css" />
+        <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.8.0/styles/github.min.css" />
+    
+      <script>
+        // Current page data
+        var mkdocs_page_name = "Token store";
+        var mkdocs_page_input_path = "token-store.md";
+        var mkdocs_page_url = null;
+      </script>
+    
+    <!--[if lt IE 9]>
+      <script src="../js/html5shiv.min.js"></script>
+    <![endif]-->
+      <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.8.0/highlight.min.js"></script>
+      <script>hljs.highlightAll();</script> 
+</head>
+
+<body class="wy-body-for-nav" role="document">
+
+  <div class="wy-grid-for-nav">
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side stickynav">
+    <div class="wy-side-scroll">
+      <div class="wy-side-nav-search">
+          <a href=".." class="icon icon-home"> FACIS Zero Trust Demonstrator
+        </a><div role="search">
+  <form id ="rtd-search-form" class="wy-form" action="../search.html" method="get">
+      <input type="text" name="q" placeholder="Search docs" aria-label="Search docs" title="Type search term here" />
+  </form>
+</div>
+      </div>
+
+      <div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="..">Home</a>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../features/">Features and journeys</a>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../architecture/">Architecture</a>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../usage/">Using the demonstrator</a>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../deployment/">Deployment</a>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../umbrella-chart/">Umbrella chart</a>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../workload-identity/">Workload identity</a>
+                </li>
+              </ul>
+              <p class="caption"><span class="caption-text">Environments</span></p>
+              <ul>
+                  <li class="toctree-l1"><a class="reference internal" href="../environments/">Overview</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../environments/osc/">T-Systems OSC</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../environments/ionos/">IONOS Cloud</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../environments/application-workloads/">Application workloads</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../environments/capabilities/">Capability sheets</a>
+                  </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../packaging/">Packaging and containers</a>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../application-services/">Application services</a>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../application-services-verification/">Application service verification</a>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../flows/">Orchestrated flows</a>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../scenarios/">Scenario decisions</a>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../keycloak/">Keycloak integration</a>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../demonstrator-handoff/">Demonstrator UI and identity</a>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../identity-model/">Identity model</a>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../oauth2-provider/">Connector OAuth2 provider</a>
+                </li>
+              </ul>
+              <ul class="current">
+                <li class="toctree-l1 current"><a class="reference internal current" href="#">Token store</a>
+    <ul class="current">
+    <li class="toctree-l2"><a class="reference internal" href="#one-database-two-owners">One database, two owners</a>
+    </li>
+    <li class="toctree-l2"><a class="reference internal" href="#migrations">Migrations</a>
+    </li>
+    <li class="toctree-l2"><a class="reference internal" href="#deployment">Deployment</a>
+    </li>
+    <li class="toctree-l2"><a class="reference internal" href="#verification">Verification</a>
+    </li>
+    <li class="toctree-l2"><a class="reference internal" href="#what-follows">What follows</a>
+    </li>
+    </ul>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../policy-hook/">Guard policy hook</a>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../api-docs/">API documentation</a>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../contracts/">Interface contracts</a>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../tspa-publish-api/">TRAIN trust-list publishing</a>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../train-dns/">TRAIN DNS zone</a>
+                </li>
+              </ul>
+              <p class="caption"><span class="caption-text">BDD acceptance</span></p>
+              <ul>
+                  <li class="toctree-l1"><a class="reference internal" href="../bdd/">Harness and pack</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../bdd-catalogue/">Catalogue</a>
+                  </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../ci-cd/">CI/CD</a>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../secrets/">Secrets</a>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../troubleshooting/">Troubleshooting</a>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../dependencies/">OSS dependencies</a>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../licenses/">Licenses</a>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../specifications/">Specification changes</a>
+                </li>
+              </ul>
+              <p class="caption"><span class="caption-text">Evidence</span></p>
+              <ul>
+                  <li class="toctree-l1"><a class="reference internal" href="../evidences/mesh-mode-upstream-state/">Mesh mode, upstream state: about</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../evidences/mesh-mode-upstream-state/upstream-state/">Mesh mode, upstream state: record</a>
+                  </li>
+              </ul>
+              <p class="caption"><span class="caption-text">Architecture decisions</span></p>
+              <ul>
+                  <li class="toctree-l1"><a class="reference internal" href="../adr/">Overview</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../adr/decision-ledger/">Decision ledger</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../adr/tdr-decisions/">TDR decisions ADR 001–006</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../adr/0001-service-mesh-mode-istio-ambient-with-cilium/">0001 Service mesh mode (superseded by 0009)</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../adr/0002-gatekeeper-external-data-provider-for-cosign-verification/">0002 Gatekeeper external data provider</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../adr/0003-oauth2-authorisation-surface-in-the-go-connector/">0003 OAuth2 surface in the Go connector</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../adr/0004-openbao-as-x509-key-value-store/">0004 OpenBao as X.509 key-value store</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../adr/0005-three-cluster-reading-of-the-target-environment/">0005 Three-cluster target environment</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../adr/0009-service-mesh-mode-istio-sidecar-with-cilium/">0009 Service mesh mode (sidecar, supersedes 0001)</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../adr/0008-envoy-ext-authz-as-the-guard-policy-hook/">0008 Guard policy hook</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../adr/0011-mock-tee-evidence-format-and-provisioning/">0011 Mock TEE evidence</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../adr/0016-oauth2-library-behind-the-connector-provider-contract/">0016 OAuth2 library</a>
+                  </li>
+              </ul>
+      </div>
+    </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap">
+      <nav class="wy-nav-top" role="navigation" aria-label="Mobile navigation menu">
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="..">FACIS Zero Trust Demonstrator</a>
+        
+      </nav>
+      <div class="wy-nav-content">
+        <div class="rst-content"><div role="navigation" aria-label="breadcrumbs navigation">
+  <ul class="wy-breadcrumbs">
+    <li><a href=".." class="icon icon-home" aria-label="Docs"></a></li>
+      <li class="breadcrumb-item active">Token store</li>
+    <li class="wy-breadcrumbs-aside">
+          <a href="https://github.com/eclipse-xfsc/facis-zero-trust-demonstrator/edit/main/docs/token-store.md" class="icon icon-github"> Edit on GitHub</a>
+    </li>
+  </ul>
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+            <div class="section" itemprop="articleBody">
+              
+                <h1 id="token-store">Token store<a class="headerlink" href="#token-store" title="Permanent link">&para;</a></h1>
+<p>The token store is the zone's keeper of upstream credentials
+(<a href="../contracts/token-store.v1.openapi.yaml">token-store.v1.openapi.yaml</a>): it holds the tokens the
+peer zone minted to this zone, substitutes them for the guard so a caller's own proof is never
+forwarded, and detects DPoP proof replay for the connector and the guard. It stands on one
+PostgreSQL database that it shares with the connector's OAuth2 surface
+(<a href="../oauth2-provider/">Connector OAuth2 provider</a>), whose clients and issued tokens live in the same
+schema. This page describes that database, how its schema is applied and how both are verified;
+the service's endpoints are documented as they land.</p>
+<h2 id="one-database-two-owners">One database, two owners<a class="headerlink" href="#one-database-two-owners" title="Permanent link">&para;</a></h2>
+<table>
+<thead>
+<tr>
+<th>Tables</th>
+<th>Owner</th>
+<th>What they hold</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>oauth2_client</code>, <code>oauth2_token</code>, <code>oauth2_dpop_nonce</code></td>
+<td>the connector's OAuth2 surface</td>
+<td>dynamically registered clients (secret as a bcrypt hash, the RFC 7591 metadata document as registered), issued access and registration tokens keyed by signature, server-issued DPoP nonces</td>
+</tr>
+<tr>
+<td><code>signing_key</code></td>
+<td>the token store</td>
+<td>references to the store's outbound signing keys in the key-value store, with their thumbprints; never key material</td>
+</tr>
+<tr>
+<td><code>verified_outcome</code></td>
+<td>the token store</td>
+<td>verification outcomes received over IF-03, consumed at most once</td>
+</tr>
+<tr>
+<td><code>upstream_token</code></td>
+<td>the token store</td>
+<td>the upstream tokens held per route <code>(peer_zone, audience, tenant)</code>, as references into the key-value store, with state and the single-flight renewal claim</td>
+</tr>
+<tr>
+<td><code>proof_jti</code></td>
+<td>the token store, on behalf of the connector and the guard</td>
+<td>one-time DPoP proof identifiers, keyed <code>(jkt, htm, htu, jti)</code> and kept until <code>not_after</code>; the replay check of the store's API</td>
+</tr>
+<tr>
+<td><code>audit_event</code></td>
+<td>both</td>
+<td>registration decisions, outcome consumption and refusal, every renewal attempt with its reason; append-only</td>
+</tr>
+</tbody>
+</table>
+<p>Three properties are the schema's own, not the services' good conduct:</p>
+<ul>
+<li><strong>An outcome is consumed exactly once.</strong> The upstream token's reference to its outcome is unique,
+  so a second token row for one outcome is refused by the database even on a path that skipped the
+  consumption check. The intended path marks the outcome consumed and inserts the token in one
+  transaction.</li>
+<li><strong>A replayed proof is refused by the primary key.</strong> The replay check is one insert; a conflict is a
+  replay, and of any number of concurrent identical proofs exactly one is admitted. The table is
+  unlogged on purpose: after a crash it is empty, so a proof can be replayed at most once inside its
+  own acceptance window, as the API documents.</li>
+<li><strong>Renewal is single-flight.</strong> A worker claims a due token with <code>FOR UPDATE SKIP LOCKED</code> and records
+  the claim; a second worker sees nothing to do. A claim without a claimant, or the reverse, is a
+  constraint violation, and a staleness sweep releases the claim of a worker that died.</li>
+</ul>
+<p>The queries behind these properties, the substitution lookup included, are tested against the
+migrated schema in <code>services/token-store/internal/schema</code> and are what the service's paths are built
+on.</p>
+<h2 id="migrations">Migrations<a class="headerlink" href="#migrations" title="Permanent link">&para;</a></h2>
+<p>The schema is a sequence of versioned migrations embedded in the <code>token-store</code> binary:
+<code>services/token-store/internal/schema/migrations/NNNN_name.up.sql</code> with its <code>.down.sql</code>, numbered
+from <code>0001</code> without gaps. The binary applies them:</p>
+<pre><code class="language-bash">token-store migrate up [--to N]    # apply the migrations above the current version, up to N (default: all)
+token-store migrate down --to N    # revert to version N; 0 leaves the schema empty
+token-store migrate status         # the database against the embedded migrations, as JSON; exit 3 when behind
+</code></pre>
+<p>The connection URL comes from <code>--database-url</code> or <code>TOKEN_STORE_DATABASE_URL</code> and is never logged.
+Each migration runs in its own transaction and is recorded in <code>schema_migrations</code> with the SHA-256
+of its up file. A later run that finds a recorded checksum differing from the embedded file refuses
+to continue: a migration is never edited, a schema change is a new migration. Concurrent runs take a
+session-level advisory lock in turn, so two replicas of a hook Job, or a Job and an operator's
+shell, cannot interleave. <code>down --to 0</code> drops <code>schema_migrations</code> as well, so a full revert leaves
+nothing behind. A database ahead of the embedded migrations, migrated by a newer build, is current
+for an older one: its <code>up</code> applies nothing and its <code>status</code> exits 0, while its <code>down</code> is refused,
+since only the build that applied a migration knows how to revert it.</p>
+<h2 id="deployment">Deployment<a class="headerlink" href="#deployment" title="Permanent link">&para;</a></h2>
+<p>The chart <code>deployment/helm/token-store</code> (its README documents the values) applies the schema as a
+<code>pre-install,pre-upgrade</code> hook Job running <code>migrate up</code> from the same image the service uses, in
+the platform band of the umbrella chart's
+<a href="../umbrella-chart/#the-hook-weight-scheme">hook-weight scheme</a>. A fresh environment gets the
+schema on install; an upgrade of a current database changes nothing, which the lifecycle proof
+below checks to the timestamp. The chart does not run PostgreSQL and
+never carries its credential: the database is the zone's, and its connection URL reaches the Job
+from a Secret of the release namespace, created before the install and named in
+<code>database.existingSecret</code>. With <code>schema.dropOnUninstall</code>, off by default, a <code>pre-delete</code> Job
+reverts every migration on <code>helm uninstall</code> and the schema is empty afterwards; without it the
+database outlives the release. A <code>helm rollback</code> runs no schema hook: migrations only add, so an
+older build runs against a newer schema and treats it as current.</p>
+<h2 id="verification">Verification<a class="headerlink" href="#verification" title="Permanent link">&para;</a></h2>
+<p>Two proofs, both run by <code>.github/workflows/token-store.yml</code> on every change to the store, its image,
+its chart or the pinned images:</p>
+<ul>
+<li><strong>The runner and the queries against an ephemeral database.</strong> <code>go test ./services/token-store/...</code>
+  with <code>TOKEN_STORE_TEST_DATABASE_URL</code> set runs against a PostgreSQL from the pinned image: up on an
+  empty database applies every migration, up again applies none and changes no record, down to zero
+  leaves an empty schema, an edited migration is refused, concurrent runners serialise; then the
+  store's queries above. Each test takes a database of its own and drops it. Without the variable
+  the database tests skip, so the ordinary test job stays self-contained.</li>
+<li><strong>The chart's lifecycle on kind.</strong> <code>scripts/verify-token-store/verify.sh</code> builds the image from
+  the working tree, starts a kind cluster with a registry on its network and a PostgreSQL from the
+  pinned image inside it, puts the connection URL in a Secret as a real deployment has it, and
+  installs, upgrades and uninstalls the chart: the install applies the
+  schema to an empty database, the upgrade leaves <code>schema_migrations</code> identical to the timestamp,
+  the uninstall with <code>schema.dropOnUninstall</code> leaves an empty schema, and the default uninstall
+  keeps it. The records and the verdict are the run's artefact and go to the job summary; nothing
+  is committed. Locally, the script writes to the git-ignored <code>.dev/token-store-evidence/</code>.</li>
+</ul>
+<h2 id="what-follows">What follows<a class="headerlink" href="#what-follows" title="Permanent link">&para;</a></h2>
+<p>The service itself: its configuration surface, liveness and readiness (readiness requires the
+database reachable and the schema current, which <code>migrate status</code> already answers), the mesh
+identity, the key custody against the key-value store, and the endpoints of the API, each building
+on the tables and queries above.</p>
+              
+            </div>
+          </div><footer>
+    <div class="rst-footer-buttons" role="navigation" aria-label="Footer Navigation">
+        <a href="../oauth2-provider/" class="btn btn-neutral float-left" title="Connector OAuth2 provider"><span class="icon icon-circle-arrow-left"></span> Previous</a>
+        <a href="../policy-hook/" class="btn btn-neutral float-right" title="Guard policy hook">Next <span class="icon icon-circle-arrow-right"></span></a>
+    </div>
+
+  <hr/>
+
+  <div role="contentinfo">
+    <!-- Copyright etc -->
+      <p>Apache-2.0</p>
+  </div>
+
+  Built with <a href="https://www.mkdocs.org/">MkDocs</a> using a <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a> provided by <a href="https://readthedocs.org">Read the Docs</a>.
+</footer>
+          
+        </div>
+      </div>
+
+    </section>
+
+  </div>
+
+  <div class="rst-versions" role="note" aria-label="Versions">
+  <span class="rst-current-version" data-toggle="rst-current-version">
+    
+        <span>
+          <a href="https://github.com/eclipse-xfsc/facis-zero-trust-demonstrator" class="fa fa-github" style="color: #fcfcfc"> GitHub</a>
+        </span>
+    
+    
+      <span><a href="../oauth2-provider/" style="color: #fcfcfc">&laquo; Previous</a></span>
+    
+    
+      <span><a href="../policy-hook/" style="color: #fcfcfc">Next &raquo;</a></span>
+    
+  </span>
+</div>
+    <script src="../js/jquery-3.6.0.min.js"></script>
+    <script>var base_url = "..";</script>
+    <script src="../js/theme_extra.js"></script>
+    <script src="../js/theme.js"></script>
+      <script src="../search/main.js"></script>
+    <script>
+        jQuery(function () {
+            SphinxRtdTheme.Navigation.enable(true);
+        });
+    </script>
+
+</body>
+</html>

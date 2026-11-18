@@ -117,6 +117,10 @@
                 </li>
               </ul>
               <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../token-store/">Token store</a>
+                </li>
+              </ul>
+              <ul>
                 <li class="toctree-l1"><a class="reference internal" href="../policy-hook/">Guard policy hook</a>
                 </li>
               </ul>
@@ -319,6 +323,11 @@ and is declared as such in <a href="../specifications/#readings-and-additions">S
 <td><code>.github/workflows/measurement-determinism.yml</code></td>
 <td>pull request and push to <code>main</code> touching the check, manual</td>
 <td>Measures one fixture on a hosted runner, in a container, and on a deliberately divergent checkout, and requires the normalised measurement to be the same on all three</td>
+</tr>
+<tr>
+<td><code>.github/workflows/token-store.yml</code></td>
+<td>pull requests touching the token store, its image, its chart or the pinned images; manual</td>
+<td>Runs the schema migrations and the store's queries against a PostgreSQL from the pinned image, then the chart's lifecycle (install, upgrade, uninstall) on kind; the lifecycle records are the run's artefact and the verdict goes to the job summary</td>
 </tr>
 <tr>
 <td><code>.github/workflows/policy-hook.yml</code></td>

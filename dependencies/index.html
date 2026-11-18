@@ -117,6 +117,10 @@
                 </li>
               </ul>
               <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../token-store/">Token store</a>
+                </li>
+              </ul>
+              <ul>
                 <li class="toctree-l1"><a class="reference internal" href="../policy-hook/">Guard policy hook</a>
                 </li>
               </ul>
@@ -177,8 +181,6 @@
     <li class="toctree-l2"><a class="reference internal" href="#javascript-development-dependencies">JavaScript development dependencies</a>
     </li>
     <li class="toctree-l2"><a class="reference internal" href="#supply-chain-policy-and-test-tooling">Supply-chain, policy and test tooling</a>
-    </li>
-    <li class="toctree-l2"><a class="reference internal" href="#go-dependencies-being-added">Go dependencies being added</a>
     </li>
     <li class="toctree-l2"><a class="reference internal" href="#identity-and-service-mesh">Identity and service mesh</a>
     </li>
@@ -345,6 +347,12 @@ and ORCE for orchestration. Versions are pinned at deployment and recorded with 
 <td>validates SBOMs and mock attestations against their JSON Schemas at admission</td>
 </tr>
 <tr>
+<td><code>github.com/jackc/pgx/v5</code></td>
+<td>v5.11.0</td>
+<td>MIT</td>
+<td>PostgreSQL driver of the token store: the schema migrations today (<code>services/token-store</code>), the service's queries as they land</td>
+</tr>
+<tr>
 <td><code>github.com/envoyproxy/go-control-plane/envoy</code></td>
 <td>v1.37.0</td>
 <td>Apache-2.0</td>
@@ -475,27 +483,6 @@ from the OpenAPI Initiative), vendored in <code>docs/contracts/tooling/oas-3.1/<
 <td>2.8.3 (test service)</td>
 <td>Apache-2.0</td>
 <td>a local registry for signing and verification tests in CI</td>
-</tr>
-</tbody>
-</table>
-<h2 id="go-dependencies-being-added">Go dependencies being added<a class="headerlink" href="#go-dependencies-being-added" title="Permanent link">&para;</a></h2>
-<p>Added to the Go module together with the code that uses them; each goes through the licence gate like any
-other dependency.</p>
-<table>
-<thead>
-<tr>
-<th>Dependency</th>
-<th>Version</th>
-<th>Licence</th>
-<th>Purpose</th>
-</tr>
-</thead>
-<tbody>
-<tr>
-<td><code>github.com/jackc/pgx/v5</code></td>
-<td>v5.11.0</td>
-<td>MIT</td>
-<td>PostgreSQL driver of the token store</td>
 </tr>
 </tbody>
 </table>
