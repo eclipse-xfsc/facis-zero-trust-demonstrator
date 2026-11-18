@@ -1,0 +1,17 @@
+# The store's address inside the zone. Only the API port is published; the ops port stays with
+# the pod, for the kubelet.
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "token-store.name" . }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "token-store.labels" . | nindent 4 }}
+    app.kubernetes.io/component: server
+spec:
+  selector:
+    {{- include "token-store.selector" . | nindent 4 }}
+  ports:
+    - name: http
+      port: 8080
+      targetPort: http
