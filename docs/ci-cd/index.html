@@ -146,6 +146,8 @@
                   </li>
                   <li class="toctree-l1"><a class="reference internal" href="../bdd-catalogue/">Catalogue</a>
                   </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../evidence-m3/">M3 evidence</a>
+                  </li>
               </ul>
               <ul class="current">
                 <li class="toctree-l1 current"><a class="reference internal current" href="#">CI/CD</a>
@@ -169,6 +171,8 @@
     <li class="toctree-l2"><a class="reference internal" href="#chart-release">Chart release</a>
     </li>
     <li class="toctree-l2"><a class="reference internal" href="#lifecycle-scenarios-on-the-client-targets">Lifecycle scenarios on the client targets</a>
+    </li>
+    <li class="toctree-l2"><a class="reference internal" href="#cluster-reachability">Cluster reachability</a>
     </li>
     <li class="toctree-l2"><a class="reference internal" href="#image-scan-exceptions">Image scan exceptions</a>
     </li>
@@ -557,6 +561,20 @@ basis column says what each row was proven with — for example the fixture rele
 (the read-only observer identity — never an administrator credential), <code>BDD_&lt;KEY&gt;_ORCE_URL</code>,
 <code>BDD_&lt;KEY&gt;_ORCE_READ_TOKEN</code>, <code>BDD_&lt;KEY&gt;_ORCE_HTTP_USER</code> and <code>BDD_&lt;KEY&gt;_ORCE_HTTP_PASS</code>, and as a
 repository variable <code>BDD_&lt;KEY&gt;_ORCE_LOGS_CMD</code>, plus its entry in the job's matrix.</p>
+<h2 id="cluster-reachability">Cluster reachability<a class="headerlink" href="#cluster-reachability" title="Permanent link">&para;</a></h2>
+<p>The <code>cluster-reachability</code> job checks, for each client cluster (IONOS, OSC zone A, OSC zone B), that
+the API server answers the pipeline and that the observer identity authenticates (<code>kubectl version</code>,
+<code>kubectl auth whoami</code>). It runs on pushes to <code>main</code>, on releases and on demand, never on pull requests,
+and does not depend on <code>BDD_CLUSTER_ENABLED</code>. A target is checked once its secret
+<code>BDD_&lt;KEY&gt;_OBSERVER_KUBECONFIG</code> is set (<code>IONOS</code>, <code>ZONE_A</code>, <code>ZONE_B</code>); until then the run says it was
+not checked, and never that it was reachable.</p>
+<p>The OSC zones have no BDD pool, so their observer is the service account in
+<a href="https://github.com/eclipse-xfsc/facis-zero-trust-demonstrator/blob/main/deployment/ci/reachability-observer.yaml">deployment/ci/reachability-observer.yaml</a>: the
+manifest grants it nothing, so it holds only what every authenticated identity is bound to by default
+(API discovery, the server version, a review of its own access). A cluster administrator applies it,
+checks its effective rights (<code>kubectl auth can-i --list --as=system:serviceaccount:ztd-ci:ztd-ci-observer</code>),
+builds the kubeconfig from the token in <code>ztd-ci/ztd-ci-observer-token</code> and hands it to a maintainer
+for the secret. The token does not expire; deleting that Secret revokes it.</p>
 <h2 id="image-scan-exceptions">Image scan exceptions<a class="headerlink" href="#image-scan-exceptions" title="Permanent link">&para;</a></h2>
 <p>Every image is scanned and a HIGH or CRITICAL finding fails the build. When a finding sits in an
 upstream component that this project cannot fix in its own layer, a <code>scan-exception.json</code> next to
@@ -660,7 +678,7 @@ branch — a one-time repository setting a maintainer applies. The folder may be
             </div>
           </div><footer>
     <div class="rst-footer-buttons" role="navigation" aria-label="Footer Navigation">
-        <a href="../bdd-catalogue/" class="btn btn-neutral float-left" title="Catalogue"><span class="icon icon-circle-arrow-left"></span> Previous</a>
+        <a href="../evidence-m3/" class="btn btn-neutral float-left" title="M3 evidence"><span class="icon icon-circle-arrow-left"></span> Previous</a>
         <a href="../secrets/" class="btn btn-neutral float-right" title="Secrets">Next <span class="icon icon-circle-arrow-right"></span></a>
     </div>
 
@@ -689,7 +707,7 @@ branch — a one-time repository setting a maintainer applies. The folder may be
         </span>
     
     
-      <span><a href="../bdd-catalogue/" style="color: #fcfcfc">&laquo; Previous</a></span>
+      <span><a href="../evidence-m3/" style="color: #fcfcfc">&laquo; Previous</a></span>
     
     
       <span><a href="../secrets/" style="color: #fcfcfc">Next &raquo;</a></span>

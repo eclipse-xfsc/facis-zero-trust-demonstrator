@@ -1,0 +1,377 @@
+<!DOCTYPE html>
+<html class="writer-html5" lang="en" >
+<head>
+    <meta charset="utf-8" />
+    <meta http-equiv="X-UA-Compatible" content="IE=edge" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+      <link rel="shortcut icon" href="../../../img/favicon.ico" />
+    <title>OSC zone B - FACIS Zero Trust Demonstrator</title>
+    <link rel="stylesheet" href="../../../css/theme.css" />
+    <link rel="stylesheet" href="../../../css/theme_extra.css" />
+        <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.8.0/styles/github.min.css" />
+    
+      <script>
+        // Current page data
+        var mkdocs_page_name = "OSC zone B";
+        var mkdocs_page_input_path = "environments/capabilities/osc-zone-b.md";
+        var mkdocs_page_url = null;
+      </script>
+    
+    <!--[if lt IE 9]>
+      <script src="../../../js/html5shiv.min.js"></script>
+    <![endif]-->
+      <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.8.0/highlight.min.js"></script>
+      <script>hljs.highlightAll();</script> 
+</head>
+
+<body class="wy-body-for-nav" role="document">
+
+  <div class="wy-grid-for-nav">
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side stickynav">
+    <div class="wy-side-scroll">
+      <div class="wy-side-nav-search">
+          <a href="../../.." class="icon icon-home"> FACIS Zero Trust Demonstrator
+        </a><div role="search">
+  <form id ="rtd-search-form" class="wy-form" action="../../../search.html" method="get">
+      <input type="text" name="q" placeholder="Search docs" aria-label="Search docs" title="Type search term here" />
+  </form>
+</div>
+      </div>
+
+      <div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../../..">Home</a>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../../../features/">Features and journeys</a>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../../../architecture/">Architecture</a>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../../../usage/">Using the demonstrator</a>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../../../deployment/">Deployment</a>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../../../umbrella-chart/">Umbrella chart</a>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../../../workload-identity/">Workload identity</a>
+                </li>
+              </ul>
+              <p class="caption"><span class="caption-text">Environments</span></p>
+              <ul>
+                  <li class="toctree-l1"><a class="reference internal" href="../../">Overview</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../osc/">T-Systems OSC</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../ionos/">IONOS Cloud</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../application-workloads/">Application workloads</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../">Capability sheets</a>
+                  </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../../../packaging/">Packaging and containers</a>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../../../application-services/">Application services</a>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../../../application-services-verification/">Application service verification</a>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../../../flows/">Orchestrated flows</a>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../../../scenarios/">Scenario decisions</a>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../../../keycloak/">Keycloak integration</a>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../../../demonstrator-handoff/">Demonstrator UI and identity</a>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../../../identity-model/">Identity model</a>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../../../oauth2-provider/">Connector OAuth2 provider</a>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../../../token-store/">Token store</a>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../../../policy-hook/">Guard policy hook</a>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../../../api-docs/">API documentation</a>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../../../contracts/">Interface contracts</a>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../../../tspa-publish-api/">TRAIN trust-list publishing</a>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../../../train-dns/">TRAIN DNS zone</a>
+                </li>
+              </ul>
+              <p class="caption"><span class="caption-text">BDD acceptance</span></p>
+              <ul>
+                  <li class="toctree-l1"><a class="reference internal" href="../../../bdd/">Harness and pack</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../../bdd-catalogue/">Catalogue</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../../evidence-m3/">M3 evidence</a>
+                  </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../../../ci-cd/">CI/CD</a>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../../../secrets/">Secrets</a>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../../../troubleshooting/">Troubleshooting</a>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../../../dependencies/">OSS dependencies</a>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../../../licenses/">Licenses</a>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../../../specifications/">Specification changes</a>
+                </li>
+              </ul>
+              <p class="caption"><span class="caption-text">Evidence</span></p>
+              <ul>
+                  <li class="toctree-l1"><a class="reference internal" href="../../../evidences/mesh-mode-upstream-state/">Mesh mode, upstream state: about</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../../evidences/mesh-mode-upstream-state/upstream-state/">Mesh mode, upstream state: record</a>
+                  </li>
+              </ul>
+              <p class="caption"><span class="caption-text">Architecture decisions</span></p>
+              <ul>
+                  <li class="toctree-l1"><a class="reference internal" href="../../../adr/">Overview</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../../adr/decision-ledger/">Decision ledger</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../../adr/tdr-decisions/">TDR decisions ADR 001–006</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../../adr/0001-service-mesh-mode-istio-ambient-with-cilium/">0001 Service mesh mode (superseded by 0009)</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../../adr/0002-gatekeeper-external-data-provider-for-cosign-verification/">0002 Gatekeeper external data provider</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../../adr/0003-oauth2-authorisation-surface-in-the-go-connector/">0003 OAuth2 surface in the Go connector</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../../adr/0004-openbao-as-x509-key-value-store/">0004 OpenBao as X.509 key-value store</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../../adr/0005-three-cluster-reading-of-the-target-environment/">0005 Three-cluster target environment</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../../adr/0009-service-mesh-mode-istio-sidecar-with-cilium/">0009 Service mesh mode (sidecar, supersedes 0001)</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../../adr/0008-envoy-ext-authz-as-the-guard-policy-hook/">0008 Guard policy hook</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../../adr/0011-mock-tee-evidence-format-and-provisioning/">0011 Mock TEE evidence</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../../adr/0016-oauth2-library-behind-the-connector-provider-contract/">0016 OAuth2 library</a>
+                  </li>
+              </ul>
+      </div>
+    </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap">
+      <nav class="wy-nav-top" role="navigation" aria-label="Mobile navigation menu">
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="../../..">FACIS Zero Trust Demonstrator</a>
+        
+      </nav>
+      <div class="wy-nav-content">
+        <div class="rst-content"><div role="navigation" aria-label="breadcrumbs navigation">
+  <ul class="wy-breadcrumbs">
+    <li><a href="../../.." class="icon icon-home" aria-label="Docs"></a></li>
+      <li class="breadcrumb-item active">OSC zone B</li>
+    <li class="wy-breadcrumbs-aside">
+          <a href="https://github.com/eclipse-xfsc/facis-zero-trust-demonstrator/edit/main/docs/environments/capabilities/osc-zone-b.md" class="icon icon-github"> Edit on GitHub</a>
+    </li>
+  </ul>
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+            <div class="section" itemprop="articleBody">
+              
+                <h1 id="osc-zone-b">OSC zone B<a class="headerlink" href="#osc-zone-b" title="Permanent link">&para;</a></h1>
+<p>Zone B of the target environment: the dedicated managed cluster <code>zerotrust-b</code> on T-Systems OSC
+(Gardener), measured with cluster rights.</p>
+<table>
+<thead>
+<tr>
+<th>Capability</th>
+<th>Result</th>
+<th>Detail</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Kubernetes version</td>
+<td><strong>measured</strong></td>
+<td>v1.34.7</td>
+</tr>
+<tr>
+<td>Nodes</td>
+<td><strong>measured</strong></td>
+<td>3 visible</td>
+</tr>
+<tr>
+<td>CNI</td>
+<td><strong>measured</strong></td>
+<td>cilium</td>
+</tr>
+<tr>
+<td>NetworkPolicy enforcement</td>
+<td><strong>measured</strong></td>
+<td>enforced: reachable, refused under a deny policy, reachable again once removed</td>
+</tr>
+<tr>
+<td>Storage classes</td>
+<td><strong>measured</strong></td>
+<td>default (csi.onmetal.de)</td>
+</tr>
+<tr>
+<td>Persistent volume (default class)</td>
+<td><strong>measured</strong></td>
+<td>claim bound and mounted by a pod in 21 s</td>
+</tr>
+<tr>
+<td>LoadBalancer service</td>
+<td><strong>measured</strong></td>
+<td>address assigned in 0 s (address not recorded)</td>
+</tr>
+<tr>
+<td>Ingress classes</td>
+<td><strong>measured</strong></td>
+<td>none</td>
+</tr>
+</tbody>
+</table>
+<p>Measured 2026-10-16T15:19:16Z by <code>scripts/baseline/capabilities.sh</code> as <code>system:serviceaccount:kube-system:ztd-cluster-admin</code>, in namespace <code>ztdcap-fxu2vxad</code>.</p>
+<h2 id="cilium-configuration">Cilium configuration<a class="headerlink" href="#cilium-configuration" title="Permanent link">&para;</a></h2>
+<p>Read from <code>kube-system/cilium-config</code>; the cluster runs no kube-proxy.</p>
+<table>
+<thead>
+<tr>
+<th>Setting</th>
+<th>Value</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Cilium image</td>
+<td>v1.18.8 (OSC Gardener build)</td>
+</tr>
+<tr>
+<td><code>kube-proxy-replacement</code></td>
+<td>true</td>
+</tr>
+<tr>
+<td><code>routing-mode</code></td>
+<td>native</td>
+</tr>
+<tr>
+<td><code>cni-exclusive</code></td>
+<td>false</td>
+</tr>
+<tr>
+<td><code>bpf-lb-sock-hostns-only</code></td>
+<td>true</td>
+</tr>
+<tr>
+<td><code>enable-l7-proxy</code> / <code>external-envoy-proxy</code></td>
+<td>true / true</td>
+</tr>
+<tr>
+<td><code>enable-hubble</code></td>
+<td>true</td>
+</tr>
+<tr>
+<td><code>cluster-name</code> / <code>cluster-id</code></td>
+<td>default / unset</td>
+</tr>
+</tbody>
+</table>
+              
+            </div>
+          </div><footer>
+
+  <hr/>
+
+  <div role="contentinfo">
+    <!-- Copyright etc -->
+      <p>Apache-2.0</p>
+  </div>
+
+  Built with <a href="https://www.mkdocs.org/">MkDocs</a> using a <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a> provided by <a href="https://readthedocs.org">Read the Docs</a>.
+</footer>
+          
+        </div>
+      </div>
+
+    </section>
+
+  </div>
+
+  <div class="rst-versions" role="note" aria-label="Versions">
+  <span class="rst-current-version" data-toggle="rst-current-version">
+    
+        <span>
+          <a href="https://github.com/eclipse-xfsc/facis-zero-trust-demonstrator" class="fa fa-github" style="color: #fcfcfc"> GitHub</a>
+        </span>
+    
+    
+    
+  </span>
+</div>
+    <script src="../../../js/jquery-3.6.0.min.js"></script>
+    <script>var base_url = "../../..";</script>
+    <script src="../../../js/theme_extra.js"></script>
+    <script src="../../../js/theme.js"></script>
+      <script src="../../../search/main.js"></script>
+    <script>
+        jQuery(function () {
+            SphinxRtdTheme.Navigation.enable(true);
+        });
+    </script>
+
+</body>
+</html>

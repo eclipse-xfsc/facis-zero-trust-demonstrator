@@ -150,6 +150,8 @@
                   </li>
                   <li class="toctree-l1"><a class="reference internal" href="../../bdd-catalogue/">Catalogue</a>
                   </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../evidence-m3/">M3 evidence</a>
+                  </li>
               </ul>
               <ul>
                 <li class="toctree-l1"><a class="reference internal" href="../../ci-cd/">CI/CD</a>
@@ -274,15 +276,22 @@ policies in the namespace is reported as unknown.</p>
 <td>measured 8 October 2026</td>
 </tr>
 <tr>
-<td>OSC zone A, OSC zone B</td>
-<td>the two target zone clusters</td>
-<td>—</td>
-<td>provided since; measured in pull request #33</td>
+<td><a href="osc-zone-a/">OSC zone A</a></td>
+<td>target zone cluster <code>zerotrust-a</code></td>
+<td>cluster rights</td>
+<td>measured 16 October 2026</td>
+</tr>
+<tr>
+<td><a href="osc-zone-b/">OSC zone B</a></td>
+<td>target zone cluster <code>zerotrust-b</code></td>
+<td>cluster rights</td>
+<td>measured 16 October 2026</td>
 </tr>
 </tbody>
 </table>
-<p>Reachability from CI is <strong>unverified</strong>: these runs were made from a workstation. The OSC zone clusters
-were provided after these runs; their sheets and their reachability from CI follow in pull request #33.</p>
+<p>These runs were made from a workstation. Reachability from the pipeline is checked by the
+<code>cluster-reachability</code> job (<a href="../../ci-cd/#cluster-reachability">CI/CD</a>) once each cluster's observer
+secret is set; until then it is <strong>unverified</strong>.</p>
 <h2 id="for-the-mesh-decision">For the mesh decision<a class="headerlink" href="#for-the-mesh-decision" title="Permanent link">&para;</a></h2>
 <p>What the sheets support for the service mesh mode (ADR-0001, and the proposed ADR-0009):</p>
 <ul>
@@ -292,8 +301,11 @@ were provided after these runs; their sheets and their reachability from CI foll
   mesh mode can be exercised before the zones exist, and is not target evidence.</li>
 <li><strong>The OSC shared namespace</strong> cannot show the CNI or the nodes to its identity, and its own policies
   make enforcement unknown; it cannot inform the mesh decision.</li>
-<li><strong>Not measured here:</strong> the CNI and its configuration on the zone clusters, kernel and node
-  prerequisites for the mesh, and LoadBalancer behaviour there; their sheets follow in pull request #33.</li>
+<li><strong>The OSC zones</strong> are identical: Kubernetes v1.34.7 on three nodes, Cilium v1.18.8 replacing kube-proxy
+  with native routing, NetworkPolicy enforced, and a LoadBalancer address assigned at once. Cilium runs
+  with <code>cni-exclusive=false</code> and <code>bpf-lb-sock-hostns-only=true</code>, the two settings Istio Ambient needs
+  alongside Cilium. Both clusters carry <code>cluster-name=default</code> and no <code>cluster-id</code>, which only matters
+  if Cilium cluster mesh is ever enabled. Neither has an ingress class.</li>
 </ul>
               
             </div>
