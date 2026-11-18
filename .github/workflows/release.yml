@@ -1,22 +1,27 @@
 name: Release
 
-# The candidate stage of the release: every image built, pushed to this repository's GHCR namespace,
-# signed and attested by digest with the interim key (Grype-enriched SBOM and the mock attestation),
-# and verified by digest with the admission provider's own code and with cosign against the committed
-# public key. It creates no tag and no release; the promote stage comes later.
+# The two stages of the release. The candidate stage: every image built, pushed to this repository's
+# GHCR namespace, signed and attested by digest with the interim key (Grype-enriched SBOM and the mock
+# attestation), and verified by digest with the admission provider's own code and with cosign against
+# the committed public key; it creates no tag and no release. The release stage, on a tag vX.Y.Z: the
+# same jobs with the tag's version as the image tag, then the charts packaged at that version by the
+# gate, the repository SBOM signed, the BDD suite run for the tag, and the GitHub release created with
+# every artefact and the notes that list each one with its digest (scripts/supplychain/release-set.sh).
+# A piece missing or at another version refuses the set, so a release never carries less than the set.
 #
-# Nothing is built unless the chart gate (TDR-BDD-11) passed. A later stage that publishes charts or
-# promotes a release must need the chart gate too. Beside it, the secrets baseline (TDR-BDD-08) installs
+# Nothing is built unless the chart gate (TDR-BDD-11) passed. A later job that publishes charts or
+# creates a release must need the chart gate too. Beside it, the secrets baseline (TDR-BDD-08) installs
 # the umbrella with OpenBao on a disposable cluster, scans every log and ConfigMap for a synthetic
 # canary, and a second job audits the first job's published log once it has completed.
 #
-# Started by hand, or by pushing a branch named candidate/<anything> - which also works in a fork whose
-# default branch does not carry this workflow. The release environment only accepts those branches and
-# the main and PR branches.
+# Started by hand, by pushing a branch named candidate/<anything> - which also works in a fork whose
+# default branch does not carry this workflow - or by pushing a release tag. The release environment
+# must admit those branches, main, the PR branches and the tags v* (see docs/ci-cd.md).
 on:
   workflow_dispatch:
   push:
     branches: ['candidate/**']
+    tags: ['v*']
 
 permissions:
   contents: read
@@ -73,6 +78,19 @@ jobs:
           go run ./cmd/bddreport --require-complete --rows "$RUNNER_TEMP/rows.txt" --out bundles/bdd bundles/bdd/go-chart-gate-report.json
           cat bundles/bdd/traceability.md >> "$GITHUB_STEP_SUMMARY"
 
+      # On a release tag the charts are packaged here, at the tag's version, on the cluster the gate just
+      # ran on: the same script, with the server dry-run, checks every package again at that version.
+      - name: Package the release charts
+        if: startsWith(github.ref, 'refs/tags/v')
+        run: scripts/ci/check-charts.sh --server-dry-run --package dist/charts --version "${GITHUB_REF_NAME#v}"
+
+      - name: Keep the release charts
+        if: startsWith(github.ref, 'refs/tags/v')
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: charts
+          path: dist/charts
+
       - name: Keep the gate evidence
         if: always()
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
@@ -81,7 +99,8 @@ jobs:
           path: bundles/bdd
 
   candidate:
-    name: Candidate images
+    # The release images on a tag, the candidate images otherwise: one job, one signing profile.
+    name: ${{ startsWith(github.ref, 'refs/tags/v') && 'Release images' || 'Candidate images' }}
     needs: [chart-gate]
     runs-on: ubuntu-latest
     # The interim signing key lives only in this protected environment's secrets.
@@ -120,8 +139,19 @@ jobs:
         id: repo
         run: echo "path=ghcr.io/${GITHUB_REPOSITORY,,}" >> "$GITHUB_OUTPUT"
 
+      # The release version on a tag, so the images carry the version the charts and the release do;
+      # the commit on a candidate branch.
+      - name: Image tag
+        id: tag
+        run: |
+          if [[ "$GITHUB_REF" == refs/tags/v* ]]; then
+            echo "tag=${GITHUB_REF_NAME#v}" >> "$GITHUB_OUTPUT"
+          else
+            echo "tag=candidate-${GITHUB_SHA::12}" >> "$GITHUB_OUTPUT"
+          fi
+
       - name: Build and push every image
-        run: scripts/supplychain/build-push.sh "${{ steps.repo.outputs.path }}" "candidate-${GITHUB_SHA::12}" images.txt
+        run: scripts/supplychain/build-push.sh "${{ steps.repo.outputs.path }}" "${{ steps.tag.outputs.tag }}" images.txt
 
       - name: Sign, attest and verify every image by digest
         env:
@@ -137,7 +167,7 @@ jobs:
         if: always()
         run: |
           {
-            echo "### Candidate images (interim key - not the client trust chain)"
+            echo "### Images at ${{ steps.tag.outputs.tag }} (interim key - not the client trust chain)"
             [ -f images.txt ] && sed 's/^/- `/; s/$/`/' images.txt
           } >> "$GITHUB_STEP_SUMMARY"
 
@@ -243,3 +273,178 @@ jobs:
         with:
           name: secrets-row
           path: bundles/bdd
+
+  # The release, on a tag vX.Y.Z, once the gate, the images and the secrets audit have passed: the
+  # repository SBOM signed, the BDD suite run for the tag, every artefact of the run gathered into the
+  # set and checked (scripts/supplychain/release-set.sh), the manifest signed, and the GitHub release
+  # created from it - the notes list every artefact with its digest. GitHub starts no workflow for a
+  # release created with the job's token, so the charts and the SBOM are delivered here, by the same
+  # scripts the jobs of ci.yml and sbom.yml run for a release published by hand.
+  release:
+    name: Release
+    needs: [chart-gate, candidate, secrets-log-audit]
+    if: startsWith(github.ref, 'refs/tags/v')
+    runs-on: ubuntu-latest
+    # The interim key signs the repository SBOM and the manifest.
+    environment: release
+    permissions:
+      contents: write # creates the release and attaches the artefact set
+      packages: read # reads the image manifests back, to check that the tags name the signed digests
+    env:
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+
+      - name: Set up Go
+        uses: actions/setup-go@40f1582b2485089dde7abd97c1529aa768e1baff # v5.6.0
+        with:
+          go-version-file: go.mod
+
+      - name: Set up Node
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: '22'
+          cache: npm
+
+      - name: Set up Helm
+        uses: azure/setup-helm@1a275c3b69536ee54be43f2070a358922e12c8d4 # v4
+        with:
+          version: v4.3.0
+
+      - name: Install the pinned signing and SBOM tools
+        run: |
+          scripts/tools/install.sh "$RUNNER_TEMP/bin" cosign syft
+          echo "$RUNNER_TEMP/bin" >> "$GITHUB_PATH"
+
+      - name: Check the signing key
+        env:
+          COSIGN_INTERIM_KEY: ${{ secrets.COSIGN_INTERIM_KEY }}
+          COSIGN_PASSWORD: ${{ secrets.COSIGN_INTERIM_PASSWORD }}
+        run: scripts/supplychain/check-key.sh
+
+      # Every artefact of this run: the gate's row and the charts, the images with their SBOMs and the
+      # mock attestation, and the secrets row - each under the name of the artefact it came from.
+      - name: Collect the run's artefacts
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        with:
+          path: ${{ runner.temp }}/run
+
+      - name: Log in to GHCR
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: echo "$GITHUB_TOKEN" | docker login ghcr.io -u "$GITHUB_ACTOR" --password-stdin
+
+      # The images were pushed under the release version and signed by digest; the version tag of each
+      # must still name the digest that was signed, or the release would list images it did not verify.
+      - name: Check that every image tag names its signed digest
+        run: |
+          version="${GITHUB_REF_NAME#v}"
+          while read -r ref; do
+            [ -n "$ref" ] || continue
+            tagged="$(docker buildx imagetools inspect "${ref%@*}:$version" --format '{{json .Manifest}}' | jq -r .digest)"
+            [ "$tagged" = "${ref#*@}" ] || { echo "::error::${ref%@*}:$version is $tagged, not the signed ${ref#*@}"; exit 1; }
+            echo "${ref%@*}:$version is the signed $tagged"
+          done < "$RUNNER_TEMP/run/candidate/images.txt"
+
+      - name: Generate and sign the repository SBOM
+        env:
+          COSIGN_KEY: env://COSIGN_INTERIM_KEY
+          COSIGN_INTERIM_KEY: ${{ secrets.COSIGN_INTERIM_KEY }}
+          COSIGN_PASSWORD: ${{ secrets.COSIGN_INTERIM_PASSWORD }}
+        run: |
+          mkdir -p "$RUNNER_TEMP/set"
+          scripts/supplychain/repo-sbom.sh . "$RUNNER_TEMP/set/sbom.json"
+
+      - name: Install the JavaScript runner
+        run: npm ci
+
+      # The suite the BDD job runs on a pull request, for the tag: the implemented scenarios strict, the
+      # pending catalogue, and the cluster rows listed as not run - all but the two this run proved,
+      # TDR-BDD-08 and TDR-BDD-11, whose reports come from the audit and the gate: a listing of either
+      # beside its real report would keep the row from passing. One sheet over every report of the run.
+      - name: Run the BDD suite for the tag
+        run: |
+          go run ./cmd/bddpack -check
+          GODOG_CUCUMBER_OUT=bundles/bdd/go-report.json go test ./internal/bdd
+          npm run bdd
+          BDD_MODE=catalogue GODOG_CUCUMBER_OUT=bundles/bdd/go-catalogue-report.json go test ./internal/bdd
+          npm run bdd:catalogue
+          npm run bdd:cluster-dryrun
+          BDD_MODE=cluster-dryrun GODOG_CUCUMBER_OUT=bundles/bdd/go-cluster-dryrun.json go test ./internal/bdd -godog.tags='~@TDR-BDD-08&&~@TDR-BDD-11'
+          cp "$RUNNER_TEMP/run/chart-gate/go-chart-gate-report.json" "$RUNNER_TEMP/run/secrets-row/go-secrets-report.json" bundles/bdd/
+          go run ./cmd/bddreport --require-complete --rows features/annex-rows.txt --out bundles/bdd bundles/bdd/*.json
+          cat bundles/bdd/traceability.md >> "$GITHUB_STEP_SUMMARY"
+
+      # Once the client's registry exists and CHART_REGISTRY names it, every package is pushed as an OCI
+      # chart artefact; the digest helm push prints is what a zone file pins, and goes into the manifest.
+      - name: Push the charts to the registry
+        if: vars.CHART_REGISTRY != ''
+        env:
+          CHART_REGISTRY: ${{ vars.CHART_REGISTRY }}
+          CHART_REGISTRY_USER: ${{ secrets.CHART_REGISTRY_USER }}
+          CHART_REGISTRY_PASSWORD: ${{ secrets.CHART_REGISTRY_PASSWORD }}
+        run: |
+          printf '%s' "$CHART_REGISTRY_PASSWORD" |
+            helm registry login "${CHART_REGISTRY%%/*}" --username "$CHART_REGISTRY_USER" --password-stdin
+          for chart in "$RUNNER_TEMP"/run/charts/*.tgz; do
+            pushed=$(helm push "$chart" "oci://$CHART_REGISTRY" 2>&1)
+            echo "$pushed"
+            reference=$(sed -n 's/^Pushed: //p' <<<"$pushed")
+            digest=$(sed -n 's/^Digest: //p' <<<"$pushed")
+            [ -n "$reference" ] && [ -n "$digest" ] || { echo "::error::helm push printed no reference and digest for $chart"; exit 1; }
+            echo "$(basename "$chart") oci://${reference%:*}@$digest" >> "$RUNNER_TEMP/run/charts/pushed.txt"
+          done
+
+      - name: Assemble and check the release set
+        run: |
+          set="$RUNNER_TEMP/set"
+          mkdir -p "$set/images" "$set/charts" "$set/bdd"
+          cp "$RUNNER_TEMP/run/candidate/images.txt" "$set/"
+          cp "$RUNNER_TEMP"/run/candidate/candidate/* "$set/images/"
+          cp "$RUNNER_TEMP"/run/charts/* "$set/charts/"
+          cp bundles/bdd/*.json bundles/bdd/traceability.md bundles/bdd/traceability.csv "$set/bdd/"
+          scripts/supplychain/release-set.sh "${GITHUB_REF_NAME#v}" "$GITHUB_SHA" "$set" dist/release
+
+      # The manifest carries the same list as the notes; signed, it can be checked without the page.
+      - name: Sign the manifest
+        env:
+          COSIGN_KEY: env://COSIGN_INTERIM_KEY
+          COSIGN_INTERIM_KEY: ${{ secrets.COSIGN_INTERIM_KEY }}
+          COSIGN_PASSWORD: ${{ secrets.COSIGN_INTERIM_PASSWORD }}
+        run: |
+          cosign sign-blob --yes --key "$COSIGN_KEY" --tlog-upload=false --new-bundle-format=false \
+            --output-signature dist/release/release-manifest.json.sig dist/release/release-manifest.json >/dev/null
+          cosign verify-blob --key docs/contracts/keys/interim-cosign.pub --insecure-ignore-tlog=true \
+            --signature dist/release/release-manifest.json.sig dist/release/release-manifest.json
+
+      # A tag with a prerelease identifier is a prerelease. A rerun completes or replaces the release
+      # with this run's set - an asset of the same name is overwritten, one the set does not carry is
+      # removed - so the release is the workflow's, never a hand-written one.
+      - name: Create the release
+        run: |
+          prerelease=false
+          case "$GITHUB_REF_NAME" in *-*) prerelease=true ;; esac
+          if gh release view "$GITHUB_REF_NAME" >/dev/null 2>&1; then
+            gh release edit "$GITHUB_REF_NAME" --title "$GITHUB_REF_NAME" --prerelease="$prerelease" --notes-file dist/release/RELEASE_NOTES.md
+            gh release view "$GITHUB_REF_NAME" --json assets --jq '.assets[].name' | while read -r asset; do
+              case "$asset" in release-manifest.json|release-manifest.json.sig) continue ;; esac
+              [ -e "dist/release/assets/$asset" ] || gh release delete-asset "$GITHUB_REF_NAME" "$asset" --yes
+            done
+            gh release upload "$GITHUB_REF_NAME" --clobber \
+              dist/release/release-manifest.json dist/release/release-manifest.json.sig dist/release/assets/*
+          else
+            gh release create "$GITHUB_REF_NAME" --verify-tag --title "$GITHUB_REF_NAME" --prerelease="$prerelease" \
+              --notes-file dist/release/RELEASE_NOTES.md \
+              dist/release/release-manifest.json dist/release/release-manifest.json.sig dist/release/assets/*
+          fi
+          cat dist/release/RELEASE_NOTES.md >> "$GITHUB_STEP_SUMMARY"
+
+      # overwrite: a rerun of this job uploads under the name its first attempt left on the run.
+      - name: Keep the release set
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: release
+          path: dist/release
+          overwrite: true
