@@ -1,0 +1,75 @@
+{{- include "puller.validate" . -}}
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: {{ include "puller.name" . }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "puller.labels" . | nindent 4 }}
+spec:
+  schedule: {{ .Values.schedule | quote }}
+  concurrencyPolicy: Forbid
+  successfulJobsHistoryLimit: 3
+  failedJobsHistoryLimit: 3
+  jobTemplate:
+    spec:
+      # A refused or unavailable package is reported on the Application, not retried: the next run
+      # of the schedule tries again.
+      backoffLimit: 0
+      template:
+        metadata:
+          labels:
+            {{- include "puller.labels" . | nindent 12 }}
+        spec:
+          serviceAccountName: {{ include "puller.name" . }}
+          automountServiceAccountToken: true
+          restartPolicy: Never
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: 65532
+            runAsGroup: 65532
+            seccompProfile:
+              type: RuntimeDefault
+          containers:
+            - name: puller
+              image: "{{ .Values.image.repository }}@{{ .Values.image.digest }}"
+              args:
+                - --repository={{ .Values.package.repository }}
+                - --tag={{ .Values.package.tag }}
+                - --key=/etc/policy-puller/trust/cosign.pub
+                - --application={{ .Values.argocd.application }}
+                - --namespace={{ .Release.Namespace }}
+                {{- with .Values.insecurePlainHTTPRegistry }}
+                - --insecure-plain-http-registry={{ . }}
+                {{- end }}
+                {{- if .Values.registryCredentialsSecret }}
+                - --registry-username=$(REGISTRY_USERNAME)
+                {{- end }}
+              {{- with .Values.registryCredentialsSecret }}
+              env:
+                - name: REGISTRY_USERNAME
+                  valueFrom:
+                    secretKeyRef:
+                      name: {{ . }}
+                      key: username
+                - name: POLICYPULLER_PASSWORD
+                  valueFrom:
+                    secretKeyRef:
+                      name: {{ . }}
+                      key: password
+              {{- end }}
+              resources:
+                {{- toYaml .Values.resources | nindent 16 }}
+              securityContext:
+                allowPrivilegeEscalation: false
+                readOnlyRootFilesystem: true
+                capabilities:
+                  drop: [ALL]
+              volumeMounts:
+                - name: trust
+                  mountPath: /etc/policy-puller/trust
+                  readOnly: true
+          volumes:
+            - name: trust
+              configMap:
+                name: {{ include "puller.name" . }}-trust

@@ -1,0 +1,10 @@
+apiVersion: v2
+name: policy-puller
+description: >-
+  The policy package puller of a zone (ZT-12): a CronJob in Argo CD's namespace that resolves the
+  package's channel tag in the registry, verifies its cosign signature, refuses a package older than
+  the one followed, and writes the verified digest into the parent Application from which Argo CD
+  reads the admission policy. Installed by scripts/argocd/install.sh after the parent Application.
+type: application
+version: 0.1.0
+appVersion: 0.1.0

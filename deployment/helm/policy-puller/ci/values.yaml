@@ -1,0 +1,14 @@
+# Renders the chart in CI: the values the chart refuses to run without, with the committed interim
+# public key, and the default namespace of the gate's cluster. Never deployed.
+image:
+  digest: sha256:0000000000000000000000000000000000000000000000000000000000000000
+package:
+  repository: registry.example.org/facis/policy/admission
+argocd:
+  namespace: default
+trust:
+  publicKeys: |
+    -----BEGIN PUBLIC KEY-----
+    MFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAE0lFmUtbg0hz8DzhKG9mz6lKqU1Zf
+    ZGTwuAuoCwoIlaVI5RbLNt9Hiwe4/39DPyX+2qZonfl9p16mexhlc+vltw==
+    -----END PUBLIC KEY-----
