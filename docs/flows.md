@@ -70,7 +70,19 @@ The lifecycle node's `msg` is itself a JSON object (`node`, `event`, `requestId`
 `reason`), so a reader parses the line, then `msg`. The payload is never merged into the top level.
 
 **What this does not cover:** output written outside the logging API — `console` calls in function
-or third-party nodes, Node.js warnings, and the container entrypoint — is not JSON.
+or third-party nodes, Node.js warnings, and the container entrypoint — is not JSON. The lifecycle
+flow writes none: TDR-BDD-06 fails on any line of the ORCE log that is not a JSON object.
+
+A command body that is not JSON is refused by the flow itself, with `400` and the same result
+object as any other refusal. The admin API shares the root of the flow endpoints and would
+otherwise parse the body first and answer with an HTML error page and a stack trace in the log, so
+`httpAdminMiddleware` in `settings.js` hands the body of `POST /lifecycle` to the flow as text.
+The body is read with the limit (5 MB) and the decompression of the JSON parser it replaces, on
+the path as Express routes it (`/lifecycle`, any case, with or without a trailing slash); a body
+over the limit is refused with `413` in the same shape, before the flow, and so is not in the
+context. A refused malformed body has no `requestId` to file it under; the flow context holds the
+last one as `lifecycleMalformed`, `{result, time}`. `scripts/verify-orce-errors/verify.sh` proves
+this against a container of the ORCE image.
 
 A node that alters the security outcome of a journey does not decide it: the decision stays on the
 connector and guard path, and the node reports it. This is the same boundary

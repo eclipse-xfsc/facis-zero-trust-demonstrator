@@ -14,6 +14,7 @@ import (
 )
 
 func main() {
+	slog.SetDefault(slog.New(slog.NewJSONHandler(os.Stderr, nil)))
 	config, err := protectedresource.LoadConfig()
 	if err != nil {
 		slog.Error("protected resource configuration rejected", "error", err)
@@ -35,7 +36,7 @@ func main() {
 		close(shutdownDone)
 	}()
 
-	logger.Info("protected resource starting", "address", config.Address, "mode", config.Mode)
+	logger.Info("protected resource starting", "address", config.Address, "mode", config.ServingMode())
 	serveErr := server.ListenAndServe()
 	if errors.Is(serveErr, http.ErrServerClosed) {
 		if shutdownErr := <-shutdownDone; shutdownErr != nil {

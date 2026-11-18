@@ -65,7 +65,7 @@ Direct dependencies of the Go module. Transitive dependencies are listed in the 
 | Dependency | Version | Licence | Purpose |
 |---|---|---|---|
 | `authelia.com/provider/oauth2` | v0.3.2 | Apache-2.0 | OAuth 2.0 framework behind the connector's provider adapter: RFC 7591 client registration and RFC 9449 DPoP. Requires Go 1.27.x. |
-| `golang.org/x/crypto` | v0.57.0 | BSD-3-Clause | bcrypt hashing of client secrets |
+| `golang.org/x/crypto` | v0.58.0 | BSD-3-Clause | bcrypt hashing of client secrets |
 | `github.com/cucumber/godog` | v0.16.0 | MIT | runs the Go acceptance scenarios (`internal/bdd`) |
 | `github.com/cucumber/gherkin/go/v42` | v42.0.0 | MIT | parses the feature files for the Annex verbatim check (`cmd/bddpack`) |
 | `github.com/cucumber/messages/go/v34` | v34.2.0 | MIT | the Gherkin document model used with it |
@@ -100,8 +100,10 @@ Used by CI and the release workflow; never shipped inside a demonstrator image. 
 
 - the executables (cosign, Syft, Grype, gator) and the Gatekeeper chart archive by SHA-256 — installed
   by `scripts/tools/install.sh`, which refuses a download whose checksum does not match;
-- the container images (Gatekeeper, PostgreSQL, OpenBao, the test registry) by digest — pulled by
-  digest where they are used.
+- the container images (Gatekeeper, PostgreSQL, OpenBao, the test registry, the TLS proof's
+  application, Prometheus) by digest — pulled by digest where they are used;
+- the Traefik chart archive by SHA-256 — checked by `scripts/verify-tls13/verify.sh` before it is
+  installed.
 
 The JavaScript packages above are pinned by exact version with integrity hashes in `package-lock.json`.
 
@@ -116,6 +118,9 @@ The JavaScript packages above are pinned by exact version with integrity hashes 
 | OpenBao | 2.7.0 (test service) | MPL-2.0 | the token-store lifecycle proof only; its use in the demonstrator is the declared licence exception |
 | OpenBao (Helm chart `openbao`) | chart 0.28.3, server v2.5.4 | MPL-2.0 | the umbrella's X.509 key-value store when a zone turns it on ([Secrets](secrets.md)); covered by the declared licence exception |
 | Docker Distribution registry | 2.8.3 (test service) | Apache-2.0 | a local registry for signing and verification tests in CI |
+| Traefik (Helm chart `traefik`) | chart 42.4.1, Traefik v3.7.19 (test rig) | MIT | the ingress controller of the TLS 1.3 proof on kind (`scripts/verify-tls13`); the IONOS cluster's own Traefik is not installed from this repository |
+| traefik/whoami | v1.11.0 (test rig) | Apache-2.0 | the application behind the ingress in that proof |
+| Prometheus | 3.5.0 (test service) | Apache-2.0 | evaluates the guard's alert rules against the real guard in the fail-closed proof |
 
 The admission provider talks to OCI registries through a small first-party client built on the Go
 standard library rather than a general-purpose registry library, to keep its dependency set minimal.

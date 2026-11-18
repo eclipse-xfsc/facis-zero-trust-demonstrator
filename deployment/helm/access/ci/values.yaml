@@ -1,0 +1,14 @@
+# Render-only values.
+image: {digest: "sha256:0000000000000000000000000000000000000000000000000000000000000000"}
+target: zone-b/facis-ztd
+planeNamespaces: [ztd-data]
+approvers:
+  - sub: 00000000-0000-4000-8000-000000000001
+    key: {"kty": EC, "crv": P-256, "x": "WbbXwVYGdJoP4Xm3qCkGvBRcRvKtEfXDbWvPzpPS4LU", "y": "KS3ZnU6sA_W3Vi8mXuiN8a1C3HgQ_dqCdR4ynOx3_pM"}
+tls: {secretName: access-runner-tls}
+keycloak:
+  base: https://keycloak.example
+  secretRef: {name: access-runner-client}
+callers:
+  namespace: ztd-operators
+  podLabels: {app: operator-console}

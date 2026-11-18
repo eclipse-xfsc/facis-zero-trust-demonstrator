@@ -14,6 +14,7 @@ import (
 )
 
 func main() {
+	slog.SetDefault(slog.New(slog.NewJSONHandler(os.Stderr, nil)))
 	config, err := participant.LoadConfig()
 	if err != nil {
 		slog.Error("participant configuration rejected", "error", err)
@@ -21,10 +22,14 @@ func main() {
 	}
 
 	logger := newLogger(config.LogLevel)
-	server := participant.NewServer(config, logger).HTTPServer()
+	app := participant.NewServer(config, logger)
+	server := app.HTTPServer()
 
 	shutdownSignal, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
+	// In token mode (PARTICIPANT_ADAPTER_MODE=token) this starts the Connector bootstrap; in sample mode
+	// it does nothing.
+	app.Start(shutdownSignal)
 
 	shutdownDone := make(chan error, 1)
 	go func() {
@@ -35,7 +40,7 @@ func main() {
 		close(shutdownDone)
 	}()
 
-	logger.Info("participant starting", "address", config.Address, "mode", config.AdapterMode)
+	logger.Info("participant starting", "address", config.Address, "mode", config.ServingMode(), "adapter", config.AdapterMode)
 	serveErr := server.ListenAndServe()
 	if errors.Is(serveErr, http.ErrServerClosed) {
 		if shutdownErr := <-shutdownDone; shutdownErr != nil {

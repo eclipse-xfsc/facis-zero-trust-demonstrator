@@ -64,6 +64,11 @@ jobs:
 
             docker build --platform linux/amd64 -f "$dockerfile" -t "$image" .
 
+            role="$(basename "$(dirname "$dockerfile")")"
+            case "$role" in
+              participant|protected-resource) python3 scripts/ci/check-runtime-files.py "$image" "$role" ;;
+            esac
+
             # ZT-13 requires Linux images; assert it rather than trust the Dockerfile.
             platform=$(docker image inspect --format '{{.Os}}/{{.Architecture}}' "$image")
             echo "$image platform: $platform"
@@ -89,8 +94,15 @@ jobs:
               } >> "$GITHUB_STEP_SUMMARY"
             fi
 
-            docker run --rm -v /var/run/docker.sock:/var/run/docker.sock \
-              aquasec/trivy:0.74.0 image --exit-code 1 --severity HIGH,CRITICAL "${skips[@]}" "$image"
+            vex=()
+            if [ -f "$(dirname "$dockerfile")/vex.json" ]; then
+              # Exact component/revision statements retain fixed-version attribution for upstream
+              # binaries whose Go pseudo-version sorts below their actual release version.
+              vex=(--vex "/source/$(dirname "$dockerfile")/vex.json" --show-suppressed)
+              echo "Version attribution: $(dirname "$dockerfile")/vex.json" >> "$GITHUB_STEP_SUMMARY"
+            fi
+            docker run --rm -v /var/run/docker.sock:/var/run/docker.sock -v "$PWD:/source:ro" \
+              aquasec/trivy:0.74.0 image --exit-code 1 --severity HIGH,CRITICAL "${skips[@]}" "${vex[@]}" "$image"
           done
 
   # The signing profile end to end: the release signing script signs and attests throwaway images
@@ -569,6 +581,20 @@ jobs:
           BDD_RUN_ID: ci-${{ github.run_id }}-${{ github.run_attempt }}
           MODE: ${{ steps.admission.outputs.configured == 'true' && 'cluster' || 'cluster-dryrun' }}
         run: BDD_MODE="$MODE" GODOG_CUCUMBER_OUT=bundles/bdd/go-cluster-report-${{ matrix.target }}.json go test ./internal/bdd -godog.tags=@ZT-72
+
+      # TLS 1.3 on the target's public TLS endpoints, a regression check behind TDR-BDD-07 that does
+      # not cover the row: each host is tried with TLS 1.3 only and with each older version only.
+      # Where the target names no endpoints the scenario is listed as not run.
+      - name: Run the public ingress TLS check
+        if: always()
+        env:
+          BDD_TLS_ENDPOINTS: ${{ vars[format('BDD_{0}_TLS_ENDPOINTS', matrix.key)] }}
+          BDD_TARGET: ${{ matrix.target }}
+          BDD_RUN_ID: ci-${{ github.run_id }}-${{ github.run_attempt }}
+        run: |
+          mode=cluster
+          [ -n "$BDD_TLS_ENDPOINTS" ] || mode=cluster-dryrun
+          BDD_MODE="$mode" GODOG_CUCUMBER_OUT=bundles/bdd/go-cluster-report-${{ matrix.target }}-tls.json go test ./internal/bdd -godog.tags=@tls-ingress
 
       # The chart gate (TDR-BDD-11) and the secrets baseline (TDR-BDD-08) run on a disposable cluster in
       # release.yml, which decides them; here they are listed as not run, never as passed.

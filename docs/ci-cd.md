@@ -22,8 +22,9 @@ and is declared as such in [Specification changes](specifications.md#readings-an
 | `.github/workflows/ci.yml` | every pull request, push to `main`, published release, manual | Go lint and tests, image build with the Linux assertion and a Trivy scan, chart lint and dry-run render; on a published release, the chart gate once more and the chart packaging and publication (see [Chart release](#chart-release)) |
 | `.github/workflows/release.yml` | manual, push to a `candidate/**` branch | Release candidate: the chart gate (see [Chart gate](#chart-gate)), then builds, pushes, signs and attests every image by digest and verifies each one (see [Image signing](#image-signing)); beside it the secrets baseline (see [Secrets](secrets.md#the-baseline-proof-tdr-bdd-08)) |
 | `.github/workflows/measurement-determinism.yml` | pull request and push to `main` touching the check, manual | Measures one fixture on a hosted runner, in a container, and on a deliberately divergent checkout, and requires the normalised measurement to be the same on all three |
-| `.github/workflows/token-store.yml` | pull requests touching the token store, its image, its chart or the pinned images; pushes to `main`; manual | Runs the schema migrations, the store's queries and the service's readiness checks against a PostgreSQL from the pinned image, then the chart's lifecycle (install, upgrade, uninstall) and the service's readiness against PostgreSQL and OpenBao on kind; the records are the run's artefact and the verdict goes to the job summary |
-| `.github/workflows/policy-hook.yml` | pull requests touching the policy-hook probe, its script, the pinned Envoy image or the policy fixtures; manual | Runs the guard policy-hook proofs (`scripts/verify-policy-hook/verify.sh`) against Envoy from the pinned image, uploads the records as an artefact and writes the verdict and the latency numbers to the job summary |
+| `.github/workflows/token-store.yml` | pull requests touching the token store, the connector, the Participant, the Protected Resource (their services and their `cmd/` entry points), the shared `internal/` packages, the images of the token store, the connector, the Participant and the Protected Resource, the chart or the pinned images; pushes to `main`; manual | Runs the whole token path against a PostgreSQL and an OpenBao from the pinned images, once with opaque and once with signed access tokens, and fails on any skipped test: the schema migrations and queries, the store (replay check, acquisition and its recovery, substitution, renewal) with the real connector binary as the peer zone, the connector's conformance suite on the database stores, the shared packages, and the Participant and Protected Resource end to end through the real connector, their `cmd/` entry points included; the guard's fail-closed proof with Prometheus from the pinned image; then the chart's lifecycle (install, upgrade, uninstall) and the service's readiness against PostgreSQL and OpenBao on kind; the records are the run's artefact and the verdict goes to the job summary |
+| `.github/workflows/access-runner.yml` | pull requests touching the privileged-operations runner, its commands, its chart, the Keycloak chart, the JOSE or token packages or the pinned images; manual | Runs `scripts/verify-access-runner/verify.sh`: kind and a Keycloak over TLS from the pinned images, the realm applied by the Keycloak chart's import job, the access chart installed, every operation and refusal of the runner, and fails on a skipped test |
+| `.github/workflows/policy-hook.yml` | pull requests touching the policy-hook probe, its script, the guard, the policy evaluator, the guard chart, the pinned Envoy image or the policy fixtures; manual | Runs the guard policy-hook proofs (`scripts/verify-policy-hook/verify.sh`) against Envoy from the pinned image, uploads the records as an artefact and writes the verdict and the latency numbers to the job summary; then sends gRPC and REST calls through an Envoy of the same pinned image, configured with the guard chart's rendered bootstrap, to the guard's runtime and the policy evaluator's rules (`TestGuardedGRPCThroughEnvoy`) |
 
 ## The service pipeline
 
@@ -208,7 +209,8 @@ runners and the cluster dry run, then `bddreport --require-complete` over the fi
 row that is uncovered or failed fails the job (see [BDD acceptance](bdd.md#the-harness)). The dry
 run exists only in this job: where a cluster run happens, its real report is used instead.
 
-The `bdd-cluster` job runs the cluster scenarios (TDR-BDD-01..04 and TDR-BDD-06) against each client
+The `bdd-cluster` job runs the cluster scenarios (TDR-BDD-01..04 and TDR-BDD-06, and the public-ingress
+TLS check behind TDR-BDD-07 against the hosts in the repository variable `BDD_<TARGET>_TLS_ENDPOINTS`) against each client
 target, and `bdd-cluster-report` merges every target into one traceability sheet in which a row is
 proven only if it passed everywhere. They run on pushes to `main`, on every published release and
 on demand — never on pull requests — and one run at a time per target. Evidence is published even
@@ -245,8 +247,8 @@ Every image is scanned and a HIGH or CRITICAL finding fails the build. When a fi
 upstream component that this project cannot fix in its own layer, a `scan-exception.json` next to
 the image's Dockerfile may exclude named paths from the gate. It must carry an expiry date, the
 reason and the tracking of the upstream fix; the job prints it into the run summary and fails the
-build once it has expired. The ORCE image carries one for the upstream ORCE runtime, kubectl and the bundled Helm,
-expiring 13 November 2026.
+build once it has expired. The ORCE image carries one for the upstream ORCE runtime and kubectl,
+expiring 16 December 2026; the bundled Helm stays under the gate.
 
 ## Repository protection and least privilege
 

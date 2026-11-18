@@ -185,12 +185,48 @@ func (p *planeSeparationCheck) itReportsNoRowThatBreaksAnInvariantTheSectionStat
 	return nil
 }
 
+// cryptoBaselineCheck asserts that the cryptographic register and the repository agree. It proves
+// the configuration, not a running zone.
+type cryptoBaselineCheck struct {
+	output   string
+	exitCode int
+}
+
+func (c *cryptoBaselineCheck) theCryptographicRegister() error {
+	if _, err := os.Stat(repoPath("docs/crypto-baseline.md")); err != nil {
+		return fmt.Errorf("no cryptographic register: %w", err)
+	}
+	return nil
+}
+
+func (c *cryptoBaselineCheck) theCryptographicBaselineCheckRuns() error {
+	cmd := exec.Command(repoPath("scripts/check-crypto-baseline.sh"))
+	cmd.Dir = repoPath(".")
+	output, err := cmd.CombinedOutput()
+	c.output = string(output)
+	var exit *exec.ExitError
+	if errors.As(err, &exit) {
+		c.exitCode = exit.ExitCode()
+		return nil
+	}
+	return err
+}
+
+func (c *cryptoBaselineCheck) itReportsNoMechanismOutsideTheBaseline() error {
+	if c.exitCode != 0 {
+		return fmt.Errorf("the cryptographic baseline check failed:\n%s", c.output)
+	}
+	return nil
+}
+
 func InitializeScenario(ctx *godog.ScenarioContext) {
 	check := &hygieneCheck{}
 	planes := &planeSeparationCheck{}
+	crypto := &cryptoBaselineCheck{}
 	ctx.Before(func(ctx context.Context, _ *godog.Scenario) (context.Context, error) {
 		*check = hygieneCheck{}
 		*planes = planeSeparationCheck{}
+		*crypto = cryptoBaselineCheck{}
 		return ctx, nil
 	})
 	ctx.Step(`^the repository workflows$`, check.theRepositoryWorkflows)
@@ -199,10 +235,15 @@ func InitializeScenario(ctx *godog.ScenarioContext) {
 	ctx.Step(`^the plane-separation section of the architecture document$`, planes.thePlaneSeparationSectionOfTheArchitectureDocument)
 	ctx.Step(`^the plane-separation conformance check runs$`, planes.thePlaneSeparationConformanceCheckRuns)
 	ctx.Step(`^it reports no row that breaks an invariant the section states$`, planes.itReportsNoRowThatBreaksAnInvariantTheSectionStates)
+	ctx.Step(`^the cryptographic register of the documentation$`, crypto.theCryptographicRegister)
+	ctx.Step(`^the cryptographic baseline check runs$`, crypto.theCryptographicBaselineCheckRuns)
+	ctx.Step(`^it reports no mechanism outside the baseline and no setting the register misquotes$`, crypto.itReportsNoMechanismOutsideTheBaseline)
 	dryRun := os.Getenv("BDD_MODE") == "cluster-dryrun"
 	registerAdmissionProof(ctx, dryRun)
 	registerChartGate(ctx, dryRun)
 	registerSecretsBaseline(ctx, dryRun)
+	registerTLSEndpoints(ctx, dryRun)
+	registerStructuredLogs(ctx)
 	registerPending(ctx)
 }
 

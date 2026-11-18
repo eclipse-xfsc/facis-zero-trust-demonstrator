@@ -52,7 +52,7 @@ BDD_ORCE_URL=http://127.0.0.1:$port
 BDD_ORCE_ADMIN_TOKEN=$read_token
 BDD_ORCE_HTTP_USER=bdd
 BDD_ORCE_HTTP_PASS=$http_pass
-BDD_ORCE_LOGS_CMD='docker logs $name'
+BDD_ORCE_LOGS_CMD='docker logs $name 2>&1'
 BDD_TARGET=local
 ENV
 chmod 0600 "$out/orce.env"

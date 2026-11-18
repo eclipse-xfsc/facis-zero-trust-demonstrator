@@ -75,6 +75,7 @@ naming the fact:
 | `global.spire.persistence.storageClass` | zone fact | the server's datastore volume (SQLite, the chart's default) on the zone's storage class |
 | `global.spire.caSubject.organization` | `FACIS ZTD` | the subject of the server's CA, which every SVID names as issuer (the SVIDs themselves carry `O = SPIRE`); the chart's placeholder `Example` is replaced |
 | `global.spire.caSubject.commonName` | zone fact | the trust domain, so that the issuer names the zone; the country stays the chart's placeholder |
+| `spire-server.caKeyType` | `ec-p256` | the key of the server's X.509 CA and JWT signing keys; the chart's default `rsa-2048` is below the [cryptographic baseline](../../../docs/crypto-baseline.md). A server installed with the default keeps its RSA CA until that CA rotates |
 | `spire-server.telemetry.prometheus.enabled` | `true` | the server's metrics on pod port 9988, the contract with the observability collector |
 | `spire-server.federation.enabled` | `false` | each zone is its own trust domain; zones never federate |
 | `spire-server.ingress.enabled` | `false` | the agents reach the server inside the cluster only |

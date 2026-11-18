@@ -16,6 +16,11 @@ function required (name) {
 
 const readToken = Buffer.from(required('ORCE_READ_TOKEN'))
 
+// The lifecycle command endpoint as Express routes it: any case, with or without a trailing slash.
+const LIFECYCLE_PATH = /^\/lifecycle\/?$/i
+const COMMAND_LIMIT = '5mb' // the admin API's own default (apiMaxLength)
+const readCommandBody = require('body-parser').text({ type: () => true, limit: COMMAND_LIMIT })
+
 // One JSON object per line for every record sent through the Node-RED logging API. Only these
 // fields are written: never an error object or its stack, and never a payload merged into the
 // top level, so a message cannot overwrite level or id. Output outside the logging API (console
@@ -58,6 +63,33 @@ module.exports = {
       const match = offered.length === readToken.length && crypto.timingSafeEqual(offered, readToken)
       return Promise.resolve(match ? { user: 'bdd-observer', permissions: 'read' } : null)
     }
+  },
+
+  // The admin API is mounted at the same root as the flow endpoints and parses every JSON body
+  // first. A malformed one would be refused there, with an HTML page and a plain-text stack
+  // trace in the log, before the lifecycle flow could refuse it. The body of a lifecycle command
+  // is read here instead, as text, with the limit and the decompression the JSON parser applies;
+  // the parsing is left to the flow, whose catch node answers and records the error as JSON. A
+  // body that cannot be read at all (too large, bad encoding) is refused here in the same shape.
+  // The match below is on the path under the shared root, so both roots are fixed here: a flow
+  // endpoint under another root would reach the admin API's parser again.
+  httpAdminRoot: '/',
+  httpNodeRoot: '/',
+  httpAdminMiddleware: function (req, res, next) {
+    if (req.method !== 'POST' || !LIFECYCLE_PATH.test(req.path)) return next()
+    readCommandBody(req, res, function (err) {
+      if (!err) return next()
+      const tooLarge = err.status === 413
+      res.status(tooLarge ? 413 : 400).json({
+        type: 'result',
+        ok: false,
+        action: null,
+        requestId: null,
+        data: null,
+        ui: { toast: { kind: 'error', message: 'Please correct the highlighted fields.' } },
+        errors: { fields: { command: tooLarge ? `must not be larger than ${COMMAND_LIMIT}` : 'could not be read' } }
+      })
+    })
   },
 
   // Replaces the upstream console logger: the only handler is the JSON one (TDR logging).

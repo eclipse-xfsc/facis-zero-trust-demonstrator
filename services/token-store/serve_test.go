@@ -63,6 +63,15 @@ func TestParseServe(t *testing.T) {
 				t.Errorf("flags: %+v level %s", o.cfg, o.level)
 			}
 		}},
+		{name: "routes file needs the OpenBao token", args: []string{"--acquire-config", "/etc/routes.json"}, env: both, wantErr: "--openbao-token-file"},
+		{name: "routes file and token from the environment", args: nil, env: serveEnv(map[string]string{
+			"TOKEN_STORE_DATABASE_URL": testDatabase, "TOKEN_STORE_OPENBAO_URL": testOpenBao,
+			"TOKEN_STORE_ACQUIRE_CONFIG": "/etc/routes.json", "TOKEN_STORE_OPENBAO_TOKEN_FILE": "/run/bao-token",
+		}), check: func(t *testing.T, o serveOptions) {
+			if o.acquireConfig != "/etc/routes.json" || o.openBaoTokenFile != "/run/bao-token" {
+				t.Errorf("routes file %q, token file %q", o.acquireConfig, o.openBaoTokenFile)
+			}
+		}},
 		{name: "no database", args: nil, env: serveEnv(map[string]string{"TOKEN_STORE_OPENBAO_URL": testOpenBao}), wantErr: "no database"},
 		{name: "no key-value store", args: nil, env: serveEnv(map[string]string{"TOKEN_STORE_DATABASE_URL": testDatabase}), wantErr: "no key-value store"},
 		{name: "key-value store without a scheme", args: []string{"--openbao-url", "bao:8200"}, env: both, wantErr: "http(s)://host"},

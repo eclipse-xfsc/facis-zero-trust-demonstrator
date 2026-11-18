@@ -11,6 +11,11 @@ Bash is the language for scripts under `scripts/` per the Technical Development 
 | `dev/kind-cilium-up.sh` | the local kind cluster with Cilium chained (`cni.exclusive=false`) |
 | `verify-umbrella/verify.sh` | evidence for the umbrella chart alone on kind |
 | `verify-mesh-identity/verify.sh` | evidence that the mesh identities are SPIRE's, the whole zone on kind |
+| `check-crypto-baseline.sh` | the cryptographic register (`docs/crypto-baseline.md`) against the repository: accepted mechanisms, the text each row quotes, and a scan of the Go code and the deployment configuration for the patterns the page lists; it cannot find a missing row |
+| `verify-crypto-baseline/verify.sh` | the keys and certificates the configuration generates: the admission provider's certificates, the SPIRE server's rendered CA key type, and a Keycloak container upgraded from its default keys by the chart's realm |
+| `verify-tls13/verify.sh` | the public-ingress TLS scenario (behind TDR-BDD-07) against a Traefik on kind: it fails on the controller as its chart installs it, which accepts TLS 1.2, and passes once `deployment/ingress/traefik-tls-options.yaml` is applied |
+| `verify-access-runner/verify.sh` | the privileged-operations runner on kind with a Keycloak over TLS: every operation, every refusal and real-time grant expiry (`docs/privileged-access.md`) |
+| `verify-orce-errors/verify.sh` | a malformed lifecycle command against a container of the ORCE image (`ORCE_IMAGE`), with this checkout's flow and settings: a JSON refusal, the error object in the flow context, and no log line that is not a JSON record |
 | `mesh-mode/check-upstream-state.sh` | the upstream-state record behind ADR-0009 and its reopen check |
 ## Guard policy-hook proofs (`verify-policy-hook/`)
 

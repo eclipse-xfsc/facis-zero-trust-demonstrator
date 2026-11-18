@@ -5,56 +5,20 @@ package testsupport
 
 import (
 	"bytes"
-	"context"
-	"crypto/rand"
-	"encoding/hex"
-	"net/url"
-	"os"
 	"sync"
 	"testing"
-	"time"
 
-	"github.com/jackc/pgx/v5"
+	"github.com/eclipse-xfsc/facis-zero-trust-demonstrator/internal/pgtest"
 )
 
 // DatabaseEnv names the PostgreSQL the database tests run against.
-const DatabaseEnv = "TOKEN_STORE_TEST_DATABASE_URL"
+const DatabaseEnv = pgtest.DatabaseEnv
 
-// DatabaseURL creates a database of its own, ts_<prefix>_<random>, on the PostgreSQL that
-// DatabaseEnv names, drops it when the test ends, and returns its connection URL. Without the
-// variable the test skips, so the ordinary test job stays self-contained and the database job,
-// which fails on a skip, proves the variable was set.
+// DatabaseURL creates a database of its own on the PostgreSQL that DatabaseEnv names; see
+// pgtest.DatabaseURL.
 func DatabaseURL(t *testing.T, prefix string) string {
 	t.Helper()
-	admin := os.Getenv(DatabaseEnv)
-	if admin == "" {
-		t.Skipf("%s not set; this test needs a PostgreSQL", DatabaseEnv)
-	}
-	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
-	defer cancel()
-	conn, err := pgx.Connect(ctx, admin)
-	if err != nil {
-		t.Fatalf("connecting to %s: %v", DatabaseEnv, err)
-	}
-	var suffix [6]byte
-	_, _ = rand.Read(suffix[:])
-	name := "ts_" + prefix + "_" + hex.EncodeToString(suffix[:])
-	ident := pgx.Identifier{name}.Sanitize()
-	if _, err := conn.Exec(ctx, "CREATE DATABASE "+ident); err != nil {
-		t.Fatalf("creating the test database: %v", err)
-	}
-	t.Cleanup(func() {
-		ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
-		defer cancel()
-		_, _ = conn.Exec(ctx, "DROP DATABASE "+ident+" WITH (FORCE)")
-		_ = conn.Close(ctx)
-	})
-	u, err := url.Parse(admin)
-	if err != nil {
-		t.Fatal(err)
-	}
-	u.Path = "/" + name
-	return u.String()
+	return pgtest.DatabaseURL(t, prefix)
 }
 
 // Buffer collects what handlers and servers write from their own goroutines.

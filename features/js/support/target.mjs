@@ -11,7 +11,7 @@ const REQUIRED = [
   ['BDD_ORCE_ADMIN_TOKEN', 'read-only ORCE admin API bearer token'],
   ['BDD_ORCE_HTTP_USER', 'user of the ORCE HTTP endpoints (httpNodeAuth)'],
   ['BDD_ORCE_HTTP_PASS', 'password of the ORCE HTTP endpoints'],
-  ['BDD_ORCE_LOGS_CMD', 'shell command that prints the ORCE log, e.g. "kubectl -n ztd-orce logs deploy/orce"']
+  ['BDD_ORCE_LOGS_CMD', 'shell command that prints the log of the ORCE container and nothing else on stdout, e.g. "kubectl -n ztd-orce logs deploy/orce"']
 ]
 
 export function loadTarget (env = process.env) {

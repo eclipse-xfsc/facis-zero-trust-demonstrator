@@ -124,3 +124,62 @@ again when they are back, the caller's `x-request-id` and trace context on the s
 the pod running as its own ServiceAccount with the identity label, an upgrade as a no-op and an
 uninstall to an empty schema. The `Token store` workflow runs it on every change to the store, the
 chart or the pinned images.
+
+## Acquisition and renewal runtime
+
+The default remains the schema/readiness service. Set `runtime.enabled: true` to run
+acquisition, substitution and renewal. Supply an existing ConfigMap containing
+`acquisition.json` and an existing Secret containing the OpenBao token and private
+files referenced by that configuration. The chart never creates either object.
+Public issuer keys can be included in the ConfigMap; use absolute paths below
+`/etc/token-store`. Mount private route and signing files below
+`/var/run/token-store/credentials`; do not put credentials in values or ConfigMaps.
+
+Runtime mode requires SPIRE identity and NetworkPolicy. It renders STRICT
+PeerAuthentication and enforces inbound `SANITIZE_SET` for XFCC, preserving other
+JSON `proxy.istio.io/config` fields. This annotation is a prerequisite, not proof
+of effective mesh configuration: verify the injected proxy and refuse forged XFCC
+before live use. `runtime.replayCallers` lists allowed SPIFFE service accounts;
+acquisition route callers remain in the acquisition configuration.
+
+Configure explicit ingress peers and egress rules for PostgreSQL, OpenBao,
+Connector and mesh control traffic. DNS allows both service port 53 and Gardener's
+translated port 8053. Set `networkPolicy.schemaEgress` to the schema Jobs' database peers. A separate
+egress-only NetworkPolicy hook is created one weight before migrate/drop Jobs;
+it permits DNS and, in runtime mode, istiod TCP 15012 in
+`networkPolicy.istiodNamespace`. It never inherits server or OpenBao lanes.
+The schema policy is retained after uninstall for hook ordering, like the schema
+ServiceAccount; remove both explicitly when retiring the owned namespace. `podAnnotations` and `nodeSelector` apply to the server and both schema
+Jobs, including per-pod admitted sidecar image overrides.
+
+`ci/runtime-values.yaml`, layered over `ci/values.yaml`, exercises runtime rendering
+with placeholder references. It is not a deployable environment or an admission
+proof. Roll back runtime wiring by restoring a proven release or removing the
+slice; do not leave a token endpoint exposed while removing its identity controls.
+
+Acquisition JSON accepts `kv_prefix` to isolate stored tokens and orphan sweeps.
+An isolated deployment can use `example/token-store/upstream`; omission preserves the existing
+`ztd/token-store/upstream` default. Prefixes contain only non-empty plain path
+segments; slash escapes, traversal and query delimiters are rejected. The scoped
+OpenBao policy must permit only the selected prefix.
+
+
+The acquisition ConfigMap is mounted in full at `/etc/token-store`, including
+public issuer key files referenced by `trusted_issuers[].public_key_file`.
+`runtime.configKey` selects its acquisition JSON file. Keep private fixture keys
+and client secrets in the credentials Secret, never this ConfigMap. Configure
+`connector_signing_key` with the issuer's transit key name; the optional name check rejects equality with the store's `signing_key`.
+Readiness independently compares the public key material against every route
+Connector JWKS, and fails closed on overlap or unavailable keys. These roles need separate
+non-exportable keys and separate scoped credentials.
+
+Runtime schema Job pods request native Istio sidecars so the proxy does not hold
+Job completion open. This rendering is tested; live Job completion under the
+platform's injector still needs deployment evidence.
+
+For a guarded deployment, register acquisition clients only for
+`https://resource.facis.invalid` and set every acquisition/substitution route's
+`audience` to that identifier. Participant clients use the separate
+`https://guard.facis.invalid` audience. Use the guard's published base URL for
+route target binding; do not derive the upstream audience from that URL. Never
+mount the provisioning registrar's credentials into the store or Participant.

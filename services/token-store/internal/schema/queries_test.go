@@ -188,12 +188,14 @@ func TestSubstitutionFindsTheValidTokenOfARoute(t *testing.T) {
 	if _, err := c.Exec(ctx, `INSERT INTO upstream_token
 		(token_id, peer_zone, audience, tenant, outcome_id, token_ref, key_ref, state, issued_at, expires_at, renew_after) VALUES
 		('aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa', 'zone-b', 'https://zone-b.example/api', '', $1, 'kv/live',  'transit/store-1', 'active', now() - interval '1 hour', now() + interval '1 hour', now()),
-		('bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb', 'zone-b', 'https://zone-b.example/api', '', $2, 'kv/stale', 'transit/store-1', 'active', now() - interval '3 hours', now() - interval '1 hour', now() - interval '2 hours')`,
+		('bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb', 'zone-b', 'https://zone-b.example/api', '', $2, 'kv/stale', 'transit/store-1', 'retired', now() - interval '3 hours', now() - interval '1 hour', now() - interval '2 hours')`,
 		live, stale); err != nil {
 		t.Fatal(err)
 	}
+	// The route's live token: active, or claimed for renewal and still the route's token until its
+	// replacement commits (migration 4 allows one live row per route).
 	const lookup = `SELECT token_ref FROM upstream_token
-		WHERE peer_zone = $1 AND audience = $2 AND tenant = $3 AND state = 'active' AND expires_at > now()
+		WHERE peer_zone = $1 AND audience = $2 AND tenant = $3 AND state IN ('active', 'renewing') AND expires_at > now()
 		ORDER BY expires_at DESC LIMIT 1`
 	var ref string
 	if err := c.QueryRow(ctx, lookup, "zone-b", "https://zone-b.example/api", "").Scan(&ref); err != nil || ref != "kv/live" {
@@ -211,12 +213,33 @@ func TestSubstitutionFindsTheValidTokenOfARoute(t *testing.T) {
 			t.Errorf("route %v: %v; want no rows", route, err)
 		}
 	}
-	// With only the stale token left, the route has no valid token.
+	// A row being renewed is still the route's token.
+	if _, err := c.Exec(ctx, `UPDATE upstream_token SET state = 'renewing', claimed_at = now(), claimed_by = 'w' WHERE token_ref = 'kv/live'`); err != nil {
+		t.Fatal(err)
+	}
+	if err := c.QueryRow(ctx, lookup, "zone-b", "https://zone-b.example/api", "").Scan(&ref); err != nil || ref != "kv/live" {
+		t.Errorf("renewing: lookup returned %q, %v; want kv/live", ref, err)
+	}
+	// A second live row for the route is refused by the schema.
+	if _, err := c.Exec(ctx, `UPDATE upstream_token SET state = 'active' WHERE token_ref = 'kv/stale'`); !isUniqueViolation(err) {
+		t.Errorf("second live row: %v; want a unique violation", err)
+	}
+	// With only the stale token left, the route has no valid token; a failed or retired one never
+	// counts.
 	if _, err := c.Exec(ctx, `UPDATE upstream_token SET state = 'retired' WHERE token_ref = 'kv/live'`); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := c.Exec(ctx, `UPDATE upstream_token SET state = 'active' WHERE token_ref = 'kv/stale'`); err != nil {
 		t.Fatal(err)
 	}
 	if err := c.QueryRow(ctx, lookup, "zone-b", "https://zone-b.example/api", "").Scan(&ref); !errors.Is(err, pgx.ErrNoRows) {
 		t.Errorf("expired-only route: %v; want no rows", err)
+	}
+	if _, err := c.Exec(ctx, `UPDATE upstream_token SET state = 'failed', expires_at = now() + interval '1 hour' WHERE token_ref = 'kv/stale'`); err != nil {
+		t.Fatal(err)
+	}
+	if err := c.QueryRow(ctx, lookup, "zone-b", "https://zone-b.example/api", "").Scan(&ref); !errors.Is(err, pgx.ErrNoRows) {
+		t.Errorf("failed-only route: %v; want no rows", err)
 	}
 }
 

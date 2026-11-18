@@ -1,0 +1,33 @@
+# The runner image, by digest only.
+image: {repository: ghcr.io/eclipse-xfsc/facis-zero-trust-demonstrator/access-runner, digest: ""}
+replicas: 1
+# The target the runner acts on: grants name it, so an approval for one deployment cannot be used on
+# another. Required.
+target: ""
+# The plane namespaces cluster operations may touch. The runner's ServiceAccount is bound in each.
+planeNamespaces: []
+# The approvers: each a Keycloak subject id and the EC P-256 public key (JWK) they sign with. Changed
+# only by deployment, never by a caller. Quote the key names: YAML reads an unquoted y as true.
+approvers: []
+keycloak:
+  base: ""                 # https://<keycloak>
+  realm: facis-ztd
+  clientId: ztd-access-runner
+  loginClient: ztd-access
+  audience: ztd-access-runner
+  # The runner client's secret, a Secret in this namespace holding the same value the realm import
+  # uses (accessRunner.secretRef of the Keycloak chart, in its own namespace). Letters, digits, "-"
+  # and "_" only: the import places it in the realm's JSON as it is.
+  secretRef: {name: "", key: client-secret}
+  # A ConfigMap holding the CA of Keycloak's certificate, when it is not from a public CA.
+  caConfigMap: {name: "", key: ca.crt}
+# The runner's own certificate and key (a kubernetes.io/tls Secret, for example from cert-manager):
+# callers reach it over TLS 1.3 only. Required.
+tls: {secretName: ""}
+# Who may call the runner: the pods matching podLabels in namespace (NetworkPolicy). Empty admits none.
+callers:
+  namespace: ""
+  podLabels: {}
+resources:
+  requests: {cpu: 20m, memory: 32Mi}
+  limits: {memory: 128Mi}

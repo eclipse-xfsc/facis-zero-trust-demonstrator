@@ -30,8 +30,8 @@ func TestRunWithoutACommandPrintsUsage(t *testing.T) {
 	if code := run([]string{"serve", "--readiness-timeout", "0"}, &out, &errOut); code != exitUsage {
 		t.Errorf("serve with a bad flag: exit %d, want %d", code, exitUsage)
 	}
-	if !strings.Contains(errOut.String(), "token-store:") {
-		t.Errorf("serve usage error not reported: %q", errOut.String())
+	if !strings.Contains(errOut.String(), `"msg":"token-store configuration rejected"`) {
+		t.Errorf("serve configuration error not reported as a JSON record: %q", errOut.String())
 	}
 }
 

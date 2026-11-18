@@ -5,10 +5,11 @@ holds no demonstration workload: nothing that participates in a zone-to-zone cal
 failure in the pipeline cannot be mistaken for a failure in the demonstrator.
 
 !!! note "Status"
-    The cluster was provided on 23 September 2026. What is installed today is ORCE, the BDD pool and
-    nothing else; stages 1 to 5 below describe that state and were checked against the cluster,
+    The cluster was provided on 23 September 2026. Of what this guide installs, ORCE and the BDD
+    pool are there today; stages 1 to 5 below describe them and were checked against the cluster,
     except where a stage says otherwise. The runner, registry access and visualization stages are
-    planned and marked so.
+    planned and marked so. The cluster also serves a Keycloak and the demonstrator UI on two public
+    hosts that this guide does not install ([TLS 1.3 on the public ingress](#tls-13-on-the-public-ingress)).
 
 ## Before you start
 
@@ -235,6 +236,33 @@ kubectl delete -f deployment/orce-minimal/base.yaml --ignore-not-found
 
 **Verify:** `kubectl get namespaces | grep ztd-` prints nothing, and
 `kubectl get clusterrole,clusterrolebinding | grep ztd-` prints nothing.
+
+## TLS 1.3 on the public ingress
+
+The ORCE of stages 2 and 3 has no ingress. The cluster also serves two public hosts that those
+stages do not install: the Keycloak whose realm `deployment/helm/facis-ztd-keycloak` manages, and
+the demonstrator UI that realm names as its origin. Both come in through the ingress class
+`ztd-public`, a Traefik that this repository does not install. As its chart ships it, Traefik
+accepts TLS 1.2, and on 18 Nov 2026 both hosts did. One object in the controller's namespace sets
+TLS 1.3 as the minimum for every host it terminates through a router that names no TLSOption of
+its own:
+
+```bash
+kubectl -n <traefik namespace> apply -f deployment/ingress/traefik-tls-options.yaml
+```
+
+There must be no other TLSOption named `default` in a namespace the controller watches, and a
+router that names its own TLSOption keeps that one.
+
+**Verify:** the public-ingress scenario against the cluster's hosts, which fails while either
+accepts a version older than TLS 1.3:
+
+```bash
+BDD_MODE=cluster BDD_TLS_ENDPOINTS=<keycloak host>:443,<orce host>:443 \
+  go test ./internal/bdd -count=1 -godog.tags=@tls-ingress
+```
+
+Not yet applied to this cluster.
 
 ## Operations
 

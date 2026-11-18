@@ -23,7 +23,12 @@ spec:
         {{- if .Values.identity.spireManagedIdentity }}
         spiffe.io/spire-managed-identity: "true"
         {{- end }}
+      {{- include "token-store.annotations" . | nindent 6 }}
     spec:
+      {{- with .Values.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
       restartPolicy: Never
       serviceAccountName: {{ .Values.serviceAccount.schemaName | quote }}
       automountServiceAccountToken: false

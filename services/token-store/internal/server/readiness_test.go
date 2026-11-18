@@ -19,25 +19,30 @@ func word(w string) func(context.Context) string {
 
 func TestReadinessEvaluate(t *testing.T) {
 	cases := []struct {
-		name     string
-		postgres string
-		openbao  string
-		ready    bool
+		name       string
+		postgres   string
+		openbao    string
+		signingKey string
+		ready      bool
 	}{
-		{"both ok", checkOK, checkOK, true},
-		{"database unreachable", checkUnreachable, checkOK, false},
-		{"schema behind", checkSchemaBehind, checkOK, false},
-		{"schema drift", checkSchemaDrift, checkOK, false},
-		{"key-value store unreachable", checkOK, checkUnreachable, false},
-		{"key-value store sealed", checkOK, checkSealed, false},
-		{"key-value store uninitialised", checkOK, checkUninitialized, false},
-		{"both down", checkUnreachable, checkUnreachable, false},
+		{"all ok", checkOK, checkOK, checkOK, true},
+		{"database unreachable", checkUnreachable, checkOK, checkOK, false},
+		{"schema behind", checkSchemaBehind, checkOK, checkOK, false},
+		{"schema drift", checkSchemaDrift, checkOK, checkOK, false},
+		{"key-value store unreachable", checkOK, checkUnreachable, checkOK, false},
+		{"key-value store sealed", checkOK, checkSealed, checkOK, false},
+		{"key-value store uninitialised", checkOK, checkUninitialized, checkOK, false},
+		{"signing key missing", checkOK, checkOK, checkMissing, false},
+		{"signing key mismatch", checkOK, checkOK, checkMismatch, false},
+		{"signing key unconfigured", checkOK, checkOK, checkUnconfigured, false},
+		{"both down", checkUnreachable, checkUnreachable, checkUnreachable, false},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			r := &readiness{timeout: time.Second, postgres: word(tc.postgres), openbao: word(tc.openbao)}
+			r := &readiness{timeout: time.Second, postgres: word(tc.postgres), openbao: word(tc.openbao), signingKey: word(tc.signingKey)}
 			rep := r.evaluate(context.Background())
-			if rep.Ready != tc.ready || rep.Checks.Postgres != tc.postgres || rep.Checks.OpenBao != tc.openbao {
+			if rep.Ready != tc.ready || rep.Checks.Postgres != tc.postgres || rep.Checks.OpenBao != tc.openbao ||
+				rep.Checks.SigningKey != tc.signingKey {
 				t.Errorf("report %+v", rep)
 			}
 		})
@@ -61,9 +66,10 @@ func TestReadinessRunsTheChecksTogether(t *testing.T) {
 		}
 	}
 	r := &readiness{
-		timeout:  2 * time.Second,
-		postgres: meet(postgresStarted, openbaoStarted),
-		openbao:  meet(openbaoStarted, postgresStarted),
+		timeout:    2 * time.Second,
+		postgres:   meet(postgresStarted, openbaoStarted),
+		openbao:    meet(openbaoStarted, postgresStarted),
+		signingKey: word(checkOK),
 	}
 	if rep := r.evaluate(context.Background()); !rep.Ready {
 		t.Errorf("the checks did not run at once: %+v", rep)
@@ -76,7 +82,7 @@ func TestReadinessNeverOutlivesItsBudget(t *testing.T) {
 		time.Sleep(time.Second)
 		return checkOK
 	}
-	r := &readiness{timeout: 200 * time.Millisecond, postgres: stuck, openbao: word(checkOK)}
+	r := &readiness{timeout: 200 * time.Millisecond, postgres: stuck, openbao: word(checkOK), signingKey: word(checkOK)}
 	start := time.Now()
 	rep := r.evaluate(context.Background())
 	if elapsed := time.Since(start); elapsed > 800*time.Millisecond {
@@ -90,7 +96,7 @@ func TestReadinessNeverOutlivesItsBudget(t *testing.T) {
 func TestReadyzHandler(t *testing.T) {
 	var buf testsupport.Buffer
 	s := &Server{log: testLogger(&buf)}
-	s.ready = &readiness{timeout: time.Second, postgres: word(checkOK), openbao: word(checkSealed)}
+	s.ready = &readiness{timeout: time.Second, postgres: word(checkOK), openbao: word(checkSealed), signingKey: word(checkOK)}
 	h := s.correlate(http.HandlerFunc(s.handleReadyz))
 
 	get := func() (*http.Response, report) {
@@ -141,7 +147,7 @@ func TestReadyzHandler(t *testing.T) {
 func TestReadyzRecordsNoPhantomTransition(t *testing.T) {
 	var buf testsupport.Buffer
 	s := &Server{log: testLogger(&buf)}
-	s.ready = &readiness{timeout: time.Second, postgres: word(checkOK), openbao: word(checkOK)}
+	s.ready = &readiness{timeout: time.Second, postgres: word(checkOK), openbao: word(checkOK), signingKey: word(checkOK)}
 	h := s.correlate(http.HandlerFunc(s.handleReadyz))
 	transitions := func() int {
 		n := 0
@@ -200,7 +206,7 @@ func TestReadinessCoalescesConcurrentCallers(t *testing.T) {
 		time.Sleep(150 * time.Millisecond)
 		return checkOK
 	}
-	r := &readiness{timeout: 2 * time.Second, postgres: slow, openbao: slow}
+	r := &readiness{timeout: 2 * time.Second, postgres: slow, openbao: slow, signingKey: word(checkOK)}
 
 	gone, cancel := context.WithCancel(context.Background())
 	cancel()

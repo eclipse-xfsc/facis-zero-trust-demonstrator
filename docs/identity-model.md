@@ -7,8 +7,10 @@ disagree, this page is changed first, through review.
 
 ## What Keycloak is for
 
-Keycloak authenticates **people**: the viewer who drives the demonstrator UI. It does not authorize
-machines. A participant backend calling a protected resource is authorized by the Go connector and
+Keycloak authenticates **people**: the viewer who drives the demonstrator UI and, with the
+[privileged-operations runner](privileged-access.md), the operators who call it. It does not authorize
+the participant path; its one machine identity is the runner's own service account, which
+administers the realm's users. A participant backend calling a protected resource is authorized by the Go connector and
 the guard, with tokens derived from a verified credential presentation and bound to a key
 ([ADR-0003](adr/0003-oauth2-authorisation-surface-in-the-go-connector.md)). Nothing in this model
 reaches that path, and no Keycloak token is accepted by the guard.
@@ -26,7 +28,7 @@ custom providers or extensions.
 | Disabled | Implicit flow, direct access grants (password grant), service account, device flow |
 | Redirect URIs | The UI's callback on its own hostname, listed exactly; no wildcards |
 | Web origins | The UI's origin only |
-| Consent | Off: the realm has one first-party client |
+| Consent | Off: the realm's clients are all first-party (`ztd-ui`; with the [privileged-operations runner](privileged-access.md), also `ztd-access` and `ztd-access-runner`) |
 | Front-channel logout | On, with the UI's logout URL |
 | Back-channel logout | On, to the UI backend, so a server-side session ends with the Keycloak session |
 

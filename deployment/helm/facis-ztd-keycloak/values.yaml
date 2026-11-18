@@ -54,6 +54,17 @@ ui:
   backchannelLogoutUrl: ""
   postLogoutRedirectUrl: ""
 
+# The privileged-operations runner's two clients (docs/privileged-access.md): ztd-access, the
+# public PKCE client its callers log in with (ES256 access tokens for the runner's audience), and
+# ztd-access-runner, the runner's own confidential client with view-users, manage-users and
+# view-clients of the realm. Off, the import does not create them; turning it off after they were
+# created does not remove them (docs/privileged-access.md). Its secret comes from secretRef, letters,
+# digits, "-" and "_" only.
+accessRunner:
+  enabled: false
+  redirectUris: []
+  secretRef: {name: "", key: client-secret}
+
 realm:
   enabled: true
   clientEnabled: true
