@@ -10,6 +10,7 @@ documents its values in its own README.
 | Admission pool | `deployment/helm/admission-pool` | new; admission-proof namespaces and tester identity | [admission-pool/README.md](admission-pool/README.md) |
 | Token store | `deployment/helm/token-store` | new; the authorization database's schema as a migration hook, and the service with its probes and identity, its endpoints to follow | [token-store/README.md](token-store/README.md) |
 | Application service | `deployment/helm/application-service` | in use (OSC shared namespace) | [application-service/README.md](application-service/README.md) |
+| Admission reconciler (app-of-apps) | `deployment/helm/admission-gitops` | new; rendered by Argo CD from Git, never installed with helm (design in [deployment/argocd/README.md](../argocd/README.md)) | [admission-gitops/README.md](admission-gitops/README.md) |
 | Lifecycle fixture (test data, never released) | `features/fixtures/charts/lifecycle-fixture` | in use by the acceptance scenarios | [README](../../features/fixtures/charts/lifecycle-fixture/README.md) |
 | ORCE | — | planned; until then ORCE is installed from `deployment/orce-minimal/` | — |
 | Umbrella chart for a zone | `deployment/helm/ztd` | in use on kind; design in [docs/umbrella-chart.md](../../docs/umbrella-chart.md) | [ztd/README.md](ztd/README.md) |
