@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: FACIS ZTD token store, internal API
-  version: 1.1.0
+  version: 1.2.1
   description: >-
     Internal to the zone. Every call requires mutual TLS with a client certificate whose URI SAN is
     on the store's allow-list (the shape of an X.509 SVID). The store holds the upstream tokens
@@ -126,6 +126,14 @@ paths:
                 htu:
                   type: string
                   format: uri
+                  description: >-
+                    The proof's htu claim, an absolute http or https URI. The store records it in
+                    the RFC 9449 4.3 comparison form (RFC 3986 6.2.2 and 6.2.3): lowercase scheme
+                    and host, the default or an empty port removed, query, fragment and userinfo
+                    dropped, percent escapes in uppercase hex with unreserved characters decoded,
+                    dot segments removed and an empty path as "/". Two spellings of one target are
+                    therefore one proof. An htu that has no such form is refused with
+                    TOK-PROOF-INVALID.
                 jti:
                   type: string
                   minLength: 1
@@ -152,6 +160,12 @@ paths:
                 properties:
                   fresh:
                     const: true
+        '403':
+          description: TOK-CALLER-DENIED - the caller is not on the replay check's allow-list.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/refusal'
         '409':
           description: TOK-REPLAY - this proof was seen before.
           content:

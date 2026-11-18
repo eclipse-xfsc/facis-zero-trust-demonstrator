@@ -9,15 +9,21 @@ import (
 	"log/slog"
 	"os"
 	"os/signal"
+	"strings"
 	"syscall"
 	"time"
 
+	"github.com/eclipse-xfsc/facis-zero-trust-demonstrator/internal/transit"
+	"github.com/eclipse-xfsc/facis-zero-trust-demonstrator/services/token-store/internal/acquire"
 	"github.com/eclipse-xfsc/facis-zero-trust-demonstrator/services/token-store/internal/server"
 )
 
 type serveOptions struct {
 	cfg   server.Config
 	level slog.Level
+	// acquireConfig and openBaoTokenFile enable substitution (and renewal): the routes file, read at
+	// start, and the OpenBao token, read on every call.
+	acquireConfig, openBaoTokenFile string
 }
 
 // parseServe reads the serve flags. The environment fills what the command line did not set,
@@ -36,7 +42,10 @@ func parseServe(args []string, env func(string) string, stderr io.Writer) (serve
 	fs.DurationVar(&opts.cfg.ReadinessTimeout, "readiness-timeout", 2*time.Second, "budget of one /readyz evaluation ($TOKEN_STORE_READINESS_TIMEOUT)")
 	fs.DurationVar(&opts.cfg.DrainDelay, "drain-delay", 5*time.Second, "time /readyz answers 503 before the listeners close on SIGTERM ($TOKEN_STORE_DRAIN_DELAY)")
 	fs.DurationVar(&opts.cfg.ShutdownTimeout, "shutdown-timeout", 10*time.Second, "drain of the listeners on SIGTERM ($TOKEN_STORE_SHUTDOWN_TIMEOUT)")
+	replayCallers := fs.String("replay-callers", "", "comma-separated SPIFFE IDs allowed to call /internal/replay-check ($TOKEN_STORE_REPLAY_CALLERS)")
 	level := fs.String("log-level", "info", "debug, info, warn or error ($TOKEN_STORE_LOG_LEVEL)")
+	fs.StringVar(&opts.acquireConfig, "acquire-config", "", "routes file, JSON: enables /internal/substitute and renewal ($TOKEN_STORE_ACQUIRE_CONFIG)")
+	fs.StringVar(&opts.openBaoTokenFile, "openbao-token-file", "", "file holding the OpenBao token, read on every call ($TOKEN_STORE_OPENBAO_TOKEN_FILE)")
 	if err := fs.Parse(args); err != nil {
 		return opts, err
 	}
@@ -57,6 +66,14 @@ func parseServe(args []string, env func(string) string, stderr io.Writer) (serve
 	fromEnv("database-url", "TOKEN_STORE_DATABASE_URL", &opts.cfg.DatabaseURL)
 	fromEnv("openbao-url", "TOKEN_STORE_OPENBAO_URL", &opts.cfg.OpenBaoURL)
 	fromEnv("log-level", "TOKEN_STORE_LOG_LEVEL", level)
+	fromEnv("replay-callers", "TOKEN_STORE_REPLAY_CALLERS", replayCallers)
+	fromEnv("acquire-config", "TOKEN_STORE_ACQUIRE_CONFIG", &opts.acquireConfig)
+	fromEnv("openbao-token-file", "TOKEN_STORE_OPENBAO_TOKEN_FILE", &opts.openBaoTokenFile)
+	for _, id := range strings.Split(*replayCallers, ",") {
+		if id = strings.TrimSpace(id); id != "" {
+			opts.cfg.ReplayCallers = append(opts.cfg.ReplayCallers, id)
+		}
+	}
 	for _, d := range []struct {
 		name, variable string
 		dst            *time.Duration
@@ -87,10 +104,35 @@ func parseServe(args []string, env func(string) string, stderr io.Writer) (serve
 	if opts.cfg.OpenBaoURL == "" {
 		return opts, errors.New("no key-value store: set --openbao-url or TOKEN_STORE_OPENBAO_URL")
 	}
+	if opts.acquireConfig != "" && opts.openBaoTokenFile == "" {
+		return opts, errors.New("--acquire-config needs --openbao-token-file or TOKEN_STORE_OPENBAO_TOKEN_FILE")
+	}
 	if err := opts.cfg.Validate(); err != nil {
 		return opts, err
 	}
 	return opts, nil
+}
+
+// loadAcquisition reads the routes file and makes the OpenBao client substitution signs and reads
+// with. Errors name the field, never a value.
+func (o *serveOptions) loadAcquisition() error {
+	if o.acquireConfig == "" {
+		return nil
+	}
+	loaded, err := acquire.LoadConfig(o.acquireConfig)
+	if err != nil {
+		return err
+	}
+	tokenFile := o.openBaoTokenFile
+	bao, err := transit.New(transit.Config{Addr: o.cfg.OpenBaoURL, Token: func(context.Context) (string, error) {
+		b, err := os.ReadFile(tokenFile)
+		return strings.TrimSpace(string(b)), err
+	}})
+	if err != nil {
+		return err
+	}
+	o.cfg.Acquisition, o.cfg.OpenBao = &loaded, bao
+	return nil
 }
 
 // serve runs the service until SIGTERM or SIGINT, then drains and exits 0. Its records go to
@@ -105,7 +147,12 @@ func serve(args []string, stdout, stderr io.Writer) int {
 		_, _ = fmt.Fprintf(stderr, "token-store: %v\n", err)
 		return exitUsage
 	}
+	if err := opts.loadAcquisition(); err != nil {
+		_, _ = fmt.Fprintf(stderr, "token-store: %v\n", err)
+		return exitUsage
+	}
 	hostname, _ := os.Hostname()
+	opts.cfg.Instance = hostname
 	log := slog.New(server.NewHandler(slog.NewJSONHandler(stdout, &slog.HandlerOptions{Level: opts.level}))).
 		With("service", "token-store", "instance", hostname)
 	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGTERM, os.Interrupt)

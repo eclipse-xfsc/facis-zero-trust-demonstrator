@@ -3,11 +3,14 @@ package server
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"net/http"
 	"sync"
 	"sync/atomic"
 	"time"
 
+	"github.com/eclipse-xfsc/facis-zero-trust-demonstrator/internal/transit"
+	"github.com/eclipse-xfsc/facis-zero-trust-demonstrator/services/token-store/internal/keys"
 	"github.com/eclipse-xfsc/facis-zero-trust-demonstrator/services/token-store/internal/openbao"
 	"github.com/eclipse-xfsc/facis-zero-trust-demonstrator/services/token-store/internal/schema"
 )
@@ -21,6 +24,9 @@ const (
 	checkSchemaDrift   = "schema_drift"
 	checkUninitialized = "uninitialized"
 	checkSealed        = "sealed"
+	checkMissing       = "missing"      // an active key reference names no key version
+	checkMismatch      = "mismatch"     // it names a version whose thumbprint is not the row's jkt
+	checkUnconfigured  = "unconfigured" // active references exist but no transit key is configured
 )
 
 // readiness evaluates the store's dependencies within one budget. The checks are fields so the
@@ -29,6 +35,8 @@ type readiness struct {
 	timeout  time.Duration
 	postgres func(context.Context) string
 	openbao  func(context.Context) string
+	// signingKey resolves every active signing_key reference through transit.
+	signingKey func(context.Context) string
 	// state is what the last evaluation found: 0 nothing yet, 1 ready, 2 not ready. Only a change
 	// is logged, so a long outage is one line, not one per probe.
 	state atomic.Int32
@@ -47,8 +55,9 @@ type evaluation struct {
 
 // checks are the words of one evaluation.
 type checks struct {
-	Postgres string `json:"postgres"`
-	OpenBao  string `json:"openbao"`
+	Postgres   string `json:"postgres"`
+	OpenBao    string `json:"openbao"`
+	SigningKey string `json:"signing_key"`
 }
 
 // report is the body of /readyz. A draining service answers without checks: it asked nothing.
@@ -86,23 +95,26 @@ func (r *readiness) evaluate(ctx context.Context) report {
 	case <-ev.done:
 		return ev.rep
 	case <-ctx.Done():
-		return report{Checks: &checks{Postgres: checkUnreachable, OpenBao: checkUnreachable}}
+		return report{Checks: &checks{Postgres: checkUnreachable, OpenBao: checkUnreachable, SigningKey: checkUnreachable}}
 	}
 }
 
-// run asks both dependencies at once under the budget. A check that has not answered when the
+// run asks the three checks at once under the budget. A check that has not answered when the
 // budget ends counts as unreachable; the run never outlives the budget, whatever a check does.
 func (r *readiness) run(ctx context.Context) report {
 	ctx, cancel := context.WithTimeout(ctx, r.timeout)
 	defer cancel()
 	postgres := make(chan string, 1)
 	openbao := make(chan string, 1)
+	signingKey := make(chan string, 1)
 	go func() { postgres <- r.postgres(ctx) }()
 	go func() { openbao <- r.openbao(ctx) }()
+	go func() { signingKey <- r.signingKey(ctx) }()
 	c := &checks{}
 	c.Postgres = await(ctx, postgres)
 	c.OpenBao = await(ctx, openbao)
-	return report{Ready: c.Postgres == checkOK && c.OpenBao == checkOK, Checks: c}
+	c.SigningKey = await(ctx, signingKey)
+	return report{Ready: c.Postgres == checkOK && c.OpenBao == checkOK && c.SigningKey == checkOK, Checks: c}
 }
 
 func await(ctx context.Context, answer <-chan string) string {
@@ -180,6 +192,67 @@ func (s *Server) checkOpenBao(ctx context.Context) string {
 	return checkOK
 }
 
+// checkSigningKey is the contract's "every active key reference resolves" (D9): each active
+// signing_key row's key_ref must name a version of the configured transit key whose public key has
+// the row's thumbprint. No active row is fine; rows without a configured transit key are not.
+func (s *Server) checkSigningKey(ctx context.Context) string {
+	rows, err := s.pool.Query(ctx, `SELECT key_ref, jkt FROM signing_key WHERE state = 'active'`)
+	if err != nil {
+		s.log.WarnContext(ctx, "signing keys unreadable", "err", err)
+		return checkUnreachable
+	}
+	type ref struct{ ref, jkt string }
+	var refs []ref
+	for rows.Next() {
+		var r ref
+		if err := rows.Scan(&r.ref, &r.jkt); err != nil {
+			rows.Close()
+			return checkUnreachable
+		}
+		refs = append(refs, r)
+	}
+	if rows.Err() != nil {
+		return checkUnreachable
+	}
+	if len(refs) == 0 && s.cfg.Acquisition == nil {
+		return checkOK
+	}
+	if s.cfg.Acquisition == nil || s.cfg.OpenBao == nil {
+		return checkUnconfigured
+	}
+	k := keys.Keys{Signer: s.cfg.OpenBao, Name: s.cfg.Acquisition.SigningKey}
+	latestRef, err := s.cfg.OpenBao.LatestKey(ctx, k.Name)
+	if err != nil {
+		return checkUnreachable
+	}
+	pub, err := s.cfg.OpenBao.PublicKey(ctx, latestRef)
+	if err != nil {
+		return checkUnreachable
+	}
+	latest, err := keys.Thumbprint(pub)
+	if err != nil {
+		return checkUnreachable
+	}
+	thumbprints := map[string]bool{latest: true}
+	for _, r := range refs {
+		thumbprints[r.jkt] = true
+		if _, err := transit.ParseRef(r.ref); err != nil {
+			return checkMissing
+		}
+		err := k.Check(ctx, r.ref, r.jkt)
+		switch {
+		case errors.Is(err, keys.ErrMismatch):
+			return checkMismatch
+		case errors.Is(err, transit.ErrNotFound):
+			return checkMissing
+		case err != nil:
+			s.log.WarnContext(ctx, "signing key unresolved", "err", err)
+			return checkUnreachable
+		}
+	}
+	return s.checkIssuerSeparation(ctx, thumbprints)
+}
+
 // handleHealthz says the process is alive. It consults nothing, so no dependency outage ever
 // restarts the pod.
 func (s *Server) handleHealthz(w http.ResponseWriter, _ *http.Request) {
@@ -204,7 +277,8 @@ func (s *Server) handleReadyz(w http.ResponseWriter, r *http.Request) {
 			if rep.Ready {
 				s.log.InfoContext(r.Context(), "ready")
 			} else {
-				s.log.WarnContext(r.Context(), "not ready", "postgres", rep.Checks.Postgres, "openbao", rep.Checks.OpenBao)
+				s.log.WarnContext(r.Context(), "not ready", "postgres", rep.Checks.Postgres, "openbao", rep.Checks.OpenBao,
+					"signing_key", rep.Checks.SigningKey)
 			}
 		}
 	}

@@ -8,6 +8,8 @@
 //	token-store migrate up [--to N]    apply the migrations above the current version, up to N (default: all)
 //	token-store migrate down --to N    revert to version N; 0 leaves the schema empty
 //	token-store migrate status         report the database against the embedded migrations, as JSON
+//	token-store acquire --route NAME   acquire and activate one upstream token for a route (D10)
+//	token-store sweep-orphans          delete upstream token values that have no row and are older than 10 min
 //
 // The connection URL comes from --database-url or TOKEN_STORE_DATABASE_URL and is never logged;
 // the key-value store's URL from --openbao-url or TOKEN_STORE_OPENBAO_URL. Exit codes: 0 done or
@@ -43,6 +45,8 @@ const usage = `usage:
   token-store migrate up [--to N]     apply the migrations above the current version, up to N (default: all)
   token-store migrate down --to N     revert to version N; 0 leaves the schema empty
   token-store migrate status          report the database against the embedded migrations, as JSON
+  token-store acquire --route NAME    acquire and activate one upstream token for the route; prints its id, never the token
+  token-store sweep-orphans           delete upstream token values without a row, older than 10 min
 
 flags of serve (each defaults to the TOKEN_STORE_* variable of the same name):
   --addr ADDR                   API listener (default :8080)
@@ -53,10 +57,21 @@ flags of serve (each defaults to the TOKEN_STORE_* variable of the same name):
   --drain-delay DURATION        time /readyz answers 503 before the listeners close on SIGTERM (default 5s)
   --shutdown-timeout DURATION   drain of the listeners on SIGTERM (default 10s)
   --log-level LEVEL             debug, info, warn or error (default info)
+  --replay-callers IDS          comma-separated SPIFFE IDs allowed to call /internal/replay-check
+  --acquire-config PATH         routes file, JSON: enables /internal/substitute and renewal
+  --openbao-token-file PATH     file holding the OpenBao token, read on every call (with --acquire-config)
 
 flags of every migrate command:
   --database-url URL   PostgreSQL connection URL (default: $TOKEN_STORE_DATABASE_URL)
   --timeout DURATION   deadline for the whole run, lock wait included (default 1m)
+
+flags of acquire and sweep-orphans (each defaults to the TOKEN_STORE_* variable named):
+  --database-url URL          PostgreSQL connection URL ($TOKEN_STORE_DATABASE_URL)
+  --openbao-url URL           OpenBao URL, http(s)://host[:port] ($TOKEN_STORE_OPENBAO_URL)
+  --openbao-token-file PATH   file holding the OpenBao token, read on every call ($TOKEN_STORE_OPENBAO_TOKEN_FILE)
+  --acquire-config PATH       acquisition configuration, JSON ($TOKEN_STORE_ACQUIRE_CONFIG)
+  --route NAME                acquire only: the route
+  --timeout DURATION          deadline for the whole run (default 1m)
 `
 
 func main() {
@@ -74,6 +89,8 @@ func run(args []string, stdout, stderr io.Writer) int {
 		return serve(args[1:], stdout, stderr)
 	case "migrate":
 		return migrate(args[1:], stdout, stderr)
+	case "acquire", "sweep-orphans":
+		return acquireCmd(args[0], args[1:], stdout, stderr)
 	case "help", "-h", "--help":
 		_, _ = fmt.Fprint(stdout, usage)
 		return exitOK

@@ -43,7 +43,11 @@ func TestNewRunnerWithRefusesWhatItCannotIndex(t *testing.T) {
 	if len(with.migrations) != len(plain.migrations) || with.migrations[0].Checksum != plain.migrations[0].Checksum {
 		t.Errorf("NewRunnerWith and NewRunner disagree: %d and %d migrations", len(with.migrations), len(plain.migrations))
 	}
-	if _, err := NewRunnerWith(nil, slices.Concat(ms, []Migration{second, third})); err != nil {
+	// The longer slice continues after the last embedded migration, however many there are.
+	n := len(ms)
+	next := Migration{Version: n + 1, Name: "next", Up: "SELECT 1", Down: "SELECT 1", Checksum: "next"}
+	after := Migration{Version: n + 2, Name: "after", Up: "SELECT 1", Down: "SELECT 1", Checksum: "after"}
+	if _, err := NewRunnerWith(nil, slices.Concat(ms, []Migration{next, after})); err != nil {
 		t.Errorf("a longer contiguous slice is refused: %v", err)
 	}
 }

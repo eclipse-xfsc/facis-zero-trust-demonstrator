@@ -23,4 +23,22 @@ app.kubernetes.io/instance: {{ .Release.Name }}
 {{- if and .Values.ingress.enabled (not .Values.ingress.host) -}}
 {{- fail "ingress.host is required when the ingress is enabled" -}}
 {{- end -}}
+{{- if and (or .Values.serviceAccount.create .Values.identity.spireManagedIdentity) (not .Values.serviceAccount.name) -}}
+{{- fail "serviceAccount.name is required for a created or SPIRE-managed identity" -}}
+{{- end -}}
+{{- range $name, $ref := .Values.secretEnv -}}
+{{- if or (hasKey $.Values.env $name) (not $ref.name) (not $ref.key) -}}
+{{- fail "secretEnv requires name/key and must not duplicate env" -}}
+{{- end -}}
+{{- end -}}
+{{- $names := dict -}}
+{{- $paths := dict -}}
+{{- range concat .Values.secretMounts .Values.configMapMounts -}}
+{{- if or (not .name) (not (hasPrefix "/" .mountPath)) (eq .mountPath "/") (hasKey $names .name) (hasKey $paths .mountPath) -}}
+{{- fail "mounts require unique names and unique absolute non-root paths" -}}
+{{- end -}}
+{{- $_ := set $names .name true -}}{{- $_ := set $paths .mountPath true -}}
+{{- end -}}
+{{- range .Values.secretMounts -}}{{- if not .secretName -}}{{ fail "secretMounts requires secretName" }}{{- end -}}{{- end -}}
+{{- range .Values.configMapMounts -}}{{- if not .configMapName -}}{{ fail "configMapMounts requires configMapName" }}{{- end -}}{{- end -}}
 {{- end -}}
