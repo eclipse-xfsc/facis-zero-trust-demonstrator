@@ -1,0 +1,112 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/eclipse-xfsc/facis-zero-trust-demonstrator/docs/contracts/train-trust-list.v1.schema.json",
+  "title": "TRAIN trust-list desired state (contracts v1)",
+  "description": "What one trust framework's TRAIN trust list is to contain, as the repository declares it: the zones that claim the framework and the issuers the framework trusts. The file is changed by pull request and applied to the TSPA by scripts/train-trust-list/reconcile.sh, which writes only the difference and proves every write by reading the list back. Entries the reconciler writes carry a managed-by marker; entries without it (the pipeline's measurement entries, the client's own) are never touched.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schemaVersion", "framework", "issuers"],
+  "properties": {
+    "schemaVersion": {
+      "const": 1
+    },
+    "framework": {
+      "description": "The trust framework whose list this file governs; the path segment of the TSPA's /{fw}/trust-list. The list itself is created once at federation setup, never by the reconciler.",
+      "type": "string",
+      "pattern": "^[a-z0-9]([a-z0-9-]*[a-z0-9])?(\\.[a-z0-9]([a-z0-9-]*[a-z0-9])?)*$"
+    },
+    "operator": {
+      "description": "Who operates the framework, for the human reading the entries (TSPInformationURI stays n/a unless an issuer names one).",
+      "type": "string",
+      "minLength": 1
+    },
+    "zones": {
+      "description": "The DNS zones that claim this framework: each gets a PTR record _scheme._trust.<domain> pointing at the framework, written by the TSPA through the zone manager when the reconciler runs with --with-zones. Nothing in the trust list itself changes for a zone.",
+      "type": "array",
+      "uniqueItems": true,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["name", "domain"],
+        "properties": {
+          "name": {
+            "description": "The zone's short name in this repository (the zone a release is deployed to).",
+            "type": "string",
+            "pattern": "^[a-z][a-z0-9-]{0,62}$"
+          },
+          "domain": {
+            "description": "The DNS name under which the zone claims the framework.",
+            "type": "string",
+            "pattern": "^[a-z0-9]([a-z0-9-]*[a-z0-9])?(\\.[a-z0-9]([a-z0-9-]*[a-z0-9])?)+$"
+          }
+        }
+      }
+    },
+    "issuers": {
+      "description": "The issuers the framework trusts, one entry each in the trust list. Removing one here removes its entry on the next apply; a verifier that cached the list keeps trusting it for the window docs/train-trust-lists.md documents.",
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["id", "name", "serviceTypeIdentifier"],
+        "properties": {
+          "id": {
+            "description": "Stable identifier of the issuer in this file; the entry's UUID is derived from the framework and this id, so renaming an issuer is a removal and a creation.",
+            "type": "string",
+            "pattern": "^[a-z][a-z0-9-]{0,62}$"
+          },
+          "name": {
+            "description": "The issuer's name as the entry shows it (TSPName).",
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 200
+          },
+          "serviceTypeIdentifier": {
+            "description": "The string a verifier presents as issuer to the TCR, which matches it against TSPServices.TSPService[].ServiceTypeIdentifier (ADR-0011 4.3). For a credential issuer this is its DID. Unique across the file, and across the live list.",
+            "type": "string",
+            "pattern": "^\\S{1,512}$"
+          },
+          "did": {
+            "description": "The DID written to ServiceDigitalIdentity.DigitalId.DID (informational for the TCR); defaults to serviceTypeIdentifier.",
+            "type": "string",
+            "pattern": "^did:[a-z0-9]+:\\S+$"
+          },
+          "serviceName": {
+            "description": "ServiceName of the entry's one service.",
+            "type": "string",
+            "minLength": 1,
+            "default": "credential-issuer"
+          },
+          "credentialTypes": {
+            "description": "The credential types the issuer issues (ServiceIssuedCredentialTypes).",
+            "type": "array",
+            "minItems": 1,
+            "uniqueItems": true,
+            "items": { "type": "string", "minLength": 1 }
+          },
+          "supplyPoint": {
+            "description": "Where the issuer's service is reached (ServiceSupplyPoint); n/a when absent.",
+            "type": "string",
+            "format": "uri"
+          },
+          "informationUri": {
+            "description": "Where a human reads about the issuer (TSPInformationURI); n/a when absent.",
+            "type": "string",
+            "format": "uri"
+          },
+          "zone": {
+            "description": "The zone the issuer belongs to, when it belongs to one declared above; recorded in the entry's identifier list.",
+            "type": "string",
+            "pattern": "^[a-z][a-z0-9-]{0,62}$"
+          },
+          "status": {
+            "description": "ServiceCurrentStatus. A suspended issuer stays in the list, marked; removing it from the file removes the entry.",
+            "type": "string",
+            "enum": ["active", "suspended"],
+            "default": "active"
+          }
+        }
+      }
+    }
+  }
+}

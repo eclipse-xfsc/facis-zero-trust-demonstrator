@@ -279,7 +279,9 @@ payload schema, error/idempotency semantics, and a working local round-trip. Clo
 publication step itself, `scripts/train-publish/publish.sh`, whose two steps are proven against this same
 TSPA on kind, and its gate in `scripts/lifecycle.sh`, held by `scripts/lifecycle_test.sh` against stubs
 ([TRAIN publication step](train-publish.md)); the carrier is ADR-0011's `TEEM-sha256` pair in
-`TSPCertification`, with the image digest beside it.
+`TSPCertification`, with the image digest beside it. Closed since (2026-11-18): the issuers and
+zones of a framework as a file in the repository, reconciled into the list with `PUT`, `PATCH` and
+`DELETE` and the same read-back rule ([TRAIN trust lists](train-trust-lists.md)).
 
 Still open — **first, and not external:**
 - **decision**: which TSP field carries the TEEM and what the TCR/policy side reads (candidates in §1). This is a

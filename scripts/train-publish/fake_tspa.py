@@ -13,7 +13,9 @@ Tokens the token endpoint hands out, by client id: `publisher` with the secret i
 gets a token with enrolltf; `weak` gets a token without it; `ghost` gets a token the write side
 ignores as if absent. Anything else is 401. Three hooks exist for the test alone: POST /__fake/duplicate clones an
 entry, POST /__fake/after-next-get removes or adds an entry right after the next GET (a writer racing
-the publisher), and a framework named error-500* answers 500. State lives in memory; every request is
+the publisher), and a framework named error-500* answers 500. PUT /trustframework/{fw} stores the
+scheme claims it is given and answers 500 when one of them starts with nozone (a zone manager the
+TSPA cannot reach). State lives in memory; every request is
 appended as a JSON line to --log.
 
   fake_tspa.py --port PORT [--log FILE]
@@ -67,6 +69,7 @@ def schema_errors(node, data, at="$", out=None):
 
 
 pending_after_get = []   # test hook: list mutations applied right after the next GET of a trust list
+frameworks = {}  # framework -> the scheme claims PUT /trustframework/{fw} received
 lists = {}      # framework -> {"FrameworkInformation": {...}, "TrustServiceProviderList": {"TrustServiceProvider": [...]}}
 log_path = None
 
@@ -203,6 +206,16 @@ class Handler(BaseHTTPRequestHandler):
 
     def do_PUT(self):
         p = self.path
+        if p.startswith(API + "/trustframework/"):      # the scheme claims, written through the zone manager
+            if not self._gate():
+                return
+            fw = p[len(API + "/trustframework/"):]
+            body = json.loads(self._body() or b"{}")
+            schemes = body.get("schemes") or []
+            if any(str(s).startswith("nozone") for s in schemes):   # a zone manager the TSPA cannot reach
+                return self._end(500, {"message": "zone manager unreachable", "status": 500})
+            frameworks[fw] = schemes
+            return self._end(201, {"MapN": {"message": f"Trust framework {fw} published.", "status": 201}})
         if p.startswith(API + "/init/json/") and p.endswith("/trust-list"):
             if not self._gate():
                 return

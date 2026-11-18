@@ -39,6 +39,7 @@ nav:
   - Interface contracts: contracts/index.md
   - TRAIN trust-list publishing: tspa-publish-api.md
   - TRAIN publication step: train-publish.md
+  - TRAIN trust lists: train-trust-lists.md
   - TRAIN DNS zone: train-dns.md
   - BDD acceptance:
       - Harness and pack: bdd.md

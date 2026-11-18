@@ -15,6 +15,7 @@ a deliberate, agreed act rather than a surprise to whoever consumes it.
 |---|---|
 | [`mock-attestation.schema.json`](mock-attestation.schema.json) | The mock attestation document — the evidence a Trusted Execution Environment would emit, produced in software |
 | [`measurement-record.v1.schema.json`](measurement-record.v1.schema.json) | The reference measurement record — one attested component's launch measurement, with the digest of the image it was taken for, as the pipeline hands it to the step that publishes it into TRAIN |
+| [`train-trust-list.v1.schema.json`](train-trust-list.v1.schema.json) | The desired state of one trust framework's TRAIN trust list — the zones that claim the framework and the issuers it trusts — as the repository declares it and the reconciler applies it |
 
 ### Mock attestation
 
