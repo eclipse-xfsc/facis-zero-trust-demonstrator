@@ -15,7 +15,7 @@ the script writes the difference to the TSPA and proves it by reading the list b
 | `validate --file FILE` | nothing | the file satisfies the contract and its own rules (unique ids and lookup keys, zones declared) |
 | `diff --from OLD --to NEW` | nothing | both files satisfy the contract (exit 2 otherwise); prints the change in words, one line per issuer or zone, for the pull request |
 | `plan --file FILE` | `GET` the list | the plan was computed: what `apply` would create, replace, delete, in words on stderr and in the evidence line; exit 1 on a conflict or a duplicate |
-| `apply --file FILE [--with-zones]` | `PUT`/`PATCH`/`DELETE` entries; with `--with-zones` `PUT /trustframework/{fw}` and `dig` for each PTR | the read-back shows the list follows the file (and each zone's PTR names the framework) |
+| `apply --file FILE [--with-zones]` | `PUT`/`PATCH`/`DELETE` entries; with `--with-zones` one `PUT /trustframework/{zone domain}` with `{"schemes": [<framework>]}` per zone, then `dig` for each PTR | the read-back shows the list follows the file (and each zone's PTR names the framework) |
 | `verify --file FILE` | `GET` the list | the list follows the file; exit 1 otherwise (`drift`, or what stopped the plan: `conflict`, `unowned-entry`, `duplicate-entry`, `list-missing`, `tspa-error`, `transport-failure`) |
 
 **What it owns.** Every entry it writes carries `{Type: managed-by, Value: train-trust-list/<framework>}`
@@ -50,7 +50,7 @@ stand-in and for a version that is stricter.
 | `TSPA_URL` | the TSPA base URL up to its context path, e.g. `http://host:16003/tspa-service` |
 | `OIDC_TOKEN_URL`, `OIDC_CLIENT_ID`, `OIDC_CLIENT_SECRET` | `client_credentials` at the issuer the TSPA trusts; the client's service account holds the realm role `enrolltf` (apply only) |
 | `TSPA_TOKEN_FILE` | instead of the three above: a file with a bearer token already obtained |
-| `TRAIN_DNS_SERVER` | with `--with-zones`: the name server `dig` asks for the PTR records |
+| `TRAIN_DNS_SERVER` | with `--with-zones`: the name server `dig` asks for the PTR records; `TRAIN_DNS_PORT` its port (default 53), `TRAIN_DNS_TCP=1` to ask over TCP (a port-forward carries TCP only) |
 | `TRAIN_TRUST_LIST_TIMEOUT` | seconds per HTTP call (default 30) |
 | `TRAIN_TRUST_LIST_TEMPLATE` | another entry template (default `entry.tmpl.json`) |
 
@@ -70,7 +70,7 @@ run, `last/` the requests sent, the lists read and the VC. The same line is prin
 | `source` | the file's path and sha256, the commit that last touched it and whether it had uncommitted changes (null outside a repository) |
 | `plan` | the plan `apply` executed (for a failed read-back, the plan the read-back still showed): ids created, replaced, unchanged; UUIDs deleted; conflicts with the key and the entries holding it; duplicates; unowned entries; `converged` |
 | `writes` | each write's method, UUID, status and the sha256 of the answer, in order |
-| `zones` | with `--with-zones`: the domains requested, the status of `PUT /trustframework`, the domains whose PTR answered |
+| `zones` | with `--with-zones`: the domains requested, each `PUT /trustframework/{domain}` with its status and whether the body was empty, the domains whose PTR answered with the framework |
 | `readBack.listSha256`, `readBack.vcHash`, `readBack.elapsedSeconds` | the list read back, the hash inside the signed VC, the seconds from the first write to the read-back; the read-back comes before the zones, so `zones-not-published` still carries a proven list |
 
 Exit status: 0 proven (verify: the list follows the file), 1 not proven, a conflict, drift or an
@@ -83,7 +83,7 @@ scripts/train-trust-list/reconcile_test.sh
 ```
 
 Against `fake_tspa.py` from `scripts/train-publish`, the stand-in with the API's write semantics,
-now also answering `PUT /trustframework/{fw}` (500 for a scheme starting with `nozone`, a zone
-manager the TSPA cannot reach). The cases are the ones the page lists; `dig` is stubbed. Needs bash,
+now also answering `PUT /trustframework/{name}` (500 for a name starting with `nozone`: a zone
+manager the TSPA cannot reach, or a name outside the DNS zone it serves). The cases are the ones the page lists; `dig` is stubbed. Needs bash,
 curl, jq, python3 and sha256sum; seconds, no cluster, no network beyond localhost. The proof
 against the real TSPA on kind is [`scripts/verify-train-trust-list/`](../verify-train-trust-list/README.md).

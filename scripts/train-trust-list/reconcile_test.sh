@@ -298,7 +298,7 @@ echo "## the zones, with a stubbed dig"
 mkdir -p "$work/bin"
 cat > "$work/bin/dig" <<'EOF'
 #!/usr/bin/env bash
-# dig +short PTR <name> @<server>: answers what DIG_ANSWER says, and records the question
+# dig [+opts] -p PORT PTR <name> @<server>: answers what DIG_ANSWER says, and records the question
 echo "$*" >> "${DIG_LOG:?}"
 [ -n "${DIG_ANSWER:-}" ] && echo "$DIG_ANSWER"
 exit 0
@@ -307,12 +307,17 @@ chmod +x "$work/bin/dig"
 : > "$work/dig.log"
 PATH="$work/bin:$PATH" DIG_LOG="$work/dig.log" DIG_ANSWER="_scheme._trust.$fw." TRAIN_DNS_SERVER=127.0.0.53 run z1 apply "$work/v6.json" --with-zones
 check "zones: exit 0, applied" bash -c "[ '$rc' = 0 ] && [ '$(field z1 .outcome)' = applied ]"
-check "zones: PUT /trustframework carried the two domains and was answered 201" bash -c "[ '$(fieldc z1 '.zones')' = '{\"requested\":[\"zone-a.test.local\",\"zone-b.test.local\"],\"status\":201,\"proven\":[\"zone-a.test.local\",\"zone-b.test.local\"]}' ] && [ '$(jq -c .schemes "$work/out-z1/last/request-trustframework.json")' = '[\"zone-a.test.local\",\"zone-b.test.local\"]' ]"
-check "zones: dig asked the configured server for each PTR" bash -c "grep -q 'PTR _scheme._trust.zone-a.test.local @127.0.0.53' '$work/dig.log' && grep -q '_scheme._trust.zone-b.test.local' '$work/dig.log'"
+check "zones: one PUT /trustframework per zone domain, each answered 201, both proven" [ "$(fieldc z1 '.zones')" = '{"requested":["zone-a.test.local","zone-b.test.local"],"calls":[{"zone":"zone-a.test.local","status":201,"emptyBody":false},{"zone":"zone-b.test.local","status":201,"emptyBody":false}],"proven":["zone-a.test.local","zone-b.test.local"]}' ]
+check "zones: the body names the framework as the target of the claim" [ "$(jq -c .schemes "$work/out-z1/last/request-trustframework.json")" = "[\"$fw\"]" ]
+check "zones: the stand-in recorded the claim under each zone's name" bash -c "grep -q 'PUT.*trustframework/zone-a.test.local' '$work/requests.jsonl' && grep -q 'PUT.*trustframework/zone-b.test.local' '$work/requests.jsonl'"
+check "zones: dig asked the configured server for each PTR, on port 53 over UDP" bash -c "grep -q -- '-p 53 PTR _scheme._trust.zone-a.test.local @127.0.0.53' '$work/dig.log' && grep -q '_scheme._trust.zone-b.test.local' '$work/dig.log' && ! grep -q '+tcp' '$work/dig.log'"
+: > "$work/dig.log"
+PATH="$work/bin:$PATH" DIG_LOG="$work/dig.log" DIG_ANSWER="_scheme._trust.$fw." TRAIN_DNS_SERVER=127.0.0.1 TRAIN_DNS_PORT=5353 TRAIN_DNS_TCP=1 run z1b apply "$work/v6.json" --with-zones
+check "zones: TRAIN_DNS_PORT and TRAIN_DNS_TCP reach dig (a port-forward carries TCP only)" bash -c "[ '$rc' = 0 ] && grep -q -- '+tcp -p 5353 PTR _scheme._trust.zone-a.test.local @127.0.0.1' '$work/dig.log'"
 PATH="$work/bin:$PATH" DIG_LOG="$work/dig.log" DIG_ANSWER="" TRAIN_DNS_SERVER=127.0.0.53 run z2 apply "$work/v6.json" --with-zones
-check "zones: a PTR that does not answer is zones-not-published, exit 1" bash -c "[ '$rc' = 1 ] && [ '$(field z2 .outcome)' = zones-not-published ] && [ '$(fieldc z2 .zones.proven)' = '[]' ]"
+check "zones: a PTR that does not answer is zones-not-published, exit 1, the calls still recorded" bash -c "[ '$rc' = 1 ] && [ '$(field z2 .outcome)' = zones-not-published ] && [ '$(fieldc z2 .zones.proven)' = '[]' ] && [ '$(fieldc z2 '[.zones.calls[].status]')' = '[201,201]' ]"
 PATH="$work/bin:$PATH" DIG_LOG="$work/dig.log" DIG_ANSWER="_scheme._trust.$fw." TRAIN_DNS_SERVER=127.0.0.53 run z3 apply "$work/vz.json" --with-zones
-check "zones: a zone manager the TSPA cannot reach (500) is zones-not-published, exit 1" bash -c "[ '$rc' = 1 ] && [ '$(field z3 .outcome)' = zones-not-published ] && [ '$(field z3 .zones.status)' = 500 ]"
+check "zones: a zone the manager refuses (TSPA 500) is zones-not-published, exit 1" bash -c "[ '$rc' = 1 ] && [ '$(field z3 .outcome)' = zones-not-published ] && [ '$(fieldc z3 '[.zones.calls[] | [.zone, .status]]')' = '[[\"nozone-a.test.local\",500]]' ]"
 check "zones: the issuers were reconciled and read back before the zones failed (issuer-a and the publisher's entry remain)" bash -c "[ '$(entries)' = 2 ] && [[ '$(field z3 .readBack.listSha256)' =~ ^[0-9a-f]{64}$ ]]"
 
 echo "## no secret anywhere"

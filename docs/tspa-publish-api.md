@@ -301,7 +301,7 @@ commit `ecd5fdc` (+ `train-shared` `6a0abe4`), Keycloak 26.0 with the bundled re
 | # | Call | Status | Meaning |
 |---|---|---|---|
 | 2b | PUT tsp before the list exists (token) | 404 | order matters: list first, then entries |
-| 3 | PUT trustframework (token) | 500 | needs Zone Manager (external) |
+| 3 | PUT trustframework (token) | 500 | needs Zone Manager (external); with the kit's `TSPA_ZONE_MANAGER=1` it answers 201 and writes the PTR (`scripts/verify-train-trust-list/evidence.md`, 2026-11-19) |
 | 4a | PUT init/json trust-list (token) | 201 | list + first signed VC created |
 | 4b | PUT tsp, UUID U, `TEEM-sha256 = 1111…` (token) | 201 | **measurement written** |
 | 4c | GET trust-list | 200 | **`1111…` read back** |

@@ -1,6 +1,6 @@
 # Trust-list reconciliation against the real TSPA: evidence
 
-Run of `scripts/verify-train-trust-list/verify.sh` on 2026-11-18T20:35:49Z against upstream's TSPA `ecd5fdc` built from its Dockerfile, on kind. The reconciler the run used: `reconcile.sh` sha256 `098509260956fa5f7ddae69be0f618ab9de10007c064e92c08ab719cba4cd12a`, `desired_state.py` sha256 `1becbd5d645b5e731d39d2cd16b06c89c2bc6492901156b702162699d675cd41`. Raw records: the `--out` directory (per step: stdout, stderr, requests and lists; `reconciliations.jsonl` with every evidence line of the run).
+Run of `scripts/verify-train-trust-list/verify.sh` on 2026-11-19T19:13:18Z against upstream's TSPA `ecd5fdc` built from its Dockerfile, on kind. The reconciler the run used: `reconcile.sh` sha256 `f6286b7e2eabab477c2515c2ed966ddc45eb16ae262935ae57f6aadb241da06b`, `desired_state.py` sha256 `1becbd5d645b5e731d39d2cd16b06c89c2bc6492901156b702162699d675cd41`. Raw records: the `--out` directory (per step: stdout, stderr, requests and lists; `reconciliations.jsonl` with every evidence line of the run).
 
 ## Summary of the steps
 
@@ -17,14 +17,21 @@ Run of `scripts/verify-train-trust-list/verify.sh` on 2026-11-18T20:35:49Z again
 | apply after the edit | applied, one PATCH | `applied` | 0 |
 | apply v4 (conflict) | conflict, nothing written | `conflict` | 1 |
 | apply with testuser's token | write-rejected (403) | `write-rejected` | 1 |
-| apply --with-zones | zones-not-published | `zones-not-published` | 1 |
+| apply --with-zones | applied, two claims, two PTRs | `applied` | 0 |
+| apply --with-zones again | applied, claims replaced, PTRs unchanged | `applied` | 0 |
+| apply --with-zones, a zone outside the DNS zone | zones-not-published | `zones-not-published` | 1 |
 
-**Verdict: all 43 checks passed.**
+**Verdict: all 54 checks passed.**
 
 ## 1. The TSPA, Keycloak and the lanes to them
 
 - PASS: Keycloak reached through the port-forward issues tokens under the in-cluster name the TSPA validates
 - PASS: the TSPA answers through the port-forward (GET /api/docs 200)
+- PASS: the TSPA's health is UP now that its zone manager answers (GET /actuator/health 200)
+- PASS: the zone manager answers through the port-forward and serves the framework's DNS zone
+  zone manager status: `{"Zone": "facis-ztd.local", "status": "OK", "dependencies": {"Zone_Manager_server_status": "OK", "Database_status": "OK", "NSD_server_status": "OK"}}`
+- PASS: the zone manager's name server answers authoritatively for facis-ztd.local over the forwarded TCP port
+  SOA of `facis-ztd.local`: `ns1.facis-ztd.local. zonedb.facis-ztd.local. 1795115426 28800 7200 604800 3600`
 - PASS: the operator's token (service account of xfsctest) carries the realm role enrolltf
 - PASS: testuser's token is valid but its realm roles lack enrolltf
   operator token claims: `{"iss": "http://keycloak:8080/realms/gxfs-dev-test", "azp": "xfsctest", "realm_roles": ["enrolltf", "offline_access", "uma_authorization", "default-roles-gxfs-dev-test"]}`; testuser: `{"iss": "http://keycloak:8080/realms/gxfs-dev-test", "azp": "xfsctest", "realm_roles": ["offline_access", "uma_authorization", "default-roles-gxfs-dev-test"]}`
@@ -53,10 +60,10 @@ The operator creates it once with the kit's payload (`scripts/verify-tspa-api/pa
 - PASS: apply v1: the entries carry the managed-by marker and the issuers' lookup keys
 - PASS: apply v1: the source names the copy applied here and its sha256 (the copy is outside version control: no commit)
 - PASS: plan of the repository's file: the evidence names the commit that last touched it and that it has no uncommitted changes
-  source of the repository's file: `{"sha256":"2cc1230b932f5513354d8f07a1d553de7b6d5d090ef364fb50fed0cf91d99a42","commit":"8aca66c77051b0089dc1540f47500a4b1ee66500","uncommittedChanges":false}` (the commit is the one that last touched the file when the proof ran; the commit that ships this evidence comes after it)
+  source of the repository's file: `{"sha256":"2cc1230b932f5513354d8f07a1d553de7b6d5d090ef364fb50fed0cf91d99a42","commit":"899880b0a0836ba2be5e4afd98beac7bd7757ddd","uncommittedChanges":false}` (the commit is the one that last touched the file when the proof ran; the commit that ships this evidence comes after it)
 - PASS: apply v1: the read-back carries the list's sha256 and the VC's hash
 - PASS: apply v1: the signed VC the TCR consumes changed (its hash is the list's)
-  evidence line: `{"outcome":"applied","plan":{"create":["issuer-a","issuer-b"],"replace":[],"delete":[]},"writes":[["PUT",201],["PUT",201]],"readBack":{"listSha256":"8b643ae354d841851cf950e77b21fd6bfecc7210fae7fd7bb02bf32a300d338b","vcHash":"QmXin2KDnonA4CAzoAZ8pS25SVgszRwQsxCMJbJiY92pAW","elapsedSeconds":0.103}}`
+  evidence line: `{"outcome":"applied","plan":{"create":["issuer-a","issuer-b"],"replace":[],"delete":[]},"writes":[["PUT",201],["PUT",201]],"readBack":{"listSha256":"0cab5c5fd66fb20e4fb55ce4d51112a8e5c4e88bbdc16af44e815e7ec624b008","vcHash":"QmPC79uLFeHyBr9aB2EH613CcGfctBHmPGAZifFHdLTisq","elapsedSeconds":0.110}}`
 - PASS: apply v1 again: exit 0, converged, no write, the VC unchanged
 ## 4. The pipeline publishes a measurement entry into the same list
 
@@ -91,8 +98,8 @@ The entry is deleted and the list read back; the time between the first write an
 - PASS: removal: nothing in the list answers to the removed issuer's lookup key
 - PASS: removal: the connector's entry is byte for byte what it was
 - PASS: removal: the signed VC changed, so a TCR fetching it now gets a list without the issuer
-- PASS: removal: the read-back proved the removal within the documented window (0.069s of 300s)
-  first write to read-back: 0.069s; the documented window for a verifier's cached copy is 300s, plus a channel's lifetime
+- PASS: removal: the read-back proved the removal within the documented window (0.073s of 300s)
+  first write to read-back: 0.073s; the documented window for a verifier's cached copy is 300s, plus a channel's lifetime
 - PASS: verify: the list follows the file (exit 0, verified, no write)
 - PASS: verify against the previous file: drift, exit 1, naming what apply would create
 ## 7. An entry edited by hand
@@ -122,13 +129,23 @@ outcome: conflict (the list does not follow <out>/files/v4-conflict.json; nothin
 
 - PASS: testuser's token: exit 1, write-rejected, the TSPA answered 403, nothing changed
 - PASS: a PATCH without Authorization is answered 200 with an empty body and stores nothing (docs/tspa-publish-api.md 5)
-## 10. The zones, on a TSPA whose zone manager is unreachable
+## 10. The zones: claims published through the zone manager
 
-The kit runs no zone manager (docs/tspa-publish-api.md 8), so `PUT /trustframework` cannot publish the PTR records. The reconciler reports exactly that, after the issuers were reconciled and read back, and does not claim the zones.
+For each zone in the file the reconciler sends `PUT /trustframework/<zone domain>` with `{"schemes": ["facis-ztd.local"]}`; the TSPA writes `_scheme._trust.<zone domain> PTR _scheme._trust.facis-ztd.local` through the zone manager (upstream's semantics: the name is the record's owner, the schemes its targets). The reconciler proves each PTR with `dig` against the manager's own name server, over the forwarded TCP port; the proof reads the claims back a second way, through the manager's API with the operator's token.
 
-- PASS: zones: exit 1, zones-not-published, none proven, the PUT recorded
-- PASS: zones: the entries were read back before the zones were tried (the line carries the list's sha256)
-  PUT /trustframework/facis-ztd.local answered 500; the PTR records for `zone-a.facis-ztd.local, zone-b.facis-ztd.local` were asked from `127.0.0.1`, which does not serve them
+- PASS: zones: exit 0, applied, one PUT /trustframework per zone answered 201
+- PASS: zones: both PTR records read back from the zone manager's name server name the framework
+- PASS: zones: the claim's body names the framework as the target
+- PASS: zones: dig PTR _scheme._trust.zone-a.facis-ztd.local answers _scheme._trust.facis-ztd.local.
+- PASS: zones: the zone manager's API lists the claim of zone-a.facis-ztd.local on facis-ztd.local
+- PASS: zones: dig PTR _scheme._trust.zone-b.facis-ztd.local answers _scheme._trust.facis-ztd.local.
+- PASS: zones: the zone manager's API lists the claim of zone-b.facis-ztd.local on facis-ztd.local
+  the TSPA answered: `{"MapN":{"message":"Trust-framework created for zone-a.facis-ztd.local","status":201}}`
+- PASS: zones again: exit 0, the claims are written again (the API replaces) and both PTRs still prove
+- PASS: a zone outside the served DNS zone: exit 1, zones-not-published, that call 500, the two others 201, the list read back
+- PASS: a zone outside the served DNS zone: not proven, the two inside still are
+  the TSPA answered for the outside zone: `{"MapN":{"error":"{\"title\": \"zone-c.other.test: domain name not in current zone\"}","status":500}}`
+  the zone manager's log: `[DEBUG] - 2026-11-19 19:13:17,900 - zonedb.api - Trustscheme PUT, domain name not in zone. Not found: zone-c.other.test`
 ## 11. No secret in any record
 
 - PASS: the client secret appears in no step output, record or request kept

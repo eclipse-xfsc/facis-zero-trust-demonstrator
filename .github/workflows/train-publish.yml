@@ -18,6 +18,7 @@ on:
       - scripts/verify-train-publish/**
       - scripts/train-trust-list/**
       - scripts/verify-train-trust-list/**
+      - scripts/verify-train-dns/kind/**
       - deployment/train/trust-lists/**
       - docs/contracts/train-trust-list.v1.schema.json
       - scripts/verify-tspa-api/**
@@ -198,6 +199,8 @@ jobs:
         if: steps.image.outputs.cache-hit == 'true'
         run: docker load --input "$RUNNER_TEMP/tspa-image.tar"
 
+      # The zone manager's image is built by the DNS kit from upstream's Dockerfile at its pinned commit
+      # (a few minutes); the kit fetches that commit itself.
       - name: Run the proof
         env:
           TSPA_REPO: ${{ runner.temp }}/tspa

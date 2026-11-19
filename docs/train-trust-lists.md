@@ -101,7 +101,7 @@ distance between the first and the last:
 
 | Moment | Where | Bound |
 |---|---|---|
-| the entry is gone from the list the TSPA serves and from the signed VC | TSPA | the read-back: well under a second on kind (under 0.1 s in the last run of the proof) |
+| the entry is gone from the list the TSPA serves and from the signed VC | TSPA | the read-back: well under a second on kind (under 0.1 s in the last runs of the proof) |
 | a verifier that fetches the list now does not find the issuer | TCR | the next fetch: a TCR resolving at that moment gets the new VC |
 | a verifier that fetched the list before stops trusting the issuer | TCR/gateway cache | the trust-list TTL, **300 s** ([architecture, staleness matrix](architecture.md#staleness-matrix)); a channel already open keeps its outcome until it is re-established, 15 min at most, so **about 20 min** for an established channel |
 
@@ -132,22 +132,30 @@ under `last/`.
 
 ## The zones
 
-`apply --with-zones` also sends `PUT /trustframework/<framework>` with the file's zone domains, which
-makes the TSPA write a PTR record `_scheme._trust.<domain>` → `_scheme._trust.<framework>` for each
-through its zone manager, and then asks `TRAIN_DNS_SERVER` for each PTR with `dig`. The zones come
-after the entries' read-back, so a `zones-not-published` run still carries a proven list; only a PTR
-that answers with the framework proves the zone. The TSPA on kind has
-no zone manager, so the proof below shows the refusal, not the publication; against the client's
-instance the zone manager the [TRAIN DNS zone](train-dns.md) page describes answers it. A zone
-removed from the file is not removed from DNS by `apply`: the TSPA's API publishes scheme claims
-and does not withdraw one.
+A zone claims the framework with one DNS record, `_scheme._trust.<zone domain> PTR
+_scheme._trust.<framework>`, the first link of the chain the TCR walks ([TRAIN DNS zone](train-dns.md)).
+`apply --with-zones` publishes it for each zone of the file with `PUT /trustframework/<zone domain>`
+and the body `{"schemes": ["<framework>"]}`: in the TSPA's API, and in the zone manager's behind it,
+the name in the path is the record's owner and the schemes are its targets, so the call goes to the
+zone's domain, not to the framework. The zone's domain has to lie inside the DNS zone the manager
+serves; a domain outside it is refused by the manager ("domain name not in current zone"), reported
+by the TSPA as 500 and by the reconciler as `zones-not-published`. The zones come after the entries'
+read-back, so such a run still carries a proven list. Each PTR is then asked from
+`TRAIN_DNS_SERVER` (with `TRAIN_DNS_PORT` and `TRAIN_DNS_TCP=1` when the server is reached through a
+port-forward, which carries TCP only), and only an answer naming the framework proves the zone.
+
+On kind the proof runs the zone manager beside the TSPA (the kit's `TSPA_ZONE_MANAGER=1`, serving the
+framework's DNS zone with the local Keycloak as the issuer the manager's API trusts), so the claims
+are published and read back for real, by `dig` and through the manager's API. A zone removed from
+the file is not removed from DNS by `apply`: the TSPA's API publishes scheme claims and does not
+withdraw one; the DID record of the framework (`PUT /{fw}/did`) is not this step's either.
 
 ## What the proofs show
 
 | Proof | Runs | Holds the step to |
 |---|---|---|
 | `scripts/train-trust-list/reconcile_test.sh` | the `TRAIN trust lists` job of the CI workflow, every pull request; seconds | the contract's refusals; a configuration refused before any call; an issuer renamed under a new id (removal, then creation, the key never shared); an entry under the file's UUID without the marker refused; the change in words; no list; the first apply as PUTs with the marker and stable UUIDs; a second apply that writes nothing; a renamed issuer as a PATCH of the same entry; a removed issuer as a DELETE with the publisher's entry untouched; verify finding drift and apply repairing it; a lookup key another entry holds; a duplicated entry; a wrong secret, a token without the role, a token the TSPA ignores; an unreachable and a broken TSPA; a writer racing the reconciler; the zones with a stubbed `dig`; no secret in any output |
-| `scripts/verify-train-trust-list/verify.sh` | `train-publish.yml` on kind, when the step or its inputs change; locally, [`evidence.md`](../scripts/verify-train-trust-list/evidence.md) is the last run | against upstream's real TSPA: the repository's file applied as it is, the publisher's entry written into the same list and never touched, an issuer renamed, an issuer removed with the time to the read-back measured against the 300 s window and the VC's hash changing, verify and the repair of an entry edited by hand, a conflict with the connector's lookup key, a token without the role, the write-without-token quirk re-observed, the zones refused for want of a zone manager, no secret in any record |
+| `scripts/verify-train-trust-list/verify.sh` | `train-publish.yml` on kind, when the step or its inputs change; locally, [`evidence.md`](../scripts/verify-train-trust-list/evidence.md) is the last run | against upstream's real TSPA with upstream's zone manager beside it: the repository's file applied as it is, the publisher's entry written into the same list and never touched, an issuer renamed, an issuer removed with the time to the read-back measured against the 300 s window and the VC's hash changing, verify and the repair of an entry edited by hand, a conflict with the connector's lookup key, a token without the role, the write-without-token quirk re-observed, the zones' claims published and their PTR records read back by `dig` and through the manager's API, a zone outside the DNS zone refused, no secret in any record |
 
 ## Status
 
@@ -172,7 +180,7 @@ order it blocks:
    `deployment/train/trust-lists/<framework>.json` by pull request.
 3. An OIDC confidential client for the step whose service account holds the realm role `enrolltf`,
    its token endpoint and credentials as secrets, never in this repository.
-4. For the zones: the zone manager reachable from the TSPA, and a resolver that serves the zone for
-   the PTR read-back (`TRAIN_DNS_SERVER`).
+4. For the zones: the zone manager reachable from the TSPA, the zone domains inside the DNS zone it
+   serves, and a name server that answers for that zone for the PTR read-back (`TRAIN_DNS_SERVER`).
 5. Confirmation that the instance runs the TSPA version verified here (commit `ecd5fdc`), or the
    differences in paths and schema.

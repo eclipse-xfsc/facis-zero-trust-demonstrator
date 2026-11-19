@@ -11,7 +11,8 @@ TSPA_REPO=/path/to/train-trust-framework-manager scripts/verify-train-trust-list
 ```
 
 Needs `kind`, `kubectl`, `helm`, `docker`, `curl`, `jq`, `python3`, `sha256sum` and `dig`. The first
-run builds the TSPA image, about fifteen minutes; later runs reuse it. The evidence goes to
+run builds the TSPA image, about fifteen minutes, and the zone manager's, a few minutes; later runs
+reuse both. `ZONE_MANAGER_REPO` may name a checkout of the zone manager at the DNS kit's pinned commit. The evidence goes to
 `evidence.md` next to the script (`TRAIN_PROOF_EVIDENCE` moves it), the raw records to
 `.dev/train-trust-list-proof` (`--out DIR` moves them). The exit status is non-zero when any check failed.
 
@@ -32,8 +33,11 @@ run builds the TSPA image, about fifteen minutes; later runs reuse it. The evide
    the connector's lookup key refused with nothing written.
 5. A token whose realm roles lack `enrolltf` (`write-rejected`, 403, nothing changed); a `PATCH`
    without `Authorization` re-observed with curl (200, empty body, nothing stored).
-6. `apply --with-zones` on a TSPA with no zone manager: `zones-not-published`, after the issuers were
-   reconciled.
+6. `apply --with-zones` with upstream's zone manager beside the TSPA (the kit's `TSPA_ZONE_MANAGER=1`,
+   serving the framework's DNS zone): one claim per zone answered 201, each PTR read back by `dig` over the
+   forwarded TCP port and listed by the manager's API; applied again, the claims replaced; a zone outside
+   the DNS zone refused by the manager (TSPA 500) and reported as `zones-not-published` after the entries
+   were read back.
 7. No secret or token in any record.
 
 ## What it does not prove
@@ -41,7 +45,6 @@ run builds the TSPA image, about fifteen minutes; later runs reuse it. The evide
 - The verifier side of the window: no TCR reads this list here. The proof shows the list and the VC
   the TCR fetches no longer carry the issuer; that a verifier refuses it within its 300 s cache is
   the read side's proof, jointly with the handshake verification work.
-- The zones' publication: the kit has no zone manager, so the proof shows the refusal, not the PTR.
 - The client's TSPA: URL, framework, OIDC client and zone manager are configuration.
 
 `evidence.md` is the last local run.

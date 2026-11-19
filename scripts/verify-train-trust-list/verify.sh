@@ -7,7 +7,10 @@
 # pipeline's measurement entry already holds. Around it the publisher writes its own entry into the
 # same list, and the proof checks it is never touched. For the removal, the time from the first
 # write to the read-back that proves it is measured against the window docs/train-trust-lists.md
-# documents. Every check appends to the evidence file; the exit status is non-zero when any failed.
+# documents. The zone manager runs beside the TSPA (the kit with TSPA_ZONE_MANAGER=1), so the zones'
+# claims are published for real and proven by dig and through the manager's own API; a zone outside
+# the DNS zone the manager serves is refused and reported. Every check appends to the evidence file;
+# the exit status is non-zero when any failed.
 #
 #   TSPA_REPO=<clone of eclipse-xfsc/train-trust-framework-manager, with train-shared in shared/> \
 #     scripts/verify-train-trust-list/verify.sh [--out DIR]
@@ -20,7 +23,8 @@
 #   TSPA_REPO               required by the kit's kind-up.sh (the first image build takes about 15 minutes)
 #   TRAIN_PROOF_EVIDENCE    where the evidence goes (default: evidence.md next to this script)
 #
-# Needs kind, kubectl, helm, docker, curl, jq, python3, sha256sum and dig.
+# Needs kind, kubectl, helm, docker, curl, jq, python3, sha256sum and dig. ZONE_MANAGER_REPO may name a
+# checkout of the zone manager at the DNS kit's pinned commit; without it the kit fetches one.
 # shellcheck disable=SC2016  # jq programs quote $names on purpose
 set -euo pipefail
 
@@ -87,7 +91,7 @@ is_hex64() { [[ "$1" =~ ^[0-9a-f]{64}$ ]]; }
 
 # ---- the TSPA, Keycloak and the lanes to them ---------------------------------------------------
 echo "== TSPA and Keycloak on kind (the kit's kind-up.sh)"
-TSPA_REPO=$TSPA_REPO "$kit/kind-up.sh" > "$out/kind-up.log" 2>&1 || die "kind-up.sh failed; see $out/kind-up.log"
+TSPA_REPO=$TSPA_REPO TSPA_ZONE_MANAGER=1 TSPA_ZONE=$fw "$kit/kind-up.sh" > "$out/kind-up.log" 2>&1 || die "kind-up.sh failed; see $out/kind-up.log"
 free_port() { python3 -c 'import socket; s=socket.socket(); s.bind(("127.0.0.1",0)); print(s.getsockname()[1])'; }
 forward() {  # forward <service> <remote-port> <local-port> <ready-url>: a port-forward that answers
   k -n tspa port-forward "svc/$1" "$3:$2" >/dev/null 2>"$work/pf-$1.log" &
@@ -95,9 +99,14 @@ forward() {  # forward <service> <remote-port> <local-port> <ready-url>: a port-
   for _ in $(seq 60); do curl -s --max-time 2 -o /dev/null "$4" && return 0; sleep 1; done
   die "no answer from $1 through the port-forward: $(cat "$work/pf-$1.log")"
 }
-tspa_port=$(free_port); kc_port=$(free_port)
+tspa_port=$(free_port); kc_port=$(free_port); zm_port=$(free_port); dns_port=$(free_port)
 forward tspa-service 16003 "$tspa_port" "http://127.0.0.1:$tspa_port/tspa-service/api/docs"
 forward keycloak 8080 "$kc_port" "http://127.0.0.1:$kc_port/realms/gxfs-dev-test"
+forward nsd-service-rest 16001 "$zm_port" "http://127.0.0.1:$zm_port/status"
+# A port-forward carries TCP only, so the PTR read-back asks over TCP.
+k -n tspa port-forward svc/nsd-service-dns "$dns_port:53" >/dev/null 2>"$work/pf-dns.log" &
+forwards+=("$!")
+export TRAIN_DNS_SERVER=127.0.0.1 TRAIN_DNS_PORT=$dns_port TRAIN_DNS_TCP=1
 export TSPA_URL="http://127.0.0.1:$tspa_port/tspa-service"
 export OIDC_TOKEN_URL="http://127.0.0.1:$kc_port/realms/gxfs-dev-test/protocol/openid-connect/token" OIDC_CLIENT_ID=xfsctest
 api="$TSPA_URL/tspa/v1"
@@ -112,6 +121,14 @@ issuer=$(curl -s --max-time 10 "http://127.0.0.1:$kc_port/realms/gxfs-dev-test/.
 check "Keycloak reached through the port-forward issues tokens under the in-cluster name the TSPA validates" [ "$issuer" = "http://keycloak:8080/realms/gxfs-dev-test" ]
 docs=$(curl -s --max-time 30 -o /dev/null -w '%{http_code}' "$TSPA_URL/api/docs") || docs=000
 check "the TSPA answers through the port-forward (GET /api/docs $docs)" [ "$docs" = 200 ]
+health=$(curl -s --max-time 60 -o "$work/health.json" -w '%{http_code}' "$TSPA_URL/actuator/health") || health=000
+check "the TSPA's health is UP now that its zone manager answers (GET /actuator/health $health)" bash -c "[ '$health' = 200 ] && [ '$(jq -r .status "$work/health.json")' = UP ]"
+zm_status=$(curl -s --max-time 10 "http://127.0.0.1:$zm_port/status" || echo '{}')
+check "the zone manager answers through the port-forward and serves the framework's DNS zone" bash -c "[ -n '$zm_status' ]"
+note "zone manager status: \`$zm_status\`"
+soa=$(dig +short +tcp +time=3 +tries=1 -p "$dns_port" SOA "$fw" @127.0.0.1 2>/dev/null || true)
+check "the zone manager's name server answers authoritatively for $fw over the forwarded TCP port" bash -c "[ -n '$soa' ]"
+note "SOA of \`$fw\`: \`$soa\`"
 fetch_token() {  # fetch_token <out-file> [grant fields]
   local extra=${2:-grant_type=client_credentials}
   jq -rnj --arg extra "$extra" 'env.OIDC_CLIENT_SECRET as $s | "client_id=xfsctest&client_secret=\($s|@uri)&" + $extra' > "$work/form"
@@ -305,18 +322,40 @@ check "testuser's token: exit 1, write-rejected, the TSPA answered 403, nothing 
 st=$(tspa PATCH "/$fw/trust-list/tsp/$ua" "$files/tamper.json")
 check "a PATCH without Authorization is answered $st with an empty body and stores nothing (docs/tspa-publish-api.md 5)" bash -c "[ '$st' = 200 ] && [ ! -s '$work/resp' ] && [ '$(list_sha)' = '$sha_c' ]"
 
-# ---- 10. the zones, without a zone manager -------------------------------------------------------
+# ---- 10. the zones: published through the zone manager, proven by dig and by the manager's API ---
 echo "== zones"
-say "## 10. The zones, on a TSPA whose zone manager is unreachable" ""
-say "The kit runs no zone manager (docs/tspa-publish-api.md 8), so \`PUT /trustframework\` cannot publish the PTR records. The reconciler reports exactly that, after the issuers were reconciled and read back, and does not claim the zones." ""
-set +e
-TRAIN_DNS_SERVER=127.0.0.1 TRAIN_TRUST_LIST_TIMEOUT=120 "$reconciler" apply --file "$files/v3-removed.json" --out "$steps/zones" --with-zones >"$steps/zones.out" 2>"$steps/zones.err"; rc=$?
-set -e
-cat "$steps/zones/reconciliations.jsonl" >> "$out/reconciliations.jsonl" 2>/dev/null || true
-row "apply --with-zones" "zones-not-published" "$(field zones .outcome)" "$rc"
-check "zones: exit 1, zones-not-published, none proven, the PUT recorded" bash -c "[ '$rc' = 1 ] && [ '$(field zones .outcome)' = zones-not-published ] && [ '$(fieldc zones .zones.proven)' = '[]' ] && [ '$(fieldc zones .zones.requested)' = '$(jq -c '[.zones[].domain]' "$files/v3-removed.json")' ]"
-check "zones: the entries were read back before the zones were tried (the line carries the list's sha256)" bash -c "[[ '$(field zones .readBack.listSha256)' =~ ^[0-9a-f]{64}$ ]]"
-note "PUT /trustframework/$fw answered $(field zones .zones.status); the PTR records for \`$(jq -r '[.zones[].domain] | join(", ")' "$files/v3-removed.json")\` were asked from \`127.0.0.1\`, which does not serve them"
+say "## 10. The zones: claims published through the zone manager" ""
+say "For each zone in the file the reconciler sends \`PUT /trustframework/<zone domain>\` with \`{\"schemes\": [\"$fw\"]}\`; the TSPA writes \`_scheme._trust.<zone domain> PTR _scheme._trust.$fw\` through the zone manager (upstream's semantics: the name is the record's owner, the schemes its targets). The reconciler proves each PTR with \`dig\` against the manager's own name server, over the forwarded TCP port; the proof reads the claims back a second way, through the manager's API with the operator's token." ""
+run zones apply "$files/v3-removed.json" --with-zones
+row "apply --with-zones" "applied, two claims, two PTRs" "$(field zones .outcome)" "$rc"
+check "zones: exit 0, applied, one PUT /trustframework per zone answered 201" bash -c "[ '$rc' = 0 ] && [ '$(field zones .outcome)' = applied ] && [ '$(fieldc zones '[.zones.calls[] | .status]')' = '[201,201]' ]"
+check "zones: both PTR records read back from the zone manager's name server name the framework" [ "$(fieldc zones '.zones.proven | sort')" = "$(jq -c '[.zones[].domain] | sort' "$files/v3-removed.json")" ]
+check "zones: the claim's body names the framework as the target" [ "$(jq -c .schemes "$steps/zones/last/request-trustframework.json")" = "[\"$fw\"]" ]
+for d in $(jq -r '.zones[].domain' "$files/v3-removed.json"); do
+  ptr=$(dig +short +tcp +time=3 +tries=1 -p "$dns_port" PTR "_scheme._trust.$d" @127.0.0.1 2>/dev/null | tr -d '[:space:]' || true)
+  check "zones: dig PTR _scheme._trust.$d answers _scheme._trust.$fw." [ "$ptr" = "_scheme._trust.$fw." ]
+  printf 'Authorization: Bearer %s\n' "$(cat "$work/operator.tok")" > "$work/auth.h"
+  claim=$(curl -sS --max-time 20 -H @"$work/auth.h" "http://127.0.0.1:$zm_port/names/$d/schemes" || echo '{}')
+  rm -f "$work/auth.h"
+  check "zones: the zone manager's API lists the claim of $d on $fw" [ "$(jq -c '.schemes' <<<"$claim")" = "[\"$fw\"]" ]
+done
+note "the TSPA answered: \`$(head -c 200 "$steps/zones/last/response-trustframework-$(jq -r '.zones[0].domain' "$files/v3-removed.json").txt")\`"
+run zones2 apply "$files/v3-removed.json" --with-zones
+row "apply --with-zones again" "applied, claims replaced, PTRs unchanged" "$(field zones2 .outcome)" "$rc"
+check "zones again: exit 0, the claims are written again (the API replaces) and both PTRs still prove" bash -c "[ '$rc' = 0 ] && [ '$(field zones2 .outcome)' = applied ] && [ '$(fieldc zones2 '.zones.proven | length')' = 2 ]"
+# A zone outside the DNS zone the manager serves: the manager answers 404 "domain name not in current
+# zone", the TSPA reports 500, the reconciler reports the zone not published, after the entries were
+# read back.
+jq '.zones += [{name: "c", domain: "zone-c.other.test"}]' "$files/v3-removed.json" > "$files/v5-outside-zone.json"
+run zones3 apply "$files/v5-outside-zone.json" --with-zones
+row "apply --with-zones, a zone outside the DNS zone" "zones-not-published" "$(field zones3 .outcome)" "$rc"
+outside_status=$(event zones3 | jq -c --arg z zone-c.other.test '[.zones.calls[] | select(.zone == $z) | .status]')
+inside_status=$(event zones3 | jq -c --arg z zone-c.other.test '[.zones.calls[] | select(.zone != $z) | .status]')
+check "a zone outside the served DNS zone: exit 1, zones-not-published, that call 500, the two others 201, the list read back" bash -c "[ '$rc' = 1 ] && [ '$(field zones3 .outcome)' = zones-not-published ] && [ '$outside_status' = '[500]' ] && [ '$inside_status' = '[201,201]' ] && [[ '$(field zones3 .readBack.listSha256)' =~ ^[0-9a-f]{64}$ ]]"
+check "a zone outside the served DNS zone: not proven, the two inside still are" [ "$(fieldc zones3 '.zones.proven | sort')" = "$(jq -c '[.zones[].domain] | sort' "$files/v3-removed.json")" ]
+note "the TSPA answered for the outside zone: \`$(head -c 300 "$steps/zones3/last/response-trustframework-zone-c.other.test.txt" | tr '\n' ' ')\`"
+zm_log=$(k -n tspa logs deployment/nsd-service --since=5m 2>/dev/null | grep -i 'not in zone\|not in current zone' | tail -1 || true)
+note "the zone manager's log: \`${zm_log:-<no matching line>}\`"
 
 # ---- 11. no secret anywhere ----------------------------------------------------------------------
 say "## 11. No secret in any record" ""

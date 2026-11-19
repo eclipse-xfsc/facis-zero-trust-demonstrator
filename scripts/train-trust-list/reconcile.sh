@@ -19,15 +19,17 @@
 #   scripts/train-trust-list/reconcile.sh verify   --file FILE [--out DIR]
 #   scripts/train-trust-list/reconcile.sh diff     --from OLD --to NEW
 #
-#   --with-zones   also PUT /trustframework/{fw} with the file's zone domains (the TSPA writes the
-#                  PTR records through its zone manager) and prove each PTR with dig against
-#                  TRAIN_DNS_SERVER
+#   --with-zones   also publish each zone's claim on the framework: PUT /trustframework/{zone domain}
+#                  with {"schemes": [<framework>]}, which the TSPA turns into the PTR record
+#                  _scheme._trust.<zone domain> -> _scheme._trust.<framework> through its zone
+#                  manager; each PTR is then proven with dig against TRAIN_DNS_SERVER
 #
 # Environment:
 #   TSPA_URL             base URL of the TSPA up to its context path, e.g. http://host:16003/tspa-service
 #   OIDC_TOKEN_URL       token endpoint for client_credentials; with OIDC_CLIENT_ID and OIDC_CLIENT_SECRET
 #   TSPA_TOKEN_FILE      instead of the three above: a file holding a bearer token already obtained
 #   TRAIN_DNS_SERVER     with --with-zones: the name server dig asks for the PTR records
+#   TRAIN_DNS_PORT       its port (default 53); TRAIN_DNS_TCP=1 asks over TCP (a port-forward carries TCP only)
 #   TRAIN_TRUST_LIST_TIMEOUT   seconds per HTTP call (default 30)
 #   TRAIN_TRUST_LIST_TEMPLATE  the entry template (default entry.tmpl.json next to this script)
 #
@@ -286,24 +288,30 @@ if vc=$(curl -sS --max-time "$timeout_s" -o "$out/last/vc.json" -w '%{http_code}
 fi
 jq -e .converged <<<"$readback" >/dev/null || { plan_json=$readback; describe; fail not-converged "read-back: the list of $fw still differs from $file after the writes"; }
 # ---- the zones, once the entries are proven: the PTR records, through the TSPA's zone manager -
+# One call per zone: the zone's domain is the owner of the PTR and must lie inside the DNS zone the
+# manager serves; the framework is the target. A zone outside that DNS zone is refused by the manager
+# (404) and reported by the TSPA as 500, which is a zone not published, not an abort.
 if [ "$with_zones" = 1 ]; then
-  jq -c '{schemes: .zones}' <<<"$plan_json" > "$out/last/request-trustframework.json"
-  zcode=$(curl -sS --max-time "$timeout_s" -o "$out/last/response-trustframework.txt" -w '%{http_code}' -X PUT \
-      -H 'Content-Type: application/json' -H @"$auth" --data-binary @"$out/last/request-trustframework.json" "$api/trustframework/$fw" 2>"$work/curl.err") \
-    || { zones_json=$(jq -cn --argjson z "$(jq -c .zones <<<"$plan_json")" '{requested: $z, status: null, proven: []}'); fail transport-failure "TSPA unreachable on PUT /trustframework/$fw: $(head -c 200 "$work/curl.err")"; }
-  proven='[]'
+  zones_json=$(jq -cn --argjson z "$(jq -c .zones <<<"$plan_json")" '{requested: $z, calls: [], proven: []}')
+  dig_opts=(+short +time=3 +tries=1)
+  [ "${TRAIN_DNS_TCP:-}" = 1 ] && dig_opts+=(+tcp)
+  jq -cn --arg fw "$fw" '{schemes: [$fw]}' > "$out/last/request-trustframework.json"
   for d in $(jq -r '.zones[]' <<<"$plan_json"); do
+    zcode=$(curl -sS --max-time "$timeout_s" -o "$out/last/response-trustframework-$d.txt" -w '%{http_code}' -X PUT \
+        -H 'Content-Type: application/json' -H @"$auth" --data-binary @"$out/last/request-trustframework.json" "$api/trustframework/$d" 2>"$work/curl.err") \
+      || { zones_json=$(jq -c --arg d "$d" '.calls += [{zone: $d, status: null}]' <<<"$zones_json"); fail transport-failure "TSPA unreachable on PUT /trustframework/$d: $(head -c 200 "$work/curl.err")"; }
+    zones_json=$(jq -c --arg d "$d" --argjson s "$zcode" --argjson e "$([ -s "$out/last/response-trustframework-$d.txt" ] && echo false || echo true)" \
+      '.calls += [{zone: $d, status: $s, emptyBody: $e}]' <<<"$zones_json")
     # dig's own failure (no server, a timeout) is an unproven zone, not an abort: pipefail is on.
-    target=$(dig +short +time=3 +tries=1 PTR "_scheme._trust.$d" "@$TRAIN_DNS_SERVER" 2>/dev/null | tr -d '[:space:]' | sed 's/\.$//' || true)
-    [ "$target" = "_scheme._trust.$fw" ] && proven=$(jq -c --arg d "$d" '. + [$d]' <<<"$proven")
+    target=$(dig "${dig_opts[@]}" -p "${TRAIN_DNS_PORT:-53}" PTR "_scheme._trust.$d" "@$TRAIN_DNS_SERVER" 2>/dev/null | tr -d '[:space:]' | sed 's/\.$//' || true)
+    [ "$target" = "_scheme._trust.$fw" ] && zones_json=$(jq -c --arg d "$d" '.proven += [$d]' <<<"$zones_json")
   done
-  zones_json=$(jq -cn --argjson z "$(jq -c .zones <<<"$plan_json")" --argjson s "$zcode" --argjson p "$proven" '{requested: $z, status: $s, proven: $p}')
-  case "$zcode" in
-    200|201) [ -s "$out/last/response-trustframework.txt" ] || fail zones-not-published "TSPA answered $zcode with an empty body on PUT /trustframework/$fw: the write did not run" ;;
-    *) fail zones-not-published "TSPA answered $zcode on PUT /trustframework/$fw (its zone manager could not be reached, or refused)" ;;
-  esac
-  [ "$(jq -c 'sort' <<<"$proven")" = "$(jq -c '.zones | sort' <<<"$plan_json")" ] \
-    || fail zones-not-published "the PTR records read from $TRAIN_DNS_SERVER do not name the framework for every zone: proven $proven"
+  jq -e '[.calls[] | select(.status != 200 and .status != 201)] == []' <<<"$zones_json" >/dev/null \
+    || fail zones-not-published "the TSPA did not publish every zone's claim (statuses $(jq -c '[.calls[].status]' <<<"$zones_json")): its zone manager could not be reached, refused, or the zone lies outside the DNS zone it serves"
+  jq -e '[.calls[] | select(.emptyBody)] == []' <<<"$zones_json" >/dev/null \
+    || fail zones-not-published "the TSPA answered a 2xx with an empty body on PUT /trustframework: the write did not run"
+  [ "$(jq -c '.proven | sort' <<<"$zones_json")" = "$(jq -c '.zones | sort' <<<"$plan_json")" ] \
+    || fail zones-not-published "the PTR records read from $TRAIN_DNS_SERVER do not name the framework for every zone: proven $(jq -c .proven <<<"$zones_json")"
 fi
 
 if [ "$writes" = '[]' ] && [ "$with_zones" = 0 ]; then emit converged; say "nothing to write: the list of $fw follows $file"
