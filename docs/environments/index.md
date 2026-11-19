@@ -34,11 +34,13 @@ Where a step cannot be executed yet it says so, rather than reading as though it
 ## Installing a zone
 
 A zone is installed by one command from one zone file: `scripts/install-zone/install.sh install`,
-which runs seven Helm releases in order — the umbrella `ztd`, `spire-crds`, `spire`, `istio-base`,
-`istiod`, `istio-cni`, `zone-policy` — each through the deployment lifecycle step, and exits 0 only
-when every pod of the zone is Ready. The zone file records the cluster's facts (Kubernetes version,
-storage class, load balancer) and, where the mesh runs, the zone's trust domain (a name under the DNS
-zone delegated to the trust framework, one per zone) and the API server's port. The [OSC guide](osc.md#2-the-zone-layout)
+which runs eight Helm releases in order — the umbrella `ztd`, `spire-crds`, `spire`, `istio-base`,
+`istiod`, `istio-cni`, `zone-policy`, `ztd-openbao` (the secret store, last, so it is created with its
+mesh identity) — each through the deployment lifecycle step, and exits 0 only when every pod of the
+zone is Ready. The zone file records the cluster's facts (Kubernetes version, storage class, load
+balancer) and, where the mesh runs, the zone's trust domain (a name under the DNS zone delegated to
+the trust framework, one per zone) and the API server's port; the releases after the umbrella read
+the facts they need from the umbrella's defaults with the zone file on top. The [OSC guide](osc.md#2-the-zone-layout)
 walks through it step by step with each step's verification; the identity path is described in
 [Workload identity](../workload-identity.md).
 

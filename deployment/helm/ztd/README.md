@@ -5,9 +5,9 @@ baseline, the allow-matrix lanes and the hook-weight bands that order the jobs o
 installed after it. The design is described in
 [docs/umbrella-chart.md](../../../docs/umbrella-chart.md); this file documents the chart itself.
 
-The chart is the first of the seven releases of a zone, installed with the others by
+The chart is the first of the eight releases of a zone, installed with the others by
 `scripts/install-zone/install.sh` (umbrella, `spire-crds`, `spire`, `istio-base`, `istiod`,
-`istio-cni`, `zone-policy`). Alone, as the evidence script does:
+`istio-cni`, `zone-policy`, `ztd-openbao`). Alone, as the evidence script does:
 
 ```bash
 helm upgrade --install ztd deployment/helm/ztd -n ztd-system --create-namespace \
@@ -30,9 +30,7 @@ policies, removed with the job by its hook policy) and, only in the parked ambie
 no CRD; its Cilium policies are instances of Cilium's own CRDs and are rendered only where Cilium is
 enabled. In the sidecar baseline nothing cluster-wide beyond the namespaces and the verification
 job's role is created. Everything else is namespaced and lives in the plane namespaces, the
-control-plane namespaces included; with OpenBao on, that includes the bootstrap Job's Role (it may
-create Secrets in the management namespace and read and patch only its own) and, under Cilium, its
-CiliumNetworkPolicy to the API server.
+control-plane namespaces included.
 
 ## Cilium requirement
 
@@ -69,17 +67,11 @@ declared derogation of the preferred stack first (`docs/workload-identity.md`).
 | `allowMatrix` | the lanes of architecture §6 | Data-plane → management-plane lanes, as data (see below) |
 | `verification.enabled` | `true` | Post-install job that reads the layout back and fails the release if it is wrong |
 | `verification.image` | `curlimages/curl` by digest | Image of the verification job |
-| `openbao.enabled` | `false` | Install OpenBao (chart 0.28.3, server v2.5.4) in the management plane; on in `ci/values.yaml` |
-| `openbao.global.namespace` | `ztd-mgmt` | Must equal `planes.management.namespace`; the chart refuses to render otherwise |
-| `openbao.server.dataStorage.storageClass` | `null` | Must equal `zone.storageClass` when OpenBao is on |
-| `openbao.*` | see `values.yaml` | Passed to the upstream chart: standalone, file storage, no injector, no auth-delegator |
-| `openbaoBootstrap.image` | `curlimages/curl` by digest | Image of the bootstrap Job and the OpenBao verification hook |
-| `openbaoExternal.address` | `""` | An OpenBao the umbrella does not own; exclusive with `openbao.enabled` |
-| `openbaoExternal.verifyTokenSecret` | `""` | Secret in the management namespace with its `verify-token` |
+| `openbao.pinToMeshNode` | unset | Not read by this chart: `scripts/install-zone/install.sh` reads it for the release `ztd-openbao` (pin to istiod's node, participant zones, temporary). Every other `openbao` key, `openbaoBootstrap` and `openbaoExternal` are refused by the schema |
 
-OpenBao, its bootstrap, the manual unseal after a restart and the secrets baseline are described in
-[docs/secrets.md](../../../docs/secrets.md). Install with `--wait --wait-for-jobs`: the bootstrap is a
-regular Job, and the OpenBao verification hook needs its result.
+The chart installs no OpenBao. The secret store is the release `ztd-openbao`, the last of a zone,
+from [deployment/helm/ztd-openbao](../ztd-openbao/README.md); its placement, bootstrap, manual unseal
+after a restart and secrets baseline are described in [docs/secrets.md](../../../docs/secrets.md).
 
 The zone record has no defaults on purpose and `values.schema.json` enforces it: the chart does
 not render until a zone file states what the cluster is. `zones/` holds the zone files;
@@ -126,7 +118,8 @@ track as part of the release, and never for something a regular resource needs i
 ready, such as a registration: with `--wait`, Helm runs the post-install hooks only after every
 regular resource is ready. The chart's own post-install verification job is the example, in the
 `verification` band; it also fails the release if a control-plane namespace carries an injection
-label. The `zone-policy` chart uses the `identity` band through a copy of the helper. The bands
+label. The `zone-policy` chart uses the `identity` band and the `ztd-openbao` chart the `platform`
+band, each through a copy of the helper. The bands
 order the jobs within a release; the installer orders the releases. Bands and rules are in the
 design page.
 
@@ -135,7 +128,7 @@ design page.
 ```bash
 scripts/dev/kind-cilium-up.sh               # kind with Cilium chained, cni.exclusive=false
 scripts/verify-umbrella/verify.sh           # installs, re-installs, probes the policies, tears down
-scripts/verify-mesh-identity/verify.sh      # the zone with SPIRE and Istio: the seven releases
+scripts/verify-mesh-identity/verify.sh      # the zone with SPIRE and Istio: the eight releases
 ```
 
 In CI, `helm lint` and `helm template` run with `ci/values.yaml` (sidecar, the ADR-0009 baseline);

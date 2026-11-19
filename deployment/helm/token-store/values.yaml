@@ -15,8 +15,8 @@ database:
 # The zone's key-value store, reached inside the management plane; the mesh carries the traffic
 # as mTLS, so the address is plain HTTP. Scheme and host only: the store appends its own paths.
 # The service asks it whether it is initialised and unsealed and is not ready until it is, so the
-# store at this address must exist: the default is the umbrella chart's OpenBao under the release
-# name ztd, which the umbrella ships disabled; enable it there or point this at the zone's.
+# store at this address must exist: the default is the zone's OpenBao, the release ztd-openbao
+# that the zone installer installs last; a zone without it points this at its own.
 openbao:
   address: http://ztd-openbao.ztd-mgmt.svc:8200
 

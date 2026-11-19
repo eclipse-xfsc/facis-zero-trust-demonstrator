@@ -94,6 +94,74 @@ The SPIRE chart's own registrations (one of which would give every pod an identi
 off in its values file. No registration exists for an ingress gateway, because none is installed:
 the edge of the demonstrator is the Zero Trust Connector.
 
+### Declared workloads and the registration inventory
+
+A **declared workload** is a workload that holds a SPIFFE certificate and runs in a plane namespace
+(one with the label `ztd.facis.io/plane`). The **registration inventory** is the set of
+registration entries on the SPIRE server. Nothing is declared by a written list or by what the
+charts render: the declaration is the identity itself, where the registration rule allows it, and
+both sides are read from the live zone, by SPIFFE ID.
+
+The section `registration-inventory` of the proof (section 14 of a record, see
+[what a run of the proof shows](#what-a-run-of-the-proof-shows)) compares the two in both
+directions. It reads the entries once (`spire-server entry show`), then the pods once: every pod of
+a plane namespace, and every pod of any other namespace that has an `istio-proxy` container or a
+`csi.spiffe.io` volume, so that a certificate outside a plane cannot hide. The certificate in use is
+read from a meshed pod's proxy (`istioctl proxy-config secret`, its `default` secret) and from an
+unmeshed pod's Workload API client over the mounted socket (`spire-agent api fetch x509`). A reader
+that ran and failed (the read errors or times out) is a failed check of its own, never taken for a
+pod without a certificate, unless the pod, looked up again by name and uid, no longer exists: it
+was deleted after the listing, and its entry reads "without a certificate in use, the pod is gone";
+a pod that is terminating with the reader's container stopped since is recorded as not running. A
+reader whose container is not running reads nothing, as nothing is in use; a terminating pod is
+read like any other while its reader runs, since its containers keep running through the grace
+period. No value a pod's author chooses, such as a mount path, can shift which pod or reader a
+read is recorded against. There is no floor on how many entries are matched: a zone whose entries nothing holds, or that
+has none, passes. Each
+entry is set next to the pod its `k8s:pod-uid` selector names and the certificate read from that
+pod, with one outcome:
+
+| Outcome | Condition | Fails the run |
+|---|---|---|
+| matched | the pod runs in a plane namespace with the identity label, and its certificate in use carries the entry's SPIFFE ID and chains to the SPIRE CA | no |
+| entry without a certificate in use | the pod is gone (also when it was deleted between the listing and its read, checked by name and uid), or runs without a certificate the proof can read (its proxy or client answers that it holds none or is not running, or it has neither: not observable from outside) | no; the record names the reason (a read that failed is its own failed check) |
+| entry outside a plane namespace | the entry's namespace carries no plane label | yes |
+| entry not created by the registration rule | no `k8s:pod-uid` selector or a selector the rule does not write, a field the rule leaves unset (admin, downstream, DNS names, federation, hint, store, TTLs, expiry), a pod without the identity label, a parent other than the SPIRE agent of the pod's node, a SPIFFE ID other than `/ns/<namespace>/sa/<service account>` of that pod, or a namespace that cannot be told (no pod, no `k8s:ns` selector, an ID not of the template's shape) | yes |
+
+Then, the other way round, every certificate read from the pods: a **certificate without an
+entry** (no entry of its own pod lists its SPIFFE ID), a **certificate outside a plane namespace**,
+or one that does not chain to the SPIRE CA fails the run, with its issuer printed. Two pods that
+share a service account share a SPIFFE ID but have an entry each, so a certificate is matched to
+the entry of its own pod, not to any entry with the same ID. Last, the record lists the **plane pods
+without an identity**: every pod of a plane namespace from which no certificate was read, with its
+labels, so that the record says in one place which plane workloads are outside the mesh (the
+control planes' own pods, in the namespaces without the injection label, on one line). That list
+fails nothing; STRICT and the admission policy own it. The secret store is a declared workload: the
+release `ztd-openbao` is installed after `zone-policy`, so its server pod `ztd-mgmt/ztd-openbao-0`
+carries the identity label and a proxy from its first start, and the record lists it as matched with
+its SPIFFE ID (`…/ns/ztd-mgmt/sa/ztd-openbao`); two checks fail the run if it is not matched or if
+any pod of that release is a plane pod without an identity. Its finished job pods (bootstrap,
+verification) are gone to the reader, their entries ones without a certificate in use.
+
+**Provenance.** An entry was created by the registration rule when its selector is the
+`k8s:pod-uid` of a pod of a plane namespace that carries the identity label, its parent is the
+SPIRE agent of the node that pod runs on (`/spire/agent/k8s_psat/<cluster>/<node uid>`), and its
+SPIFFE ID is the rule's template for that pod's namespace and service account. The
+controller-manager writes exactly that shape: one `k8s:pod-uid` selector per entry, no `k8s:ns` or
+`k8s:sa` (a `k8s:ns` or `k8s:sa` selector that names another namespace or service account than the
+pod's is reported), and none of the fields the `ClusterSPIFFEID` of `zone-policy` leaves unset:
+`admin`, `downstream`, `dns_names`, `federates_with`, `hint`, `store_svid`, the X.509 and JWT TTLs
+and `expires_at`. An entry that sets one of them, a downstream or admin entry above all, is
+reported whatever its selectors and ID; a change to the `ClusterSPIFFEID` that sets one changes
+this rule with it. An entry whose pod is gone is still checked for the template's shape of its
+ID and for a parent that is the SPIRE agent of a node of the cluster. A `spire-server entry create` by hand that matched it
+would be indistinguishable and harmless; any other hand-made entry is reported and fails the run.
+Entries are never created by hand: a missing one is a missing label.
+
+The proof's own pods (service account `stand-in`, or a pod of `fixtures/stand-ins.yaml`) appear as
+matched and are marked `fixture`; on a participant zone kept after the run, the record of what
+remains shows no stand-in entry and no stand-in certificate.
+
 ## The identity-band checks
 
 `zone-policy` carries three post-install and post-upgrade Jobs in the `identity` band of the
@@ -104,14 +172,14 @@ Kubernetes API, and a failure fails the release:
 |---|---|---|
 | `server-healthy` | 20 | the SPIRE server's StatefulSet is Ready (its readiness probe is the server's health endpoint) and every agent is Ready |
 | `trust-bundle-published` | 25 | the server has published its trust bundle (`spire-bundle`), and the controller-manager and the mesh both run with the zone's trust domain |
-| `registrations-reconciled` | 30 | the controller-manager has reconciled the `ClusterSPIFFEID` with no entry or render failure, and every running labelled pod of the plane namespaces is selected, so its entry exists on the server |
+| `registrations-reconciled` | 30 | the controller-manager has reconciled the `ClusterSPIFFEID` with no entry or render failure, and every labelled pod of the plane namespaces past Pending (running, or finished, as a completed job's pod is) is selected, so its entry exists on the server |
 
 **What the Jobs read.** The Jobs hold no SPIRE credential and never call the SPIRE server, so they
 read Kubernetes objects that stand for the server's state: `server-healthy` reads the readiness of
 the server's StatefulSet, which the server's own health endpoint drives through the readiness
 probe, not the endpoint itself; `registrations-reconciled` reads the counters the controller-manager
 writes into the `ClusterSPIFFEID` status after it has set the entries on the server, not the entries
-themselves. On a zone with no running labelled pod (a fresh install, before any workload),
+themselves. On a zone with no labelled pod past Pending (a fresh install, before any workload),
 `registrations-reconciled` has nothing to compare and passes on the absence of failures alone. The
 entries themselves are read on the server by each run of the mesh identity proof
 (`spire-server entry show`, in the record a run writes; see `scripts/verify-mesh-identity/README.md`).
@@ -397,7 +465,7 @@ collector that runs on the node's host network, never a pod or another host.
 ## Installing it
 
 The zone installer, `scripts/install-zone/install.sh`, installs the identity path with the rest of
-the zone, from one zone file, as seven releases in order; see
+the zone, from one zone file, as eight releases in order; see
 [its README](https://github.com/eclipse-xfsc/facis-zero-trust-demonstrator/tree/main/scripts/install-zone)
 and the [zone installation guide](environments/osc.md#3-workload-identity). The upstream charts and
 their pins are in [OSS dependencies](dependencies.md#identity-and-service-mesh); every value the
@@ -440,7 +508,7 @@ record). A run shows:
 
 | Check | Proves |
 |---|---|
-| `install-order-idempotent` | the seven releases install in order with no manual step, every pod is Ready, and a second run leaves every release's manifest identical |
+| `install-order-idempotent` | the eight releases install in order with no manual step, every pod is Ready, and a second run leaves every release's manifest identical |
 | `svid-over-csi-socket` | a labelled pod gets, over the mounted socket, the SVID of its service account in the zone's trust domain, chained to the SPIRE CA; an unlabelled pod gets no entry and no SVID |
 | `native-sidecar-version` | the server is 1.33 or later and the proxy is an init container with `restartPolicy: Always` |
 | `mesh-identity-issued-by-spire` | the proxy's certificate has `O = SPIRE`, the SPIRE CA as issuer and the SVID's URI SAN, and its `ROOTCA` bundle is the SPIRE CA; under the capture rule (`capture-at-injector-defaults`), a pod in a plane namespace with an excluded application port, capture mode `NONE`, a moved status port, a proxy-config override, an injection opt-out, a swapped proxy image or a pod-supplied `istio-proxy` is refused at admission, an ordinary pod is admitted carrying the injector's status-port exclusion and `REDIRECT`, and the istiod and `istio-cni` pods, which opt out of injection, are admitted in `istio-system` |
@@ -448,6 +516,7 @@ record). A run shows:
 | `traffic-through-the-proxies` | the peer sees the caller's SPIFFE ID in `X-Forwarded-Client-Cert` and both proxies count the request as mTLS |
 | `default-deny-with-chained-cni` | the Istio plugin runs after Cilium, `cni-exclusive=false`, and the umbrella's cross-plane denial and matrix lane hold with the proxies in place |
 | `control-planes-under-default-deny` | only the declared openings exist in the two namespaces, the agents and the proxies are served, and a stand-in pod's probes on every other port are denied |
+| `registration-inventory` | every entry on the SPIRE server, by SPIFFE ID, next to the pod that holds it and the certificate in use with that ID; no entry outside a plane namespace or not created by the registration rule, and every certificate in use has an entry of its own pod in a plane namespace ([declared workloads](#declared-workloads-and-the-registration-inventory)) |
 
 It also shows the identity-band checks failing a release when a declared registration has no
 entry, the render guards, and a teardown that leaves no namespace, no SPIRE or Istio CRD and no

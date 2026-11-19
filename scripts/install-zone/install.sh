@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Install one zone of the demonstrator from an empty cluster (with its CNI) as seven Helm releases,
+# Install one zone of the demonstrator from an empty cluster (with its CNI) as eight Helm releases,
 # in this order, each through the deployment lifecycle step (scripts/lifecycle.sh: server-side dry
 # run, then helm upgrade --install --wait with rollback on failure), each waiting on the previous:
 #
@@ -11,6 +11,10 @@
 #   5 istiod       istio-system  the mesh control plane, sidecar mode, SPIRE as certificate source
 #   6 istio-cni    istio-system  the Istio CNI plugin, chained behind the cluster's CNI
 #   7 zone-policy  istio-system  ClusterSPIFFEID, STRICT PeerAuthentication, identity-band checks
+#   8 ztd-openbao  ztd-mgmt      OpenBao, its bootstrap Job and verification hook (project chart
+#                                wrapping the upstream openbao chart, built from its Chart.lock,
+#                                pinned by digest); last, so its pods are created with a sidecar
+#                                and an SVID
 #
 # Usage:
 #   scripts/install-zone/install.sh install          install or upgrade the zone (idempotent)
@@ -19,7 +23,7 @@
 #                                                    render the releases from the pinned charts and
 #                                                    the merged values; touches no cluster (CI);
 #                                                    an unknown release name is an error
-#   scripts/install-zone/install.sh uninstall        uninstall in reverse order
+#   scripts/install-zone/install.sh uninstall        uninstall in reverse order (ztd-openbao first)
 #   scripts/install-zone/install.sh help             this text (also -h, --help)
 #
 # Environment:
@@ -27,7 +31,8 @@
 #   KUBE_CONTEXT  kubectl context       (default: kind-ztd)
 #   STEP_TIMEOUT  timeout per release   (default: 10m)
 #   RENDER_DIR    with `render`, write each release's manifest there as <release>.yaml
-#   INSTALL_ZONE_CACHE  where the pinned charts are kept (default: ~/.cache/ztd-install-zone)
+#   INSTALL_ZONE_CACHE  where the pinned charts and the built OpenBao dependency are kept
+#                       (default: ~/.cache/ztd-install-zone)
 #
 # Mesh settings: the installer installs sidecar mode with the default, unrevisioned istiod (and the
 # Istio CNI plugin with ambient off). It refuses, before it renders or installs anything, a zone
@@ -38,11 +43,23 @@
 # the admission policy would refuse every injected plane pod.
 #
 # The umbrella reads the whole zone file. The other releases read their upstream values file under
-# deployment/helm/values/ (zone-policy: its chart defaults) merged with the zone facts they need;
-# a missing zone fact stops the run before anything is rendered. Every namespace the releases
-# install into is created by the umbrella; the one namespace this script creates is the umbrella's
-# own release namespace, which holds only the release record and its verification job. Needs
-# helm, kubectl, jq, curl, python3 with PyYAML, and sha256sum or shasum.
+# deployment/helm/values/ (zone-policy and ztd-openbao: their chart defaults) merged with the zone
+# facts they need. The zone facts are read from the umbrella's defaults
+# (deployment/helm/ztd/values.yaml) with the zone file on top, so a fact the umbrella defaults (the
+# management namespace, the Cilium switch) needs no repeating; a fact the umbrella leaves empty
+# (zone.trustDomain, zone.name, zone.storageClass) and the zone file does not state stops the run
+# before anything is rendered. ztd-openbao goes into the management namespace of the same merge.
+# Every namespace the releases install into is created by the umbrella; the one namespace this
+# script creates is the umbrella's own release namespace, which holds only the release record and
+# its verification job. Needs helm, kubectl, jq, curl, python3 with PyYAML, and sha256sum or shasum.
+#
+# The node pin of ztd-openbao (TEMPORARY): when the zone file sets openbao.pinToMeshNode (zone A and
+# zone B), the provider's pod network masquerades cross-node pod traffic and a meshed pod on another
+# node than istiod never passes its proxy's readiness, so `install` reads istiod's node after the
+# istiod release and pins the OpenBao server and both of its jobs to it (global.pin.node); when
+# istiod has no node it pins to istiod-node-not-found, which matches no node. `render` uses that
+# placeholder and touches no cluster. The pin falls when the provider's network is fixed
+# (docs/environments/osc.md).
 set -euo pipefail
 
 REPO=$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)
@@ -65,9 +82,12 @@ SPIRE_SHA256=aadaeabe1dfecbcd803d541580ab41c229d99c0075ace3b6e050b0ceef36aa8d
 ISTIO_VERSION=1.31.1
 ISTIO_ARCHIVE_URL=https://github.com/istio/istio/releases/download/$ISTIO_VERSION/istio-$ISTIO_VERSION-linux-amd64.tar.gz
 ISTIO_ARCHIVE_SHA256=cb4af2e8a099acfc51368c1d15d4deab8321ae628554d4ee5c74f62ebe775857
+# The upstream openbao chart of ztd-openbao: its version in the project chart's Chart.lock, its
+# archive's sha256 in deployment/helm/ztd-openbao/dependencies.sha256 (build_openbao_chart).
 
 # ---- The steps: release, namespace, chart, values file, zone facts (<values key>=<zone key>,...),
-# ---- extra lifecycle settings. "zone" as values file means the zone file itself.
+# ---- extra lifecycle settings. "zone" as values file means the zone file itself; no values file
+# ---- means the chart's defaults.
 STEPS=(
   "ztd|ztd-system|umbrella|zone||"
   "spire-crds|spire-system|spire-crds|$VALUES_DIR/spire-crds.yaml||"
@@ -76,7 +96,11 @@ STEPS=(
   "istiod|istio-system|istiod|$VALUES_DIR/istiod.yaml|meshConfig.trustDomain=zone.trustDomain|"
   "istio-cni|istio-system|istio-cni|$VALUES_DIR/istio-cni.yaml||"
   "zone-policy|istio-system|zone-policy||trustDomain=zone.trustDomain|wait-for-jobs"
+  "ztd-openbao|=planes.management.namespace|ztd-openbao||managementNamespace=planes.management.namespace,openbao.global.namespace=planes.management.namespace,openbao.server.dataStorage.storageClass=zone.storageClass,cilium.enabled=cni.cilium.enabled|wait-for-jobs"
 )
+# A namespace written "=<zone key>" is that zone fact (the management namespace of ztd-openbao).
+# The node pin: a node name that matches nothing, used by render and when istiod has no node.
+PIN_NONE=istiod-node-not-found
 
 work=$(mktemp -d)
 trap 'rm -rf "$work"' EXIT
@@ -84,7 +108,7 @@ trap 'rm -rf "$work"' EXIT
 say() { printf '%s\n' "$*"; }
 die() { printf 'install-zone: %s\n' "$*" >&2; exit 1; }
 
-usage() { sed -n '2,/^# the admission policy would refuse every injected plane pod/p' "$0" | sed 's/^# \{0,1\}//'; }
+usage() { sed -n '2,/^# (docs\/environments\/osc.md)\.$/p' "$0" | sed 's/^# \{0,1\}//'; }
 
 # zone_file: the zone file must exist before anything reads it.
 zone_file() { [ -f "$ZONE_VALUES" ] || die "zone file not found: $ZONE_VALUES"; }
@@ -114,6 +138,54 @@ PY
 
 sha256() { if command -v sha256sum >/dev/null; then sha256sum "$1"; else shasum -a 256 "$1"; fi | cut -d' ' -f1; }
 
+# The zone document: the umbrella's defaults with the zone file deep-merged on top (the zone file
+# wins), the one source of every release's zone facts and of the plane namespaces. zone_py runs a
+# Python program, read from stdin, after the definitions below; its arguments follow the umbrella's
+# values file and the zone file, which the program finds as UMBRELLA and ZONE.
+UMBRELLA_VALUES=$REPO/deployment/helm/ztd/values.yaml
+zone_py() {
+  { cat <<'PY'
+import sys, yaml
+UMBRELLA, ZONE = sys.argv[1], sys.argv[2]
+ARGS = sys.argv[3:]
+def merge(base, top):
+    if isinstance(base, dict) and isinstance(top, dict):
+        out = dict(base)
+        for k, v in top.items():
+            out[k] = merge(base[k], v) if k in base else v
+        return out
+    return top
+def zone_doc():
+    return merge(yaml.safe_load(open(UMBRELLA)) or {}, yaml.safe_load(open(ZONE)) or {})
+def fact(doc, key):
+    for k in key.split("."):
+        doc = doc.get(k) if isinstance(doc, dict) else None
+    return doc
+PY
+    cat; } | python3 - "$UMBRELLA_VALUES" "$ZONE_VALUES" "$@"
+}
+
+# zone_fact <key>: one fact of the zone document, empty when absent; booleans print as true/false.
+zone_fact() {
+  zone_py "$1" <<'PY'
+v = fact(zone_doc(), ARGS[0])
+print("" if v is None else (str(v).lower() if isinstance(v, bool) else v))
+PY
+}
+
+# step_ns <namespace>: a step's namespace; "=<zone key>" is that zone fact, refused when empty.
+step_ns() {
+  case $1 in
+    =*) local ns; ns=$(zone_fact "${1#=}") || exit 1
+        [ -n "$ns" ] || die "the zone fact ${1#=} is empty: no namespace to install into"
+        echo "$ns" ;;
+    *) echo "$1" ;;
+  esac
+}
+
+# pin_wanted: the zone file asks for the node pin of ztd-openbao (openbao.pinToMeshNode).
+pin_wanted() { [ "$(zone_fact openbao.pinToMeshNode)" = true ]; }
+
 plan() {
   zone_file
   zone_mesh
@@ -121,6 +193,7 @@ plan() {
   local i=0 step release ns chart values facts extra label
   for step in "${STEPS[@]}"; do
     IFS='|' read -r release ns chart values facts extra <<<"$step"
+    ns=$(step_ns "$ns")
     i=$((i + 1))
     if [ "$values" = zone ]; then label="the zone file"
     elif [ -n "$values" ]; then label=${values#"$REPO"/}
@@ -128,12 +201,16 @@ plan() {
     printf '  %d/%d  %-12s into %-13s chart %-12s values %s%s%s\n' "$i" "${#STEPS[@]}" "$release" "$ns" \
       "$(chart_label "$chart")" "$label" "${facts:+ + zone facts ${facts//,/ }}" "${extra:+ ($extra)}"
   done
+  if pin_wanted; then
+    say "  ztd-openbao is pinned to istiod's node (openbao.pinToMeshNode), read after istiod; $PIN_NONE without one"
+  fi
 }
 
 chart_label() {
   case $1 in
     umbrella) echo "deployment/helm/ztd" ;;
     zone-policy) echo "deployment/helm/zone-policy" ;;
+    ztd-openbao) echo "deployment/helm/ztd-openbao" ;;
     spire-crds) echo "spire-crds $SPIRE_CRDS_VERSION" ;;
     spire) echo "spire $SPIRE_VERSION" ;;
     istio-base) echo "base $ISTIO_VERSION" ;;
@@ -171,10 +248,49 @@ fetch_istio() {
   echo "$dir"
 }
 
+# build_openbao_chart: deployment/helm/ztd-openbao with its upstream dependency built from the
+# committed Chart.lock. `helm dependency build` refuses a lock whose digest does not match the
+# chart's dependencies; that digest covers the list of dependencies, not the archive's bytes, so
+# the built archive is checked against the sha256 committed in the chart's dependencies.sha256
+# (scripts/ci/verify-chart-dependencies.sh) on every run, as the SPIRE and Istio downloads are
+# checked against their pins above. The build runs once per Chart.yaml and Chart.lock, into the
+# cache, with a repository configuration of the installer's own (the user's Helm repositories are
+# neither read nor changed). Each run copies the chart from the checkout into its work directory,
+# copies the cached archives into it (their bytes: -L copies the target of a symbolic link, not the
+# link), and only then verifies them: what is checked is the copy in
+# the run's own work directory that Helm installs, not the cache, which could change between a
+# check and a later copy. Nothing but the pinned archives may be there (no unpacked chart
+# directory either), so the chart's templates and values are always the checkout's.
+build_openbao_chart() {
+  local src=$REPO/deployment/helm/ztd-openbao out=$work/chart-ztd-openbao key dir url
+  if [ -f "$out/.ready" ]; then echo "$out"; return; fi
+  key=$(cat "$src/Chart.yaml" "$src/Chart.lock" >"$work/openbao-chart-key"; sha256 "$work/openbao-chart-key" | cut -c1-16)
+  dir=$CACHE/ztd-openbao-deps-$key
+  if [ ! -f "$dir/.built" ]; then
+    rm -rf "$dir"; mkdir -p "$dir/chart"
+    cp "$src/Chart.yaml" "$src/Chart.lock" "$dir/chart/"
+    url=$(sed -n 's/^ *repository: *"\{0,1\}\(https:[^"]*\)"\{0,1\}$/\1/p' "$src/Chart.yaml" | head -1)
+    if ! { HELM_REPOSITORY_CONFIG=$dir/repositories.yaml HELM_REPOSITORY_CACHE=$dir/repository \
+             helm repo add ztd-openbao-dependency "$url" \
+           && HELM_REPOSITORY_CONFIG=$dir/repositories.yaml HELM_REPOSITORY_CACHE=$dir/repository \
+             helm dependency build "$dir/chart"; } >"$work/openbao-deps.log" 2>&1; then
+      cat "$work/openbao-deps.log" >&2
+      die "chart ztd-openbao: its dependency was not built from Chart.lock (a lock out of sync with Chart.yaml, or $url unreachable)"
+    fi
+    touch "$dir/.built"
+  fi
+  rm -rf "$out"; cp -R "$src" "$out"; rm -rf "$out/charts"; cp -RL "$dir/chart/charts" "$out/charts"
+  "$REPO/scripts/ci/verify-chart-dependencies.sh" "$src" "$out/charts" >/dev/null \
+    || die "chart ztd-openbao: the dependency built from Chart.lock into $dir does not match the committed deployment/helm/ztd-openbao/dependencies.sha256 (or $dir/chart/charts holds more than the pinned archives); remove $dir and rerun, and if it fails again, do not install (the repository serves other bytes for the pinned version)"
+  touch "$out/.ready"
+  echo "$out"
+}
+
 chart_path() {
   case $1 in
     umbrella) echo "$REPO/deployment/helm/ztd" ;;
     zone-policy) echo "$REPO/deployment/helm/zone-policy" ;;
+    ztd-openbao) build_openbao_chart ;;
     spire-crds) fetch_spire_chart spire-crds "$SPIRE_CRDS_VERSION" "$SPIRE_CRDS_SHA256" ;;
     spire) fetch_spire_chart spire "$SPIRE_VERSION" "$SPIRE_SHA256" ;;
     istio-base) echo "$(fetch_istio)/base" ;;
@@ -183,32 +299,37 @@ chart_path() {
   esac
 }
 
-# merged_values <release> <values> <facts> <out>: the values file with the zone facts set; refuses
-# when the zone file does not state a fact. Paths travel as arguments, never inside the source.
+# merged_values <release> <values> <facts> <out> [<key>=<value>...]: the values file with the zone
+# facts set, each read from the zone document (the umbrella's defaults with the zone file on top);
+# refuses when a fact is empty there, so a fact the umbrella leaves empty (zone.trustDomain,
+# zone.name, zone.storageClass) must be stated by the zone file. Further <key>=<value> pairs are set
+# as strings (the node pin). Paths travel as arguments, never inside the source.
 merged_values() {
   if [ "$2" = zone ]; then cp "$ZONE_VALUES" "$4"; return; fi
-  python3 - "$1" "$2" "$3" "$ZONE_VALUES" "$4" <<'PY'
-import sys, yaml
-release, values_file, facts, zone_file, out = sys.argv[1:]
+  zone_py "$@" <<'PY'
+release, values_file, facts, out = ARGS[:4]
 values = (yaml.safe_load(open(values_file)) if values_file else None) or {}
-zone = yaml.safe_load(open(zone_file)) or {}
-missing = []
-for pair in filter(None, facts.split(",")):
-    target, source = pair.split("=")
-    v = zone
-    for k in source.split("."):
-        v = v.get(k) if isinstance(v, dict) else None
-    if v is None or str(v).strip() == "":
-        missing.append(f"{source} (for {target})")
-        continue
+doc = zone_doc()
+def put(target, v):
     node = values
     keys = target.split(".")
     for k in keys[:-1]:
         node = node.setdefault(k, {})
     node[keys[-1]] = v
+missing = []
+for pair in filter(None, facts.split(",")):
+    target, source = pair.split("=")
+    v = fact(doc, source)
+    if v is None or str(v).strip() == "":
+        missing.append(f"{source} (for {target})")
+        continue
+    put(target, v)
 if missing:
-    sys.exit(f"install-zone: release {release}: the zone file {zone_file} does not state the zone fact "
+    sys.exit(f"install-zone: release {release}: the zone file {ZONE} does not state the zone fact "
              + ", ".join(missing))
+for pair in ARGS[4:]:
+    target, v = pair.split("=", 1)
+    put(target, v)
 yaml.safe_dump(values, open(out, "w"), sort_keys=False)
 PY
 }
@@ -246,7 +367,7 @@ PY
 }
 
 render() {
-  local want=("$@") step release ns chart values facts extra path out name names=""
+  local want=("$@") step release ns chart values facts extra path out name names="" pin
   zone_file
   zone_mesh
   for step in "${STEPS[@]}"; do names="$names ${step%%|*}"; done
@@ -263,7 +384,10 @@ render() {
   for step in "${STEPS[@]}"; do
     IFS='|' read -r release ns chart values facts extra <<<"$step"
     if [ ${#want[@]} -gt 0 ] && [[ ! " ${want[*]+${want[*]}} " == *" $release "* ]]; then continue; fi
-    merged_values "$release" "$values" "$facts" "$work/$release.values.yaml" || exit 1
+    ns=$(step_ns "$ns")
+    # Without a cluster the node pin names the placeholder, which matches no node.
+    pin=$(pin_value "$release" "$PIN_NONE")
+    merged_values "$release" "$values" "$facts" "$work/$release.values.yaml" ${pin:+"$pin"} || exit 1
     path=$(chart_path "$chart")
     out=${RENDER_DIR:+$RENDER_DIR/$release.yaml}
     if ! helm template "$release" "$path" --namespace "$ns" --values "$work/$release.values.yaml" \
@@ -277,19 +401,36 @@ render() {
 
 kctx() { kubectl --context "$KUBE_CONTEXT" "$@"; }
 
-# plane namespaces of the zone: the two fixed planes and planes.extra
+# pin_value <release> <node>: the value that pins ztd-openbao to <node> when the zone file asks for
+# the pin (openbao.pinToMeshNode), else nothing. TEMPORARY: the provider's pod network masquerades
+# cross-node pod traffic, so a meshed pod on another node than istiod never passes its proxy's
+# readiness; the pin falls when that network is fixed (docs/environments/osc.md).
+pin_value() {
+  if [ "$1" = ztd-openbao ] && pin_wanted; then echo "global.pin.node=$2"; fi
+}
+
+# istiod_node: the node istiod runs on, read after the istiod release; empty when there is none.
+istiod_node() {
+  local step release ns rest
+  for step in "${STEPS[@]}"; do
+    IFS='|' read -r release ns rest <<<"$step"
+    [ "$release" = istiod ] || continue
+    kctx -n "$ns" get pod -l app=istiod -o jsonpath='{.items[0].spec.nodeName}' 2>/dev/null || true
+  done
+}
+
+# plane namespaces of the zone: the two fixed planes and planes.extra, from the zone document
 zone_namespaces() {
-  python3 - "$REPO/deployment/helm/ztd/values.yaml" "$ZONE_VALUES" <<'PY'
-import sys, yaml
-chart, zone = (yaml.safe_load(open(p)) or {} for p in sys.argv[1:])
-planes = {**chart.get("planes", {}), **(zone.get("planes") or {})}
+  zone_py <<'PY'
+planes = zone_doc().get("planes") or {}
 names = [planes["management"]["namespace"], planes["data"]["namespace"]]
 names += [e["name"] for e in planes.get("extra") or []]
 print(" ".join(names))
 PY
 }
 
-# wait_ready <timeout-seconds> <namespace...>: every pod Ready (finished Job pods aside)
+# wait_ready <timeout-seconds> <namespace...>: every pod Ready (finished Job pods aside: Succeeded,
+# or Failed attempts of a Job; a Job that failed has already failed its release's --wait-for-jobs)
 wait_ready() {
   local deadline=$(( $(date +%s) + $1 )); shift
   local pending
@@ -297,6 +438,7 @@ wait_ready() {
     pending=$(for ns in "$@"; do
       kctx -n "$ns" get pods -o json | jq -r --arg ns "$ns" '.items[]
         | select(.status.phase != "Succeeded")
+        | select((.status.phase == "Failed" and ([.metadata.ownerReferences[]? | select(.kind == "Job")] | length) > 0) | not)
         | select(([.status.conditions[]? | select(.type == "Ready" and .status == "True")] | length) == 0)
         | "\($ns)/\(.metadata.name)"'
     done)
@@ -332,11 +474,19 @@ install() {
   local umbrella_ns
   umbrella_ns=$(IFS='|' read -r _ ns _ <<<"${STEPS[0]}"; echo "$ns")
   kctx get namespace "$umbrella_ns" >/dev/null 2>&1 || kctx create namespace "$umbrella_ns" >/dev/null
-  local i=0 step release ns chart values facts extra line ok
+  local i=0 step release ns chart values facts extra line ok pin node
   for step in "${STEPS[@]}"; do
     IFS='|' read -r release ns chart values facts extra <<<"$step"
+    ns=$(step_ns "$ns")
     i=$((i + 1))
-    merged_values "$release" "$values" "$facts" "$work/$release.values.yaml"
+    pin=""
+    if [ -n "$(pin_value "$release" x)" ]; then
+      # The node pin (see pin_value): istiod's node, read now that the istiod release is deployed.
+      node=$(istiod_node)
+      pin=$(pin_value "$release" "${node:-$PIN_NONE}")
+      say "step $i/${#STEPS[@]}: $release pinned to ${node:-$PIN_NONE}$([ -n "$node" ] && echo ", the node istiod runs on" || echo ": istiod has no node, so no pod of $release is scheduled")"
+    fi
+    merged_values "$release" "$values" "$facts" "$work/$release.values.yaml" ${pin:+"$pin"}
     say "step $i/${#STEPS[@]}: $release into $ns ..."
     line=$(LIFECYCLE_RELEASE=$release LIFECYCLE_NAMESPACE=$ns LIFECYCLE_CHART=$(chart_path "$chart") \
       LIFECYCLE_VALUES_FILE=$work/$release.values.yaml LIFECYCLE_TIMEOUT=$STEP_TIMEOUT \
@@ -364,6 +514,7 @@ uninstall() {
   local i step release ns rest line
   for (( i=${#STEPS[@]}-1; i>=0; i-- )); do
     IFS='|' read -r release ns rest <<<"${STEPS[$i]}"
+    ns=$(step_ns "$ns")
     if ! helm --kube-context "$KUBE_CONTEXT" status "$release" -n "$ns" >/dev/null 2>&1; then
       say "uninstall $release: not installed"; continue
     fi
