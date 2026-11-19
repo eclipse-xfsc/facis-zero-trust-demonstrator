@@ -1,6 +1,6 @@
 # install-zone
 
-Installs one zone of the demonstrator, from an empty cluster that already runs its CNI, as seven
+Installs one zone of the demonstrator, from an empty cluster that already runs its CNI, as eight
 Helm releases in a fixed order, each through the deployment lifecycle step
 (`scripts/lifecycle.sh`: a server-side dry run, then `helm upgrade --install --wait` with rollback
 on failure), each waiting on the previous:
@@ -13,10 +13,13 @@ on failure), each waiting on the previous:
 | 4 | `istio-base` | `istio-system` | `base` 1.31.1, Istio release archive | `deployment/helm/values/istio-base.yaml` |
 | 5 | `istiod` | `istio-system` | `istiod` 1.31.1 | `deployment/helm/values/istiod.yaml` + zone facts |
 | 6 | `istio-cni` | `istio-system` | `cni` 1.31.1 | `deployment/helm/values/istio-cni.yaml` |
-| 7 | `zone-policy` | `istio-system` | `deployment/helm/zone-policy` | chart defaults + zone facts; also waits for its Jobs |
+| 7 | `zone-policy` | `istio-system` | `deployment/helm/zone-policy` | chart defaults + zone facts (the trust domain, the plane namespaces and the pairs of the umbrella's `allowMatrix` and `intraPlanePairs`); also waits for its Jobs |
+| 8 | `ztd-openbao` | the management namespace (`ztd-mgmt`) | `deployment/helm/ztd-openbao`, its `openbao` 0.28.3 dependency built from `Chart.lock` | chart defaults + zone facts; also waits for its Jobs, which reach the server through the release's own allow rules |
 
 The umbrella creates every namespace the later releases install into; the lifecycle step never
-creates one. The only namespace the installer creates is the umbrella's release namespace,
+creates one. `ztd-openbao` comes last so that its server and its jobs are created after istiod and
+the registration rule of `zone-policy`, each with a sidecar, a SPIRE entry and an SVID
+(`docs/secrets.md`). The only namespace the installer creates is the umbrella's release namespace,
 `ztd-system`, which holds the release record and its verification job.
 
 ## Usage
@@ -42,27 +45,53 @@ scripts/install-zone/install.sh install
 | `KUBE_CONTEXT` | `kind-ztd` | the kubectl context of the zone's cluster |
 | `STEP_TIMEOUT` | `10m` | the timeout of each release |
 | `RENDER_DIR` | unset | with `render`, write each release's manifest there |
-| `INSTALL_ZONE_CACHE` | `~/.cache/ztd-install-zone` | where the pinned charts are kept |
+| `INSTALL_ZONE_CACHE` | `~/.cache/ztd-install-zone` | where the pinned charts and the built OpenBao dependency are kept |
 
-- **`install`** first renders all seven releases with their zone facts, so a missing fact stops the
-  run before anything is installed; then installs them in order. It stops at the first release
+- **`install`** first renders all eight releases with their zone facts, so a missing fact or a
+  failed coupling (below) stops the run before anything is installed, and prints the pairs
+  coupling's verdict; then installs them in order. It stops at the first release
   that does not reach a ready state, exits non-zero and names the release and the lifecycle step's
   error; the failed release is rolled back. It exits 0 only when every pod in the plane and
   control-plane namespaces is Ready (finished Job pods aside).
 - **Idempotent.** Run again, it upgrades every release in place with identical manifests.
-- **`render`** renders every release, or only the ones named; a name that is not one of the seven
-  releases (`ztd`, `spire-crds`, `spire`, `istio-base`, `istiod`, `istio-cni`, `zone-policy`)
+- **`render`** renders every release, or only the ones named; a name that is not one of the eight
+  releases (`ztd`, `spire-crds`, `spire`, `istio-base`, `istiod`, `istio-cni`, `zone-policy`,
+  `ztd-openbao`)
   stops it with a non-zero exit and the list of valid names, before anything is rendered.
-- **`plan`** lists the seven steps without touching a cluster; `install` against an unreachable
+- **`plan`** lists the eight steps without touching a cluster; `install` against an unreachable
   cluster prints the same list and refuses to continue, changing nothing.
 - Every command first checks that the zone file exists, and stops with `zone file not found:
   <path>` and a non-zero exit when it does not. `help` (or `-h`, `--help`) prints the usage and
   exits 0; any other word prints the usage and `unknown command '<word>'` on stderr and exits 2.
-- **`uninstall`** removes the releases in reverse order (`zone-policy`, `istio-cni`, `istiod`,
-  `istio-base`, `spire`, `spire-crds`, then the umbrella, which takes the namespaces with it) and
+- **`uninstall`** removes the releases in reverse order (`ztd-openbao`, `zone-policy`, `istio-cni`,
+  `istiod`, `istio-base`, `spire`, `spire-crds`, then the umbrella, which takes the namespaces, the
+  OpenBao volume and its bootstrap Secret with it) and
   removes the CRDs each release owned, including the ones Istio's `base` chart marks to be kept by
   Helm. Delete the workloads in the plane namespaces first: a pod that still mounts the SPIFFE CSI
   volume when the driver goes holds its namespace in `Terminating`.
+
+## The OpenBao dependency
+
+`deployment/helm/ztd-openbao` wraps the upstream `openbao` chart, recorded in its `Chart.lock`; the
+checkout carries no `charts/` folder. Before it renders or installs the release, the installer runs
+`helm dependency build` on a copy of `Chart.yaml` and `Chart.lock` in its cache, with a repository
+configuration of its own (the user's Helm repositories are neither read nor changed). Helm refuses a
+lock whose digest does not match the chart's dependencies, and the run stops naming the chart. That
+digest covers the list of dependencies, not the archive's bytes, so the archive is pinned on its own:
+its sha256 is committed in `deployment/helm/ztd-openbao/dependencies.sha256`, and
+`scripts/ci/verify-chart-dependencies.sh` refuses an archive with another digest, a missing one, or
+anything else in the chart's `charts/` folder (an unpacked chart directory included). The build runs
+once per `Chart.yaml` and `Chart.lock`; nothing in the cache is trusted on its own. Each run copies
+the chart from the checkout into its work directory, copies the built archives in, and checks that
+copy against the committed pins before Helm reads it, so the bytes installed are the bytes checked
+and the chart's own templates and values are always the checkout's. The upstream repository is
+reached at the first build, as SPIRE's and Istio's are at their first fetch.
+
+## Placement
+
+No release is placed on a node: the installer sets no node affinity or node selector, and the
+scheduler places every pod, the OpenBao server and both of its jobs included. A zone file that still
+carries a key under `openbao` is refused by the umbrella's values schema before anything is rendered.
 
 ## What the installer accepts
 
@@ -94,7 +123,11 @@ The umbrella reads the whole file (`deployment/helm/ztd/zones/README.md`). Where
 must also state `zone.trustDomain` (a name under the DNS zone delegated to the trust framework, one per zone), the API lane
 (`networkPolicy.kubeApi.enabled: true` with its port), `cni.cilium.enabled: true`, a
 `zone.kubernetesVersion` of 1.33 or later, the control-plane namespaces in `planes.extra` and the
-openings. The other releases read these zone facts from it:
+openings. The other releases read these zone facts from the umbrella's defaults
+(`deployment/helm/ztd/values.yaml`) with the zone file deep-merged on top, the zone file winning, so a
+fact the umbrella defaults (the management namespace, the Cilium switch) needs no repeating, while a
+fact the umbrella leaves empty (`zone.trustDomain`, `zone.name`, `zone.storageClass`) must be stated
+by the zone file:
 
 | Release | Value | Zone fact |
 |---|---|---|
@@ -103,12 +136,49 @@ openings. The other releases read these zone facts from it:
 | `spire` | `global.spire.persistence.storageClass` | `zone.storageClass` |
 | `istiod` | `meshConfig.trustDomain` | `zone.trustDomain` |
 | `zone-policy` | `trustDomain` | `zone.trustDomain` |
+| `zone-policy` | `planes.management.namespace`, `planes.data.namespace` | `planes.management.namespace`, `planes.data.namespace` |
+| `zone-policy` | `pairs` | `allowMatrix` followed by `intraPlanePairs`, each row in the pair shape of `zone-policy` (below) |
+| `ztd-openbao` | `managementNamespace`, `openbao.global.namespace` (and its release namespace) | `planes.management.namespace` |
+| `ztd-openbao` | `openbao.server.dataStorage.storageClass` | `zone.storageClass` |
+| `ztd-openbao` | `cilium.enabled` | `cni.cilium.enabled` |
+| `ztd-openbao` | `trustDomain`, `mesh.mode` | `zone.trustDomain`, `mesh.mode` (its own pairs' rules render only under a mesh) |
 
-A release whose zone fact is missing does not render, and the message names the fact.
+A release whose zone fact is missing does not render, and the message names the fact and the
+release. Every fact is written into the release's generated values file, never passed with
+`--set`, so a structured fact keeps its shape. `pairs` is the one structured fact: the rows of the
+merged `allowMatrix` and then of `intraPlanePairs` (an empty list is a fact, not a gap), each turned
+into the pair `zone-policy` renders: the caller's plane or namespace with its `serviceAccount`, or
+`wholePlane: true` when the row's `from.podSelector` is `{}`, and the destination's plane or
+namespace, `podSelector` and ports. The row's own selector on the caller, its `enforcedBy` and the
+destination's `serviceAccount` stay in the umbrella, where the network policy and the documentation
+read them. A row whose caller names a workload without a `serviceAccount` stops the render.
+
+## The two couplings
+
+Two checks refuse a zone whose releases would disagree, before anything is installed; `install`
+runs them through its first `render`, and CI runs them with every render and against copies of the
+tree that plant a mismatch:
+
+- **The proxy coupling** (`mesh_coupling`): `zone-policy`'s `proxySocketPolicy.proxyImage` and
+  `statusPort` must equal `istiod`'s `global.proxy.image` and `statusPort`, or the admission policy
+  would refuse every injected plane pod. Checked before `istiod` or `zone-policy` renders.
+- **The pairs coupling** (`pairs_coupling`): once `zone-policy` is rendered, its `allow-<name>`
+  `AuthorizationPolicy` resources must be exactly one per `allowMatrix` row and `intraPlanePairs`
+  entry of the zone document, each in the destination's namespace, selecting the row's
+  `to.podSelector`, admitting `<trust domain>/ns/<source namespace>/sa/<from.serviceAccount>` (or
+  the source namespace for a whole-plane source) on the row's ports and nothing else; no other
+  `allow-*` rule may be rendered. The expectation is computed from the umbrella's rows, not from
+  the values handed over, so a wrong copy is caught as well as a wrong template. A mismatch stops
+  the run and names each row; the verdict is a line of `render`'s output (and of `install`'s log):
+
+  ```text
+  pairs coupling: 5 allow rules of zone-policy match the 5 declared pairs (5 allowMatrix rows, 0 intraPlanePairs)
+  ```
 
 ## Pins
 
-The chart versions and digests are at the top of `install.sh` and in `docs/dependencies.md`; the
+The chart versions and digests are at the top of `install.sh` and in `docs/dependencies.md` (the
+upstream OpenBao chart: in `deployment/helm/ztd-openbao/Chart.lock`); the
 container images are pinned by tag and digest in the values files under `deployment/helm/values/`. The SPIRE
 charts come from `https://spiffe.github.io/helm-charts-hardened/` and are checked against their
 sha256. The Istio 1.31 charts are not in Istio's Helm repository or OCI registry; they come from
@@ -129,12 +199,16 @@ docker run --rm -v "$PWD:/repo" -w /repo -v "$(command -v helm):/usr/local/bin/h
   sh -c 'apk add --no-cache python3 py3-yaml curl >/dev/null && bash --version | head -1 && bash scripts/install-zone/install.sh render'
 ```
 
-Last run (2026-10-09, `bash:3.2` container, GNU bash 3.2.57(1)-release, repository mounted
-read-only): exit 0, all seven releases rendered (`ztd` 38 objects, `spire-crds` 3, `spire` 36,
-`istio-base` 17, `istiod` 17, `istio-cni` 7, `zone-policy` 14), no `unbound variable`;
-`render spire-crds` rendered the one release, and a zone copy with `mesh.revision: canary` exited 1
-naming the key with nothing rendered. The script before the fix stopped there with
-`want[@]: unbound variable` and still exited 0 having rendered nothing.
+Last run (2026-10-29, `bash:3.2` container, GNU bash 3.2.57(1)-release, repository mounted
+read-only, the chart cache mounted writable): exit 0, all eight releases rendered (`ztd` 38 objects,
+`spire-crds` 3, `spire` 36, `istio-base` 17, `istiod` 17, `istio-cni` 7, `zone-policy` 21,
+`ztd-openbao` 15) and the pairs coupling held (5 allow rules for the 5 declared pairs), no
+`unbound variable`. The run before it (2026-10-26) rendered `zone-policy` with 14 objects and
+`ztd-openbao` with 13, before the mesh authorization, and
+`plan` with zone A's file listed the eight steps and no placement. An earlier run (2026-10-17) also rendered `ztd-openbao` alone with `render ztd-openbao`,
+and one before it (2026-10-09) showed a zone copy with
+`mesh.revision: canary` exiting 1 naming the key with nothing rendered; the script before that fix
+stopped there with `want[@]: unbound variable` and still exited 0 having rendered nothing.
 
 On a kind host, raise `fs.inotify.max_user_instances` to 512 first
 (`sudo sysctl -w fs.inotify.max_user_instances=512`): every kind node shares the host kernel, and

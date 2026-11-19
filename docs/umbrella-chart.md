@@ -29,7 +29,7 @@ the DNS bypass, and each rendered only when the zone enables it:
 | Lane | Rendered as | Why it exists |
 |---|---|---|
 | workloads → DNS | `allow-dns-egress`, the resolver pods' port (`networkPolicy.dns.ports`: 53, 8053 on the Gardener clusters) to the cluster resolver only | the declared DNS bypass |
-| pods within one plane namespace | `allow-intra-plane` | who may talk is decided on identity by the mesh layer, not on IP |
+| pods within one plane namespace | `allow-intra-plane` | who may talk is decided on identity by the mesh layer, not on IP: the mesh-wide default deny of `zone-policy` and the pairs of `intraPlanePairs` |
 | management → Kubernetes API (`kubeApi`) | `allow-kube-api-egress`: with Cilium a `CiliumNetworkPolicy` to the `kube-apiserver` entity on the `kubernetes` Service port 443 and on the zone's API port; without Cilium an `ipBlock` egress to the zone's endpoint | the SPIRE server, its controller-manager and istiod call the API; required wherever the mesh runs |
 | meshed plane namespaces → istiod (`meshControlPlane`) | `allow-mesh-control-plane-egress` in each namespace with the mesh label, `allow-mesh-control-plane-ingress` in `istio-system`, port 15012 | the sidecars fetch their configuration over xDS |
 | API server → webhooks (`controlPlaneWebhooks`) | `allow-control-plane-openings` in `istio-system` (istiod, 15017) and `spire-system` (controller-manager, 9443), a `CiliumNetworkPolicy` from the `kube-apiserver`, `host` and `remote-node` entities | injection and the admission of `PeerAuthentication` and `ClusterSPIFFEID` |
@@ -51,27 +51,40 @@ the whole node the API server runs on, the kubelet included. The evidence (secti
 open from the management plane only, on a kind cluster with Cilium chained as the zones run it.
 
 **The allow matrix, as data.** The lanes of the ZT-55 matrix are entries in `allowMatrix`, each
-with a source and a destination selector; the chart renders an egress rule in the source namespace
-and an ingress rule in the destination namespace for every lane. The selectors are the label
+with a source and a destination selector and the source's service account
+(`from.serviceAccount`, required when the source names a workload, refused for a whole-plane
+source); the chart renders an egress rule in the source namespace and an ingress rule in the
+destination namespace for every lane. The selectors and accounts are the label and identity
 contract with the component charts:
 
-| Lane | From (data plane) | To (management plane) |
-|---|---|---|
-| `pdp-adapter-to-tsa` | `app.kubernetes.io/name=pdp-adapter` | `tsa-policy-engine` |
-| `atls-gateway-to-cmcd` | `atls-gateway` | `cmcd` |
-| `atls-gateway-to-tcr` | `atls-gateway` | `tcr` |
-| `workloads-to-otel-collector` | every data-plane pod | `otel-collector`, ports 4317 and 4318 only |
-| `backend-to-verification-service` | `backend` | `verification-service` |
+| Lane | From (data plane) | Caller's service account | To (management plane) |
+|---|---|---|---|
+| `pdp-adapter-to-tsa` | `app.kubernetes.io/name=pdp-adapter` | `pdp-adapter` | `tsa-policy-engine` |
+| `atls-gateway-to-cmcd` | `atls-gateway` | `atls-gateway` | `cmcd` |
+| `atls-gateway-to-tcr` | `atls-gateway` | `atls-gateway` | `tcr` |
+| `workloads-to-otel-collector` | every data-plane pod | none: the whole plane (the namespace) | `otel-collector`, ports 4317 and 4318 only |
+| `backend-to-verification-service` | `backend` | `backend` | `verification-service` |
+
+`intraPlanePairs` takes entries of the same shape for a pair inside one plane namespace between
+components of different releases. The chart renders nothing for them, as `allow-intra-plane` already
+opens the namespace at L3/L4, and refuses one whose endpoints are not in one namespace. The list is
+empty; the component task that brings a same-plane caller adds its pair there.
 
 The identity provider's token endpoint is not a lane. No data-plane workload calls it: the
 participant backend obtains its authorization from the connector, and Keycloak serves the viewer's
 login and the pipeline ([Keycloak integration](keycloak.md#connector-boundary)). A permitted lane
 without a caller would only widen what the matrix exists to limit.
 
-The architecture names the mesh as the enforcing layer for these pairs. The network layer opens the
-L3/L4 lane; the mesh layer, installed later, decides on identity on top. Anything else from the data
-plane into the management plane is denied by both layers, which is the negative case the evidence
-script proves.
+Every row is enforced at both layers (`enforcedBy` documents the layer the architecture holds
+responsible, not a choice between them). The network layer opens the L3/L4 lane here. The mesh
+layer is rendered by the `zone-policy` release, which installs after Istio's CRDs: a mesh-wide
+default deny and, for every `allowMatrix` row and `intraPlanePairs` entry, an `AuthorizationPolicy`
+`allow-<name>` in the destination namespace that admits the caller by its SPIFFE identity
+(`<trust domain>/ns/<namespace>/sa/<serviceAccount>`), or the source namespace for a whole-plane
+source. `scripts/install-zone/install.sh` copies the rows from the zone values to `zone-policy` and
+refuses a zone whose mesh rules are not exactly one per row ([Workload
+identity](workload-identity.md#mesh-authorization)). Anything else from the data plane into the
+management plane is denied by both layers, which is the negative case the evidence script proves.
 
 ## The mesh mode is one label
 
@@ -117,7 +130,7 @@ components is a lookup and not a convention remembered by hand:
 |---|---|---|
 | `preflight` | 0–19 | checks that must hold before anything is installed |
 | `identity` | 20–39 | SPIRE: checks on the server, the trust bundle and the registration entries |
-| `platform` | 40–59 | jobs of OpenBao, Harbor, TSPA, estserver, observability and admission |
+| `platform` | 40–59 | jobs of OpenBao (the `ztd-openbao` chart's verification hook, offset 10), Harbor, TSPA, estserver, observability and admission |
 | `policy` | 60–79 | jobs of the mesh and admission policy that depends on identity and platform |
 | `workloads` | 80–99 | jobs of the demonstrator workloads |
 | `verification` | 100–119 | read-back checks that fail the release when the layout is wrong |
@@ -139,11 +152,16 @@ the layout back through the API and fails the release if a plane namespace, its 
 mesh label or its `default-deny` policy is missing, or if a control-plane namespace carries an
 injection label. The `zone-policy` chart uses the `identity` band (20–39) through a copy of the
 helper, so the scheme reads the same across the charts: `server-healthy` (20),
-`trust-bundle-published` (25), `registrations-reconciled` (30).
+`trust-bundle-published` (25), `registrations-reconciled` (30). The `ztd-openbao` chart uses the
+`platform` band through another copy: `ztd-verify-openbao` (50), whose ServiceAccount is a hook
+of weight 49 so that Helm creates it just before the Job.
 
-**The bands order jobs within a release; the installer orders the releases.** A zone is seven
-releases (the umbrella, the SPIRE and Istio upstream charts, `zone-policy`), installed in a fixed
-order by `scripts/install-zone/install.sh`, each waiting on the previous. Helm's hook weights only
+**The bands order jobs within a release; the installer orders the releases.** A zone is eight
+releases (the umbrella, the SPIRE and Istio upstream charts, `zone-policy`, `ztd-openbao`), installed
+in a fixed order by `scripts/install-zone/install.sh`, each waiting on the previous. A component
+whose pods must hold a mesh identity from their first start is installed after `zone-policy`, as
+OpenBao is: whatever the umbrella creates exists before istiod and the registration rule, so it
+could never get a sidecar or an SVID at creation. Helm's hook weights only
 order the hooks of one release, so the bands say where a job sits inside its own chart and what it
 checks; which release's jobs run first is the installer's order. The installer is the unit that
 reaches all-Ready from an empty cluster and repeats idempotently
@@ -220,18 +238,22 @@ each of those cases is a red job: the schema cases at the lint step, the CIDR ca
 step. The chart is verified with Helm v4.3.0, the version the pipeline pins. The release workflow's
 chart gate (TDR-BDD-11) adds a server-side dry-run against a disposable cluster that serves the
 Cilium and Gatekeeper CRDs, and no candidate is built unless it passes; a later chart publishing or
-promotion job must need the same gate. OpenBao, installed by this chart when a zone turns it on, is
-described in [Secrets](secrets.md).
+promotion job must need the same gate. The chart installs no OpenBao: the secret store is the
+release `ztd-openbao`, the last of a zone, from `deployment/helm/ztd-openbao`
+([Secrets](secrets.md)), and the schema refuses the values this chart once took for it.
 
 The umbrella's evidence covers the layout alone; the identity path and the mesh installed into it,
-with the seven releases, are proven by `scripts/verify-mesh-identity/verify.sh`
+with the eight releases, are proven by `scripts/verify-mesh-identity/verify.sh`
 (what a run shows: `scripts/verify-mesh-identity/README.md`).
 
 What waits for the client clusters is the first acceptance criterion — the layout on all three
 clusters — and the per-zone values the baseline records, including the API endpoint for the
-management-plane lane. The two OSC clusters are not yet provided. The IONOS cluster is, and
-`zones/ionos.yaml` is recorded from it, but the chart is not installed there: that cluster holds no
-demonstration workload and runs no mesh, its CNI is the provider-managed Calico rather than the
-Cilium of [ADR-0009](adr/0009-service-mesh-mode-istio-sidecar-with-cilium.md), and whether it needs
-Cilium and the mesh at all is a decision for its visualization stage. Until then the IONOS zone file
-is validated against that cluster's API with a server-side dry run, which persists nothing.
+management-plane lane. The two OSC clusters are provided, and the mesh-identity proof has run on
+zone A and zone B ([Open Sovereign Cloud — what has been run](environments/osc.md#what-has-been-run)).
+The IONOS cluster is provided too, and `zones/ionos.yaml` is recorded from it, but the chart is not
+installed there: that cluster holds no demonstration workload, its CNI is the provider-managed Calico
+rather than the Cilium of [ADR-0009](adr/0009-service-mesh-mode-istio-sidecar-with-cilium.md), and
+SPIRE and the mesh there are in progress, with the Istio CNI plugin chained behind Calico ([the mesh
+and SPIRE on each cluster](specifications.md#the-mesh-and-spire-on-each-cluster)). Until that work
+installs them the IONOS zone file is validated against that cluster's API with a server-side dry
+run, which persists nothing.
