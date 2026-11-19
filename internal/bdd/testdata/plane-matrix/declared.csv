@@ -1,0 +1,5 @@
+row,role,namespace,probe,caller,destination,port,expected,outcome,layer,evidence,kind,verdict
+"catch-all","any","ztd-data","TCP, proxy-less","probe-0","istio-system/istiod (istiod-1)","15010","denied","denied(28)","network","ev","real","pass"
+"catch-all","any","ztd-data","TCP to istiod's xDS port","probe-0","istio-system/istiod (istiod-1)","15012","open, declared","connected","network","ev","real","declared"
+"catch-all","any","ztd-data","TCP, proxy-less","probe-0","istio-system/istiod (istiod-1)","15014","denied","denied(28)","network","ev","real","pass"
+"management-to-data","any data-plane workload (from the management plane)","ztd-mgmt","TCP, proxy-less","probe-0","ztd-data/data-target (data-target)","8080","dropped","denied(28)","network","ev","stand-in","pass"

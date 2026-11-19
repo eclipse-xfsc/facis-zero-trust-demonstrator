@@ -9,11 +9,12 @@ reachable with the schema current and the key-value store is initialised and uns
 service's endpoints land on top of it; the design is in
 [docs/token-store.md](../../../docs/token-store.md).
 
-Install into the zone's management plane after the umbrella chart, with the PostgreSQL the store
-owns reachable, its connection URL in a Secret of the release namespace, and the key-value store
-answering at `openbao.address`. The default address is the umbrella chart's OpenBao under the
-release name `ztd`, which the umbrella ships **disabled** (`openbao.enabled: false`): enable it
-there, or point `openbao.address` at the zone's OpenBao, or the service never becomes ready and
+Install into the zone's management plane after the zone's releases
+([install-zone](../../../scripts/install-zone/README.md)), with the PostgreSQL the store owns
+reachable, its connection URL in a Secret of the release namespace, and the key-value store
+answering at `openbao.address`. The default address is the zone's OpenBao, the release
+`ztd-openbao` the zone installer installs last ([Secrets](../../../docs/secrets.md)); a zone
+without it points `openbao.address` at its own OpenBao, or the service never becomes ready and
 `--wait` times out with `/readyz` saying `openbao: unreachable`. The chart never carries the
 database credential: the Secret exists before the install and the Jobs and the service read it.
 

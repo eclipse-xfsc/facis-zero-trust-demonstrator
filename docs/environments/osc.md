@@ -6,10 +6,13 @@ admission control and policy enforcement, and the interesting part of the demons
 happens between them.
 
 The two clusters were provided on 9 October 2026 and the facts on this page were read off them on
-10 October 2026. Steps 1 to 4 have been run on both by the mesh-identity proof, with the proof's
-pods on istiod's node, and both zones are left installed on their interim trust domains; the mesh
-does not work across nodes on the provider's pod network as configured today (see
-[What has been run](#what-has-been-run)). Steps 5 to 7 have not been run.
+10 October 2026; the provider's Cilium was read again on 25 October 2026, after the provider moved it
+to 1.19.6 and to a VXLAN overlay on 21 October. Steps 1 to 4 have been run on both: the proof on
+every node has been run on the local kind cluster with the default kind zone file and on zone A and
+zone B with their zone files and the keep opt-in, the release `ztd-openbao` included, and every check
+passed; both zones are left installed on their interim trust domains (see
+[What has been run](#what-has-been-run)).
+Steps 5 to 7 have not been run.
 
 ## Before you start
 
@@ -45,16 +48,23 @@ sets it. For each context:
 
 ```bash
 kubectl --context zerotrust-a -n kube-system get ds cilium \
-  -o jsonpath='{.spec.template.spec.containers[0].image}{"\n"}'          # .../cilium:v1.18.8
+  -o jsonpath='{.spec.template.spec.containers[0].image}{"\n"}'          # .../cilium:v1.19.6
 kubectl --context zerotrust-a -n kube-system get cm cilium-config \
   -o jsonpath='{.data.cni-exclusive} {.data.bpf-lb-sock-hostns-only}{"\n"}'   # false true
+kubectl --context zerotrust-a -n kube-system get cm cilium-config \
+  -o jsonpath='{.data.routing-mode} {.data.tunnel-protocol} {.data.ipv4-native-routing-cidr}{"\n"}'   # tunnel vxlan
 kubectl --context zerotrust-a -n kube-system get ds cilium                 # 3 desired, 3 ready
 ```
 
-**Verify:** the image tag is `v1.18.8`, `cni-exclusive` is `false`, `bpf-lb-sock-hostns-only` is
+**Verify:** the image tag is `v1.19.6`, `cni-exclusive` is `false`, `bpf-lb-sock-hostns-only` is
 `true` (socket load-balancing stays in the host namespace, so the sidecars see service traffic),
-and every Cilium pod is ready. The proof reads the same values and checks at its end that the
-DaemonSet and its ConfigMap are unchanged by the run.
+the routing mode is `tunnel` with the `vxlan` protocol and no native-routing range, and every Cilium
+pod is ready. In tunnel mode a pod's traffic to a pod on another node keeps the pod's address, so
+the destination sees the source pod and its identity, and the policies that admit pods by namespace
+or label match across nodes. In native routing with masquerading on, a node whose pod range lies
+outside `ipv4-native-routing-cidr` would reach the other nodes' pods with the node's address
+instead; the proof's routing check fails on that, naming the nodes. The proof reads the same values
+and checks at its end that the DaemonSet and its ConfigMap are unchanged by the run.
 
 Facts read off both clusters on 10 October 2026:
 
@@ -62,7 +72,7 @@ Facts read off both clusters on 10 October 2026:
 |---|---|---|
 | Kubernetes | `v1.34.7` | `kubectl version` |
 | Nodes | three workers, Garden Linux 2150.7.0, containerd 2.2.6, provider IDs `onmetal://` | `kubectl get nodes -o wide` |
-| Cilium | 1.18.8, the provider's DaemonSet, `cni-exclusive=false`, `bpf-lb-sock-hostns-only=true`, kube-proxy replacement, native routing, `policy-cidr-match-mode=nodes` | `kubectl -n kube-system get ds cilium`, `get cm cilium-config` |
+| Cilium (read on 25 October 2026) | 1.19.6, the provider's DaemonSet, `cni-exclusive=false`, `bpf-lb-sock-hostns-only=true`, kube-proxy replacement, `policy-cidr-match-mode=nodes`; tunnel routing (`routing-mode=tunnel`, `tunnel-protocol=vxlan`, no `ipv4-native-routing-cidr`), with iptables masquerading on (`enable-ipv4-masquerade=true`, `enable-bpf-masquerade=false`) for traffic that leaves the node outside the tunnel | `kubectl -n kube-system get ds cilium`, `get cm cilium-config`; `cilium-dbg status` in a Cilium pod (`Routing: Network: Tunnel [vxlan]`) |
 | StorageClass | `default` (the default class, `csi.onmetal.de`) | `kubectl get storageclass` |
 | CoreDNS | in `kube-system`, labelled `k8s-app=kube-dns` (the chart default), listening on 8053 behind the Service's port 53 | `kubectl -n kube-system get svc kube-dns` |
 | Pod mutation by the provider | `kubernetes-service-host.resources.gardener.cloud` sets `KUBERNETES_SERVICE_HOST` to the API server's public name in every new pod, except in namespaces labelled `apiserver-proxy.networking.gardener.cloud/inject: disable` | `kubectl get mutatingwebhookconfiguration gardener-resource-manager-shoot` |
@@ -80,8 +90,8 @@ done
 
 ## 2. The zone layout
 
-Steps 2 to 4 are one command. The zone installer installs the zone from its zone file as seven Helm
-releases, in this order, each through the deployment lifecycle step (`scripts/lifecycle.sh`: a
+Steps 2 to 4 and the secret store are one command. The zone installer installs the zone from its
+zone file as eight Helm releases, in this order, each through the deployment lifecycle step (`scripts/lifecycle.sh`: a
 server-side dry run, then `helm upgrade --install --wait` with rollback on failure), each waiting on
 the previous, and stops at the first release that fails, naming it:
 
@@ -94,6 +104,7 @@ the previous, and stops at the first release that fails, naming it:
 | 5 | `istiod` | `istio-system` | Istio `istiod` 1.31.1 | 4 |
 | 6 | `istio-cni` | `istio-system` | Istio `cni` 1.31.1 | 4 |
 | 7 | `zone-policy` | `istio-system` | `deployment/helm/zone-policy` | 3 and 4 |
+| 8 | `ztd-openbao` | `ztd-mgmt` | `deployment/helm/ztd-openbao`, wrapping `openbao` 0.28.3 (OpenBao v2.5.4) | [the secret store](#the-secret-store) |
 
 The zone files record each cluster: `deployment/helm/ztd/zones/zone-a.yaml` and `zone-b.yaml`
 (`zones/zone-a.example.yaml` shows each fact with the command that reads it). Each states:
@@ -118,6 +129,10 @@ The zone files record each cluster: `deployment/helm/ztd/zones/zone-a.yaml` and 
   to the API server's public name, which Cilium sees as `world`: SPIRE and istiod could not reach
   the API through the `kubeApi` lane, which admits the `kube-apiserver` entity only. With the label
   the pods use the `kubernetes` Service, as on any other cluster.
+
+The releases after the umbrella read the zone facts they need from the umbrella's defaults with the
+zone file on top, so the management namespace (`ztd-mgmt`) and the Cilium switch reach `ztd-openbao`
+without the zone file repeating them; `zone.storageClass` it states.
 
 Then plan, and install:
 
@@ -158,7 +173,10 @@ selector: every pod with `spiffe.io/spire-managed-identity: "true"` in a plane n
 `spiffe://<trust domain>/ns/<namespace>/sa/<service account>`. The registration is a regular
 resource that the controller-manager reconciles into entries, never a hook job; the jobs that check
 the server, the trust bundle and the entries sit in the `identity` band of the hook-weight scheme
-and fail the release when identity is not there. Details: [Workload identity](../workload-identity.md).
+and fail the release when identity is not there. The same release puts the mesh default deny in
+place, with one allow rule by SPIFFE identity per allow-matrix row and the denial log; the installer
+fills the rows from the zone values ([Mesh authorization](../workload-identity.md#mesh-authorization)).
+Details: [Workload identity](../workload-identity.md).
 
 The zone facts this step needs, in the zone file `deployment/helm/ztd/zones/<zone>.yaml`:
 
@@ -181,7 +199,10 @@ ZONE_VALUES=deployment/helm/ztd/zones/<zone>.yaml KUBE_CONTEXT=<context> \
 `kubectl -n spire-system exec spire-server-0 -c spire-server -- /opt/spire/bin/spire-server agent
 list` shows one attested agent per node that runs workloads; a labelled test pod receives, over the
 mounted socket, an SVID whose SPIFFE ID matches its service account
-([Checking an identity](../workload-identity.md#checking-an-identity)).
+([Checking an identity](../workload-identity.md#checking-an-identity)). The record of the mesh-identity
+proof now carries the registration inventory too (section 14, `registration-inventory`): every
+entry on the server next to the pod that holds it and its certificate in use, by SPIFFE ID
+([declared workloads](../workload-identity.md#declared-workloads-and-the-registration-inventory)).
 
 ## 4. Mesh
 
@@ -205,6 +226,38 @@ secret <pod>` shows `default` and `ROOTCA` issued by the SPIRE CA; a request bet
 workloads carries a SPIRE-issued identity. The mesh identity proof shows all of it, on kind and on
 these clusters: the next section.
 
+### The secret store
+
+Release 8, `ztd-openbao`, installs OpenBao into the management plane after `zone-policy`, so its
+server, its bootstrap Job and its verification hook are created with a sidecar, a SPIRE entry and an
+SVID ([Secrets](../secrets.md)). The bootstrap initialises and unseals the server and keeps the unseal
+key in the Secret `ztd-openbao-bootstrap`; the verification hook fails the release unless the store is
+unsealed with KV version 2 and transit.
+
+**Verify:** the installer reports `ztd-openbao` deployed (the verification hook passed);
+`kubectl -n ztd-mgmt logs job/ztd-verify-openbao -c verify` ends with `OpenBao verified`; the
+mesh-identity proof lists `ztd-mgmt/ztd-openbao-0` as a matched declared workload. After a restart
+the installer did not cause, the server is sealed until `scripts/secrets/unseal.sh` is run against
+the zone's cluster (the script uses the current kube context).
+
+**Placement.** No release of the zone is held to a node: the OpenBao server and both of its jobs
+carry no node affinity or node selector, and the scheduler places them. The server's volume
+(StorageClass `default`, `csi.onmetal.de`, `WaitForFirstConsumer`) has no node affinity, and the
+three nodes of a zone share one availability zone, so a server that lands on another node finds its
+volume there.
+
+Earlier the zone files of zone A and zone B held the server and its jobs on istiod's node, a
+temporary pin set while the provider's pod network masqueraded pod traffic between nodes (a meshed
+pod on another node than istiod could not reach istiod on 15012 and stayed in `Init:1/2`). The pin
+went once the proof on every node had passed on both zones (26 October 2026, with the pin in place),
+and a zone file that still sets it is refused by the umbrella's schema. The zones as installed by
+those runs still carry it: their OpenBao pods stay on istiod's node until the zone is installed
+again. The next `scripts/install-zone/install.sh install` of a zone, an upgrade of the release,
+drops the placement: the server restarts wherever the scheduler places it, its volume attaches
+there, and the bootstrap unseals it with the stored key, so the store keeps its data. Only a proof
+run, whose clean slate uninstalls the zone, resets the store. Neither has been run on the zones
+since ([What has been run](#what-has-been-run)).
+
 ## Proving steps 2 to 4: the mesh-identity proof
 
 `scripts/verify-mesh-identity/verify.sh` installs the zone from the empty cluster with the zone
@@ -212,7 +265,12 @@ installer, twice, and proves every verification of steps 2 to 4 with stand-in po
 the CSI socket, the proxy's certificate from SPIRE, the trust domain shared by SPIRE, the SVID and
 the mesh, the Istio plugin chained behind the provider's Cilium, the default deny with both
 control planes inside it, the server version against the native-sidecar floor, and the provider's
-CNI unchanged. It refuses these clusters unless the run is confirmed: the context is `zerotrust-a`
+CNI unchanged. It places a meshed stand-in on every node and shows each one Ready with a
+SPIRE-issued certificate, a call from every node to the next one across a node boundary, and the
+refused paths with the caller on another node than the peer; no pod is held to istiod's node. Its
+routing check fails the run when the pod network would masquerade pod traffic between nodes, and
+stops it among the preconditions, before anything is uninstalled or installed. It refuses these
+clusters unless the run is confirmed: the context is `zerotrust-a`
 or `zerotrust-b`, `ZTD_CONFIRM_CLUSTER` equals it, the API server host begins with
 `api.<context>.`, and every node is an `onmetal://` node named for that cluster
 ([verify-mesh-identity](https://github.com/eclipse-xfsc/facis-zero-trust-demonstrator/tree/main/scripts/verify-mesh-identity)).
@@ -231,12 +289,15 @@ KUBE_CONTEXT=zerotrust-a ZTD_CONFIRM_CLUSTER=zerotrust-a ZTD_KEEP_ZONE=zerotrust
   ZONE_VALUES=deployment/helm/ztd/zones/zone-a.yaml scripts/verify-mesh-identity/verify.sh
 ```
 
-With `ZTD_KEEP_ZONE`, a run whose every check passed leaves the seven releases installed in
-`ztd-system`, `spire-system` and `istio-system` with the two plane namespaces, removes its stand-in
-pods, and ends its evidence with "What remains installed": the releases `deployed`, the SPIRE
+With `ZTD_KEEP_ZONE`, a run whose every check passed leaves the eight releases installed in
+`ztd-system`, `spire-system`, `istio-system` and `ztd-mgmt` with the two plane namespaces, removes its
+stand-in pods, and ends its evidence with "What remains installed": the releases `deployed`, the
+OpenBao server ready, the SPIRE
 server and controller-manager ready, one agent and one CSI driver pod ready per node, one attested
-agent per node, and the trust domain in use. A failed check or an interrupted run tears the zone
-down whatever the opt-in; without it the run always does. A kept zone runs on its **interim trust
+agent per node, and the trust domain in use. A run that stops before its clean slate (a failed
+routing check, or an error or interrupt among the preconditions) uninstalls and installs nothing:
+the cluster is left as found, a zone it already runs included. Past the clean slate, a failed check
+or an interrupted run tears the zone down whatever the opt-in; without it the run always does. A kept zone runs on its **interim trust
 domain** until the re-install with the final name; it is not acceptance evidence until then. A
 re-run of the proof on a kept zone starts from its clean slate, which uninstalls the zone first
 (and so regenerates the SPIRE root CA and every SVID).
@@ -248,32 +309,48 @@ scrapes them yet: that belongs to the observability work.
 Each run writes its record (`evidence.md`, `environment.json`) to a run directory outside the
 repository, `ZTD_EVIDENCE_DIR` when set, else a new directory under
 `${XDG_STATE_HOME:-$HOME/.local/state}/ztd/verify-mesh-identity/<context>/`, and prints that
-directory as its last line; every IPv4 address of the cluster is written as `<address>` in it. The
+directory as its last line; every IPv4 and IPv6 address of the cluster is written as `<address>` in it. The
 repository holds no record of a run: a record is proof of a state at a time and goes with the task
 that asked for it. What a run shows, section by section, is in
 `scripts/verify-mesh-identity/README.md`.
 
 ### What has been run
 
-The proof has been run on both participant clusters, zone A then zone B, with the keep opt-in and
-with the proof's pods pinned to istiod's node; every check passed on both, and both zones are
-**left installed** on their interim trust domains. The pin is in the proof alone: the chart, the
-policies and the zone files carry none of it.
+Both zones are **left installed** on their interim trust domains by the runs of the proof on every
+node below. The provider's Cilium routes in tunnel mode (VXLAN), read off both clusters on 25 October
+2026 and again by the routing check of those runs.
 
-**The limitation: the mesh is proven node-locally only.** The provider's Cilium runs in native
-routing with `ipv4-native-routing-cidr` covering the node network only and masquerading on, so a
-pod's traffic to a pod on another node leaves with the node's address; at the destination Cilium
-sees the node, not the source pod, and no network policy that admits pods by namespace or label
-matches across nodes (a run's preconditions state it: `0 of 3 node pod ranges inside
-ipv4-native-routing-cidr`). **Cross-node meshed traffic is not proven and does not work there**: a
-meshed workload on a node other than istiod's never starts, because its proxy cannot reach istiod
-on 15012. The lanes admit no workload by address and are not widened to node addresses, which would
-admit every pod on every node (the one address the chart admits is the kubelet probe address of the
-parked ambient mode, rendered only in that mode). The fix is the provider's (pod-to-pod traffic
-keeping the pod's address between nodes, the pod network inside Cilium's native-routing range or the
-overlay) and has been requested; once the provider confirms the change, the pin is removed from the
-proof and both zones are re-run without it, as a run of its own, independent of the re-install on
-the final trust-domain names.
+The proof on every node, with none of its own pods pinned, has been run on the local kind cluster (two workers, a
+fresh cluster from `scripts/dev/kind-cilium-up.sh`) with the default kind zone file
+(`deployment/helm/ztd/ci/values.yaml`), and on 26 October 2026 on zone A and zone B (three nodes
+each) with `zones/zone-a.yaml` and `zones/zone-b.yaml` and the keep opt-in, each time with the eight
+releases, `ztd-openbao` included, from a clean tree, and every check passed. In each run the routing
+check passed in tunnel mode, the store's bootstrap reached `configured` and its verification hook
+passed, a meshed stand-in ran Ready on every node with a SPIRE-issued certificate, each node's
+stand-in called the next node's across the node boundary (three calls on each zone) with the
+caller's SPIFFE ID seen by the receiver and both proxies counting mutual TLS, and the cross-plane call
+and the unregistered workload's call were refused from a node other than the peer's. On both zones
+the OpenBao server and its jobs ran on istiod's node, where the zone files and the installer of that
+date still pinned them, and the record of what remains found the eight releases deployed and none of
+the proof's fixtures left; the zones were kept. A run on a zone resets its secret store: the clean
+slate uninstalls the zone, and the reinstall bootstraps a new, empty store. What a run shows, section
+by section, is in `scripts/verify-mesh-identity/README.md`.
+
+That pin has since been removed ([the secret store](#the-secret-store)): no release of a zone is held
+to a node, and the proof checks on every cluster that no pod of `ztd-openbao` carries a node
+affinity. After the removal the proof was run again on a fresh kind cluster with the default kind
+zone file from a clean tree, and every check passed, that one included. Zone A and zone B have not been installed again since, so
+their OpenBao pods still run on istiod's node as those runs left them. An install of a zone frees
+them from istiod's node without resetting the store, and a proof run frees them and resets it; neither has
+been made yet. The proof's own placement is in the proof alone, and the charts
+and the policies carry none of it.
+
+The lanes admit no workload by address and are not widened to node addresses, which would admit
+every pod on every node (the one address the chart admits is the kubelet probe address of the parked
+ambient mode, rendered only in that mode). They need the pod network to keep a pod's address between
+nodes, as the tunnel does; should the provider's routing change to masquerade pod traffic between
+nodes, the proof's routing check fails and [troubleshooting](../troubleshooting.md) gives the
+diagnosis. The re-install on the final trust-domain names is a run of its own.
 
 ## 5. Admission control
 
@@ -307,7 +384,8 @@ journey, and confirm the second one aborts the handshake before any application 
 ## Teardown
 
 Components uninstall in the reverse order of their installation; the layout goes last. The
-installer does it for the seven releases of steps 2 to 4. Helm removes the SPIRE CRDs with
+installer does it for the eight releases, `ztd-openbao` first, which destroys the store (its volume
+and its bootstrap Secret go with the management namespace). Helm removes the SPIRE CRDs with
 `spire-crds`; Istio's `base` chart marks its CRDs to be kept by Helm, so the installer deletes the
 CRDs that release owned:
 

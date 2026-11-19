@@ -1,0 +1,45 @@
+{{- /*
+One allow rule per declared pair (values `pairs`: the umbrella's allowMatrix rows and its
+intraPlanePairs, copied by scripts/install-zone). Each is an AuthorizationPolicy allow-<name> in the
+destination's namespace that selects the destination by its pod labels and admits the caller by its
+SPIFFE principal (<trust domain>/ns/<namespace>/sa/<service account>), or every workload of the
+source namespace when the source is a whole plane, on the destination's ports when the pair names
+any. Identities only: no path, method, host or address, so no rule here is an L7 rule.
+*/ -}}
+{{- $seen := dict }}
+{{- range .Values.pairs }}
+{{- if hasKey $seen .name }}
+{{- fail (printf "zone-policy: two pairs are named %q; each pair renders the rule allow-<name>, so names must be unique" .name) }}
+{{- end }}
+{{- $_ := set $seen .name true }}
+{{- $fromNs := include "zone-policy.pairNamespace" (dict "root" $ "endpoint" .from) }}
+{{- $toNs := include "zone-policy.pairNamespace" (dict "root" $ "endpoint" .to) }}
+---
+apiVersion: security.istio.io/v1
+kind: AuthorizationPolicy
+metadata:
+  name: allow-{{ .name }}
+  namespace: {{ $toNs }}
+  labels:
+    {{- include "zone-policy.labels" $ | nindent 4 }}
+  annotations:
+    ztd.facis.io/pair: {{ .name }}
+spec:
+  selector:
+    matchLabels:
+      {{- toYaml .to.podSelector | nindent 6 }}
+  action: ALLOW
+  rules:
+    - from:
+        - source:
+            {{- if .from.wholePlane }}
+            namespaces: [{{ $fromNs | quote }}]
+            {{- else }}
+            principals: [{{ include "zone-policy.principal" (dict "root" $ "namespace" $fromNs "serviceAccount" .from.serviceAccount) | quote }}]
+            {{- end }}
+      {{- with .to.ports }}
+      to:
+        - operation:
+            ports: [{{ range $i, $p := . }}{{ if $i }}, {{ end }}{{ $p.port | toString | quote }}{{ end }}]
+      {{- end }}
+{{- end }}

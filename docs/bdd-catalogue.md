@@ -13,7 +13,7 @@ reported is described in [BDD acceptance](bdd.md).
   This page is built from the repository, not from a run: each cluster run publishes its own
   copy of the catalogue with the basis filled in.
 
-94 rows: 8 implemented, 86 pending.
+94 rows: 9 implemented, 85 pending.
 
 | Row | Requirement | Gate | Status | Runner |
 |---|---|---|---|---|
@@ -71,7 +71,7 @@ reported is described in [BDD acceptance](bdd.md).
 | [ZT-52](#zt-52) | Fail-Secure (Fail-Closed) Behavior | G6 | pending | godog |
 | [ZT-53](#zt-53) | Multi-Tenancy and Tenant Isolation | G6 | pending | godog |
 | [ZT-54](#zt-54) | Software Bill of Materials (SBOM) | G6 | pending | godog |
-| [ZT-55](#zt-55) | Management Plane / Data Plane Separation | G6 | pending | godog |
+| [ZT-55](#zt-55) | Management Plane / Data Plane Separation | G6 | implemented | godog |
 | [ZT-56](#zt-56) | CI/CD Pipeline Security (Zero Trust for the Pipeline) | G6 | pending | godog |
 | [ZT-57](#zt-57) | SPIFFE/SPIRE Setup | G3 | pending | godog |
 | [ZT-58](#zt-58) | Service Mesh Setup | G3 | pending | godog |
@@ -1311,8 +1311,8 @@ Then an SBOM in CycloneDX or SPDX format is generated automatically, signed with
 | Test type | Technical BDD / inspection |
 | Gate | G6 - Quality readiness |
 | Evidence | `evidence/bdd-zt-055/` |
-| Automation status | pending |
-| Evidence basis | none (pending) |
+| Automation status | implemented, runs on a cluster |
+| Evidence basis | recorded per run |
 | Runner | godog |
 | Scenario file | `features/go/plane-separation.feature` |
 
