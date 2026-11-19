@@ -18,6 +18,9 @@ spec:
           env:
             - {name: KC_BOOTSTRAP_ADMIN_USERNAME, value: admin}
             - {name: KC_BOOTSTRAP_ADMIN_PASSWORD, value: admin}   # local test instance only
+            # The issuer is pinned to the in-cluster name whatever host a request arrives under, so a token
+            # requested through a port-forward carries the iss the TSPA validates (values-kind.yaml).
+            - {name: KC_HOSTNAME, value: http://keycloak:8080}
           ports:
             - {name: http, containerPort: 8080}
           readinessProbe:

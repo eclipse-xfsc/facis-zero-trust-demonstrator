@@ -7,6 +7,8 @@ findings: [docs/tspa-publish-api.md](../../docs/tspa-publish-api.md).
   built from its Dockerfile, upstream's Helm chart with `values-kind.yaml`, and Keycloak (`keycloak.yaml`)
   with upstream's test realm. Needs `TSPA_REPO` pointing at a clone of
   `eclipse-xfsc/train-trust-framework-manager` with `eclipse-xfsc/train-shared` cloned into its `shared/`.
+  Keycloak's issuer is pinned to its in-cluster name (`KC_HOSTNAME`), so a token requested through a
+  port-forward from the host carries the `iss` the TSPA validates, as `scripts/verify-train-publish` needs.
 - `roundtrip.sh` — writes, reads back, updates and deletes one entry against that TSPA; appends every
   request/response to `evidence.md`. Reads the test client's secret from the same `TSPA_REPO`.
 - `payloads/` — framework, trust-list init and two entry versions (measurement `1111…` and `2222…`).

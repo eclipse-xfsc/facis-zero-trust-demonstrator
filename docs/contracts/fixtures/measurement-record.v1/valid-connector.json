@@ -1,0 +1,17 @@
+{
+  "component": "connector",
+  "zone": "b",
+  "serviceTypeIdentifier": "did:example:zone-b-connector",
+  "image": "ghcr.io/example/connector@sha256:6105d6cc76af400325e94d588ce511be5bfdbb73b437dc51eca43917d7a43e3d",
+  "measurement": {
+    "type": "TEEM-sha256",
+    "value": "f156f3c5359f2163d1bfe0a1f025b6a7a18d81eed7f94d3bf3d5c6f2799ac5bc",
+    "configSha256": "e67d23e7820c49a8051dac2831f38290f5e72f66c8db5079eeb60d82f14894c0",
+    "rootfsSha256": "3c47ef972d531d524daa15fa33dd885dd23de6221bbd10a29eb42ecfcf2ef422"
+  },
+  "source": {
+    "commit": "8725649",
+    "tool": "cmc 6754d3c measure",
+    "producedAt": "2026-11-12T09:00:00Z"
+  }
+}

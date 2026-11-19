@@ -1,0 +1,150 @@
+name: TRAIN publication proof
+
+# The TRAIN publication step as a gate: the publisher's place in the lifecycle script, held by
+# scripts/lifecycle_test.sh against stubs for kubectl and helm and the TSPA stand-in (seconds), and
+# the proof against the real TSPA on kind (scripts/verify-train-publish/verify.sh): upstream's TSPA
+# built from its Dockerfile at the verified commit, its chart and test realm, two measurement
+# records from the attestation component's own code, the publisher gating the rollouts of a
+# stand-in component through the induced days of matrix.tsv. The TSPA image is built once per pair
+# of upstream commits and restored from the cache afterwards, so the proof takes minutes, not the
+# quarter of an hour of the first build. The publisher's own cases against the stand-in run in the
+# CI workflow on every pull request; this one runs when the step, its proof or its inputs change.
+on:
+  pull_request:
+    paths:
+      - scripts/train-publish/**
+      - scripts/verify-train-publish/**
+      - scripts/verify-tspa-api/**
+      - scripts/lifecycle.sh
+      - scripts/lifecycle_test.sh
+      - tools/measurement-determinism/**
+      - scripts/tools/pins.env
+      - go.mod
+      - .github/workflows/train-publish.yml
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  # The upstream commits docs/tspa-publish-api.md verified: the TSPA and the train-shared model classes
+  # its build needs. A change here is a reviewed change, and a new image in the cache.
+  TSPA_COMMIT: ecd5fdc1b01d4aac2e0cbcb1d44dff1ac0202c17
+  TRAIN_SHARED_COMMIT: 6a0abe4bcbb42c6f3273417af990271a475ba2cc
+
+jobs:
+  lifecycle:
+    name: Lifecycle step with the publication gate
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+
+      - name: Run the lifecycle cases against stubs and the TSPA stand-in
+        run: bash scripts/lifecycle_test.sh
+
+  proof:
+    name: Publication proof against the real TSPA (kind)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+
+      # The measurement step builds the attestation component's code with the Go version go.mod names.
+      - name: Set up Go
+        uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version-file: go.mod
+
+      - name: Set up Helm
+        uses: azure/setup-helm@1a275c3b69536ee54be43f2070a358922e12c8d4 # v4
+        with:
+          version: v4.3.0
+
+      - name: Install the pinned kind and kubectl
+        run: |
+          scripts/tools/install.sh "$RUNNER_TEMP/bin" kind kubectl
+          echo "$RUNNER_TEMP/bin" >> "$GITHUB_PATH"
+
+      # Outside the checkout, as the kit asks; the shared model classes go into shared/.
+      - name: Clone upstream's TSPA and train-shared at the verified commits
+        run: |
+          git clone --quiet https://github.com/eclipse-xfsc/train-trust-framework-manager "$RUNNER_TEMP/tspa"
+          git -C "$RUNNER_TEMP/tspa" -c advice.detachedHead=false checkout --quiet "$TSPA_COMMIT"
+          git clone --quiet https://github.com/eclipse-xfsc/train-shared "$RUNNER_TEMP/tspa/shared"
+          git -C "$RUNNER_TEMP/tspa/shared" -c advice.detachedHead=false checkout --quiet "$TRAIN_SHARED_COMMIT"
+
+      # The image depends on the two commits and on how the kit builds it; the cache key says so.
+      # Restore and save are separate steps: the combined action saves only when the job succeeds,
+      # and a fifteen-minute build is worth keeping whatever the proof's verdict was.
+      - name: Restore the TSPA image built for these commits
+        id: image
+        uses: actions/cache/restore@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
+        with:
+          path: ${{ runner.temp }}/tspa-image.tar
+          key: tspa-image-${{ env.TSPA_COMMIT }}-${{ env.TRAIN_SHARED_COMMIT }}-${{ hashFiles('scripts/verify-tspa-api/kind-up.sh') }}
+
+      - name: Load the cached image
+        if: steps.image.outputs.cache-hit == 'true'
+        run: docker load --input "$RUNNER_TEMP/tspa-image.tar"
+
+      # The evidence and the records go to the runner's temp directory, outside the checkout.
+      - name: Run the proof
+        env:
+          TSPA_REPO: ${{ runner.temp }}/tspa
+          TSPA_SKIP_BUILD: ${{ steps.image.outputs.cache-hit == 'true' && '1' || '' }}
+          TRAIN_PROOF_EVIDENCE: ${{ runner.temp }}/proof/evidence.md
+          TRAIN_PROOF_CMC_WORK: ${{ runner.temp }}/cmc
+        run: |
+          mkdir -p "$RUNNER_TEMP/proof"
+          scripts/verify-train-publish/verify.sh --out "$RUNNER_TEMP/proof/records"
+
+      # A run that failed before the build has no image to save, and that is not a second failure.
+      - name: Write the built image to a file
+        id: tar
+        if: steps.image.outputs.cache-hit != 'true' && !cancelled()
+        run: |
+          if docker image inspect tspa-service:local >/dev/null 2>&1; then
+            docker save tspa-service:local --output "$RUNNER_TEMP/tspa-image.tar"
+            echo "written=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "no tspa-service:local image was built; nothing to cache"
+            echo "written=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Save the image for the next run
+        if: steps.tar.outputs.written == 'true' && !cancelled()
+        uses: actions/cache/save@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
+        with:
+          path: ${{ runner.temp }}/tspa-image.tar
+          key: ${{ steps.image.outputs.cache-primary-key }}
+
+      - name: Write the summary of the matrix to the job summary
+        if: ${{ !cancelled() }}
+        run: |
+          if [ -f "$RUNNER_TEMP/proof/evidence.md" ]; then
+            awk '/^## Summary of the matrix/{p=1} /^## 1\./{p=0} p' "$RUNNER_TEMP/proof/evidence.md" >> "$GITHUB_STEP_SUMMARY"
+            grep -E '^\*\*Verdict' "$RUNNER_TEMP/proof/evidence.md" >> "$GITHUB_STEP_SUMMARY" || true
+          else
+            echo "no evidence was written; see the proof step" >> "$GITHUB_STEP_SUMMARY"
+          fi
+
+      - name: Upload this run's evidence and records
+        if: ${{ !cancelled() }}
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: train-publish-proof
+          path: ${{ runner.temp }}/proof
+          if-no-files-found: warn   # a proof that died before writing anything is already red
+
+      # The proof writes outside the checkout (the kit's kubeconfig lands under the ignored .dev/).
+      - name: The repository is unchanged
+        if: ${{ !cancelled() }}
+        run: |
+          if [ -n "$(git status --porcelain)" ]; then
+            git status --porcelain
+            echo "::error::the proof changed files in the repository"
+            exit 1
+          fi
