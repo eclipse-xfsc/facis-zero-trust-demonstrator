@@ -69,6 +69,16 @@ proxySocketPolicy:
   # every injected pod. An Istio upgrade changes both.
   proxyImage: docker.io/istio/proxyv2:1.31.1@sha256:d86cba0dd1eb15c00b6901c69ce5ae3d2d5f8427a47751098cf8c3ab2a4a62e9
 
+# Mesh tracing (docs/adr/0017-central-observability-backends.md): a mesh-wide Telemetry resource in the
+# mesh root namespace turns on the istiod extension provider of deployment/helm/values/istiod.yaml
+# (an OpenTelemetry provider pointing at the zone gateway), so every proxy emits a span for each
+# request and propagates the W3C traceparent header. 100 % sampling: a demonstrator with low
+# traffic. The provider's name must equal the one in istiod.yaml.
+tracing:
+  enabled: true
+  provider: ztd-otel-gateway
+  randomSamplingPercentage: 100
+
 # Identity-band checks (hook-weight band "identity", 20-39): post-install and post-upgrade Jobs that
 # only read, through the Kubernetes API, and fail the release when identity is not there. They run
 # in the release namespace under its default deny, through the DNS bypass and the API lane.

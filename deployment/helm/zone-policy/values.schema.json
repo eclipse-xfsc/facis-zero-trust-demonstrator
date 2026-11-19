@@ -11,6 +11,15 @@
       "maxLength": 255,
       "pattern": "^[a-z0-9]([-a-z0-9_]*[a-z0-9])?(\\.[a-z0-9]([-a-z0-9_]*[a-z0-9])?)*$"
     },
+    "tracing": {
+      "type": "object",
+      "required": ["enabled", "provider", "randomSamplingPercentage"],
+      "properties": {
+        "enabled": { "type": "boolean" },
+        "provider": { "type": "string", "pattern": "^[a-z0-9-]+$" },
+        "randomSamplingPercentage": { "type": "number", "minimum": 0, "maximum": 100 }
+      }
+    },
     "spire": {
       "type": "object",
       "required": ["namespace", "className", "serverStatefulSet", "agentDaemonSet", "bundleConfigMap", "controllerManagerConfigMap"],

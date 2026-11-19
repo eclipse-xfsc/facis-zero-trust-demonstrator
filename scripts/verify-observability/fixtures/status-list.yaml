@@ -1,0 +1,57 @@
+# The proof's static server of the fixture status list (features/fixtures/xfsc/status/allow.json,
+# its statusListCredential), the revocation endpoint the zone gateway probes on kind. The proof
+# creates the ConfigMap status-list-fixture from the fixture file before applying this. A meshed pod
+# with the identity label in the management namespace, so the gateway reaches it under the mesh-wide
+# STRICT mTLS without any further opening. Placeholders: ${NS_MGMT}, ${ECHO_IMAGE}, ${PIN}.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: status-list
+  namespace: ${NS_MGMT}
+  labels: { app.kubernetes.io/name: status-list, app.kubernetes.io/part-of: verify-observability }
+spec:
+  replicas: 1
+  selector:
+    matchLabels: { app.kubernetes.io/name: status-list }
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: status-list
+        app.kubernetes.io/part-of: verify-observability
+        spiffe.io/spire-managed-identity: "true"
+    spec:
+      ${PIN}
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 65532
+        seccompProfile: { type: RuntimeDefault }
+      containers:
+        - name: status-list
+          image: ${ECHO_IMAGE}
+          imagePullPolicy: IfNotPresent
+          env:
+            - { name: SERVE_FILE, value: /status/1=/data/status-list.json }
+            - { name: OTEL_TRACES_EXPORTER, value: none }
+            - { name: OTEL_SDK_DISABLED, value: "true" }
+          ports:
+            - { containerPort: 8080, name: http }
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities: { drop: ["ALL"] }
+          volumeMounts:
+            - { name: fixture, mountPath: /data, readOnly: true }
+      volumes:
+        - name: fixture
+          configMap: { name: status-list-fixture }
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: status-list
+  namespace: ${NS_MGMT}
+  labels: { app.kubernetes.io/part-of: verify-observability }
+spec:
+  selector: { app.kubernetes.io/name: status-list }
+  ports:
+    - { name: http, port: 8080, targetPort: 8080 }

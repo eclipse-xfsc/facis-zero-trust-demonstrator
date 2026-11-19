@@ -1,0 +1,26 @@
+# Values of the telemetry-issuers chart (release telemetry-issuers of the demonstrator role,
+# scripts/install-zone/install.sh). Every key is documented here and in README.md. Installed into
+# the backends' namespace (observabilityBackends.namespace) on a cluster that runs cert-manager.
+
+# One entry per participant zone: its intermediate CA and its client certificate. The installer
+# fills it from the demonstrator zone file (observabilityBackends.entry.zones); the port is not
+# used here.
+zones: []
+#  - { name: zone-a, port: 4317 }
+
+# The name in the receiving collector's server certificate, which every collector verifies
+# (observabilityBackends.entry.serverName; telemetryExport.entry.serverName of each zone file).
+serverName: otel-entry.ztd-observability.svc
+
+# Lifetimes. cert-manager renews a certificate at two thirds of its lifetime; the root is not
+# renewed in place (a new root means new intermediates and a new copy into every zone).
+durations:
+  root: 87600h          # 10 years
+  intermediate: 43800h  # 5 years
+  server: 8760h         # 1 year
+  client: 8760h         # 1 year; the copy into the zones is rerun after a renewal
+
+# Every key is ECDSA P-256.
+privateKey:
+  algorithm: ECDSA
+  size: 256

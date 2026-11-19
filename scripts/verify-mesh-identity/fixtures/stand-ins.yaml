@@ -179,9 +179,12 @@ spec:
 apiVersion: v1
 kind: Pod
 metadata:
-  name: openbao
+  name: openbao-standin
   namespace: __MGMT__
-  labels: { app.kubernetes.io/name: openbao, spiffe.io/spire-managed-identity: "true" }
+  # The management-plane destination without a lane in the allow matrix. Named apart from the real
+  # store (the release ztd-openbao, Services ztd-openbao and ztd-openbao-internal, pods labelled
+  # app.kubernetes.io/name=openbao), so neither selects the other and no stand-in reads as the server.
+  labels: { app.kubernetes.io/name: openbao-standin, spiffe.io/spire-managed-identity: "true" }
 spec:
   terminationGracePeriodSeconds: 2   # sleep ignores SIGTERM; the stand-ins hold no state
   serviceAccountName: stand-in
@@ -193,9 +196,9 @@ spec:
 ---
 apiVersion: v1
 kind: Service
-metadata: { name: openbao, namespace: __MGMT__ }
+metadata: { name: openbao-standin, namespace: __MGMT__ }
 spec:
-  selector: { app.kubernetes.io/name: openbao }
+  selector: { app.kubernetes.io/name: openbao-standin }
   ports: [{ name: http, port: 8080 }]
 ---
 apiVersion: v1

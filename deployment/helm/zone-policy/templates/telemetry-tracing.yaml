@@ -1,0 +1,20 @@
+{{- /*
+Mesh-wide tracing in the mesh root namespace: every proxy reports a span per request to the istiod
+extension provider named here (deployment/helm/values/istiod.yaml, meshConfig.extensionProviders, an
+OpenTelemetry provider pointing at the zone gateway on 4317), and propagates W3C traceparent. The
+spans reach the zone gateway along the allow-matrix row workloads-to-otel-collector, under mTLS.
+*/ -}}
+{{- if .Values.tracing.enabled }}
+apiVersion: telemetry.istio.io/v1
+kind: Telemetry
+metadata:
+  name: mesh-default
+  namespace: {{ .Values.mesh.namespace }}
+  labels:
+    {{- include "zone-policy.labels" . | nindent 4 }}
+spec:
+  tracing:
+    - providers:
+        - name: {{ .Values.tracing.provider }}
+      randomSamplingPercentage: {{ .Values.tracing.randomSamplingPercentage }}
+{{- end }}

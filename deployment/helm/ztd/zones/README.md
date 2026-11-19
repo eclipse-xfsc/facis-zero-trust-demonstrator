@@ -8,10 +8,22 @@ ZONE_VALUES=deployment/helm/ztd/zones/<zone>.yaml KUBE_CONTEXT=<context> \
   scripts/install-zone/install.sh install
 ```
 
-The installer runs the seven releases in order (the umbrella, `spire-crds`, `spire`,
-`istio-base`, `istiod`, `istio-cni`, `zone-policy`; `scripts/install-zone/README.md`). The umbrella
-reads the whole file; the SPIRE, Istio and `zone-policy` releases read the zone facts they need
-from it (the trust domain), so the three cannot disagree.
+For a participant zone the installer runs ten releases in order (the umbrella, `spire-crds`, `spire`,
+`istio-base`, `istiod`, `istio-cni`, `zone-policy`, `ztd-openbao`, `otel-node`, `otel-gateway`;
+`scripts/install-zone/README.md`). `ionos.yaml` sets `zone.role: demonstrator`: it installs the
+central observability backends instead (`observabilityBackends`), outside both trust domains
+(`docs/adr/0017-central-observability-backends.md`). The participant files name their listener on the
+demonstrator cluster's entry (`telemetryExport.entry.port`: zone A 4317, zone B 4417); the entry's
+address and the revocation status-list URL are recorded once the demonstrator role is installed, and
+until then the installer refuses the two telemetry releases and no other.
+The umbrella reads the whole file; the SPIRE, Istio, `zone-policy` and `ztd-openbao` releases read
+the zone facts they need from the umbrella's defaults with this file on top (the trust domain, the
+storage class, the management namespace, the Cilium switch), so they cannot disagree.
+
+The secret store is not an umbrella value: the umbrella's schema refuses `openbao.enabled` and the
+other values it once took for OpenBao. Every zone the installer installs gets the release
+`ztd-openbao` (`deployment/helm/ztd-openbao`), with the zone's `zone.storageClass`; the one OpenBao
+key a zone file may carry is `openbao.pinToMeshNode`, which the installer reads (below).
 
 The chart has no defaults for the zone record on purpose. `zone.kubernetesVersion`,
 `zone.storageClass` and `zone.loadBalancer.type` are facts about the cluster, and the chart
@@ -49,7 +61,10 @@ provider's platform are recorded with them: CoreDNS listens on 8053 (`networkPol
 and the zone's namespaces carry Gardener's opt-out label
 `apiserver-proxy.networking.gardener.cloud/inject: disable` (`planes.namespaceLabels`), so that the
 provider's webhook leaves the pods on the `kubernetes` Service and they reach the API through the
-`kubeApi` lane.
+`kubeApi` lane. Both set `openbao.pinToMeshNode: true`: the provider's pod network masquerades
+cross-node pod traffic, so the installer pins the OpenBao server and its jobs to istiod's node until
+the network is fixed (`docs/environments/osc.md`). `ionos.yaml` carries no OpenBao value: the
+installer does not install that cluster, which runs the visualization only.
 
 | Zone file | `zone.trustDomain` | Status |
 |---|---|---|

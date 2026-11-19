@@ -16,6 +16,15 @@ meshConfig:
   # asserts it and scripts/verify-mesh-identity/verify.sh shows TLS 1.3 accepted, TLS 1.2 refused.
   meshMTLS:
     minProtocolVersion: TLSV1_3
+  # Envoy spans (docs/adr/0017-central-observability-backends.md): an OpenTelemetry provider pointing at
+  # the zone gateway (release otel-gateway in the management namespace, OTLP/gRPC on 4317), enabled
+  # mesh-wide by the Telemetry resource of zone-policy (tracing.provider, same name). The proxies
+  # reach the gateway along the allow-matrix row workloads-to-otel-collector, under mTLS.
+  extensionProviders:
+    - name: ztd-otel-gateway
+      opentelemetry:
+        service: otel-gateway.ztd-mgmt.svc.cluster.local
+        port: 4317
 # Images, pinned by tag and digest (the multi-arch index digest of the 1.31.1 tag, read from its
 # registry). A value that contains "/" is used by the chart as the whole image reference.
 global:
