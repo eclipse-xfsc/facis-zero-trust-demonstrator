@@ -51,6 +51,8 @@ metadata:
   annotations:
     ztd.facis.io/allow-matrix: workloads-to-dns
     ztd.facis.io/enforced-by: networkPolicy
+    {{- /* Plaintext DNS to the cluster resolver, outside the mesh: nothing takes an L7 decision on it. */}}
+    ztd.facis.io/l7-owner: "none"
 spec:
   podSelector: {}
   policyTypes:

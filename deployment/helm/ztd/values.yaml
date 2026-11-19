@@ -75,11 +75,16 @@ mesh:
 cni:
   cilium:
     enabled: true
+    # version: no default. The Cilium version the zone is verified against, bare major.minor.patch
+    # (the cilium DaemonSet's image tag without the leading v), recorded in the zone file and required
+    # whenever enabled is true (values.schema.json); scripts/verify-mesh-identity compares it with the
+    # running Cilium.
 
 # --------------------------------------------------------------------------------------------
 # Network-layer baseline: default DENY in both directions in every plane namespace. The only
 # openings are the ones below and the allow matrix. The mesh layer (AuthorizationPolicy on named
-# identities) sits on top and belongs to the mesh task; NetworkPolicy opens the L3/L4 lane only.
+# identities: a mesh-wide default deny and one allow rule per matrix row and pair) sits on top,
+# rendered by the zone-policy release; NetworkPolicy opens the L3/L4 lane only.
 # --------------------------------------------------------------------------------------------
 networkPolicy:
   defaultDeny: true
@@ -93,7 +98,8 @@ networkPolicy:
     # matches the pod's port, not the Service's), UDP and TCP. 53 on kind; 8053 on Gardener.
     ports: [53]
   # Pods inside one plane namespace may reach each other at the network layer; whether they may
-  # actually talk is decided on identity by the mesh layer, not on IP.
+  # actually talk is decided on identity by the mesh layer (the default deny and intraPlanePairs),
+  # not on IP.
   intraPlane: true
   # Egress from management-plane namespaces to the Kubernetes API, for controllers such as the
   # SPIRE server and controller-manager and istiod. Off here: the API endpoint is a per-zone fact
@@ -163,41 +169,78 @@ networkPolicy:
 
 # --------------------------------------------------------------------------------------------
 # The ZT-55 allow matrix, data plane -> management plane (docs/architecture.md, section 6), as
-# data. Each entry opens one lane at the network layer: an egress rule in the source namespace
-# and an ingress rule in the destination namespace. `enforcedBy` records the layer the
-# architecture names as the enforcing one; it is documentation, the lane is opened either way.
-# The selectors are the label contract with the component tasks: a component that lands under
-# another name updates the matrix here, not the templates. Ports are narrowed when the component
-# lands; an entry without ports opens every port of the selected pods.
+# data. Each entry is enforced at both layers. At the network layer this chart opens one lane: an
+# egress rule in the source namespace and an ingress rule in the destination namespace, selected by
+# pod labels. At the mesh layer the zone-policy release renders one AuthorizationPolicy
+# allow-<name> in the destination namespace that admits the caller by its SPIFFE identity
+# (spiffe://<trust domain>/ns/<source namespace>/sa/<from.serviceAccount>) on the row's ports;
+# scripts/install-zone copies these rows to zone-policy and refuses a zone whose two renders
+# disagree. `from.serviceAccount` is required when `from.podSelector` names a workload and forbidden
+# when it is {} (the whole source plane: the mesh rule then admits the source namespace).
+# `to.serviceAccount` names the destination's account, documentation only (the rule selects the
+# destination by its labels). `enforcedBy` records the layer the architecture holds responsible;
+# it is documentation, both layers enforce every row. `l7Owner` (required) records the single L7
+# enforcement owner of the row's path (SRS Table 4: never both layers; ADR-0009, point 2: recorded per
+# traffic path in the mesh configuration): `sidecar`, the destination's Envoy sidecar, or `none`, no
+# component takes an L7 decision on the path. `cilium` is not a value: every row joins two injected
+# plane namespaces under the mesh-wide STRICT PeerAuthentication, so Cilium sees only mTLS ciphertext
+# there and cannot take an L7 decision, and zone-policy refuses Cilium L7 rules in plane namespaces
+# (l7-owner-is-the-mesh). The rendered NetworkPolicy pair and the mesh rule allow-<name> carry it as
+# the annotation ztd.facis.io/l7-owner, written `none` when mesh.mode is none or the parked ambient
+# (neither has a per-pod proxy, and ambient deploys no waypoint).
+# The selectors and accounts are the label and identity contract with the component tasks: a
+# component that lands under another name updates the matrix here, not the templates. Ports are
+# narrowed when the component lands; an entry without ports opens every port of the selected pods.
 # The identity provider's token endpoint is not a lane: no data-plane workload calls it, because
 # the participant backend obtains its authorization from the connector (docs/keycloak.md).
 # --------------------------------------------------------------------------------------------
 allowMatrix:
   - name: pdp-adapter-to-tsa
-    from: { plane: data, podSelector: { app.kubernetes.io/name: pdp-adapter } }
-    to: { plane: management, podSelector: { app.kubernetes.io/name: tsa-policy-engine } }
+    from: { plane: data, podSelector: { app.kubernetes.io/name: pdp-adapter }, serviceAccount: pdp-adapter }
+    to: { plane: management, podSelector: { app.kubernetes.io/name: tsa-policy-engine }, serviceAccount: tsa-policy-engine }
     enforcedBy: mesh
+    l7Owner: sidecar
   - name: atls-gateway-to-cmcd
-    from: { plane: data, podSelector: { app.kubernetes.io/name: atls-gateway } }
-    to: { plane: management, podSelector: { app.kubernetes.io/name: cmcd } }
+    from: { plane: data, podSelector: { app.kubernetes.io/name: atls-gateway }, serviceAccount: atls-gateway }
+    to: { plane: management, podSelector: { app.kubernetes.io/name: cmcd }, serviceAccount: cmcd }
     enforcedBy: mesh
+    l7Owner: sidecar
   - name: atls-gateway-to-tcr
-    from: { plane: data, podSelector: { app.kubernetes.io/name: atls-gateway } }
-    to: { plane: management, podSelector: { app.kubernetes.io/name: tcr } }
+    from: { plane: data, podSelector: { app.kubernetes.io/name: atls-gateway }, serviceAccount: atls-gateway }
+    to: { plane: management, podSelector: { app.kubernetes.io/name: tcr }, serviceAccount: tcr }
     enforcedBy: mesh
+    l7Owner: sidecar
   - name: workloads-to-otel-collector
     from: { plane: data, podSelector: {} }
     to:
       plane: management
       podSelector: { app.kubernetes.io/name: otel-collector }
+      serviceAccount: otel-collector
       ports:
         - { port: 4317, protocol: TCP }
         - { port: 4318, protocol: TCP }
     enforcedBy: mesh  # export only, egress-restricted by the mesh (ZT-26)
+    l7Owner: sidecar
   - name: backend-to-verification-service
-    from: { plane: data, podSelector: { app.kubernetes.io/name: backend } }
-    to: { plane: management, podSelector: { app.kubernetes.io/name: verification-service } }
+    from: { plane: data, podSelector: { app.kubernetes.io/name: backend }, serviceAccount: backend }
+    to: { plane: management, podSelector: { app.kubernetes.io/name: verification-service }, serviceAccount: verification-service }
     enforcedBy: mesh
+    l7Owner: sidecar
+
+# --------------------------------------------------------------------------------------------
+# Pairs inside one plane namespace between components of different releases, at the mesh layer
+# only: the network layer is already open inside a plane namespace (networkPolicy.intraPlane), so
+# this chart renders nothing for them and only checks that both endpoints are in one namespace.
+# Same endpoint shape as allowMatrix (`from.serviceAccount` required with a non-empty
+# `from.podSelector`); scripts/install-zone copies them to zone-policy after the matrix rows, and
+# each renders an AuthorizationPolicy allow-<name> there. Empty today: the component task that
+# brings a same-plane caller adds its pair here. A release whose own pods call one another declares
+# those pairs in its own chart (ztd-openbao does), not here.
+# --------------------------------------------------------------------------------------------
+intraPlanePairs: []
+# - name: connector-to-token-store
+#   from: { plane: data, podSelector: { app.kubernetes.io/name: connector }, serviceAccount: connector }
+#   to: { plane: data, podSelector: { app.kubernetes.io/name: token-store }, ports: [{ port: 8080, protocol: TCP }] }
 
 # --------------------------------------------------------------------------------------------
 # Verification hook: the chart's own use of the hook-weight scheme (band "verification"). After
@@ -211,45 +254,9 @@ verification:
   image: docker.io/curlimages/curl:8.10.1@sha256:d9b4541e214bcd85196d6e92e2753ac6d0ea699f0af5741f8c6cccbfcf00ef4b
 
 # --------------------------------------------------------------------------------------------
-# OpenBao (ZT-11, ADR-0004; docs/secrets.md). Off by default: a zone turns it on. Everything under
-# `openbao` except `enabled` goes to the upstream chart (0.28.3, OpenBao v2.5.4), which installs one
-# standalone server with file storage on a volume in the management plane. Two values must repeat
-# facts the umbrella already has, because Helm does not template a subchart's values: the namespace
-# (= planes.management.namespace) and the storage class (= zone.storageClass); the chart refuses to
-# render when they differ. The server listens without TLS inside the management plane; transport
-# protection between workloads is the mesh layer's (ADR-0001).
+# OpenBao (ZT-11, ADR-0004; docs/secrets.md) is not part of this chart: it is the release
+# `ztd-openbao` (deployment/helm/ztd-openbao), the last of a zone, installed after zone-policy so its
+# pods hold a mesh identity from their first start. The schema refuses the values this chart once
+# took for it (openbao.enabled and the rest of openbao.*, openbaoBootstrap, openbaoExternal), and
+# any other key under `openbao`: no release of a zone is placed on a node by its zone file.
 # --------------------------------------------------------------------------------------------
-openbao:
-  enabled: false
-  global:
-    namespace: ztd-mgmt
-  injector:
-    enabled: false
-  server:
-    image:
-      tag: "2.5.4@sha256:436eaf9778cad75507ff70ea26ace30dcbe15606e619ac3823495663d7f7c115"
-    # The Kubernetes auth method is not used yet (deferred with the ZT-11 signing flow), so the
-    # cluster-wide auth-delegator binding is not created.
-    authDelegator:
-      enabled: false
-    standalone:
-      enabled: true
-    dataStorage:
-      size: 1Gi
-      storageClass: null
-
-# Bootstrap of the bundled OpenBao: a regular Job (not a hook - a sealed server is not ready, and
-# post-install hooks wait for readiness) that initialises the server once, keeps the unseal key in
-# the Kubernetes Secret `ztd-openbao-bootstrap`, enables kv-v2 at secret/ and transit at transit/,
-# issues a narrow periodic verification token and revokes the root token. It talks to the
-# Kubernetes API from the management plane, so networkPolicy.kubeApi must be open there.
-# After a restart the server is sealed until it is unsealed by hand (scripts/secrets/unseal.sh).
-openbaoBootstrap:
-  image: docker.io/curlimages/curl:8.10.1@sha256:d9b4541e214bcd85196d6e92e2753ac6d0ea699f0af5741f8c6cccbfcf00ef4b
-
-# An OpenBao the umbrella does not own, such as the one the XFSC ArgoCD deployment installs. When
-# `address` is set, openbao.enabled must be false: nothing is installed or initialised, and only the
-# verification hook runs, with the token in the named Secret of the management namespace.
-openbaoExternal:
-  address: ""
-  verifyTokenSecret: ""

@@ -24,12 +24,16 @@ zone:
 mesh:
   mode: sidecar
 
-# kubectl -n kube-system get ds cilium: Cilium 1.18.8, installed and upgraded by the provider, with
-# cni-exclusive=false already set (kubectl -n kube-system get cm cilium-config). Verified, never
-# installed or reconfigured by the zone.
+# kubectl -n kube-system get ds cilium: Cilium 1.19.6, installed and upgraded by the provider, with
+# cni-exclusive=false already set and tunnel routing over VXLAN (kubectl -n kube-system get cm
+# cilium-config: routing-mode, tunnel-protocol). Verified, never installed or reconfigured by the zone.
+# The version is the tag of the DaemonSet's image (kubectl -n kube-system get ds cilium -o
+# jsonpath='{.spec.template.spec.containers[0].image}', read 2026-10-25), without the leading v; the
+# mesh identity proof fails when the running Cilium differs, and the chain is then checked again.
 cni:
   cilium:
     enabled: true
+    version: 1.19.6
 
 # The control planes of the identity path and of the mesh: management-plane namespaces under the
 # default deny, without the mesh label (no sidecar for SPIRE or istiod).
