@@ -24,6 +24,7 @@ and is declared as such in [Specification changes](specifications.md#readings-an
 | `.github/workflows/measurement-determinism.yml` | pull request and push to `main` touching the check, manual | Measures one fixture on a hosted runner, in a container, and on a deliberately divergent checkout, and requires the normalised measurement to be the same on all three |
 | `.github/workflows/token-store.yml` | pull requests touching the token store, its image, its chart or the pinned images; pushes to `main`; manual | Runs the schema migrations, the store's queries and the service's readiness checks against a PostgreSQL from the pinned image, then the chart's lifecycle (install, upgrade, uninstall) and the service's readiness against PostgreSQL and OpenBao on kind; the records are the run's artefact and the verdict goes to the job summary |
 | `.github/workflows/policy-hook.yml` | pull requests touching the policy-hook probe, its script, the pinned Envoy image or the policy fixtures; manual | Runs the guard policy-hook proofs (`scripts/verify-policy-hook/verify.sh`) against Envoy from the pinned image, uploads the records as an artefact and writes the verdict and the latency numbers to the job summary |
+| `.github/workflows/atls-channel-binding.yml` | pull requests touching the attested channel, its probe or its proof scripts; manual | Re-runs the three attested-channel proofs (`scripts/atls-probe/`) as plain processes, uploads the run's records and writes the verdicts to the job summary. It never writes the committed evidence |
 
 ## The service pipeline
 
@@ -33,7 +34,7 @@ and nobody hand-rolls their own:
 | Job | What it does | Blocking |
 |---|---|---|
 | `Go tests` | Calls the shared `go-test.yml`, which runs the tests of every Go module it finds | yes |
-| `Go lint` | `golangci-lint run ./...`, with a pinned golangci-lint built by the Go version `go.mod` names | yes |
+| `Go lint` | `golangci-lint run --config .golangci.yml ./...`, with a pinned golangci-lint built by the Go version `go.mod` names. `.golangci.yml` adds `depguard` to the standard linters: only `internal/atls` may import the CMC attested-TLS library, and the test-only `internal/atls/atlstest` may not be imported from non-test code | yes |
 | `Image build and scan` | Builds each context under `deployment/docker/` for `linux/amd64`, asserts the built image's OS, then scans it with Trivy for HIGH and CRITICAL vulnerabilities | yes |
 | `Chart lint and render` | `scripts/ci/check-charts.sh`: `helm lint` and a `helm template` render of every chart under `deployment/helm/` and `features/fixtures/charts/`, dependencies built from `Chart.lock`; then `scripts/ci/check-charts_test.sh`, the cases that hold the script to refusing a package when a chart fails | yes |
 | `Release charts` | On a published release only, once every other gate job of the workflow has passed: runs the chart gate with its server dry-run on a disposable cluster, packages the charts under `deployment/helm/` at the release version, attaches them to the release with their checksums and, when a registry is configured, pushes them as OCI chart artefacts — see [Chart release](#chart-release) | yes — a release whose gates fail ships no chart |

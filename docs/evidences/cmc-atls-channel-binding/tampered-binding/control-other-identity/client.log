@@ -1,0 +1,2 @@
+2026-11-06T17:14:41.353Z atls-probe: dialing 127.0.0.1:28209 through cmcd 127.0.0.1:51116, expecting spiffe://a/gateway
+2026-11-06T17:14:41.356Z atls-probe: session 0 refused (ErrIdentityMismatch): atls: peer certificate identity rejected: peer certificate rejected: peer certificate does not carry the expected identity "spiffe://a/gateway"

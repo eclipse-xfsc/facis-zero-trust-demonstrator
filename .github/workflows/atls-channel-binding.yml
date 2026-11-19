@@ -1,0 +1,70 @@
+name: Attested channel proofs
+
+# Re-runs the three attested-channel proofs from the commit under review, on a hosted runner and
+# without containers: two cmcd processes and the probe as plain processes. It verifies that the
+# proofs reproduce. The evidence committed under docs/evidences/ comes from a local run and is
+# never written or replaced here; this run's own records are uploaded as an artefact.
+on:
+  pull_request:
+    paths:
+      - cmd/atls-probe/**
+      - internal/atls/**
+      - scripts/atls-probe/**
+      - go.mod
+      - go.sum
+      - .github/workflows/atls-channel-binding.yml
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  proofs:
+    name: Attested channel proofs
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    # The records go to the runner's temp directory, outside the checkout ($RUNNER_TEMP is set in
+    # every step's shell; the runner context is not available in a job-level env).
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+
+      # cmcd and the probe are built with the Go version go.mod names.
+      - name: Set up Go
+        uses: actions/setup-go@40f1582b2485089dde7abd97c1529aa768e1baff # v5.6.0
+        with:
+          go-version-file: go.mod
+
+      - name: Mutual handshake, identical binding
+        run: scripts/atls-probe/prove-mutual-handshake.sh --out "$RUNNER_TEMP/evidence"
+
+      # The later proofs run even when an earlier one failed, so the summary shows every verdict.
+      - name: A report bound to another session is refused
+        if: ${{ !cancelled() }}
+        run: scripts/atls-probe/prove-tampered-binding.sh --out "$RUNNER_TEMP/evidence"
+
+      - name: Session loss recorded per scenario
+        if: ${{ !cancelled() }}
+        run: scripts/atls-probe/prove-session-loss.sh --out "$RUNNER_TEMP/evidence"
+
+      - name: Write the verdicts to the job summary
+        if: ${{ !cancelled() }}
+        run: scripts/atls-probe/summary.sh "$RUNNER_TEMP/evidence" >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload this run's records
+        if: ${{ !cancelled() }}
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: atls-channel-binding-evidence
+          path: ${{ runner.temp }}/evidence
+          if-no-files-found: error
+
+      # The proofs write outside the checkout; the committed evidence must be as it was.
+      - name: The repository is unchanged
+        if: ${{ !cancelled() }}
+        run: |
+          if [ -n "$(git status --porcelain)" ]; then
+            git status --porcelain
+            echo "::error::the proofs changed files in the repository"
+            exit 1
+          fi
