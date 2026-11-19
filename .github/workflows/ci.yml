@@ -305,10 +305,15 @@ jobs:
       - name: Test the chart check
         run: scripts/ci/check-charts_test.sh
 
-      # A zone is seven releases (scripts/install-zone/install.sh): the two project charts above and
-      # five upstream charts, SPIRE's and Istio's, pinned by version and digest in the installer.
-      # Each upstream release is rendered from its pinned chart with its values file under
-      # deployment/helm/values/ and the kind zone's facts. Rendering only: CI never installs.
+      # A zone is eight releases (scripts/install-zone/install.sh): three project charts linted above
+      # (the umbrella, zone-policy and ztd-openbao, the last wrapping the upstream openbao chart from
+      # its Chart.lock) and five upstream charts, SPIRE's and Istio's, pinned by version and digest in
+      # the installer. Each upstream release is rendered from its pinned chart with its values file
+      # under deployment/helm/values/ and the kind zone's facts, and ztd-openbao through the installer
+      # with the zone facts it reads from the umbrella's defaults and the zone file: its server
+      # StatefulSet and both of its jobs must carry the identity label the registration rule selects,
+      # and none may carry a node affinity or a node selector, with the kind zone's file and with zone
+      # A's. Rendering only: CI never installs.
       # The rendered istiod mesh configuration must carry the TLS 1.3 minimum of the security
       # baseline (ADR 005), and the installer must refuse a revisioned or an ambient zone before it
       # renders anything (it installs the default, unrevisioned istiod in sidecar mode only), and a
@@ -317,7 +322,41 @@ jobs:
         run: |
           python3 -c 'import yaml' 2>/dev/null || python3 -m pip install --user pyyaml
           RENDER_DIR="$RUNNER_TEMP/render" \
-            scripts/install-zone/install.sh render spire-crds spire istio-base istiod istio-cni
+            scripts/install-zone/install.sh render spire-crds spire istio-base istiod istio-cni ztd-openbao
+          RENDER_DIR="$RUNNER_TEMP/render-zone-a" ZONE_VALUES=deployment/helm/ztd/zones/zone-a.yaml \
+            scripts/install-zone/install.sh render ztd-openbao
+          python3 - "$RUNNER_TEMP/render/ztd-openbao.yaml" "$RUNNER_TEMP/render-zone-a/ztd-openbao.yaml" <<'PY'
+          import sys, yaml
+          def pods(path):
+              docs = [d for d in yaml.safe_load_all(open(path)) if d]
+              found = {}
+              for d in docs:
+                  kind, name = d.get("kind"), d["metadata"]["name"]
+                  if kind == "StatefulSet" and name == "ztd-openbao": found["server"] = d
+                  elif kind == "Job" and name.startswith("ztd-openbao-bootstrap-"): found["bootstrap"] = d
+                  elif kind == "Job" and name == "ztd-verify-openbao": found["verification"] = d
+              missing = {"server", "bootstrap", "verification"} - set(found)
+              if missing: sys.exit(f"ztd-openbao render {path}: no {', '.join(sorted(missing))}")
+              return {k: v["spec"]["template"] for k, v in found.items()}
+          def node_pin(t):
+              # No release is held to a node: no node affinity and no node selector on any pod template.
+              spec = t["spec"]
+              return {k: v for k, v in (("nodeAffinity", (spec.get("affinity") or {}).get("nodeAffinity")),
+                                         ("nodeSelector", spec.get("nodeSelector"))) if v}
+          accounts = {"server": "ztd-openbao", "bootstrap": "ztd-openbao-bootstrap", "verification": "ztd-verify-openbao"}
+          for zone, path in (("kind", sys.argv[1]), ("zone-a", sys.argv[2])):
+              for name, t in pods(path).items():
+                  label = (t["metadata"].get("labels") or {}).get("spiffe.io/spire-managed-identity")
+                  if label != "true":
+                      sys.exit(f"ztd-openbao render ({zone}): the {name} pod template lacks spiffe.io/spire-managed-identity: \"true\"")
+                  if node_pin(t):
+                      sys.exit(f"ztd-openbao render ({zone}): the {name} pod template is held to a node: {node_pin(t)}")
+                  # Each pod its own ServiceAccount, so each its own SPIFFE ID (none on "default").
+                  sa = t["spec"].get("serviceAccountName") or "default"
+                  if sa != accounts[name]:
+                      sys.exit(f"ztd-openbao render ({zone}): the {name} pod runs as ServiceAccount {sa}, not {accounts[name]}")
+              print(f"ztd-openbao render ({zone}): the server and both jobs carry the identity label, each with its own ServiceAccount, and none is held to a node")
+          PY
           python3 - "$RUNNER_TEMP/render/istiod.yaml" <<'PY'
           import sys, yaml
           docs = [d for d in yaml.safe_load_all(open(sys.argv[1])) if d]

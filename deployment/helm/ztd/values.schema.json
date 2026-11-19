@@ -152,24 +152,17 @@
     },
     "openbao": {
       "type": "object",
-      "required": ["enabled"],
-      "properties": {
-        "enabled": { "type": "boolean" }
-      }
+      "description": "The umbrella installs no OpenBao: the release ztd-openbao does (deployment/helm/ztd-openbao). No key is read here: any key is a stale value of the umbrella that installed OpenBao, or of the zone files that placed that release on a node, and is refused.",
+      "additionalProperties": false,
+      "properties": {}
     },
     "openbaoBootstrap": {
-      "type": "object",
-      "required": ["image"],
-      "properties": {
-        "image": { "type": "string", "pattern": "@sha256:[0-9a-f]{64}$" }
-      }
+      "description": "Refused: the bootstrap moved to deployment/helm/ztd-openbao (bootstrap.image).",
+      "not": {}
     },
     "openbaoExternal": {
-      "type": "object",
-      "properties": {
-        "address": { "type": "string", "pattern": "^(|https?://.+)$" },
-        "verifyTokenSecret": { "type": "string" }
-      }
+      "description": "Refused: the external mode moved to deployment/helm/ztd-openbao (external.address, external.verifyTokenSecret).",
+      "not": {}
     }
   },
   "allOf": [

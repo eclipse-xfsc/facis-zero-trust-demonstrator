@@ -1,0 +1,70 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "ztd-openbao chart values",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["managementNamespace", "cilium", "openbao", "bootstrap", "external"],
+  "properties": {
+    "managementNamespace": {
+      "$ref": "#/$defs/name",
+      "description": "The management-plane namespace the umbrella created (zone fact planes.management.namespace)."
+    },
+    "cilium": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["enabled"],
+      "properties": {
+        "enabled": { "type": "boolean", "description": "Open the bootstrap Job's API lane with a CiliumNetworkPolicy (zone fact cni.cilium.enabled)." }
+      }
+    },
+    "openbao": {
+      "type": "object",
+      "description": "Values of the upstream openbao chart.",
+      "required": ["global", "server"],
+      "properties": {
+        "global": {
+          "type": "object",
+          "required": ["namespace"],
+          "properties": { "namespace": { "$ref": "#/$defs/name" } }
+        },
+        "server": {
+          "type": "object",
+          "required": ["enabled"],
+          "properties": {
+            "enabled": { "type": "boolean", "description": "The bundled server; false to verify an external OpenBao." }
+          }
+        }
+      }
+    },
+    "bootstrap": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["image"],
+      "properties": {
+        "image": { "type": "string", "pattern": "@sha256:[0-9a-f]{64}$", "description": "The bootstrap Job's and the verification hook's image, pinned by digest." }
+      }
+    },
+    "external": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["address", "verifyTokenSecret"],
+      "properties": {
+        "address": { "type": "string", "pattern": "^(https://[^\\s]+)?$", "description": "Address of an OpenBao the zone does not own, https only (the verification token crosses the network to it); exclusive with openbao.server.enabled." },
+        "verifyTokenSecret": { "type": "string", "pattern": "^([a-z0-9]([-a-z0-9.]*[a-z0-9])?)?$", "description": "Secret in the management namespace holding the verification token (key verify-token)." }
+      }
+    }
+  },
+  "if": {
+    "properties": {
+      "openbao": { "properties": { "server": { "properties": { "enabled": { "const": true } } } } },
+      "external": { "properties": { "address": { "minLength": 1 } } }
+    }
+  },
+  "then": {
+    "$comment": "Both modes at once are refused. The required name is the message Helm prints: either the release installs OpenBao or it verifies an existing one.",
+    "required": ["openbao.server.enabled and external.address are exclusive"]
+  },
+  "$defs": {
+    "name": { "type": "string", "pattern": "^[a-z0-9]([-a-z0-9]*[a-z0-9])?$", "maxLength": 63 }
+  }
+}
