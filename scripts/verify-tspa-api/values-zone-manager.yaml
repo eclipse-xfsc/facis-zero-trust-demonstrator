@@ -1,0 +1,15 @@
+# Added to values-kind.yaml by kind-up.sh when TSPA_ZONE_MANAGER=1: the TSPA writes its scheme claims
+# and DID records through the zone manager the DNS kit (scripts/verify-train-dns/kind) installs in the
+# same namespace, and asks the local Keycloak for the token the manager's API validates (audience
+# xfsctest, the realm's confidential client; its secret is passed by kind-up.sh from the realm export,
+# never from a file of this repository). query.status on makes the TSPA read and judge the manager's
+# answer; /actuator/health then answers UP as well.
+application:
+  properties:
+    zonemanager:
+      Address: http://nsd-service-rest:16001
+      token-server-url: http://keycloak:8080/realms/gxfs-dev-test/protocol/openid-connect/token
+      grant-type: client_credentials
+      client-id: xfsctest
+      query:
+        status: true

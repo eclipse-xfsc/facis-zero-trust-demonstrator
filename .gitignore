@@ -37,3 +37,6 @@ kubeconfig*
 # Pinned tools installed by scripts/tools/install.sh
 .tools/
 /scripts/verify-tspa-api/bodies/
+
+# Python bytecode caches (the TSPA stand-in and the scripts under scripts/secrets/ are Python)
+__pycache__/

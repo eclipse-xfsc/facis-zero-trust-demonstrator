@@ -77,13 +77,16 @@ function result (command, ok, data, errors) {
 // Map the script's one RESULT_JSON line onto the result contract.
 function fromScript (command, script) {
   if (!script) return result(command, false, null, { action: 'systemError' })
+  // The TRAIN publication step's evidence (docs/lifecycle-result.schema.json), when the script ran it;
+  // kept on a failed result too, since a publication that was not proven is the reason for it.
+  const publication = script.publication ? { publication: script.publication } : {}
   if (script.ok) {
     const { release, namespace, clusterId, revision, chartDigest, valuesHash, helmVersion, expected } = script
-    return result(command, true, { release, namespace, clusterId, revision, chartDigest, valuesHash, helmVersion, expected, output: mask(script.output) })
+    return result(command, true, { release, namespace, clusterId, revision, chartDigest, valuesHash, helmVersion, expected, output: mask(script.output), ...publication })
   }
   const error = script.error || { code: 'systemError' }
   const errors = error.field ? { fields: { [error.field]: error.message } } : { action: error.code }
-  return result(command, false, { clusterId: script.clusterId, output: mask(script.output) }, errors)
+  return result(command, false, { clusterId: script.clusterId, output: mask(script.output), ...publication }, errors)
 }
 
 module.exports = function (RED) {

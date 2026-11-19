@@ -145,6 +145,7 @@ jobs:
   train-dns:
     name: TRAIN DNS inspector
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     container: ubuntu:24.04
     steps:
       - name: Checkout repository
@@ -157,6 +158,40 @@ jobs:
 
       - name: Run the inspector cases
         run: bash scripts/verify-train-dns/verify_test.sh
+
+  # The TRAIN publication step: publish.sh against a stand-in that copies the trust-list API's write
+  # semantics (create-only PUT, PATCH, the 200-with-empty-body quirk, 401, 403), one case per outcome
+  # a rollout may be gated on. Seconds; the proof against the real TSPA on kind, and the lifecycle
+  # step's gate, are .github/workflows/train-publish.yml.
+  train-publish:
+    name: TRAIN publication step
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+
+      - name: Run the publisher's cases against the TSPA stand-in
+        run: bash scripts/train-publish/publish_test.sh
+
+  # The trust lists as a file governed by pull request: reconcile.sh against the same stand-in, one
+  # case per outcome an operator may rely on (the contract's refusals, PUT/PATCH/DELETE of the entries
+  # it owns, the publisher's entry untouched, conflict, drift, tokens, a racing writer, the zones).
+  # Seconds; the proof against the real TSPA on kind is .github/workflows/train-publish.yml.
+  train-trust-list:
+    name: TRAIN trust lists
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+
+      - name: Validate every trust-list file in the repository against its contract
+        run: |
+          for f in deployment/train/trust-lists/*.json; do
+            scripts/train-trust-list/reconcile.sh validate --file "$f"
+          done
+
+      - name: Run the reconciler's cases against the TSPA stand-in
+        run: bash scripts/train-trust-list/reconcile_test.sh
 
   # The whole admission catalogue in a real Gatekeeper: a kind cluster with Gatekeeper (pinned chart,
   # cache off), the provider and a local registry of test images signed with the release script and
