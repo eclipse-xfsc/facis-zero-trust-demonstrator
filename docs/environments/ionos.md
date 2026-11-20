@@ -6,9 +6,9 @@ failure in the pipeline cannot be mistaken for a failure in the demonstrator.
 
 !!! note "Status"
     The cluster was provided on 23 September 2026. What is installed today is ORCE, the BDD pool and
-    nothing else; stages 1 to 5 below describe that state and were checked against the cluster,
-    except where a stage says otherwise. The runner, registry access and visualization stages are
-    planned and marked so.
+    the service mesh; stages 1 to 5 below describe the first two and were checked against the
+    cluster, except where a stage says otherwise. The service mesh (stage 7) was installed and
+    proven on 15 November 2026. The runner, registry access and visualization stages are planned and marked so.
 
 ## Before you start
 
@@ -42,9 +42,14 @@ kubectl get storageclass
 **Verify:** every node is `Ready`, and both daemonsets report as many ready pods as desired.
 
 The common baseline ([Environments](index.md)) names Cilium with `cni.exclusive=false`, for the
-service mesh ([ADR-0009](../adr/0009-service-mesh-mode-istio-sidecar-with-cilium.md)). This cluster
-runs no mesh and no demonstration workload, so its provider CNI is kept; whether the visualization
-stage needs the mesh here is decided with that stage.
+service mesh of the participant zones
+([ADR-0009](../adr/0009-service-mesh-mode-istio-sidecar-with-cilium.md)). This cluster keeps its
+provider CNI, and its mesh is Istio in **ambient mode on Calico, without SPIRE**
+([ADR-0018](../adr/0018-service-mesh-on-the-demonstrator-cluster.md), stage 7). This cluster runs
+no SPIRE: upstream ambient mode does not support it, and the cluster hosts tooling, not
+demonstration workloads. ZT-24, SRS § 5.1.2 and ZT-60 are declared not met here; what is met on
+which cluster is stated in [the mesh and SPIRE on each
+cluster](../specifications.md#the-mesh-and-spire-on-each-cluster).
 
 ## 2. The ORCE image
 
@@ -159,13 +164,15 @@ npm run bdd:cluster
 back to its baseline (`kubectl -n ztd-bdd-tdr-001 get all` shows nothing). Stop the port-forward and
 delete `observer.kubeconfig` and `ca.crt` afterwards; the token expires on its own.
 
-## 6. Admission proof (non-target)
+## 6. Admission proof (interim key)
 
 An early admission proof on this cluster: Gatekeeper and the image-verification provider, with the
 constraints in [deployment/admission](../../deployment/admission), enforcing only in the namespaces
 labelled `facis.ztd/admission-proof=true` (`ztd-adm-001`, `ztd-adm-002`). The images it verifies are
 signed with the **interim key** ([docs/contracts/keys/interim-cosign.pub](../contracts/keys/interim-cosign.pub)),
-not the client trust chain; this cluster is not a target environment. Everything it records says so.
+not the client trust chain, so it is not acceptance evidence for the admission requirements.
+The fault-injection run marks its evidence that way, in its own words: "interim signing key; not
+the client trust chain".
 
 ```bash
 # Gatekeeper, the provider (by digest, from the release candidate job), the policy and the pool.
@@ -212,6 +219,119 @@ latency from Gatekeeper's own request histogram (p99 below 1.5 s).
 then `helm uninstall gatekeeper -n gatekeeper-system`. **Teardown:** `kubectl delete -f
 deployment/admission/constraints/ -f deployment/admission/templates/`, then `helm uninstall
 admission-pool admission gatekeeper -n gatekeeper-system`.
+
+## 7. The service mesh (ambient, no SPIRE)
+
+Istio in ambient mode, installed by `scripts/install-zone/install.sh` on its ambient path from the
+zone file `deployment/helm/ztd/zones/ionos.yaml`
+([ADR-0018](../adr/0018-service-mesh-on-the-demonstrator-cluster.md)): the umbrella, `istio-base`,
+`istiod` (ambient profile, istiod's own CA, trust domain `ionos.trust.invalid`, interim), `istio-cni`
+(ambient on, chained behind Calico), `ztunnel`, and `zone-policy` (the mesh-wide STRICT
+`PeerAuthentication`, the lane-port policies and the no-sidecar admission policy). Istio comes from
+its own pin, 1.31.4. Installed on 2026-11-15 and proven the same day: every check of the proof passed
+([evidence](../evidences/ambient-mesh-demonstrator/2026-11-15.md)). The record names the commit it
+ran on, on the branch before its rebase onto `main`; the same changes land under another hash.
+
+The cluster facts that shaped it (read-only, 2026-11-14):
+
+- One node, Kubernetes v1.35.6. Calico v3.30.7 managed by IONOS (iptables dataplane on the nft
+  backend, IPIP, WireGuard, MTU 1440), its CNI in `/opt/cni/bin` and `/etc/cni/net.d`;
+  kube-proxy in iptables mode.
+- The provider's admission accepts the Istio CNI agent's and ztunnel's DaemonSets (host
+  paths, `NET_ADMIN`, `SYS_ADMIN`, `NET_RAW`, root) at `system-node-critical` (server-side dry runs).
+  Gatekeeper enforces only in namespaces labelled `facis.ztd/admission-proof=true`; `istio-system`
+  never carries that label.
+- The managed API server listens on 15700 behind the `kubernetes` Service (443) and reaches the pods
+  through the `konnectivity-agent` pods in `kube-system`. The webhook calls to istiod are therefore
+  expected from those pods: inferred from that layout. The proof's webhook check passed on
+  2026-11-15 with that opening in place (the only one onto istiod's 15017 from outside
+  `istio-system`).
+
+The umbrella renders this zone only under its declared CNI derogation, `cni.derogation:
+calico-ambient`: the openings are Kubernetes NetworkPolicies (the webhook source pods to istiod 15017,
+ztunnel to istiod 15012, the node's network namespace (SNAT-ed by Istio to 169.254.7.127: the
+kubelet's probes, and any host-network pod) on every port into every meshed plane
+namespace, the API lane by address on 15700), and the allow-matrix lanes that name ports also name
+the HBONE port 15008 ([Umbrella chart](../umbrella-chart.md)). Through 15008 ztunnel would deliver a
+connection to any port of the destination pod, so `zone-policy` holds those lanes to their ports at
+the mesh layer: one DENY `AuthorizationPolicy` per destination, enforced by ztunnel, refuses every
+other port from the lane's source namespace. It also refuses, in the plane namespaces, a pod that
+chooses its injection templates, asks for an injected proxy, or carries one, whatever asked for it (a
+pod or namespace label among them; `no-sidecar-in-planes`), and, in `ztd-mgmt` and `ztd-data`
+(enrolled in the mesh), a pod that opts out of the mesh (`istio.io/dataplane-mode` other than
+`ambient`), bypasses ztunnel's inbound capture (`ambient.istio.io/bypass-inbound-capture`), uses
+the host network (`hostNetwork`, `hostPort`), or could reach the node's network or its own capture
+rules another way, which are the other controls of the Pod Security Standards `baseline` profile:
+a privileged container, `hostPID`, `hostIPC`, a `hostPath` volume, an added capability outside
+`baseline`'s list (`AUDIT_WRITE`, `CHOWN`, `DAC_OVERRIDE`, `FOWNER`, `FSETID`, `KILL`, `MKNOD`,
+`NET_BIND_SERVICE`, `SETFCAP`, `SETGID`, `SETPCAP`, `SETUID`, `SYS_CHROOT`, in any case, with or
+without `CAP_`), seccomp or AppArmor `Unconfined`, a `procMount` other than `Default`, a Windows
+`hostProcess`, an SELinux type outside `baseline`'s or an SELinux user or role, a sysctl outside
+`baseline`'s safe set, or a host in a probe or a lifecycle hook, in any container, init container or
+ephemeral container (and at pod level where the field exists there), whether written at creation,
+in an update, through `pods/status` or by `kubectl debug` (so `kubectl debug --profile=general`,
+which adds `SYS_PTRACE`, is refused there). A host-network pod, or a privileged `hostPID` pod
+through `nsenter`, would reach every ambient pod in plaintext through the 169.254.7.127 opening, a
+pod with `NET_ADMIN` could delete its own capture rules, and `SYS_ADMIN`, `SYS_MODULE`,
+`DAC_READ_SEARCH` or `SYS_RAWIO` reach the node. These refusals hold while the namespace carries
+`istio.io/dataplane-mode=ambient` (the proof checks it). What they leave open, held only by the
+cluster's access control, is listed in ADR-0018 (Consequences): what `baseline` admits and only
+`restricted` would refuse (root containers, privilege escalation, `baseline`'s own capabilities,
+volume types other than `hostPath`), a `hostPath`-backed PersistentVolume and a kernel or runtime
+escape in those namespaces, and host-network or privileged pods in any other namespace, changes to
+`istio-system` (where istio-cni and ztunnel add `NET_ADMIN` and `SYS_ADMIN` and mount `hostPath`
+volumes) and access to the node.
+
+**The local zone copy.** The API endpoint addresses are kept out of the repository; the committed
+zone file has `networkPolicy.kubeApi.cidrs: []` and the umbrella refuses it as it stands. Copy it
+to `.dev/` (git-ignored, so it is never committed, and the proof's record names it by that
+relative path) and add the two addresses as `/32` entries, read from the cluster:
+
+```bash
+mkdir -p .dev && cp deployment/helm/ztd/zones/ionos.yaml .dev/ionos.local.yaml
+# put each address into networkPolicy.kubeApi.cidrs as <address>/32
+kubectl --context cluster-admin@ZeroTrustDemonstrator get endpointslices -n default \
+  -l kubernetes.io/service-name=kubernetes \
+  -o jsonpath='{.items[*].endpoints[*].addresses[*]}'
+```
+
+**Install** (idempotent):
+
+```bash
+# the six steps of the ambient path
+ZONE_VALUES=.dev/ionos.local.yaml KUBE_CONTEXT=cluster-admin@ZeroTrustDemonstrator \
+  scripts/install-zone/install.sh plan
+ZONE_VALUES=.dev/ionos.local.yaml KUBE_CONTEXT=cluster-admin@ZeroTrustDemonstrator \
+  scripts/install-zone/install.sh install
+```
+
+**Verify** with the proof, which places stand-ins in `ztd-mgmt`, `ztd-data` and a throwaway
+namespace and removes them on exit (`scripts/verify-ambient-mesh/README.md`):
+
+```bash
+ZONE_VALUES=.dev/ionos.local.yaml ZTD_CONFIRM_CLUSTER=cluster-admin@ZeroTrustDemonstrator \
+  scripts/verify-ambient-mesh/verify.sh
+```
+
+It checks the control plane on every node, the stand-ins' probes under the default deny, their
+enrolment by ztunnel, an allowed call between istiod-issued identities in `ionos.trust.invalid`, a
+plaintext call refused under STRICT, a lane outside the allow matrix refused, a port outside a lane
+that names ports refused, a webhook call that reaches istiod, a plane pod that would carry an
+injected proxy refused, and a plane pod that would leave the mesh, use the host network or reach the
+node's network another way refused, also through `pods/status` and ephemeral containers, while the
+mesh's own pods in `istio-system` are admitted. A passing run writes its dated record under
+`docs/evidences/ambient-mesh-demonstrator/`, which is committed; then the ZT-23 row of this cluster in
+[Specification changes](../specifications.md#the-mesh-and-spire-on-each-cluster) changes with it.
+If the webhook check fails, the webhook source (`controlPlaneWebhooks.fromPods`) is corrected in the
+zone file; if the probe check fails, the probe lane is; then install and run the proof again.
+
+**Maintenance outage.** The cluster has one node. When the provider's maintenance replaces it, the
+mesh is down until istio-cni and ztunnel start on the new node; the DaemonSets bring them back
+without intervention. This is accepted for a tooling cluster.
+
+**Teardown** with the same zone copy: `scripts/install-zone/install.sh uninstall` removes the six
+releases in reverse order. To return to the earlier state, the zone file then sets `mesh.mode: none`
+and drops the derogation.
 
 ## Planned: runner, registry access and visualization
 

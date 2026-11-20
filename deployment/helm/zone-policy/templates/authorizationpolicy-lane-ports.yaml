@@ -1,0 +1,119 @@
+{{- /*
+The ports of the allow-matrix lanes at the mesh layer, for a zone in ambient mode (the demonstrator
+cluster, ADR-0018). In ambient mode ztunnel carries a captured connection to the destination pod
+on the HBONE port 15008 and delivers it there, inside the pod, to its application port, so the
+network policy of a lane that names ports (networkpolicy-allow-matrix.yaml in the umbrella) has to
+open 15008 and no longer sees the application port. This policy restores the lane's port
+restriction where ztunnel decides: one DENY policy per destination of the lanes that name ports,
+refusing a connection from the lane's source namespace to any other port of the destination pods.
+ztunnel enforces it (L4 only: source namespace and destination port, no targetRef, no waypoint).
+
+DENY, not ALLOW: an ALLOW policy would make the destination pods default-deny for every other
+caller the network layer admits (the intra-plane lane of their own namespace among them), which the
+allow matrix does not ask for. The source is the lane's namespace, since an AuthorizationPolicy
+cannot select pods by label; which pods of that namespace may call stays the network policy's
+(its pod selectors still see the source pod's address under HBONE). Lanes with the same source
+namespace and the same destination selector are one policy, whose ports are their union.
+
+Since DENY rules add up and the source is a whole namespace, the render refuses (fails) a matrix
+whose policies would hold another lane to the wrong ports:
+- a lane that names ports with an empty destination selector (it would cover every pod of the
+  destination namespace, the other lanes' destinations among them);
+- a group that mixes a lane naming ports with one that names none (the open lane would lose its
+  ports, or the ported one its limit);
+- a group whose lanes have different source pod selectors (their ports would merge);
+- a lane that names ports whose destination selector overlaps the selector of another lane between
+  the same two namespaces (the DENY would cut that lane); two selectors are disjoint only when they
+  share a label key with different values;
+- a port given by name or as a range (endPort): istiod refuses a named port in notPorts, and a range
+  would be held to its first port.
+
+Rendered only when the installer passes the zone's allow matrix (scripts/install-zone, ambient
+path); empty by default, so a sidecar zone, whose proxies keep the application port visible to the
+network policy, renders none.
+*/ -}}
+{{- $lp := .Values.lanePorts }}
+{{- $groups := dict }}
+{{- range $lp.allowMatrix }}
+{{- $lane := .name }}
+{{- $from := .from.namespace | default (get $lp.namespaces (toString .from.plane)) }}
+{{- $to := .to.namespace | default (get $lp.namespaces (toString .to.plane)) }}
+{{- if or (not $from) (not $to) }}
+{{- fail (printf "lanePorts: allow-matrix lane %s needs a plane (management|data) with its namespace in lanePorts.namespaces, or a namespace" $lane) }}
+{{- end }}
+{{- $selector := .to.podSelector | default dict }}
+{{- $source := toJson (.from.podSelector | default dict) }}
+{{- if and .to.ports (not $selector) }}
+{{- fail (printf "lanePorts: allow-matrix lane %s names ports but no destination podSelector; its DENY policy would cover every pod of %s" $lane $to) }}
+{{- end }}
+{{- $key := printf "%s|%s|%s" $from $to (toJson $selector) }}
+{{- $g := get $groups $key | default (dict "from" $from "to" $to "selector" $selector "ports" list "open" false "lanes" list "sources" list) }}
+{{- $_ := set $g "lanes" (append $g.lanes $lane) }}
+{{- $_ := set $g "sources" (append $g.sources $source) }}
+{{- if .to.ports }}
+{{- range .to.ports }}
+{{- if hasKey . "endPort" }}
+{{- fail (printf "lanePorts: allow-matrix lane %s gives a port range (endPort); name each port" $lane) }}
+{{- end }}
+{{- if not (regexMatch "^[0-9]+$" (toString .port)) }}
+{{- fail (printf "lanePorts: allow-matrix lane %s gives the port %v, not a number; istiod accepts only numeric ports" $lane .port) }}
+{{- end }}
+{{- $_ := set $g "ports" (append $g.ports (toString .port)) }}
+{{- end }}
+{{- else }}
+{{- $_ := set $g "open" true }}
+{{- end }}
+{{- $_ := set $groups $key $g }}
+{{- end }}
+{{- range $key := keys $groups | sortAlpha }}
+{{- $g := get $groups $key }}
+{{- if $g.ports }}
+{{- if $g.open }}
+{{- fail (printf "lanePorts: allow-matrix lanes %s share a source namespace and a destination, but only some name ports; give them the same ports or different destinations" (join ", " $g.lanes)) }}
+{{- end }}
+{{- if gt (len (uniq $g.sources)) 1 }}
+{{- fail (printf "lanePorts: allow-matrix lanes %s share a source namespace and a destination but have different source podSelectors; their ports would merge" (join ", " $g.lanes)) }}
+{{- end }}
+{{- range $other := keys $groups | sortAlpha }}
+{{- $h := get $groups $other }}
+{{- if and (ne $other $key) (eq $h.from $g.from) (eq $h.to $g.to) }}
+{{- $disjoint := false }}
+{{- range $k, $v := $g.selector }}
+{{- if and (hasKey $h.selector $k) (ne (toString (get $h.selector $k)) (toString $v)) }}{{ $disjoint = true }}{{ end }}
+{{- end }}
+{{- if not $disjoint }}
+{{- fail (printf "lanePorts: the destination podSelector of allow-matrix lanes %s overlaps that of lanes %s (%s -> %s); the DENY policy of the first would cut the second" (join ", " $g.lanes) (join ", " $h.lanes) $g.from $g.to) }}
+{{- end }}
+{{- end }}
+{{- end }}
+{{- end }}
+{{- end }}
+{{- range $key := keys $groups | sortAlpha }}
+{{- $g := get $groups $key }}
+{{- if $g.ports }}
+---
+apiVersion: security.istio.io/v1
+kind: AuthorizationPolicy
+metadata:
+  name: lane-ports-{{ first $g.lanes }}
+  namespace: {{ $g.to }}
+  labels:
+    {{- include "zone-policy.labels" $ | nindent 4 }}
+  annotations:
+    ztd.facis.io/allow-matrix: {{ join "," $g.lanes | quote }}
+spec:
+  {{- with $g.selector }}
+  selector:
+    matchLabels:
+      {{- toYaml . | nindent 6 }}
+  {{- end }}
+  action: DENY
+  rules:
+    - from:
+        - source:
+            namespaces: [{{ $g.from | quote }}]
+      to:
+        - operation:
+            notPorts: {{ $g.ports | uniq | sortAlpha | toJson }}
+{{- end }}
+{{- end }}

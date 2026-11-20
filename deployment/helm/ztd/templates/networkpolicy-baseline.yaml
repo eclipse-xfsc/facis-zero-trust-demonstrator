@@ -6,12 +6,17 @@ lane is a CiliumNetworkPolicy by entity (ciliumnetworkpolicy-control-planes.yaml
 form below: Cilium does not select an API server that runs on a cluster node by its address.
 */ -}}
 {{- $cilium := .Values.cni.cilium.enabled }}
-{{- /* A meshed zone without Cilium is refused by ciliumnetworkpolicy-control-planes.yaml, naming the
-derogation; this check covers the zones without a mesh, so that a meshed zone file whose API lane is
-by entity (no cidrs) gets that message rather than this one. */ -}}
-{{- if and .Values.networkPolicy.kubeApi.enabled (not $cilium) (not .Values.networkPolicy.kubeApi.cidrs) (eq .Values.mesh.mode "none") }}
+{{- $derogated := include "ztd.derogated" . }}
+{{- /* A meshed zone without Cilium and without the declared derogation is refused by
+ciliumnetworkpolicy-control-planes.yaml, naming the derogation; this check covers the zones without
+a mesh and the derogated zone (ADR-0018), so that a meshed zone file whose API lane is by entity (no
+cidrs) gets that message rather than this one. */ -}}
+{{- if and .Values.networkPolicy.kubeApi.enabled (not $cilium) (not .Values.networkPolicy.kubeApi.cidrs) (or (eq .Values.mesh.mode "none") $derogated) }}
 {{- fail "networkPolicy.kubeApi.enabled needs at least one entry in networkPolicy.kubeApi.cidrs; an empty destination would open every address" }}
 {{- end }}
+{{- /* Under the derogation the xDS client is ztunnel, not the plane workloads: the plane namespaces
+get no egress to istiod, and istiod's xDS ingress is the ztunnel opening of
+networkpolicy-ambient-calico.yaml. */ -}}
 {{- $mcp := .Values.networkPolicy.meshControlPlane }}
 {{- $meshed := list }}
 {{- if ne .Values.mesh.mode "none" }}
@@ -103,6 +108,9 @@ metadata:
   labels:
     {{- include "ztd.labels" $ | nindent 4 }}
     ztd.facis.io/plane: {{ $plane }}
+    ztd.facis.io/declared-opening: kubeApi
+  annotations:
+    ztd.facis.io/declared-opening: kubeApi
 spec:
   podSelector: {}
   policyTypes:
@@ -119,7 +127,7 @@ spec:
           protocol: TCP
         {{- end }}
 {{- end }}
-{{- if and $mcp.enabled (has $ns $meshed) }}
+{{- if and $mcp.enabled (has $ns $meshed) (not $derogated) }}
 ---
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
@@ -148,7 +156,7 @@ spec:
           protocol: TCP
 {{- end }}
 {{- end }}
-{{- if and $mcp.enabled $meshed }}
+{{- if and $mcp.enabled $meshed (not $derogated) }}
 ---
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy

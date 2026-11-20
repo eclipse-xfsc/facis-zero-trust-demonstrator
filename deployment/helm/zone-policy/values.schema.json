@@ -15,6 +15,7 @@
       "type": "object",
       "required": ["namespace", "className", "serverStatefulSet", "agentDaemonSet", "bundleConfigMap", "controllerManagerConfigMap"],
       "properties": {
+        "enabled": { "type": "boolean", "description": "false: a zone without SPIRE (ADR-0018); the STRICT PeerAuthentication, the no-sidecar admission policy and the lane-port policies are rendered, nothing of SPIRE" },
         "namespace": { "$ref": "#/$defs/name" },
         "className": { "type": "string", "minLength": 1 },
         "serverStatefulSet": { "$ref": "#/$defs/name" },
@@ -67,6 +68,36 @@
           "type": "string",
           "pattern": "^[^\\s'/]+/[^\\s']+@sha256:[0-9a-f]{64}$",
           "description": "The injected proxy's whole image reference, pinned by digest; must equal the istiod release's global.proxy.image."
+        }
+      }
+    },
+    "noSidecarPolicy": {
+      "type": "object",
+      "required": ["name"],
+      "properties": { "name": { "$ref": "#/$defs/name" } }
+    },
+    "lanePorts": {
+      "type": "object",
+      "properties": {
+        "namespaces": {
+          "type": "object",
+          "properties": {
+            "management": { "type": "string" },
+            "data": { "type": "string" }
+          }
+        },
+        "allowMatrix": {
+          "type": "array",
+          "description": "The zone's allow matrix (allowMatrix of the umbrella), filled by scripts/install-zone on the ambient path.",
+          "items": {
+            "type": "object",
+            "required": ["name", "from", "to"],
+            "properties": {
+              "name": { "$ref": "#/$defs/name" },
+              "from": { "type": "object" },
+              "to": { "type": "object" }
+            }
+          }
         }
       }
     },

@@ -1,0 +1,203 @@
+{{- /*
+No injected proxy in a zone without SPIRE (spire.enabled: false; the demonstrator cluster in
+ambient mode, ADR-0018), the SPIRE-free part of proxy-takes-spire-socket. Its mesh is ztunnel, and
+no pod there is meant to carry a proxy, but istiod's injector still runs and still ships the
+injection templates (grpc-simple among them, with the tag-pinned busybox:1.28 of
+docs/dependencies.md). In a namespace carrying the umbrella's plane label:
+
+- a pod may not choose its injection templates (inject.istio.io/templates, whatever its value) and
+  may not ask for injection (sidecar.istio.io/inject: "true", as a label or an annotation);
+- a pod may not carry what the injector leaves behind, whatever asked for the injection (a pod
+  label istio.io/rev, a namespace label istio-injection or istio.io/rev, or the requests above):
+  the annotation sidecar.istio.io/status, or an init container istio-init or istio-validation;
+  admission policies are evaluated after the mutating webhooks, so they see the injected pod;
+- outside the mesh root namespace (mesh.namespace), a pod may not carry a container or an init
+  container named istio-proxy. The root namespace carries the plane label too, and ztunnel's own
+  container there is named istio-proxy; istiod there carries the label istio.io/rev, so that label
+  is not refused as such. The name rule also refuses a waypoint there (its container is istio-proxy);
+  the ambient zone uses none, its policies being L4 and enforced by ztunnel.
+
+The opt-out ("false"), which istiod, istio-cni and ztunnel carry in the mesh root namespace, stays
+admitted.
+
+In a namespace enrolled in the ambient mesh (labelled istio.io/dataplane-mode=ambient: the meshed
+plane namespaces, not the mesh root namespace), a pod may not leave the mesh, which the sidecar
+path's proxy-takes-spire-socket refuses too, a pod outside the mesh being reachable in plaintext:
+
+- its own label istio.io/dataplane-mode, when it carries one, must be ambient (none opts it out);
+- it may not carry the annotation ambient.istio.io/bypass-inbound-capture (ztunnel would then leave
+  its inbound traffic uncaptured, so plaintext reaches it past STRICT);
+- it may not run in the host network namespace (hostNetwork) nor publish a hostPort. Istio SNATs
+  every connection from the node's network namespace to an ambient pod to 169.254.7.127, the
+  address ztunnel lets past (the ambientHostProbes opening, the kubelet's probes among them), so a
+  host-network pod there would reach every port of every ambient pod in plaintext;
+- nor may it reach the node, the node's network or its own capture rules another way: the rules
+  below are the controls of the Pod Security Standards' baseline profile beyond the host network
+  (Kubernetes 1.35), in its containers, init containers and ephemeral containers and, where the
+  field exists there, at pod level:
+  - no privileged container, no hostPID or hostIPC (a privileged hostPID pod can nsenter the node's
+    network namespace), no hostPath volume (the node's files, its runtime socket among them);
+  - no added capability outside baseline's list (AUDIT_WRITE, CHOWN, DAC_OVERRIDE, FOWNER, FSETID,
+    KILL, MKNOD, NET_BIND_SERVICE, SETFCAP, SETGID, SETPCAP, SETUID, SYS_CHROOT), compared
+    case-insensitively and with or without the CAP_ prefix: NET_ADMIN could delete the capture
+    rules istio-cni writes in the pod's own network namespace, SYS_ADMIN, SYS_MODULE,
+    DAC_READ_SEARCH, SYS_RAWIO and SYS_PTRACE reach the node or other processes;
+  - no seccomp profile Unconfined, no AppArmor profile Unconfined (the field, or the annotation
+    container.apparmor.security.beta.kubernetes.io/* other than runtime/default or localhost/*), no
+    procMount other than Default, no Windows hostProcess (the API admits one only with
+    hostNetwork; its rule is evaluated before the host-network rule, so its own refusal is the one
+    reported), no SELinux type outside container_t, container_init_t, container_kvm_t and
+    container_engine_t and no SELinux user or role;
+  - no sysctl outside baseline's safe set for Kubernetes 1.35;
+  - no host in a probe or lifecycle hook (httpGet.host, tcpSocket.host): the kubelet would connect
+    from the node's network namespace, which reaches every ambient pod past the mesh, to an address
+    the pod chooses.
+istio-cni and ztunnel, which add NET_ADMIN and SYS_ADMIN (istio-cni also SYS_PTRACE and NET_RAW, with
+AppArmor Unconfined) and mount hostPath volumes (neither is privileged nor host-network in Istio
+1.31), live in the mesh root namespace, which is not enrolled, and are spared. The namespace label
+istio.io/dataplane-mode=ambient is the
+trust anchor of these rules: removing it takes the namespace out of the mesh and out of them, which
+takes namespace-update rights (cluster administrators). What stays open is listed in ADR-0018.
+
+The policy sees every write path of a pod: pods (CREATE, UPDATE), pods/status (which can change
+labels and annotations, not the spec) and pods/ephemeralcontainers (kubectl debug). Every rule
+guards its fields with has(), so a status update of the mesh's own pods in the root namespace never
+fails on a missing field. A pod admitted before a rule existed and failing it would have its status
+updates refused; the enrolled namespaces hold no such pod.
+*/ -}}
+{{- define "zone-policy.noSidecar.anyContainer" -}}
+(object.spec.containers.exists(c, {{ . }}) ||
+        (has(object.spec.initContainers) && object.spec.initContainers.exists(c, {{ . }})) ||
+        (has(object.spec.ephemeralContainers) && object.spec.ephemeralContainers.exists(c, {{ . }})))
+{{- end }}
+{{- if not .Values.spire.enabled }}
+{{- $name := .Values.noSidecarPolicy.name }}
+apiVersion: admissionregistration.k8s.io/v1
+kind: ValidatingAdmissionPolicy
+metadata:
+  name: {{ $name }}
+  labels:
+    {{- include "zone-policy.labels" . | nindent 4 }}
+spec:
+  failurePolicy: Fail
+  matchConstraints:
+    resourceRules:
+      - apiGroups: [""]
+        apiVersions: ["v1"]
+        operations: ["CREATE", "UPDATE"]
+        resources: ["pods", "pods/status", "pods/ephemeralcontainers"]
+  validations:
+    - expression: >-
+        !has(object.metadata.annotations) || !('inject.istio.io/templates' in object.metadata.annotations)
+      message: "a pod in a plane namespace of the ambient zone may not choose its injection templates (inject.istio.io/templates; ADR-0018)"
+      reason: Forbidden
+    - expression: >-
+        !(has(object.metadata.labels) && 'sidecar.istio.io/inject' in object.metadata.labels && object.metadata.labels['sidecar.istio.io/inject'] == 'true') &&
+        !(has(object.metadata.annotations) && 'sidecar.istio.io/inject' in object.metadata.annotations && object.metadata.annotations['sidecar.istio.io/inject'] == 'true')
+      message: "a pod in a plane namespace of the ambient zone may not ask for an injected proxy (sidecar.istio.io/inject: true): the mesh there is ztunnel (ADR-0018)"
+      reason: Forbidden
+    - expression: >-
+        !(has(object.metadata.annotations) && 'sidecar.istio.io/status' in object.metadata.annotations) &&
+        !(has(object.spec.initContainers) && object.spec.initContainers.exists(c, c.name == 'istio-init' || c.name == 'istio-validation'))
+      message: "a pod in a plane namespace of the ambient zone may not carry an injected proxy (sidecar.istio.io/status, istio-init, istio-validation), whatever asked for it: the mesh there is ztunnel (ADR-0018)"
+      reason: Forbidden
+    - expression: >-
+        request.namespace == {{ .Values.mesh.namespace | quote }} ||
+        (!object.spec.containers.exists(c, c.name == 'istio-proxy') &&
+        !(has(object.spec.initContainers) && object.spec.initContainers.exists(c, c.name == 'istio-proxy')) &&
+        !(has(object.spec.ephemeralContainers) && object.spec.ephemeralContainers.exists(c, c.name == 'istio-proxy')))
+      message: "a pod in a plane namespace of the ambient zone may not carry a proxy container (istio-proxy, also as an init or ephemeral container) outside the mesh root namespace: the mesh there is ztunnel (ADR-0018)"
+      reason: Forbidden
+    - expression: >-
+        !(has(namespaceObject.metadata.labels) && 'istio.io/dataplane-mode' in namespaceObject.metadata.labels && namespaceObject.metadata.labels['istio.io/dataplane-mode'] == 'ambient') ||
+        !(has(object.metadata.labels) && 'istio.io/dataplane-mode' in object.metadata.labels && object.metadata.labels['istio.io/dataplane-mode'] != 'ambient')
+      message: "a pod in a namespace enrolled in the ambient mesh may not opt out of it (istio.io/dataplane-mode other than ambient): a pod outside the mesh is reachable in plaintext (ADR-0018)"
+      reason: Forbidden
+    - expression: >-
+        !(has(namespaceObject.metadata.labels) && 'istio.io/dataplane-mode' in namespaceObject.metadata.labels && namespaceObject.metadata.labels['istio.io/dataplane-mode'] == 'ambient') ||
+        !(has(object.metadata.annotations) && 'ambient.istio.io/bypass-inbound-capture' in object.metadata.annotations)
+      message: "a pod in a namespace enrolled in the ambient mesh may not bypass ztunnel's inbound capture (ambient.istio.io/bypass-inbound-capture): plaintext would reach it past STRICT (ADR-0018)"
+      reason: Forbidden
+    - expression: >-
+        !(has(namespaceObject.metadata.labels) && 'istio.io/dataplane-mode' in namespaceObject.metadata.labels && namespaceObject.metadata.labels['istio.io/dataplane-mode'] == 'ambient') ||
+        !(has(object.spec.securityContext) && has(object.spec.securityContext.windowsOptions) && has(object.spec.securityContext.windowsOptions.hostProcess) && object.spec.securityContext.windowsOptions.hostProcess) &&
+        !{{ include "zone-policy.noSidecar.anyContainer" "has(c.securityContext) && has(c.securityContext.windowsOptions) && has(c.securityContext.windowsOptions.hostProcess) && c.securityContext.windowsOptions.hostProcess" }}
+      message: "a pod in a namespace enrolled in the ambient mesh may not run a Windows host process (windowsOptions.hostProcess) (ADR-0018)"
+      reason: Forbidden
+    - expression: >-
+        !(has(namespaceObject.metadata.labels) && 'istio.io/dataplane-mode' in namespaceObject.metadata.labels && namespaceObject.metadata.labels['istio.io/dataplane-mode'] == 'ambient') ||
+        (!(has(object.spec.hostNetwork) && object.spec.hostNetwork) &&
+        !object.spec.containers.exists(c, has(c.ports) && c.ports.exists(p, has(p.hostPort) && p.hostPort != 0)) &&
+        !(has(object.spec.initContainers) && object.spec.initContainers.exists(c, has(c.ports) && c.ports.exists(p, has(p.hostPort) && p.hostPort != 0))))
+      message: "a pod in a namespace enrolled in the ambient mesh may not use the host network (hostNetwork, hostPort): traffic from the node's network namespace reaches ambient pods past the mesh (ADR-0018)"
+      reason: Forbidden
+    - expression: >-
+        !(has(namespaceObject.metadata.labels) && 'istio.io/dataplane-mode' in namespaceObject.metadata.labels && namespaceObject.metadata.labels['istio.io/dataplane-mode'] == 'ambient') ||
+        !{{ include "zone-policy.noSidecar.anyContainer" "has(c.securityContext) && has(c.securityContext.privileged) && c.securityContext.privileged" }}
+      message: "a pod in a namespace enrolled in the ambient mesh may not run a privileged container (also as an init or ephemeral container): it could reach the node's network and its capture rules (ADR-0018)"
+      reason: Forbidden
+    - expression: >-
+        !(has(namespaceObject.metadata.labels) && 'istio.io/dataplane-mode' in namespaceObject.metadata.labels && namespaceObject.metadata.labels['istio.io/dataplane-mode'] == 'ambient') ||
+        (!(has(object.spec.hostPID) && object.spec.hostPID) && !(has(object.spec.hostIPC) && object.spec.hostIPC))
+      message: "a pod in a namespace enrolled in the ambient mesh may not share the node's process or IPC namespace (hostPID, hostIPC): it could enter the node's network namespace (ADR-0018)"
+      reason: Forbidden
+    - expression: >-
+        !(has(namespaceObject.metadata.labels) && 'istio.io/dataplane-mode' in namespaceObject.metadata.labels && namespaceObject.metadata.labels['istio.io/dataplane-mode'] == 'ambient') ||
+        !(has(object.spec.volumes) && object.spec.volumes.exists(v, has(v.hostPath)))
+      message: "a pod in a namespace enrolled in the ambient mesh may not mount a hostPath volume: the node's files reach past the mesh (ADR-0018)"
+      reason: Forbidden
+    - expression: >-
+        !(has(namespaceObject.metadata.labels) && 'istio.io/dataplane-mode' in namespaceObject.metadata.labels && namespaceObject.metadata.labels['istio.io/dataplane-mode'] == 'ambient') ||
+        !{{ include "zone-policy.noSidecar.anyContainer" "has(c.securityContext) && has(c.securityContext.capabilities) && has(c.securityContext.capabilities.add) && c.securityContext.capabilities.add.exists(a, !(a.upperAscii() in ['AUDIT_WRITE', 'CHOWN', 'DAC_OVERRIDE', 'FOWNER', 'FSETID', 'KILL', 'MKNOD', 'NET_BIND_SERVICE', 'SETFCAP', 'SETGID', 'SETPCAP', 'SETUID', 'SYS_CHROOT', 'CAP_AUDIT_WRITE', 'CAP_CHOWN', 'CAP_DAC_OVERRIDE', 'CAP_FOWNER', 'CAP_FSETID', 'CAP_KILL', 'CAP_MKNOD', 'CAP_NET_BIND_SERVICE', 'CAP_SETFCAP', 'CAP_SETGID', 'CAP_SETPCAP', 'CAP_SETUID', 'CAP_SYS_CHROOT']))" }}
+      message: "a pod in a namespace enrolled in the ambient mesh may not add the capability outside the Pod Security Standards baseline (AUDIT_WRITE, CHOWN, DAC_OVERRIDE, FOWNER, FSETID, KILL, MKNOD, NET_BIND_SERVICE, SETFCAP, SETGID, SETPCAP, SETUID, SYS_CHROOT; also in an init or ephemeral container): NET_ADMIN could remove its own capture rules and leave the mesh, SYS_ADMIN, SYS_MODULE, DAC_READ_SEARCH, SYS_RAWIO or SYS_PTRACE reach the node (ADR-0018)"
+      reason: Forbidden
+    - expression: >-
+        !(has(namespaceObject.metadata.labels) && 'istio.io/dataplane-mode' in namespaceObject.metadata.labels && namespaceObject.metadata.labels['istio.io/dataplane-mode'] == 'ambient') ||
+        !(has(object.spec.securityContext) && has(object.spec.securityContext.seccompProfile) && !(object.spec.securityContext.seccompProfile.type in ['RuntimeDefault', 'Localhost'])) &&
+        !{{ include "zone-policy.noSidecar.anyContainer" "has(c.securityContext) && has(c.securityContext.seccompProfile) && !(c.securityContext.seccompProfile.type in ['RuntimeDefault', 'Localhost'])" }}
+      message: "a pod in a namespace enrolled in the ambient mesh may not run without a seccomp profile (seccompProfile Unconfined, for the pod or a container) (ADR-0018)"
+      reason: Forbidden
+    - expression: >-
+        !(has(namespaceObject.metadata.labels) && 'istio.io/dataplane-mode' in namespaceObject.metadata.labels && namespaceObject.metadata.labels['istio.io/dataplane-mode'] == 'ambient') ||
+        !(has(object.spec.securityContext) && has(object.spec.securityContext.appArmorProfile) && !(object.spec.securityContext.appArmorProfile.type in ['RuntimeDefault', 'Localhost'])) &&
+        !{{ include "zone-policy.noSidecar.anyContainer" "has(c.securityContext) && has(c.securityContext.appArmorProfile) && !(c.securityContext.appArmorProfile.type in ['RuntimeDefault', 'Localhost'])" }} &&
+        !(has(object.metadata.annotations) && object.metadata.annotations.exists(k, k.startsWith('container.apparmor.security.beta.kubernetes.io/') && object.metadata.annotations[k] != 'runtime/default' && !object.metadata.annotations[k].startsWith('localhost/')))
+      message: "a pod in a namespace enrolled in the ambient mesh may not run without an AppArmor profile (appArmorProfile Unconfined, or an annotation container.apparmor.security.beta.kubernetes.io/* other than runtime/default or localhost/*) (ADR-0018)"
+      reason: Forbidden
+    - expression: >-
+        !(has(namespaceObject.metadata.labels) && 'istio.io/dataplane-mode' in namespaceObject.metadata.labels && namespaceObject.metadata.labels['istio.io/dataplane-mode'] == 'ambient') ||
+        !{{ include "zone-policy.noSidecar.anyContainer" "has(c.securityContext) && has(c.securityContext.procMount) && c.securityContext.procMount != 'Default'" }}
+      message: "a pod in a namespace enrolled in the ambient mesh may not unmask /proc (procMount other than Default) (ADR-0018)"
+      reason: Forbidden
+    - expression: >-
+        !(has(namespaceObject.metadata.labels) && 'istio.io/dataplane-mode' in namespaceObject.metadata.labels && namespaceObject.metadata.labels['istio.io/dataplane-mode'] == 'ambient') ||
+        !(has(object.spec.securityContext) && has(object.spec.securityContext.seLinuxOptions) && ((has(object.spec.securityContext.seLinuxOptions.type) && !(object.spec.securityContext.seLinuxOptions.type in ['', 'container_t', 'container_init_t', 'container_kvm_t', 'container_engine_t'])) || (has(object.spec.securityContext.seLinuxOptions.user) && object.spec.securityContext.seLinuxOptions.user != '') || (has(object.spec.securityContext.seLinuxOptions.role) && object.spec.securityContext.seLinuxOptions.role != ''))) &&
+        !{{ include "zone-policy.noSidecar.anyContainer" "has(c.securityContext) && has(c.securityContext.seLinuxOptions) && ((has(c.securityContext.seLinuxOptions.type) && !(c.securityContext.seLinuxOptions.type in ['', 'container_t', 'container_init_t', 'container_kvm_t', 'container_engine_t'])) || (has(c.securityContext.seLinuxOptions.user) && c.securityContext.seLinuxOptions.user != '') || (has(c.securityContext.seLinuxOptions.role) && c.securityContext.seLinuxOptions.role != ''))" }}
+      message: "a pod in a namespace enrolled in the ambient mesh may not set an SELinux type outside container_t, container_init_t, container_kvm_t and container_engine_t, nor an SELinux user or role (ADR-0018)"
+      reason: Forbidden
+    - expression: >-
+        !(has(namespaceObject.metadata.labels) && 'istio.io/dataplane-mode' in namespaceObject.metadata.labels && namespaceObject.metadata.labels['istio.io/dataplane-mode'] == 'ambient') ||
+        !(has(object.spec.securityContext) && has(object.spec.securityContext.sysctls) && object.spec.securityContext.sysctls.exists(s, !(s.name in ['kernel.shm_rmid_forced', 'net.ipv4.ip_local_port_range', 'net.ipv4.ip_unprivileged_port_start', 'net.ipv4.tcp_syncookies', 'net.ipv4.ping_group_range', 'net.ipv4.ip_local_reserved_ports', 'net.ipv4.tcp_keepalive_time', 'net.ipv4.tcp_fin_timeout', 'net.ipv4.tcp_keepalive_intvl', 'net.ipv4.tcp_keepalive_probes', 'net.ipv4.tcp_rmem', 'net.ipv4.tcp_wmem'])))
+      message: "a pod in a namespace enrolled in the ambient mesh may not set a sysctl outside the Pod Security Standards baseline's safe set (ADR-0018)"
+      reason: Forbidden
+    - expression: >-
+        !(has(namespaceObject.metadata.labels) && 'istio.io/dataplane-mode' in namespaceObject.metadata.labels && namespaceObject.metadata.labels['istio.io/dataplane-mode'] == 'ambient') ||
+        !{{ include "zone-policy.noSidecar.anyContainer" "(has(c.livenessProbe) && ((has(c.livenessProbe.httpGet) && has(c.livenessProbe.httpGet.host) && c.livenessProbe.httpGet.host != '') || (has(c.livenessProbe.tcpSocket) && has(c.livenessProbe.tcpSocket.host) && c.livenessProbe.tcpSocket.host != ''))) || (has(c.readinessProbe) && ((has(c.readinessProbe.httpGet) && has(c.readinessProbe.httpGet.host) && c.readinessProbe.httpGet.host != '') || (has(c.readinessProbe.tcpSocket) && has(c.readinessProbe.tcpSocket.host) && c.readinessProbe.tcpSocket.host != ''))) || (has(c.startupProbe) && ((has(c.startupProbe.httpGet) && has(c.startupProbe.httpGet.host) && c.startupProbe.httpGet.host != '') || (has(c.startupProbe.tcpSocket) && has(c.startupProbe.tcpSocket.host) && c.startupProbe.tcpSocket.host != ''))) || (has(c.lifecycle) && ((has(c.lifecycle.postStart) && ((has(c.lifecycle.postStart.httpGet) && has(c.lifecycle.postStart.httpGet.host) && c.lifecycle.postStart.httpGet.host != '') || (has(c.lifecycle.postStart.tcpSocket) && has(c.lifecycle.postStart.tcpSocket.host) && c.lifecycle.postStart.tcpSocket.host != ''))) || (has(c.lifecycle.preStop) && ((has(c.lifecycle.preStop.httpGet) && has(c.lifecycle.preStop.httpGet.host) && c.lifecycle.preStop.httpGet.host != '') || (has(c.lifecycle.preStop.tcpSocket) && has(c.lifecycle.preStop.tcpSocket.host) && c.lifecycle.preStop.tcpSocket.host != '')))))" }}
+      message: "a pod in a namespace enrolled in the ambient mesh may not name a host in a probe or lifecycle hook (httpGet.host, tcpSocket.host): the kubelet would call it from the node's network namespace, past the mesh (ADR-0018)"
+      reason: Forbidden
+---
+apiVersion: admissionregistration.k8s.io/v1
+kind: ValidatingAdmissionPolicyBinding
+metadata:
+  name: {{ $name }}
+  labels:
+    {{- include "zone-policy.labels" . | nindent 4 }}
+spec:
+  policyName: {{ $name }}
+  validationActions: [Deny]
+  matchResources:
+    namespaceSelector:
+      matchExpressions:
+        - key: {{ .Values.registration.planeLabel }}
+          operator: Exists
+{{- end }}

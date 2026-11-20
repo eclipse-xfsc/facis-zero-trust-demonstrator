@@ -1,0 +1,7 @@
+# The kind zone (deployment/helm/ztd/ci/values.yaml): the CI render and the secrets baseline.
+# scripts/install-zone fills the storage class, the namespace and the Cilium switch from the zone
+# file over the umbrella's defaults; CI renders with this file.
+openbao:
+  server:
+    dataStorage:
+      storageClass: standard

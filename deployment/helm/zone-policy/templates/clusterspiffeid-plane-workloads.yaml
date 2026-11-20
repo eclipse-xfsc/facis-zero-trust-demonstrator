@@ -6,6 +6,7 @@ namespace that carries the umbrella's plane label, gets
 spiffe://<trust domain>/ns/<namespace>/sa/<service account>. The controller-manager fills
 .TrustDomain from its own configuration, the zone's trust domain.
 */ -}}
+{{- if .Values.spire.enabled }}
 apiVersion: spire.spiffe.io/v1alpha1
 kind: ClusterSPIFFEID
 metadata:
@@ -22,3 +23,4 @@ spec:
     matchExpressions:
       - key: {{ .Values.registration.planeLabel }}
         operator: Exists
+{{- end }}

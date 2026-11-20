@@ -179,6 +179,27 @@ jobs:
       - name: Run the admission catalogue
         run: BIN="$RUNNER_TEMP/bin" scripts/admission/kind-e2e.sh
 
+  # The demonstrator cluster's no-sidecar-in-planes (ADR-0018) in a throwaway kind cluster: the
+  # shapes it must refuse in the namespaces enrolled in the ambient mesh, on every write path of a
+  # pod (create, pods/status, pods/ephemeralcontainers), and the mesh's own pods it must admit.
+  ambient-admission-kind:
+    name: Ambient admission (kind)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+
+      - name: Set up Helm
+        uses: azure/setup-helm@1a275c3b69536ee54be43f2070a358922e12c8d4 # v4
+        with:
+          version: v4.3.0
+
+      - name: Install the pinned tools
+        run: scripts/tools/install.sh "$RUNNER_TEMP/bin" kind kubectl
+
+      - name: Run the admission cases
+        run: BIN="$RUNNER_TEMP/bin" scripts/verify-ambient-mesh/admission-kind.sh
+
   contracts:
     name: Contracts
     runs-on: ubuntu-latest
@@ -290,14 +311,39 @@ jobs:
       # request clears is the gate the release is held to. The umbrella is also rendered with every
       # shipped zone file under deployment/helm/ztd/zones/ (the example excepted), so a zone file
       # that stops rendering is caught here rather than by an operator on the cluster. Rendering only.
+      # The demonstrator cluster's ionos.yaml keeps its API endpoint addresses out of the repository
+      # and does not render alone (its CNI derogation requires them): it is rendered with the
+      # documentation-range overlay ci/ionos.overlay.yaml, and must also be refused without it. The
+      # derogation's other render guards are checked here too, each refusal by its message: ambient
+      # without the derogation, the derogation with sidecar mode, and the derogation without the
+      # webhook source pods (fromPods), each with the overlay so the addresses are not the cause.
       - name: Lint and render every chart
         run: |
           scripts/ci/check-charts.sh
+          refused() { # refused <message pattern> <title> <helm template arguments...>
+            local pattern=$1 title=$2 out; shift 2
+            if out=$(helm template deployment/helm/ztd "$@" 2>&1); then
+              echo "rendered, but must be refused: $title" >&2; exit 1
+            fi
+            grep -q -- "$pattern" <<<"$out" || { echo "refused, but not on its guard: $title" >&2; echo "$out" >&2; exit 1; }
+            echo "refused as expected: $title"
+          }
+          ionos=(-f deployment/helm/ztd/zones/ionos.yaml -f deployment/helm/ztd/ci/ionos.overlay.yaml)
+          refused 'mesh.mode ambient needs Cilium' "ambient without Cilium and without the derogation" "${ionos[@]}" --set cni.derogation=
+          refused "at '/mesh/mode'" "the derogation with sidecar mode" "${ionos[@]}" --set mesh.mode=sidecar
+          refused "missing property 'fromPods'" "the derogation without controlPlaneWebhooks.fromPods" "${ionos[@]}" --set networkPolicy.controlPlaneWebhooks.fromPods=null
           for zone in deployment/helm/ztd/zones/*.yaml; do
             [ "$(basename "$zone")" = zone-a.example.yaml ] && continue
-            echo "render deployment/helm/ztd with $zone"
-            helm lint deployment/helm/ztd -f "$zone"
-            helm template deployment/helm/ztd -f "$zone" >/dev/null
+            overlay=()
+            if [ "$(basename "$zone")" = ionos.yaml ]; then
+              overlay=(-f deployment/helm/ztd/ci/ionos.overlay.yaml)
+              if helm template deployment/helm/ztd -f "$zone" >/dev/null 2>&1; then
+                echo "$zone rendered without the API endpoint addresses" >&2; exit 1
+              fi
+            fi
+            echo "render deployment/helm/ztd with $zone ${overlay[*]}"
+            helm lint deployment/helm/ztd -f "$zone" "${overlay[@]}"
+            helm template deployment/helm/ztd -f "$zone" "${overlay[@]}" >/dev/null
           done
 
       # What the release relies on, against charts the test writes: a set that passes is packaged
@@ -305,19 +351,60 @@ jobs:
       - name: Test the chart check
         run: scripts/ci/check-charts_test.sh
 
-      # A zone is seven releases (scripts/install-zone/install.sh): the two project charts above and
-      # five upstream charts, SPIRE's and Istio's, pinned by version and digest in the installer.
-      # Each upstream release is rendered from its pinned chart with its values file under
-      # deployment/helm/values/ and the kind zone's facts. Rendering only: CI never installs.
+      # A sidecar zone is eight releases (scripts/install-zone/install.sh): three project charts linted above
+      # (the umbrella, zone-policy and ztd-openbao, the last wrapping the upstream openbao chart from
+      # its Chart.lock) and five upstream charts, SPIRE's and Istio's, pinned by version and digest in
+      # the installer. Each upstream release is rendered from its pinned chart with its values file
+      # under deployment/helm/values/ and the kind zone's facts, and ztd-openbao through the installer
+      # with the zone facts it reads from the umbrella's defaults and the zone file: its server
+      # StatefulSet and both of its jobs must carry the identity label the registration rule selects,
+      # and none may carry a node affinity or a node selector, with the kind zone's file and with zone
+      # A's. Rendering only: CI never installs.
       # The rendered istiod mesh configuration must carry the TLS 1.3 minimum of the security
-      # baseline (ADR 005), and the installer must refuse a revisioned or an ambient zone before it
-      # renders anything (it installs the default, unrevisioned istiod in sidecar mode only), and a
-      # zone-policy whose proxy image or status port differs from istiod's before it renders anything.
+      # baseline (ADR 005), and the installer must refuse an unknown mesh mode, and a revisioned zone
+      # in either mode, before it renders anything (it installs the default, unrevisioned istiod in
+      # sidecar or ambient mode only), and a zone-policy whose proxy image or status port differs
+      # from istiod's before it renders anything. The ambient path (the demonstrator cluster,
+      # ADR-0018) renders its six releases with the overlay below.
       - name: Render the upstream releases of a zone
         run: |
           python3 -c 'import yaml' 2>/dev/null || python3 -m pip install --user pyyaml
           RENDER_DIR="$RUNNER_TEMP/render" \
-            scripts/install-zone/install.sh render spire-crds spire istio-base istiod istio-cni
+            scripts/install-zone/install.sh render spire-crds spire istio-base istiod istio-cni ztd-openbao
+          RENDER_DIR="$RUNNER_TEMP/render-zone-a" ZONE_VALUES=deployment/helm/ztd/zones/zone-a.yaml \
+            scripts/install-zone/install.sh render ztd-openbao
+          python3 - "$RUNNER_TEMP/render/ztd-openbao.yaml" "$RUNNER_TEMP/render-zone-a/ztd-openbao.yaml" <<'PY'
+          import sys, yaml
+          def pods(path):
+              docs = [d for d in yaml.safe_load_all(open(path)) if d]
+              found = {}
+              for d in docs:
+                  kind, name = d.get("kind"), d["metadata"]["name"]
+                  if kind == "StatefulSet" and name == "ztd-openbao": found["server"] = d
+                  elif kind == "Job" and name.startswith("ztd-openbao-bootstrap-"): found["bootstrap"] = d
+                  elif kind == "Job" and name == "ztd-verify-openbao": found["verification"] = d
+              missing = {"server", "bootstrap", "verification"} - set(found)
+              if missing: sys.exit(f"ztd-openbao render {path}: no {', '.join(sorted(missing))}")
+              return {k: v["spec"]["template"] for k, v in found.items()}
+          def node_pin(t):
+              # No release is held to a node: no node affinity and no node selector on any pod template.
+              spec = t["spec"]
+              return {k: v for k, v in (("nodeAffinity", (spec.get("affinity") or {}).get("nodeAffinity")),
+                                         ("nodeSelector", spec.get("nodeSelector"))) if v}
+          accounts = {"server": "ztd-openbao", "bootstrap": "ztd-openbao-bootstrap", "verification": "ztd-verify-openbao"}
+          for zone, path in (("kind", sys.argv[1]), ("zone-a", sys.argv[2])):
+              for name, t in pods(path).items():
+                  label = (t["metadata"].get("labels") or {}).get("spiffe.io/spire-managed-identity")
+                  if label != "true":
+                      sys.exit(f"ztd-openbao render ({zone}): the {name} pod template lacks spiffe.io/spire-managed-identity: \"true\"")
+                  if node_pin(t):
+                      sys.exit(f"ztd-openbao render ({zone}): the {name} pod template is held to a node: {node_pin(t)}")
+                  # Each pod its own ServiceAccount, so each its own SPIFFE ID (none on "default").
+                  sa = t["spec"].get("serviceAccountName") or "default"
+                  if sa != accounts[name]:
+                      sys.exit(f"ztd-openbao render ({zone}): the {name} pod runs as ServiceAccount {sa}, not {accounts[name]}")
+              print(f"ztd-openbao render ({zone}): the server and both jobs carry the identity label, each with its own ServiceAccount, and none is held to a node")
+          PY
           python3 - "$RUNNER_TEMP/render/istiod.yaml" <<'PY'
           import sys, yaml
           docs = [d for d in yaml.safe_load_all(open(sys.argv[1])) if d]
@@ -328,26 +415,152 @@ jobs:
               sys.exit(f"istiod render: meshConfig.meshMTLS.minProtocolVersion is {got!r}, not 'TLSV1_3' (ADR 005)")
           print("istiod render: meshConfig.meshMTLS.minProtocolVersion is TLSV1_3")
           PY
-          for setting in revision=canary mode=ambient; do
-            key=${setting%%=*}
-            zone="$RUNNER_TEMP/zone-$key.yaml"
-            out="$RUNNER_TEMP/refused-$key"
+          # Each case: the settings under mesh (key=value,...) and the key the refusal must name.
+          for case in revision=canary:revision mode=ambient,revision=canary:revision mode=both:mode; do
+            settings=${case%%:*}; key=${case##*:}
+            name=${settings//[=,]/-}
+            zone="$RUNNER_TEMP/zone-$name.yaml"
+            out="$RUNNER_TEMP/refused-$name"
             mkdir -p "$out"
-            python3 - deployment/helm/ztd/ci/values.yaml "$key" "${setting#*=}" "$zone" <<'PY'
+            python3 - deployment/helm/ztd/ci/values.yaml "$settings" "$zone" <<'PY'
           import sys, yaml
-          source, key, value, target = sys.argv[1:]
+          source, settings, target = sys.argv[1:]
           zone = yaml.safe_load(open(source))
-          zone.setdefault("mesh", {})[key] = value
+          for pair in settings.split(","):
+              k, v = pair.split("=")
+              zone.setdefault("mesh", {})[k] = v
           yaml.safe_dump(zone, open(target, "w"), sort_keys=False)
           PY
             if ZONE_VALUES="$zone" RENDER_DIR="$out" \
                 scripts/install-zone/install.sh render 2>"$out.err"; then
-              echo "install-zone rendered a zone with mesh.$key set to ${setting#*=}" >&2; exit 1
+              echo "install-zone rendered a zone with mesh $settings" >&2; exit 1
             fi
             cat "$out.err"
             grep -q "mesh\.$key" "$out.err" || { echo "the refusal does not name mesh.$key" >&2; exit 1; }
             [ -z "$(ls -A "$out")" ] || { echo "install-zone rendered into $out before refusing" >&2; exit 1; }
           done
+          # The ambient path (ADR-0018): the demonstrator cluster's zone file with the overlay plans
+          # the six releases in order, with no SPIRE or OpenBao release; istiod names no SPIRE
+          # socket or certificate provider and runs in the zone's trust domain; istio-cni has
+          # ambient on; ztunnel and istio-cni are DaemonSets at system-node-critical, by digest, and
+          # istiod is by digest;
+          # zone-policy is the STRICT PeerAuthentication, the lane-port DENY AuthorizationPolicy of the
+          # OTel lane (every port but 4317 and 4318 from the data plane, enforced by ztunnel) and the
+          # no-sidecar admission policy with its binding (refusing what the injector leaves behind),
+          # and nothing of SPIRE.
+          plan=$(ZONE_VALUES=deployment/helm/ztd/zones/ionos.yaml scripts/install-zone/install.sh plan)
+          echo "$plan"
+          got=$(awk '$1 ~ /^[0-9]+\/[0-9]+$/ {print $2}' <<<"$plan" | paste -sd' ')
+          [ "$got" = "ztd istio-base istiod istio-cni ztunnel zone-policy" ] \
+            || { echo "ambient plan lists: $got" >&2; exit 1; }
+          RENDER_DIR="$RUNNER_TEMP/render-ionos" ZONE_VALUES=deployment/helm/ztd/zones/ionos.yaml \
+            ZONE_OVERLAY=deployment/helm/ztd/ci/ionos.overlay.yaml scripts/install-zone/install.sh render
+          python3 - "$RUNNER_TEMP/render-ionos" <<'PY'
+          import os, sys, yaml
+          d = sys.argv[1]
+          def docs(name):
+              return [x for x in yaml.safe_load_all(open(os.path.join(d, name + ".yaml"))) if x]
+          if sorted(os.listdir(d)) != sorted(f + ".yaml" for f in
+                  ["ztd", "istio-base", "istiod", "istio-cni", "ztunnel", "zone-policy"]):
+              sys.exit(f"ambient render: releases {sorted(os.listdir(d))}")
+          istiod = open(os.path.join(d, "istiod.yaml")).read()
+          # Istio's own sidecar template mounts an emptyDir at workload-spiffe-uds; the SPIRE
+          # socket is the csi.spiffe.io volume of the zones' `spire` injection template.
+          for word in ("csi.spiffe.io", "spire"):
+              if word in istiod:
+                  sys.exit(f"ambient render: istiod names {word!r}")
+          cm = [x for x in docs("istiod") if x["kind"] == "ConfigMap" and x["metadata"]["name"] == "istio"][0]
+          mesh = yaml.safe_load(cm["data"]["mesh"])
+          if mesh.get("trustDomain") != "ionos.trust.invalid":
+              sys.exit(f"ambient render: trustDomain {mesh.get('trustDomain')!r}")
+          if (mesh.get("meshMTLS") or {}).get("minProtocolVersion") != "TLSV1_3":
+              sys.exit("ambient render: meshMTLS.minProtocolVersion is not TLSV1_3 (ADR 005)")
+          if "trustDomainAliases" in mesh:
+              sys.exit("ambient render: a trust-domain alias is set")
+          cni_cm = [x for x in docs("istio-cni") if x["kind"] == "ConfigMap"][0]
+          if cni_cm["data"].get("AMBIENT_ENABLED") != "true":
+              sys.exit("ambient render: istio-cni has ambient off")
+          for rel in ("istio-cni", "ztunnel"):
+              ds = [x for x in docs(rel) if x["kind"] == "DaemonSet"]
+              if len(ds) != 1:
+                  sys.exit(f"ambient render: {rel} renders {len(ds)} DaemonSets")
+              spec = ds[0]["spec"]["template"]["spec"]
+              if spec.get("priorityClassName") != "system-node-critical":
+                  sys.exit(f"ambient render: {rel} priorityClassName {spec.get('priorityClassName')!r}")
+              for c in spec.get("containers", []) + spec.get("initContainers", []):
+                  if "@sha256:" not in c["image"]:
+                      sys.exit(f"ambient render: {rel} image {c['image']} not by digest")
+          for dep in [x for x in docs("istiod") if x["kind"] == "Deployment"]:
+              for c in dep["spec"]["template"]["spec"]["containers"]:
+                  if "@sha256:" not in c["image"]:
+                      sys.exit(f"ambient render: istiod image {c['image']} not by digest")
+          zp = docs("zone-policy")
+          kinds = sorted(x["kind"] for x in zp)
+          if kinds != ["AuthorizationPolicy", "PeerAuthentication", "ValidatingAdmissionPolicy", "ValidatingAdmissionPolicyBinding"]:
+              sys.exit(f"ambient render: zone-policy renders {kinds}")
+          if [x for x in zp if x["kind"] == "PeerAuthentication"][0]["spec"]["mtls"]["mode"] != "STRICT":
+              sys.exit("ambient render: the PeerAuthentication is not STRICT")
+          ap = [x for x in zp if x["kind"] == "AuthorizationPolicy"][0]
+          if (ap["metadata"]["namespace"], ap["spec"].get("action"), ap["spec"]["selector"]["matchLabels"],
+                  ap["spec"]["rules"]) != ("ztd-mgmt", "DENY", {"app.kubernetes.io/name": "otel-collector"},
+                  [{"from": [{"source": {"namespaces": ["ztd-data"]}}], "to": [{"operation": {"notPorts": ["4317", "4318"]}}]}]):
+              sys.exit(f"ambient render: lane-port policy {ap['metadata']['name']} is {ap['spec']}")
+          # no-sidecar-in-planes refuses what the injector leaves behind, whatever asked for the
+          # injection (a pod label istio.io/rev, a namespace label), and spares ztunnel's own
+          # istio-proxy container in the mesh root namespace. In a namespace enrolled in the ambient
+          # mesh it also refuses the opt-out, the inbound-capture bypass, the host network, and the
+          # other controls of the Pod Security Standards baseline (privileged containers, hostPID,
+          # hostIPC, hostPath volumes, an added capability outside baseline's list, seccomp and AppArmor
+          # Unconfined, procMount, hostProcess, SELinux, unsafe sysctls, a host in a probe or a hook),
+          # on every write path of a pod; each of those rules holds only in an enrolled namespace, so
+          # istio-system (not enrolled) is untouched. The kind job checks how they behave.
+          vap = [x for x in zp if x["kind"] == "ValidatingAdmissionPolicy"][0]
+          exprs = " ".join(v["expression"] for v in vap["spec"]["validations"])
+          if vap["spec"]["matchConstraints"]["resourceRules"][0]["resources"] != ["pods", "pods/status", "pods/ephemeralcontainers"]:
+              sys.exit(f"ambient render: no-sidecar-in-planes matches {vap['spec']['matchConstraints']['resourceRules'][0]['resources']}")
+          gate = "!(has(namespaceObject.metadata.labels) && 'istio.io/dataplane-mode' in namespaceObject.metadata.labels && namespaceObject.metadata.labels['istio.io/dataplane-mode'] == 'ambient') ||"
+          enrolled = [v for v in vap["spec"]["validations"] if "enrolled in the ambient mesh" in v["message"]]
+          if len(enrolled) != 14 or any(not v["expression"].startswith(gate) for v in enrolled):
+              sys.exit(f"ambient render: {len(enrolled)} enrolled-namespace rules, or one without the namespace gate")
+          for word in ("inject.istio.io/templates", "sidecar.istio.io/inject", "sidecar.istio.io/status",
+                       "'istio-init'", "'istio-validation'", "'istio-proxy'", 'request.namespace == "istio-system"',
+                       "namespaceObject.metadata.labels['istio.io/dataplane-mode'] == 'ambient'",
+                       "object.metadata.labels['istio.io/dataplane-mode'] != 'ambient'",
+                       "ambient.istio.io/bypass-inbound-capture", "object.spec.hostNetwork", "p.hostPort",
+                       "c.securityContext.privileged", "object.spec.hostPID", "object.spec.hostIPC", "has(v.hostPath)",
+                       "c.securityContext.capabilities.add.exists(a, !(a.upperAscii() in ['AUDIT_WRITE', 'CHOWN', 'DAC_OVERRIDE', 'FOWNER', 'FSETID', 'KILL', 'MKNOD', 'NET_BIND_SERVICE', 'SETFCAP', 'SETGID', 'SETPCAP', 'SETUID', 'SYS_CHROOT', 'CAP_AUDIT_WRITE', 'CAP_CHOWN', 'CAP_DAC_OVERRIDE', 'CAP_FOWNER', 'CAP_FSETID', 'CAP_KILL', 'CAP_MKNOD', 'CAP_NET_BIND_SERVICE', 'CAP_SETFCAP', 'CAP_SETGID', 'CAP_SETPCAP', 'CAP_SETUID', 'CAP_SYS_CHROOT']))",
+                       "seccompProfile.type in ['RuntimeDefault', 'Localhost']", "appArmorProfile.type in ['RuntimeDefault', 'Localhost']",
+                       "k.startsWith('container.apparmor.security.beta.kubernetes.io/')", "c.securityContext.procMount != 'Default'",
+                       "windowsOptions.hostProcess", "seLinuxOptions.user != ''", "sysctls.exists(s, !(s.name in",
+                       "c.readinessProbe.httpGet.host != ''", "c.lifecycle.preStop.tcpSocket.host != ''",
+                       "object.spec.ephemeralContainers.exists(c, c.name == 'istio-proxy')"):
+              if word not in exprs:
+                  sys.exit(f"ambient render: no-sidecar-in-planes does not check {word}")
+          if "spire" in open(os.path.join(d, "zone-policy.yaml")).read().lower():
+              sys.exit("ambient render: zone-policy names SPIRE")
+          if any(x["kind"].startswith("Cilium") for x in docs("ztd")):
+              sys.exit("ambient render: the umbrella renders a Cilium object")
+          print("ambient render: six releases, istiod's CA in ionos.trust.invalid, ztunnel and istio-cni by digest at system-node-critical, STRICT, lane ports, no sidecar")
+          PY
+          # The lane-port policies refuse to render a matrix whose DENY policies would hold another
+          # lane to the wrong ports, or ports istiod cannot take; each refusal must name its cause.
+          lanes() { # lanes <allowMatrix JSON> <refusal text>
+            if helm template zone-policy deployment/helm/zone-policy -n istio-system \
+                --set spire.enabled=false --set trustDomain=ci.trust.invalid \
+                --set-json "lanePorts={\"namespaces\":{\"management\":\"ztd-mgmt\",\"data\":\"ztd-data\"},\"allowMatrix\":$1}" \
+                >/dev/null 2>"$RUNNER_TEMP/lanes.err"; then
+              echo "zone-policy rendered the lanes $1" >&2; exit 1
+            fi
+            cat "$RUNNER_TEMP/lanes.err"
+            grep -qF "$2" "$RUNNER_TEMP/lanes.err" || { echo "the refusal does not say: $2" >&2; exit 1; }
+          }
+          otel='"plane":"management","podSelector":{"app":"otel"}'
+          lanes "[{\"name\":\"a\",\"from\":{\"plane\":\"data\",\"podSelector\":{\"x\":\"a\"}},\"to\":{$otel,\"ports\":[{\"port\":4317}]}},{\"name\":\"b\",\"from\":{\"plane\":\"data\",\"podSelector\":{\"x\":\"b\"}},\"to\":{$otel}}]" "only some name ports"
+          lanes "[{\"name\":\"c\",\"from\":{\"plane\":\"data\"},\"to\":{\"plane\":\"management\",\"podSelector\":{},\"ports\":[{\"port\":9000}]}}]" "no destination podSelector"
+          lanes "[{\"name\":\"a\",\"from\":{\"plane\":\"data\",\"podSelector\":{\"x\":\"a\"}},\"to\":{$otel,\"ports\":[{\"port\":4317}]}},{\"name\":\"c\",\"from\":{\"plane\":\"data\",\"podSelector\":{\"x\":\"c\"}},\"to\":{$otel,\"ports\":[{\"port\":4318}]}}]" "different source podSelectors"
+          lanes "[{\"name\":\"a\",\"from\":{\"plane\":\"data\"},\"to\":{$otel,\"ports\":[{\"port\":4317}]}},{\"name\":\"d\",\"from\":{\"plane\":\"data\"},\"to\":{\"plane\":\"management\",\"podSelector\":{\"tier\":\"x\"}}}]" "overlaps"
+          lanes "[{\"name\":\"a\",\"from\":{\"plane\":\"data\"},\"to\":{$otel,\"ports\":[{\"port\":\"otlp\"}]}}]" "not a number"
+          lanes "[{\"name\":\"a\",\"from\":{\"plane\":\"data\"},\"to\":{$otel,\"ports\":[{\"port\":4317,\"endPort\":4320}]}}]" "port range"
           # zone-policy pins the injected proxy's image and status port; a copy of the tree whose
           # zone-policy image or status port differs from istiod's must be refused before anything
           # renders, and the refusal must name the value that differs.

@@ -112,7 +112,7 @@ row as uncovered until it exists.
 | PDP adapter → TSA policy engine | Policy Engine | ALLOW (mTLS, named pair) | NetworkPolicy: ALLOW, L3/L4 only; mesh: ALLOW, L7 owner (mesh proxy: sidecar or waypoint, per `mesh.mode`) | `@ZT-55 @BDD-ZT-055` |
 | aTLS gateway → TCR resolve | TRAIN (resolution) | ALLOW (named pair) | NetworkPolicy: ALLOW, L3/L4 only; mesh: ALLOW, L7 owner (mesh proxy: sidecar or waypoint, per `mesh.mode`) | `@ZT-55 @BDD-ZT-055` |
 | aTLS gateway → cmcd | Attestation (CMC) | ALLOW (named pair) | NetworkPolicy: ALLOW, L3/L4 only; mesh: ALLOW, L7 owner (mesh proxy: sidecar or waypoint, per `mesh.mode`) | `@ZT-55 @BDD-ZT-055` |
-| workloads → OTel collector (export only) | Observability stack | ALLOW (declared bypass, ZT-26) | NetworkPolicy: ALLOW, L3/L4 only, egress rule limiting the source to the collector's export port (ZT-26); mesh: ALLOW, L7 owner (mesh proxy: sidecar or waypoint, per `mesh.mode`) | `@ZT-55 @BDD-ZT-055` |
+| workloads → OTel collector (export only) | Observability stack | ALLOW (declared bypass, ZT-26) | NetworkPolicy: ALLOW, L3/L4 only, egress rule limiting the source to the collector's export port (ZT-26); on the demonstrator cluster (ambient) the rule also opens the HBONE port 15008, and a ztunnel-enforced DENY `AuthorizationPolicy` (`zone-policy`) holds the lane to the export ports; mesh: ALLOW, L7 owner (mesh proxy: sidecar or waypoint, per `mesh.mode`) | `@ZT-55 @BDD-ZT-055` |
 | backend → verification service | OCM | ALLOW (named pair) | NetworkPolicy: ALLOW, L3/L4 only; mesh: ALLOW, L7 owner (mesh proxy: sidecar or waypoint, per `mesh.mode`) | `@ZT-55 @BDD-ZT-055` |
 | any data-plane workload → TSPA (trust-list publication) | TRAIN (publication) | **DENY** | NetworkPolicy: DENY; mesh: DENY | `@ZT-55 @BDD-ZT-055` |
 | any data-plane workload → SPIRE server | SPIRE control plane | **DENY** | NetworkPolicy: DENY; mesh: DENY | `@ZT-55 @BDD-ZT-055` |
@@ -292,8 +292,8 @@ section does not claim otherwise. The mesh's proxies cannot be configured withou
 ([Workload identity](workload-identity.md#the-proxy)); no AuthorizationPolicy can govern it,
 because such a policy is enforced by the proxy of its destination and istiod runs without one; and
 whether istiod serves only clients it has authenticated is Istio's default behaviour, neither pinned in the zone's values nor proven by
-the evidence. It is declared in [Specifications](specifications.md) as a proposed reading of ZT-55,
-with its approval pending; the row that disposes it, with istiod's client authentication pinned
+the evidence. It is declared in [Specifications](specifications.md) as a reading of ZT-55,
+approved by the Project Leader on 2026-11-18; the row that disposes it, with istiod's client authentication pinned
 and proven, is left to a follow-up. istiod's CA answers on the same port and cannot be switched
 off; a certificate it issues is refused by every meshed peer, whose `ROOTCA` is SPIRE's bundle
 alone, as every run of the mesh identity proof shows (see `scripts/verify-mesh-identity/README.md`). The other three openings keep
@@ -313,6 +313,22 @@ The sources of the last three are not pods, so they are expressed as Cilium enti
 addresses ([Workload identity](workload-identity.md#openings-under-the-default-deny)). The sidecar
 reaches its SPIRE agent over a mounted socket and the agent reaches the kubelet over the host's
 loopback, so neither needs an opening.
+
+The IONOS demonstrator cluster is the exception
+([ADR-0018](adr/0018-service-mesh-on-the-demonstrator-cluster.md)): it runs the mesh in ambient mode
+on the provider's Calico without SPIRE, under the declared CNI derogation `calico-ambient`, so it has
+no identity control plane and no `identityServer` opening, and its openings are Kubernetes
+`NetworkPolicy` objects. `controlPlaneWebhooks` admits the provider's `konnectivity-agent` pods to
+istiod on 15017; `meshControlPlane` admits ztunnel, the xDS client in ambient mode, to istiod on
+15012, and the plane namespaces get no egress to istiod; the node's network namespace, which Istio
+SNATs to `169.254.7.127` (the kubelet's probes, and any host-network pod, which thereby bypasses the
+mesh), is admitted on every port into every meshed plane namespace, where host-network pods, and
+pods that could reach the node, enter its network namespace or remove their own capture rules (the
+Pod Security Standards `baseline` controls: privileged, `hostPID`, `hostIPC`, `hostPath`, an added
+capability outside `baseline`'s list, seccomp or AppArmor `Unconfined`, `procMount`, `hostProcess`,
+SELinux, unsafe sysctls, a host in a probe or a hook), are refused; `kubeApi` is an egress to the API
+server's addresses on its port. The proof is `scripts/verify-ambient-mesh/verify.sh`. No waypoint
+is installed there, so the allow matrix stays at L3/L4 on that cluster.
 
 ### Staleness matrix
 

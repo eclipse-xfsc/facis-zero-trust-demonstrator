@@ -39,9 +39,10 @@ Called with (dict "root" $ "endpoint" <endpoint>).
 {{- end }}
 
 {{/*
-Mesh label key and value for the plane namespaces, by mode. The only place the mode shapes the
-layout: sidecar (the ADR-0009 baseline) and ambient (parked) differ in one namespace label, so the
-chart is the same either way.
+Mesh label key and value for the plane namespaces, by mode: sidecar (the ADR-0009 baseline of the
+zones) and ambient (the demonstrator cluster's, ADR-0018; parked with Cilium) differ in this one
+namespace label, in the HBONE port of the allow-matrix lanes, and, under the declared CNI
+derogation, in the openings ("ztd.derogated").
 */}}
 {{- define "ztd.meshLabelKey" -}}
 {{- if eq .Values.mesh.mode "ambient" -}}istio.io/dataplane-mode
@@ -56,6 +57,25 @@ chart is the same either way.
 {{- end }}
 
 {{/*
+The declared CNI derogation (ADR-0018): "true" when the zone declares cni.derogation calico-ambient,
+which is valid only with mesh.mode ambient and Cilium disabled; empty otherwise. A derogation
+declared on any other zone fails the render, naming it (the schema refuses it first, but lint mode
+skips nothing here and a template guard keeps the message next to the code that relies on it).
+*/}}
+{{- define "ztd.derogated" -}}
+{{- $d := toString (.Values.cni.derogation | default "") -}}
+{{- if $d -}}
+{{- if ne $d "calico-ambient" -}}
+{{- fail (printf "cni.derogation %q is not a declared derogation (calico-ambient, ADR-0018)" $d) -}}
+{{- end -}}
+{{- if or (ne .Values.mesh.mode "ambient") .Values.cni.cilium.enabled -}}
+{{- fail (printf "cni.derogation calico-ambient applies to mesh.mode ambient without Cilium only (ADR-0018); this zone sets mesh.mode %s and cni.cilium.enabled %v" .Values.mesh.mode .Values.cni.cilium.enabled) -}}
+{{- end -}}
+true
+{{- end -}}
+{{- end }}
+
+{{/*
 Hook-weight scheme (docs/umbrella-chart.md). Six bands of twenty weights. A hook names its band
 and an offset inside it, never a raw number, so the order between the jobs of different components
 is a lookup and not a convention remembered by hand:
@@ -63,6 +83,7 @@ is a lookup and not a convention remembered by hand:
   identity       20-39   SPIRE: checks on the server, the trust bundle and the registration entries
                          (the zone-policy chart, through a copy of these helpers)
   platform       40-59   jobs of OpenBao, Harbor, TSPA, estserver, observability and admission
+                         (OpenBao: the ztd-openbao chart, through a copy of these helpers)
   policy         60-79   jobs of the mesh and admission policy that depends on identity and platform
   workloads      80-99   jobs of the demonstrator workloads
   verification 100-119   read-back checks that fail the release when the layout is wrong
@@ -72,7 +93,7 @@ resource needs in order to become ready is a post-install hook either: with --wa
 hooks only after every regular resource is ready, so the install would time out. That is why a
 registration is a regular resource and not a hook job.
 The bands order jobs within one release. The order between releases (the umbrella, SPIRE, Istio,
-zone-policy) is the installer's, scripts/install-zone/install.sh.
+zone-policy, ztd-openbao) is the installer's, scripts/install-zone/install.sh.
 */}}
 {{- define "ztd.hook.weight" -}}
 {{- $bands := dict "preflight" 0 "identity" 20 "platform" 40 "policy" 60 "workloads" 80 "verification" 100 -}}

@@ -16,6 +16,7 @@ here before it counts as settled.
 |---|---|---|---|---|
 | Service mesh mode | 0001 | [Istio Ambient with Cilium](0001-service-mesh-mode-istio-ambient-with-cilium.md) | Accepted (governing); proposed to be superseded by 0009 | Mesh feasibility gate (WP05) |
 | Service mesh mode, fallback | 0009 | Istio sidecar with Cilium — in pull request #20 | Proposed, supersedes 0001 | Mesh identity evidence in pull request #20 |
+| Service mesh on the demonstrator cluster | 0018 | [Istio ambient on Calico, without SPIRE](0018-service-mesh-on-the-demonstrator-cluster.md) | Accepted by the Project Leader on 2026-11-18, with the deviation (ZT-24, SRS § 5.1.2, ZT-60 on that cluster) approved; no separate approval of the Technical Design Authority is required; the FACIS written agreement (F-05) is not yet recorded | `scripts/verify-ambient-mesh/verify.sh`, passed on 2026-11-15 ([record](../evidences/ambient-mesh-demonstrator/2026-11-15.md)) |
 | Admission: cosign verification provider | 0002 | [Gatekeeper external data provider](0002-gatekeeper-external-data-provider-for-cosign-verification.md) | Accepted (governing) | First-party provider in `services/admission-provider`; CI admission jobs |
 | Admission provider: fork or first-party | 0014 | not written | Settled by 0002: built first-party, no separate record needed | as 0002 |
 | OAuth2 authorisation surface | 0003 | [In the Go connector](0003-oauth2-authorisation-surface-in-the-go-connector.md) | Accepted (governing) | DCR and DPoP spike |
@@ -39,6 +40,9 @@ here before it counts as settled.
 
 - **Number conflict:** pull request #19 files the OAuth2 library record as 0012, which planning
   allocated to the policy artefact chains. One of the two takes a new number before either merges.
+- **ADR-0018 F-05 agreement:** the Project Leader approved the deviation on 2026-11-18 and adds it to
+  the next F-05 update; the date and the reference of FACIS's written agreement are added when it is
+  recorded.
 - **Records to write:** 0008 (after the ext_authz spike), 0012 (with the client's answer on the policy
   split), 0013 (when the storage engine is chosen).
 - **TRAIN launch-digest carrier:** asked of the client, who asked us to propose one; the proposal waits

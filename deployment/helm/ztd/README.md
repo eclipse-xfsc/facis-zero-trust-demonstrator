@@ -5,9 +5,9 @@ baseline, the allow-matrix lanes and the hook-weight bands that order the jobs o
 installed after it. The design is described in
 [docs/umbrella-chart.md](../../../docs/umbrella-chart.md); this file documents the chart itself.
 
-The chart is the first of the seven releases of a zone, installed with the others by
+The chart is the first of the eight releases of a zone, installed with the others by
 `scripts/install-zone/install.sh` (umbrella, `spire-crds`, `spire`, `istio-base`, `istiod`,
-`istio-cni`, `zone-policy`). Alone, as the evidence script does:
+`istio-cni`, `zone-policy`, `ztd-openbao`). Alone, as the evidence script does:
 
 ```bash
 helm upgrade --install ztd deployment/helm/ztd -n ztd-system --create-namespace \
@@ -25,14 +25,12 @@ by `helm uninstall`.
 
 Installing the chart needs rights beyond one namespace: it creates the plane namespaces, a
 ClusterRole and ClusterRoleBinding for the verification job (read-only on namespaces and network
-policies, removed with the job by its hook policy) and, only in the parked ambient mode
+policies, removed with the job by its hook policy) and, only in the parked ambient mode with Cilium
 (`mesh.mode=ambient` with `cni.cilium.enabled=true`), one CiliumClusterwideNetworkPolicy. It ships
 no CRD; its Cilium policies are instances of Cilium's own CRDs and are rendered only where Cilium is
 enabled. In the sidecar baseline nothing cluster-wide beyond the namespaces and the verification
 job's role is created. Everything else is namespaced and lives in the plane namespaces, the
-control-plane namespaces included; with OpenBao on, that includes the bootstrap Job's Role (it may
-create Secrets in the management namespace and read and patch only its own) and, under Cilium, its
-CiliumNetworkPolicy to the API server.
+control-plane namespaces included.
 
 ## Cilium requirement
 
@@ -41,6 +39,15 @@ fails rendering otherwise: the openings of the control planes whose source is no
 server, the host-networked SPIRE agents) and the API lane are `CiliumNetworkPolicy` objects by
 entity, because a Kubernetes NetworkPolicy cannot name those sources. A zone on another CNI needs a
 declared derogation of the preferred stack first (`docs/workload-identity.md`).
+
+The one declared derogation is `cni.derogation: calico-ambient`
+([ADR-0018](../../../docs/adr/0018-service-mesh-on-the-demonstrator-cluster.md)): the demonstrator
+cluster (`zones/ionos.yaml`), whose CNI is its provider's Calico, runs the mesh in ambient mode
+without SPIRE. The schema allows it only with `mesh.mode: ambient` and `cni.cilium.enabled: false`,
+and then requires `networkPolicy.kubeApi.cidrs` and `networkPolicy.controlPlaneWebhooks.fromPods`;
+a sidecar zone without Cilium is refused even with it. Under the derogation the openings are plain
+Kubernetes NetworkPolicies (`templates/networkpolicy-ambient-calico.yaml`, below) and no Cilium
+object is rendered.
 
 ## Values
 
@@ -55,31 +62,27 @@ declared derogation of the preferred stack first (`docs/workload-identity.md`).
 | `planes.data.namespace` | `ztd-data` | Data-plane namespace |
 | `planes.extra` | `[]` | Further `{name, plane, mesh}` namespaces: the control planes `spire-system` and `istio-system` (management, `mesh: false`) and any a component task adds. `mesh: false` leaves out the mesh label |
 | `planes.namespaceLabels` | `{}` | Labels the cluster's provider asks of the namespaces it should leave alone, set on every namespace the umbrella creates (never the plane or mesh label). On the Gardener clusters of zone A and zone B: `apiserver-proxy.networking.gardener.cloud/inject: disable`, so that the provider's webhook does not point the pods at the API server's public name, which the `kubeApi` lane (the `kube-apiserver` entity) does not admit |
-| `mesh.mode` | `sidecar` | `sidecar` (the ADR-0009 baseline), `ambient` (parked) or `none`; sets the namespace label. Sidecar mode refuses a `zone.kubernetesVersion` below 1.33 (native sidecars) |
+| `mesh.mode` | `sidecar` | `sidecar` (the ADR-0009 baseline of the zones), `ambient` (the demonstrator cluster under the derogation, ADR-0018; parked with Cilium) or `none`; sets the namespace label. In ambient mode the allow-matrix lanes that name ports also name the HBONE port 15008. Sidecar mode refuses a `zone.kubernetesVersion` below 1.33 (native sidecars) |
 | `mesh.revision` | `""` | Sidecar mode: pin an Istio revision (`istio.io/rev`) instead of the default injector |
-| `cni.cilium.enabled` | `true` | Render the Cilium-specific pieces: the entity openings and the API lane, and the host-probe exception of the parked ambient mode. Required with a mesh |
+| `cni.cilium.enabled` | `true` | Render the Cilium-specific pieces: the entity openings and the API lane, and the host-probe exception of the parked ambient mode. Required with a mesh, unless `cni.derogation` is declared |
+| `cni.derogation` | `""` | The declared CNI derogation: `calico-ambient` (ADR-0018), allowed only with `mesh.mode: ambient` and Cilium off; requires `networkPolicy.kubeApi.cidrs` and `networkPolicy.controlPlaneWebhooks.fromPods`. Empty declares none |
 | `networkPolicy.defaultDeny` | `true` | Default deny, ingress and egress, in every plane namespace |
 | `networkPolicy.dns.*` | kube-dns in `kube-system`, port 53 | The declared DNS bypass, the resolver pods' port only (`ports`: the kube-dns Service's targetPort, 8053 on the Gardener clusters of zone A and zone B) |
 | `networkPolicy.intraPlane` | `true` | Pods within one plane namespace may reach each other at L3/L4 |
 | `networkPolicy.kubeApi.*` | off | Management-plane egress to the API server; required where `mesh.mode` is not `none`. With Cilium a policy to the `kube-apiserver` entity on the `kubernetes` Service port 443 and on `ports` (`cidrs` recorded only); without, an `ipBlock` to `cidrs` (required) on `ports`, a per-zone fact |
-| `networkPolicy.meshControlPlane.*` | off; istiod (`app: istiod`) in `istio-system`, 15012 | Declared opening: every meshed plane namespace → istiod's xDS port (egress there, ingress in `istio-system`) |
+| `networkPolicy.meshControlPlane.*` | off; istiod (`app: istiod`) in `istio-system`, 15012 | Declared opening: every meshed plane namespace → istiod's xDS port (egress there, ingress in `istio-system`); under the derogation ztunnel (`app: ztunnel` in the same namespace) → istiod's xDS port instead |
 | `networkPolicy.controlPlaneWebhooks.*` | off; entities `kube-apiserver`, `host`, `remote-node`; no `fromEndpoints`; istiod 15017, controller-manager 9443 | Declared opening: the API server → the admission webhooks of both control planes (Cilium, by entity) |
+| `networkPolicy.controlPlaneWebhooks.fromPods` | `[]` | Under the derogation: `{namespace, podSelector}` of the provider's pods through which the API server reaches in-cluster webhooks (the demonstrator cluster: `kube-system`, `k8s-app: konnectivity-agent`); required there; a zone fact, never an address. Only targets in a plane namespace of the zone are opened |
 | `networkPolicy.controlPlaneWebhooks.fromEndpoints` | `[]` | Cilium endpoint selectors of the provider's pod that relays the API server's calls to in-cluster webhooks (Gardener: `vpn-shoot` in `kube-system`), admitted on the same webhook ports; a zone fact, never an address |
 | `networkPolicy.identityServer.*` | off; SPIRE server (`app.kubernetes.io/name: server`) in `spire-system`, 8081, entities `host`, `remote-node` | Declared opening: the host-networked SPIRE agents → the SPIRE server (Cilium, by entity) |
 | `allowMatrix` | the lanes of architecture §6 | Data-plane → management-plane lanes, as data (see below) |
 | `verification.enabled` | `true` | Post-install job that reads the layout back and fails the release if it is wrong |
 | `verification.image` | `curlimages/curl` by digest | Image of the verification job |
-| `openbao.enabled` | `false` | Install OpenBao (chart 0.28.3, server v2.5.4) in the management plane; on in `ci/values.yaml` |
-| `openbao.global.namespace` | `ztd-mgmt` | Must equal `planes.management.namespace`; the chart refuses to render otherwise |
-| `openbao.server.dataStorage.storageClass` | `null` | Must equal `zone.storageClass` when OpenBao is on |
-| `openbao.*` | see `values.yaml` | Passed to the upstream chart: standalone, file storage, no injector, no auth-delegator |
-| `openbaoBootstrap.image` | `curlimages/curl` by digest | Image of the bootstrap Job and the OpenBao verification hook |
-| `openbaoExternal.address` | `""` | An OpenBao the umbrella does not own; exclusive with `openbao.enabled` |
-| `openbaoExternal.verifyTokenSecret` | `""` | Secret in the management namespace with its `verify-token` |
+| `openbao.*`, `openbaoBootstrap`, `openbaoExternal` | unset | Refused by the schema: the chart installs no OpenBao (below), and no zone file places the release `ztd-openbao` on a node |
 
-OpenBao, its bootstrap, the manual unseal after a restart and the secrets baseline are described in
-[docs/secrets.md](../../../docs/secrets.md). Install with `--wait --wait-for-jobs`: the bootstrap is a
-regular Job, and the OpenBao verification hook needs its result.
+The chart installs no OpenBao. The secret store is the release `ztd-openbao`, the last of a zone,
+from [deployment/helm/ztd-openbao](../ztd-openbao/README.md); its placement, bootstrap, manual unseal
+after a restart and secrets baseline are described in [docs/secrets.md](../../../docs/secrets.md).
 
 The zone record has no defaults on purpose and `values.schema.json` enforces it: the chart does
 not render until a zone file states what the cluster is. `zones/` holds the zone files;
@@ -97,6 +100,16 @@ only when enabled and each documented in `docs/architecture.md` (section 6) and
 | `meshControlPlane` | `allow-mesh-control-plane-egress` (NetworkPolicy) in each meshed plane namespace; `allow-mesh-control-plane-ingress` in `istio-system` |
 | `controlPlaneWebhooks`, `identityServer` | `allow-control-plane-openings` (CiliumNetworkPolicy) in `istio-system` and `spire-system`, one per pod selector |
 | `kubeApi` | `allow-kube-api-egress` in each management-plane namespace: a CiliumNetworkPolicy with Cilium, a NetworkPolicy without |
+
+Under the derogation `calico-ambient` (ADR-0018) every opening is a Kubernetes NetworkPolicy
+labelled and annotated `ztd.facis.io/declared-opening`, and no Cilium object is rendered:
+
+| Opening | Rendered as |
+|---|---|
+| `controlPlaneWebhooks` | `allow-control-plane-webhooks-<target>` in the target's namespace (`istio-system`: istiod, 15017), ingress from the `fromPods` pods |
+| `meshControlPlane` | `allow-mesh-control-plane-ingress` in `istio-system`: ingress to istiod on 15012 from the ztunnel pods; no plane namespace gets egress to istiod |
+| `ambientHostProbes` | `allow-ambient-hostprobes` in each meshed plane namespace: ingress from `169.254.7.127/32` on every port, the address Istio SNATs every connection from the node's network namespace to an ambient pod to (the kubelet's probes, and any host-network pod; zone-policy refuses host-network pods in the enrolled namespaces) |
+| `kubeApi` | `allow-kube-api-egress` in each management-plane namespace (`istio-system` among them): egress to `cidrs` on `ports` (Calico enforces after kube-proxy's DNAT, so the endpoint port, not 443) |
 
 The Cilium rules set `enableDefaultDeny` false: they add their lane and leave the deny to
 `default-deny`. Nothing else opens toward the control planes.
@@ -126,7 +139,8 @@ track as part of the release, and never for something a regular resource needs i
 ready, such as a registration: with `--wait`, Helm runs the post-install hooks only after every
 regular resource is ready. The chart's own post-install verification job is the example, in the
 `verification` band; it also fails the release if a control-plane namespace carries an injection
-label. The `zone-policy` chart uses the `identity` band through a copy of the helper. The bands
+label. The `zone-policy` chart uses the `identity` band and the `ztd-openbao` chart the `platform`
+band, each through a copy of the helper. The bands
 order the jobs within a release; the installer orders the releases. Bands and rules are in the
 design page.
 
@@ -135,9 +149,10 @@ design page.
 ```bash
 scripts/dev/kind-cilium-up.sh               # kind with Cilium chained, cni.exclusive=false
 scripts/verify-umbrella/verify.sh           # installs, re-installs, probes the policies, tears down
-scripts/verify-mesh-identity/verify.sh      # the zone with SPIRE and Istio: the seven releases
+scripts/verify-mesh-identity/verify.sh      # the zone with SPIRE and Istio: the eight releases
 ```
 
 In CI, `helm lint` and `helm template` run with `ci/values.yaml` (sidecar, the ADR-0009 baseline);
 the chart is verified with Helm v4.3.0, the version the pipeline pins. The evidence script installs
-in sidecar mode and proves the parked ambient mode live, as an excursion and back.
+in sidecar mode and proves the parked ambient mode live, as an excursion and back; it also renders the
+demonstrator cluster's zone file with `ci/ionos.overlay.yaml` and the derogation's refusals.

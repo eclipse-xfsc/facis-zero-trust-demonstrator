@@ -1,0 +1,24 @@
+# Release `istio-cni` of the demonstrator cluster (the ambient path, ADR-0018): the Istio CNI node
+# agent in ambient mode, which installs the Istio CNI plugin chained behind the provider's Calico and
+# redirects the traffic of every ambient pod into the node's ztunnel, installed as the upstream chart
+# ships it. The zones' sidecar release reads istio-cni.yaml.
+#   chart source      Istio 1.31.4 release archive, chart `cni` 1.31.4
+#                     https://github.com/istio/istio/releases/download/1.31.4/istio-1.31.4-linux-amd64.tar.gz
+#                     (manifests/charts/istio-cni; the archive's sha256 is pinned in
+#                     scripts/install-zone/install.sh as ISTIO_AMBIENT_ARCHIVE_SHA256)
+#   namespace         istio-system (created by the umbrella chart, never by this release)
+# Pinned in scripts/install-zone/install.sh and docs/dependencies.md. Every value set here is
+# listed with its reason in README.md next to this file. The chart sets priorityClassName
+# system-node-critical on its DaemonSet itself (not a value); the CI render asserts it.
+profile: ambient
+cni:
+  # Pinned by tag and digest (the multi-arch index digest of the 1.31.4 tag, read from its
+  # registry); a value that contains "/" is used by the chart as the whole image reference.
+  image: docker.io/istio/install-cni:1.31.4@sha256:6c5498d0e7a6b7532652f8654ea7cc8ab6b0e397f7b5f1ef246623de6108ddcb
+  chained: true              # append to the CNI configuration Calico wrote (10-calico.conflist), never replace it
+  # The node paths of the demonstrator cluster's node, read from the provider's Calico (and the
+  # chart's defaults).
+  cniBinDir: /opt/cni/bin
+  cniConfDir: /etc/cni/net.d
+  ambient:
+    enabled: true            # ambient mode (ADR-0018): redirection into ztunnel

@@ -17,4 +17,4 @@ cni:
   cniBinDir: /opt/cni/bin
   cniConfDir: /etc/cni/net.d
   ambient:
-    enabled: false           # sidecar mode (ADR-0009); ambient is parked
+    enabled: false           # sidecar mode (ADR-0009); ambient is the demonstrator cluster's, istio-cni-ambient.yaml

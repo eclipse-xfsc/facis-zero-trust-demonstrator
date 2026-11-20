@@ -15,6 +15,9 @@ first one's fallback clause foresaw, under the number planning allocated to it: 
 the delivery team on 2026-10-03 for the same deciders, who accepted it on 2026-10-23, and it replaces 0001 as the governing
 mesh-mode decision. A superseded record keeps
 its text and is read through the record that supersedes it.
+0018 was decided on 2026-11-14 for the demonstrator cluster alone and accepted by the Project Leader
+on 2026-11-18; it departs from SRS requirements there, so it is listed with the deviation's approval
+([Specification changes](../specifications.md)).
 
 | ADR | Decision | Status |
 |---|---|---|
@@ -24,6 +27,7 @@ its text and is read through the record that supersedes it.
 | [0004](0004-openbao-as-x509-key-value-store.md) | OpenBao as X.509 key-value store | Accepted |
 | [0005](0005-three-cluster-reading-of-the-target-environment.md) | Three-cluster reading of the target environment | Accepted |
 | [0009](0009-service-mesh-mode-istio-sidecar-with-cilium.md) | Service mesh mode — Istio sidecar with Cilium (supersedes 0001) | Accepted |
+| [0018](0018-service-mesh-on-the-demonstrator-cluster.md) | Service mesh on the demonstrator cluster — Istio ambient on Calico, without SPIRE (refines 0005; outside 0009's scope) | Accepted by the Project Leader on 2026-11-18, deviation approved; the FACIS written agreement (F-05) is not yet recorded |
 
 ## TDR decisions
 

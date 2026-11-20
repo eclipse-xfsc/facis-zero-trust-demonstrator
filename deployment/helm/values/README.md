@@ -31,6 +31,10 @@ plane namespace. An upgrade of a chart re-reads every digest.
 | `istiod` | `global.proxy.image` | `docker.io/istio/proxyv2:1.31.1@sha256:d86c…`, the injected proxy; the whole reference, digest included, is mirrored in `zone-policy` `proxySocketPolicy.proxyImage` |
 | `istiod` | `global.proxy_init.image` | `docker.io/istio/proxyv2:1.31.1`, the injected `istio-validation` init container (the chart would otherwise build it from hub and tag, without a digest) |
 | `istio-cni` | `cni.image` | `docker.io/istio/install-cni:1.31.1` |
+| `istiod` (ambient) | `pilot.image` | `docker.io/istio/pilot:1.31.4` |
+| `istiod` (ambient) | `global.proxy.image`, `global.proxy_init.image` | `docker.io/istio/proxyv2:1.31.4` (rendered into istiod's injection configuration; no pod is injected on the ambient path) |
+| `istio-cni` (ambient) | `cni.image` | `docker.io/istio/install-cni:1.31.4` |
+| `ztunnel` (ambient) | `image` | `docker.io/istio/ztunnel:1.31.4` |
 
 | Release | Chart | Source | Namespace |
 |---|---|---|---|
@@ -39,6 +43,17 @@ plane namespace. An upgrade of a chart re-reads every digest.
 | `istio-base` | `base` 1.31.1 | Istio 1.31.1 release archive, `manifests/charts/base` | `istio-system` |
 | `istiod` | `istiod` 1.31.1 | Istio 1.31.1 release archive, `manifests/charts/istio-control/istio-discovery` | `istio-system` |
 | `istio-cni` | `cni` 1.31.1 | Istio 1.31.1 release archive, `manifests/charts/istio-cni` | `istio-system` |
+
+The ambient path of the installer (a zone file with `mesh.mode: ambient`: the demonstrator cluster,
+ADR-0018) installs Istio from its own pin, apart from the zones' 1.31.1, and installs no SPIRE
+release:
+
+| Release | Chart | Source | Namespace |
+|---|---|---|---|
+| `istio-base` | `base` 1.31.4 | Istio 1.31.4 release archive, `manifests/charts/base` | `istio-system` |
+| `istiod` | `istiod` 1.31.4 | Istio 1.31.4 release archive, `manifests/charts/istio-control/istio-discovery` | `istio-system` |
+| `istio-cni` | `cni` 1.31.4 | Istio 1.31.4 release archive, `manifests/charts/istio-cni` | `istio-system` |
+| `ztunnel` | `ztunnel` 1.31.4 | Istio 1.31.4 release archive, `manifests/charts/ztunnel` | `istio-system` |
 
 The namespaces are created by the umbrella chart as management-plane namespaces without the mesh
 label; no release here creates a namespace. The Istio 1.31 charts come from the release archive
@@ -55,7 +70,7 @@ naming the fact:
 | `spire` | `global.spire.clusterName` | `zone.name` |
 | `spire` | `global.spire.persistence.storageClass` | `zone.storageClass` |
 | `spire` | `global.spire.caSubject.commonName` | `zone.trustDomain` |
-| `istiod` | `meshConfig.trustDomain` | `zone.trustDomain` |
+| `istiod` | `meshConfig.trustDomain` | `zone.trustDomain` (both paths) |
 | `zone-policy` (project chart) | `trustDomain` | `zone.trustDomain` |
 
 ## `spire-crds.yaml`
@@ -141,7 +156,47 @@ renders or installs, and refuses a zone where they differ.
 | `cni.chained` | `true` | append the Istio plugin to the configuration Cilium wrote (Cilium runs with `cni.exclusive=false`), never replace it |
 | `cni.cniBinDir` | `/opt/cni/bin` | the CNI binary directory of the nodes (kind's, and the chart's default); a zone whose nodes differ overrides it |
 | `cni.cniConfDir` | `/etc/cni/net.d` | the CNI configuration directory of the nodes, as above |
-| `cni.ambient.enabled` | `false` | sidecar mode (ADR-0009); ambient is parked |
+| `cni.ambient.enabled` | `false` | sidecar mode (ADR-0009) on the zones; ambient is the demonstrator cluster's (`istio-cni-ambient.yaml`, ADR-0018) |
+
+## `istiod-ambient.yaml`
+
+The values of the `istiod` release on the ambient path. `istio-base` reads `istio-base.yaml` on both
+paths.
+
+| Value | Set to | Why |
+|---|---|---|
+| `profile` | `ambient` | Istio's ambient profile: `PILOT_ENABLE_AMBIENT`, HBONE for the proxies istiod configures |
+| `meshConfig.trustDomain` | zone fact | the mesh's trust domain; on the demonstrator cluster the interim `ionos.trust.invalid`, not federated with any zone |
+| `meshConfig.meshMTLS.minProtocolVersion` | `TLSV1_3` | as in `istiod.yaml` (ADR 005) |
+| `global.proxy.image`, `global.proxy_init.image`, `pilot.image` | the 1.31.4 images by digest | every image by digest; the full references make the ambient profile's `distroless` variant irrelevant |
+| `base.validationFailurePolicy` | `Fail` | as in `istiod.yaml` |
+
+No SPIRE socket, injection template or certificate provider is set: upstream ambient mode does not
+support SPIRE, and istiod's CA is the only certificate source. istiod trusts the ServiceAccount
+`istio-system/ztunnel` to request certificates for the pods of its node (the chart's default
+`CA_TRUSTED_NODE_ACCOUNTS`), which is why the release is named `ztunnel`.
+
+## `istio-cni-ambient.yaml`
+
+| Value | Set to | Why |
+|---|---|---|
+| `profile` | `ambient` | Istio's ambient profile for the CNI agent |
+| `cni.image` | the 1.31.4 image by digest | every image by digest |
+| `cni.chained` | `true` | append the Istio plugin to the configuration Calico wrote (`10-calico.conflist`), never replace it |
+| `cni.cniBinDir`, `cni.cniConfDir` | `/opt/cni/bin`, `/etc/cni/net.d` | the directories the provider's Calico uses on the demonstrator cluster's node |
+| `cni.ambient.enabled` | `true` | the agent redirects the traffic of every ambient pod into its node's ztunnel |
+
+## `ztunnel.yaml`
+
+| Value | Set to | Why |
+|---|---|---|
+| `profile` | `ambient` | Istio's ambient profile |
+| `image` | the 1.31.4 image by digest | every image by digest |
+
+The `istio-cni` and `ztunnel` charts set `priorityClassName: system-node-critical` on their
+DaemonSets themselves; it is not a value, so these files do not set it, and the CI render asserts
+it. The demonstrator cluster admitted both shapes (privileged, host paths, `NET_ADMIN`,
+`SYS_ADMIN`, `NET_RAW`, root) in a server-side dry run.
 
 ## Rendering
 
@@ -149,6 +204,8 @@ The CI chart job renders every release from its pinned chart with these files an
 facts, and never installs:
 
 ```bash
-scripts/install-zone/install.sh render            # all seven releases, no cluster
+scripts/install-zone/install.sh render            # all eight releases of a sidecar zone, no cluster
 scripts/install-zone/install.sh render spire      # one release
+ZONE_VALUES=deployment/helm/ztd/zones/ionos.yaml ZONE_OVERLAY=deployment/helm/ztd/ci/ionos.overlay.yaml \
+  scripts/install-zone/install.sh render          # the six releases of the ambient path
 ```
