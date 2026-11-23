@@ -167,6 +167,10 @@
                 </li>
               </ul>
               <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../connector/">Connector service</a>
+                </li>
+              </ul>
+              <ul>
                 <li class="toctree-l1"><a class="reference internal" href="../token-store/">Token store</a>
                 </li>
               </ul>
@@ -412,8 +416,9 @@ access token, issued by the token endpoint like any other, that</p>
 <li>names the registration endpoint as its audience, and</li>
 <li>carries the scope <code>connector:client_registration</code>.</li>
 </ul>
-<p>A deployment provisions one client that is allowed to obtain such a token; participant backends
-holding it can then register themselves without an operator creating each client by hand.</p>
+<p>A deployment provisions one client that is allowed to obtain such a token, the registrar; whoever
+holds the registrar's credentials registers participant backends without an operator creating each
+client by hand (<code>connector register</code>, <a href="../connector/#registering-a-participant">Connector service</a>).</p>
 <p>A registration cannot exceed the token that authorised it. Requested scopes must be within the scopes
 of that token, the registration scope itself can never be registered, and grant types are limited to
 those the deployment offers. Violations are refused with <code>invalid_client_metadata</code>.</p>
@@ -793,12 +798,16 @@ a URI that has no such form fails closed.</p>
 <h2 id="running-the-connector">Running the connector<a class="headerlink" href="#running-the-connector" title="Permanent link">&para;</a></h2>
 <p><code>connector serve</code> (<code>services/connector</code>, image <code>deployment/docker/connector/Dockerfile</code>) runs the
 provider on the PostgreSQL stores (<code>pgstore</code>, replay included) with access tokens signed through
-<code>signing.Transit</code>. It has two plain-HTTP listeners and writes JSON records on stdout.</p>
+<code>signing.Transit</code>. It has two plain-HTTP listeners and writes JSON records and security-state
+events on stdout. Its registration policy, audit trail, chart, identity and the <code>connector register</code>
+client are described in <a href="../connector/">Connector service</a>.</p>
 <h3 id="configuration_1">Configuration<a class="headerlink" href="#configuration_1" title="Permanent link">&para;</a></h3>
 <p>Every flag defaults to the environment variable of the same name; a flag set on the command line
 wins, and the environment fills in after parsing, so no value, the database URL above all, ever
 reaches the usage text. The database URL is never logged. Secrets never come from a flag or a
-variable: the OpenBao token and the two HMAC secrets are read from files, named below. A trailing
+variable: the OpenBao token, the two HMAC secrets and the registrar's secret are read from files,
+named below; the database URL, which holds a credential, comes from a flag or a variable and is
+never logged. A trailing
 line break in a secret file is not part of the secret.</p>
 <table>
 <thead>
@@ -960,6 +969,12 @@ line break in a secret file is not part of the secret.</p>
 <td><code>info</code></td>
 <td><code>debug</code>, <code>info</code>, <code>warn</code> or <code>error</code></td>
 </tr>
+<tr>
+<td><code>--zone</code></td>
+<td><code>CONNECTOR_ZONE</code></td>
+<td>required</td>
+<td><code>a</code> or <code>b</code>: the source of the security-state events is <code>connector-&lt;zone&gt;</code>; their run id is minted at every start (<a href="../connector/#security-state-events">Connector service</a>)</td>
+</tr>
 </tbody>
 </table>
 <p>The DPoP proof window is fixed at 60 s lifespan and 30 s skew. A missing, short or shared secret
@@ -1005,7 +1020,9 @@ the connector logs <code>registrar client exists with other settings; not overwr
 ready</code> and stays not ready until an operator resolves it and restarts it.</p>
 <p>The registrar asks for a token with a DPoP proof, <code>scope</code> including <code>connector:client_registration</code>
 and <code>audience</code> naming the registration endpoint and the resource audience the new client will
-register, then posts the client's metadata to <code>/oauth2/register</code> with that token.</p>
+register, then posts the client's metadata to <code>/oauth2/register</code> with that token. <code>connector
+register</code> does exactly this and writes the new client's credentials file
+(<a href="../connector/#registering-a-participant">Connector service</a>).</p>
 <h3 id="endpoints">Endpoints<a class="headerlink" href="#endpoints" title="Permanent link">&para;</a></h3>
 <table>
 <thead>
@@ -1024,7 +1041,7 @@ register, then posts the client's metadata to <code>/oauth2/register</code> with
 <tr>
 <td>API</td>
 <td><code>POST /oauth2/register</code></td>
-<td>Client registration (<code>Provider.RegistrationHandler</code>)</td>
+<td>Client registration (<code>Provider.RegistrationHandler</code>) behind the connector's registration policy, every decision audited (<a href="../connector/#registration">Connector service</a>)</td>
 </tr>
 <tr>
 <td>API</td>
@@ -1150,7 +1167,7 @@ back into its default session.</p>
           </div><footer>
     <div class="rst-footer-buttons" role="navigation" aria-label="Footer Navigation">
         <a href="../identity-model/" class="btn btn-neutral float-left" title="Identity model"><span class="icon icon-circle-arrow-left"></span> Previous</a>
-        <a href="../token-store/" class="btn btn-neutral float-right" title="Token store">Next <span class="icon icon-circle-arrow-right"></span></a>
+        <a href="../connector/" class="btn btn-neutral float-right" title="Connector service">Next <span class="icon icon-circle-arrow-right"></span></a>
     </div>
 
   <hr/>
@@ -1181,7 +1198,7 @@ back into its default session.</p>
       <span><a href="../identity-model/" style="color: #fcfcfc">&laquo; Previous</a></span>
     
     
-      <span><a href="../token-store/" style="color: #fcfcfc">Next &raquo;</a></span>
+      <span><a href="../connector/" style="color: #fcfcfc">Next &raquo;</a></span>
     
   </span>
 </div>

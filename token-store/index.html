@@ -116,6 +116,10 @@
                 <li class="toctree-l1"><a class="reference internal" href="../oauth2-provider/">Connector OAuth2 provider</a>
                 </li>
               </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../connector/">Connector service</a>
+                </li>
+              </ul>
               <ul class="current">
                 <li class="toctree-l1 current"><a class="reference internal current" href="#">Token store</a>
     <ul class="current">
@@ -324,7 +328,7 @@ verified.</p>
 <tr>
 <td><code>audit_event</code></td>
 <td>both</td>
-<td>registration decisions, outcome consumption and refusal, every renewal attempt with its reason; append-only</td>
+<td>the connector's registration decisions (<code>registration.accepted</code> in the transaction that creates the client, <code>registration.refused</code>, <code>registration.uncertain</code> when a commit's outcome is unknown; <a href="../connector/#audit">Connector service</a>), outcome consumption and refusal, every renewal attempt with its reason; append-only</td>
 </tr>
 </tbody>
 </table>
@@ -902,7 +906,7 @@ even before the first token is acquired; provision keys and network lanes first.
             </div>
           </div><footer>
     <div class="rst-footer-buttons" role="navigation" aria-label="Footer Navigation">
-        <a href="../oauth2-provider/" class="btn btn-neutral float-left" title="Connector OAuth2 provider"><span class="icon icon-circle-arrow-left"></span> Previous</a>
+        <a href="../connector/" class="btn btn-neutral float-left" title="Connector service"><span class="icon icon-circle-arrow-left"></span> Previous</a>
         <a href="../policy-hook/" class="btn btn-neutral float-right" title="Guard policy hook">Next <span class="icon icon-circle-arrow-right"></span></a>
     </div>
 
@@ -931,7 +935,7 @@ even before the first token is acquired; provision keys and network lanes first.
         </span>
     
     
-      <span><a href="../oauth2-provider/" style="color: #fcfcfc">&laquo; Previous</a></span>
+      <span><a href="../connector/" style="color: #fcfcfc">&laquo; Previous</a></span>
     
     
       <span><a href="../policy-hook/" style="color: #fcfcfc">Next &raquo;</a></span>

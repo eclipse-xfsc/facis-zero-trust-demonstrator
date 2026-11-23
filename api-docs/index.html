@@ -117,6 +117,10 @@
                 </li>
               </ul>
               <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../connector/">Connector service</a>
+                </li>
+              </ul>
+              <ul>
                 <li class="toctree-l1"><a class="reference internal" href="../token-store/">Token store</a>
                 </li>
               </ul>
@@ -287,7 +291,7 @@ compatible addition; anything else is a v2.</p>
 <td>IF-02</td>
 <td>Connector authorization surface — registration and token issuance</td>
 <td><a href="../contracts/if02-connector.v1.openapi.yaml">connector API</a>, <a href="#if-02-connector-authorization-surface">rules</a></td>
-<td>v1 (1.1)</td>
+<td>v1 (1.1.1)</td>
 </tr>
 <tr>
 <td>IF-03</td>
@@ -523,9 +527,10 @@ way.</p>
 </ul>
 <h2 id="if-02-connector-authorization-surface">IF-02 — connector authorization surface<a class="headerlink" href="#if-02-connector-authorization-surface" title="Permanent link">&para;</a></h2>
 <p>The connector's token, registration and challenge endpoints
-(<a href="../contracts/if02-connector.v1.openapi.yaml">connector API</a>, v1.1;
+(<a href="../contracts/if02-connector.v1.openapi.yaml">connector API</a>, v1.1.1;
 <a href="../oauth2-provider/">Connector OAuth2 provider</a>). Version 1.1 adds, compatibly, the
-verified-presentation grant, which consumes IF-03 outcomes:</p>
+verified-presentation grant, which consumes IF-03 outcomes; 1.1.1 names the <code>audience</code> member of
+the client metadata, which registrations already carried:</p>
 <ul>
 <li><strong>Challenge.</strong> <code>POST /oauth2/challenge</code>, client authentication as at the token endpoint, form
   <code>audience</code> — exactly one of the client's registered audiences. The client must be registered for
@@ -553,7 +558,19 @@ verified-presentation grant, which consumes IF-03 outcomes:</p>
   one <code>aud</code>.</li>
 <li><strong>Registration.</strong> A deployment may admit the grant type in dynamic registration. A registrar can
   grant a client a verified-presentation scope only through a delegation ceiling the server
-  configures for it, since its own token can never carry such a scope.</li>
+  configures for it, since its own token can never carry such a scope. The connector's own
+  registration policy (<a href="../connector/#the-policy">Connector service</a>) requires a <code>client_name</code>,
+  <code>grant_types</code>, a <code>client_secret_basic</code> client, <code>dpop_bound_access_tokens: true</code>, a <code>scope</code> and
+  one or more absolute <code>audience</code> URLs, and admits no member outside those six; a violation is
+  refused as <code>400 invalid_client_metadata</code> with the reason <code>registration_rejected</code> and a
+  description naming the rule, the shape of the library's own refusal. Every registration
+  decision is audited (<code>TOK-REGISTRATION-REJECTED</code> for a refused registration).</li>
+<li><strong>Why 1.1.1 is a compatible change.</strong> The policy refuses metadata that 1.1.0 did not forbid in
+  so many words. RFC 7591 section 3.2.2 lets an authorization server refuse any client metadata
+  value with <code>invalid_client_metadata</code>, and IF-02 always allowed that refusal on this endpoint, so
+  a refusal under the policy is one of the answers a 1.1.0 client already had to handle. Nothing a
+  1.1.0 client receives changed shape, and the one member 1.1.1 adds, <code>audience</code>, was already sent
+  by every registrar. A client that sends what the policy requires is accepted under both.</li>
 </ul>
 <h2 id="if-03-signed-verification-outcome">IF-03 — signed verification outcome<a class="headerlink" href="#if-03-signed-verification-outcome" title="Permanent link">&para;</a></h2>
 <p>The verification service signs the outcome of an OID4VP presentation check; the connector's

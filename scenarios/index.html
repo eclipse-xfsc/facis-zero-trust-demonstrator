@@ -141,6 +141,10 @@
                 </li>
               </ul>
               <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../connector/">Connector service</a>
+                </li>
+              </ul>
+              <ul>
                 <li class="toctree-l1"><a class="reference internal" href="../token-store/">Token store</a>
                 </li>
               </ul>
@@ -444,6 +448,9 @@ control is disabled for the observer and returns <code>denied</code> if called.<
 </tbody>
 </table>
 <p>Ends in: the resource payload, every step green.</p>
+<p>Step 1 is live: the connector emits <code>registered</code> with the new <code>client_id</code> in <code>detail</code> on an
+accepted registration, and <code>refused</code> with <code>TOK-REGISTRATION-REJECTED</code> and the policy rule in
+<code>rule_id</code> on one its policy refuses (<a href="../connector/#security-state-events">Connector service</a>).</p>
 <h3 id="revoked-credential">Revoked credential<a class="headerlink" href="#revoked-credential" title="Permanent link">&para;</a></h3>
 <p>The operator revokes the profile's credential (its status-list bit is set), then starts the run.</p>
 <table>

@@ -153,6 +153,10 @@
                 </li>
               </ul>
               <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../connector/">Connector service</a>
+                </li>
+              </ul>
+              <ul>
                 <li class="toctree-l1"><a class="reference internal" href="../token-store/">Token store</a>
                 </li>
               </ul>
@@ -366,7 +370,7 @@ docker build --platform linux/amd64 -f deployment/docker/protected-resource/Dock
 </tr>
 <tr>
 <td><code>PARTICIPANT_CREDENTIALS_FILE</code></td>
-<td>Mounted file with the provisioned client: one JSON object with exactly the members <code>client_id</code> and <code>client_secret</code> (case-sensitive), both non-empty strings, no duplicate member and nothing after the object; read at every bootstrap run, never logged.</td>
+<td>Mounted file with the provisioned client: one JSON object with exactly the members <code>client_id</code> and <code>client_secret</code> (case-sensitive), both non-empty strings, no duplicate member and nothing after the object; read at every bootstrap run, never logged. <code>connector register</code> writes exactly this file (<a href="../connector/#registering-a-participant">Connector service</a>).</td>
 </tr>
 <tr>
 <td><code>PARTICIPANT_AUDIENCE</code></td>

@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: FACIS ZTD connector authorization surface (IF-02)
-  version: 1.1.0
+  version: 1.1.1
   description: >-
     Dynamic client registration and DPoP-bound token issuance, served by the zone's connector
     (architecture decision 0003). Version 1.1 adds the verified-presentation grant: a client obtains
@@ -231,9 +231,17 @@ components:
           description: Exactly one audience, the one the challenge was issued for.
     clientMetadata:
       type: object
+      description: >-
+        The connector's registration policy requires client_name, grant_types, scope,
+        dpop_bound_access_tokens and audience, and refuses any member outside the six listed here,
+        with 400 invalid_client_metadata and the reason registration_rejected (RFC 7591 section
+        3.2.2). The schema does not mark them required because the registration answer reuses it.
       properties:
         client_name:
           type: string
+          description: >-
+            1 to 128 printable characters, without leading or trailing space. The connector's
+            registration policy requires it.
         grant_types:
           type: array
           items:
@@ -241,17 +249,31 @@ components:
               - client_credentials
               - urn:facis:params:oauth:grant-type:verified-presentation
           description: >-
-            Within the grant types the deployment offers for registration.
+            Within the grant types the deployment offers for registration, each once. The
+            connector's registration policy requires it.
         token_endpoint_auth_method:
           const: client_secret_basic
         scope:
           type: string
           description: >-
-            Space-separated; within the registration token's scopes or the delegation ceiling the
-            server configures for the registrar (how a verified-presentation scope is registered,
-            since no token carries one), and never connector:client_registration itself.
+            Distinct RFC 6749 scope tokens separated by single spaces; within the registration
+            token's scopes or the delegation ceiling the server configures for the registrar (how a
+            verified-presentation scope is registered, since no token carries one), and never
+            connector:client_registration itself. The connector's registration policy requires it.
         dpop_bound_access_tokens:
           type: boolean
+          description: >-
+            The connector's registration policy requires true: it issues DPoP-bound tokens only.
+        audience:
+          type: array
+          items:
+            type: string
+            format: uri
+          description: >-
+            The resource audiences the client may name in a token request, distinct absolute
+            http(s) URLs without credentials, query or fragment, within the registration token's
+            audience. The connector's registration policy requires
+            one or more. Added in 1.1.1; registrations sent it before, unnamed by the contract.
     error:
       type: object
       required: [error, reason]
