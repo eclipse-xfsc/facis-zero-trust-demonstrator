@@ -141,6 +141,8 @@
     </li>
     <li class="toctree-l2"><a class="reference internal" href="#not-here-yet">Not here yet</a>
     </li>
+    <li class="toctree-l2"><a class="reference internal" href="#m3-deployable-adapter-local-integration">M3 deployable adapter — local integration</a>
+    </li>
     </ul>
                 </li>
               </ul>
@@ -299,7 +301,7 @@ what is fixed here is the behaviour at the hook.</p>
 </tbody>
 </table>
 <h2 id="what-the-hook-does-with-a-request">What the hook does with a request<a class="headerlink" href="#what-the-hook-does-with-a-request" title="Permanent link">&para;</a></h2>
-<p>The hook's core (<code>cmd/policy-hook-probe/internal/hook</code>) is transport-neutral: it turns one request
+<p>The hook's core (<code>internal/policyhook/hook</code>) is transport-neutral: it turns one request
 into one outcome, and one package (<code>internal/envoyhook</code>) translates that outcome into the messages
 of either filter. A
 decision therefore does not depend on which filter carries it, which is what the filter-parity
@@ -430,6 +432,21 @@ only. The guard's deployable adapter — the policy engine
 client, the token store client, the guard's own token check feeding the policy input, and the
 Helm wiring that attaches the filter to the mesh's Envoy — is recorded as open in the
 <a href="../adr/0008-envoy-ext-authz-as-the-guard-policy-hook/">decision on the policy hook</a>.</p>
+<h2 id="m3-deployable-adapter-local-integration">M3 deployable adapter — local integration<a class="headerlink" href="#m3-deployable-adapter-local-integration" title="Permanent link">&para;</a></h2>
+<p>The the policy-hook proof transport/core is reused from <code>internal/policyhook</code>; the probe still
+provides its original fixture-based transport comparison. <code>cmd/guard</code> is a
+separate runtime using real token/proof verification, a durable replay check via
+the token-store API, a real IF-05 evaluator (<code>cmd/policy-evaluator</code>) and real
+substitution. It validates the inbound proof before replacement. Full-report and
+summary claims select separate acquisition tenants, preventing privilege growth.</p>
+<p>The guard chart (<code>deployment/helm/guard/README.md</code>) supplies namespace-local
+Envoy and mesh/network controls. The local real-dependency test uses a local proxy
+to model the trusted XFCC boundary; this is <strong>not</strong> proof of SPIRE, mTLS, admission
+or bypass refusal on FACIS. Those acceptance lines remain OPEN until deployed
+and tested with final admitted digests. No global extensionProvider is changed.</p>
+<p>This deployment applies ADR-0008's ext_authz choice using a dedicated namespace
+Envoy. It does not claim native mesh CUSTOM attachment or deployed evidence.</p>
+<p>The guarded token path uses two distinct audiences. Participant clients obtain only the guard's inbound audience; token-store clients obtain only the Resource's upstream audience. The latter equals the guard's <code>upstream_audience</code> and the Resource's <code>PROTECTED_RESOURCE_AUDIENCE</code>. Configure the Connector's <code>oauth.exclusiveAudiences</code> with both values: registration and issuance enforce the boundary, including legacy client rows. Use separate registrar identities for the two roles.</p>
               
             </div>
           </div><footer>
