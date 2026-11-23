@@ -1,0 +1,85 @@
+{{- include "guard.validate" . -}}
+{{- range $target := list "guard" "policy-evaluator" "resource" }}
+{{- $name := printf "ztd-%s" $target }}
+{{- $source := "ztd-guard" }}
+{{- $account := "ztd-guard" }}
+{{- if eq $target "guard" }}{{- $source = $.Values.participantServiceAccount }}{{- $account = $.Values.participantServiceAccount }}{{- end }}
+{{- if eq $target "resource" }}{{- $name = $.Values.resourceName }}{{- end }}
+---
+apiVersion: security.istio.io/v1
+kind: PeerAuthentication
+metadata:
+  name: {{ $name }}-strict
+  namespace: {{ $.Release.Namespace }}
+spec:
+  selector:
+    matchLabels: {app.kubernetes.io/name: {{ $name }}}
+  mtls: {mode: STRICT}
+---
+apiVersion: security.istio.io/v1
+kind: AuthorizationPolicy
+metadata:
+  name: {{ $name }}-caller
+  namespace: {{ $.Release.Namespace }}
+spec:
+  selector:
+    matchLabels: {app.kubernetes.io/name: {{ $name }}}
+  action: ALLOW
+  rules:
+    - from:
+        - source:
+            principals: [{{ printf "%s/ns/%s/sa/%s" $.Values.trustDomain $.Release.Namespace $account | quote }}]
+      to:
+        - operation:
+            ports: [{{ if eq $target "resource" }}{{ $.Values.resourcePort | quote }}{{ else }}"8080"{{ end }}]
+            methods: ["POST"]
+            paths: [{{ if eq $target "policy-evaluator" }}"/decision"{{ else }}"/demo"{{ end }}]
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: {{ $name }}-guard-path
+  namespace: {{ $.Release.Namespace }}
+spec:
+  podSelector:
+    matchLabels: {app.kubernetes.io/name: {{ $name }}}
+  policyTypes: [Ingress{{ if ne $target "resource" }}, Egress{{ end }}]
+  ingress:
+    - from:
+        - podSelector:
+            matchLabels: {app.kubernetes.io/name: {{ $source }}}
+      ports: [{protocol: TCP, port: {{ if eq $target "resource" }}{{ $.Values.resourcePort }}{{ else }}8080{{ end }}}]
+  {{- if ne $target "resource" }}
+  egress:
+    - to:
+        - namespaceSelector:
+            matchLabels: {kubernetes.io/metadata.name: kube-system}
+          podSelector:
+            matchLabels: {k8s-app: kube-dns}
+      ports: [{protocol: UDP, port: 53}, {protocol: TCP, port: 53}, {protocol: UDP, port: 8053}, {protocol: TCP, port: 8053}]
+    {{- if eq $target "guard" }}
+    - to:
+        - podSelector:
+            matchExpressions:
+              - key: app.kubernetes.io/name
+                operator: In
+                values: [ztd-policy-evaluator, ztd-token-store, ztd-connector]
+      ports: [{protocol: TCP, port: 8080}]
+    - to:
+        - podSelector:
+            matchLabels: {app.kubernetes.io/name: {{ $.Values.resourceName }}}
+      ports: [{protocol: TCP, port: {{ $.Values.resourcePort }}}]
+    {{- end }}
+    {{- if $.Values.networkPolicy.istiod.enabled }}
+    - to:
+        - namespaceSelector:
+            matchLabels: {kubernetes.io/metadata.name: {{ $.Values.networkPolicy.istiod.namespace }}}
+          podSelector:
+            matchLabels: {app: istiod}
+      ports: [{protocol: TCP, port: 15012}]
+    {{- end }}
+    {{- with $.Values.networkPolicy.egress }}
+    {{- toYaml . | nindent 4 }}
+    {{- end }}
+  {{- end }}
+{{- end }}

@@ -1,0 +1,24 @@
+# The identity the pipeline's reachability check uses on a cluster without the BDD pool (the OSC zones):
+# a service account this manifest grants no permission to: it holds only what every authenticated
+# identity is bound to by default (API discovery, version, its own access review), and a long-lived token for the CI secret BDD_<TARGET>_OBSERVER_KUBECONFIG
+# (docs/ci-cd.md, "Cluster reachability"). Delete the Secret to revoke it.
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: ztd-ci
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: ztd-ci-observer
+  namespace: ztd-ci
+automountServiceAccountToken: false
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: ztd-ci-observer-token
+  namespace: ztd-ci
+  annotations:
+    kubernetes.io/service-account.name: ztd-ci-observer
+type: kubernetes.io/service-account-token

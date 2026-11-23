@@ -20,9 +20,9 @@ import (
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 
+	"github.com/eclipse-xfsc/facis-zero-trust-demonstrator/internal/meshcaller"
 	"github.com/eclipse-xfsc/facis-zero-trust-demonstrator/internal/replay"
 	"github.com/eclipse-xfsc/facis-zero-trust-demonstrator/services/token-store/internal/acquire"
-	"github.com/eclipse-xfsc/facis-zero-trust-demonstrator/services/token-store/internal/caller"
 	"github.com/eclipse-xfsc/facis-zero-trust-demonstrator/services/token-store/internal/keys"
 	"github.com/eclipse-xfsc/facis-zero-trust-demonstrator/services/token-store/internal/renew"
 	"github.com/eclipse-xfsc/facis-zero-trust-demonstrator/services/token-store/internal/substitute"
@@ -46,8 +46,8 @@ type Server struct {
 	opsLn      net.Listener
 
 	replay      *replay.Postgres
-	callers     caller.Authenticator
-	routes      caller.Routes       // substitution's router; empty refuses every caller
+	callers     meshcaller.Authenticator
+	routes      meshcaller.Routes   // substitution's router; empty refuses every caller
 	substitute  *substitute.Service // nil without an acquisition config
 	renewal     *renew.Worker       // nil without an acquisition config
 	subTimeout  time.Duration       // the deadline of one substitution; substituteTimeout
@@ -92,13 +92,13 @@ func New(ctx context.Context, cfg Config, log *slog.Logger) (*Server, error) {
 	if err != nil {
 		return nil, fmt.Errorf("database pool: %w", err)
 	}
-	var routes caller.Routes
+	var routes meshcaller.Routes
 	if cfg.Acquisition != nil {
 		routes = cfg.Acquisition.Substitution
 	}
 	callers := cfg.Callers
 	if callers == nil {
-		if callers, err = caller.NewXFCC(slices.Concat(cfg.ReplayCallers, routes.Callers())); err != nil {
+		if callers, err = meshcaller.NewXFCC(slices.Concat(cfg.ReplayCallers, routes.Callers())); err != nil {
 			pool.Close()
 			return nil, err
 		}

@@ -11,8 +11,8 @@ import (
 	"time"
 
 	"github.com/eclipse-xfsc/facis-zero-trust-demonstrator/internal/dpopproof"
+	"github.com/eclipse-xfsc/facis-zero-trust-demonstrator/internal/meshcaller"
 	"github.com/eclipse-xfsc/facis-zero-trust-demonstrator/internal/replay"
-	"github.com/eclipse-xfsc/facis-zero-trust-demonstrator/services/token-store/internal/caller"
 )
 
 // The contract's default window (token-store.v1, replay-check): a proof is accepted when
@@ -44,7 +44,7 @@ type replayCheck struct {
 }
 
 // handleReplayCheck is POST /internal/replay-check. The caller is authenticated first; nothing is
-// read from the body of a refused caller.
+// read from the body of a refused meshcaller.
 func (s *Server) handleReplayCheck(w http.ResponseWriter, r *http.Request) {
 	if c, err := s.callers.Authenticate(r); err != nil || !s.replayCaller(c) {
 		s.refuse(w, r, http.StatusForbidden, "TOK-CALLER-DENIED")
@@ -95,7 +95,7 @@ func (s *Server) handleReplayCheck(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-func (s *Server) replayCaller(c caller.Caller) bool {
+func (s *Server) replayCaller(c meshcaller.Caller) bool {
 	for _, id := range s.cfg.ReplayCallers {
 		if c.SPIFFEID == id {
 			return true

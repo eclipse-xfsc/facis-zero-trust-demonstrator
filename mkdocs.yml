@@ -34,8 +34,9 @@ nav:
   - Demonstrator UI and identity: demonstrator-handoff.md
   - Identity model: identity-model.md
   - Connector OAuth2 provider: oauth2-provider.md
-  - Guard policy hook: policy-hook.md
+  - Connector service: connector.md
   - Token store: token-store.md
+  - Guard policy hook: policy-hook.md
   - API documentation: api-docs.md
   - Interface contracts: contracts/index.md
   - TRAIN trust-list publishing: tspa-publish-api.md
@@ -43,6 +44,7 @@ nav:
   - BDD acceptance:
       - Harness and pack: bdd.md
       - Catalogue: bdd-catalogue.md
+      - M3 evidence: evidence-m3.md
   - CI/CD: ci-cd.md
   - Secrets: secrets.md
   - Troubleshooting: troubleshooting.md

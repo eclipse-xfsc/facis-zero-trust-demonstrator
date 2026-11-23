@@ -19,11 +19,12 @@ and is declared as such in [Specification changes](specifications.md#readings-an
 | `.github/workflows/sbom.yml` | schedule, release, manual, `candidate/**` push | Generates, checks and signs a CycloneDX SBOM for every release that lacks a verifying one, and attaches both |
 | `.github/workflows/docs.yml` | push to `main` affecting `docs/`, manual | Builds the MkDocs site and publishes it to the `gh-pages` branch |
 | `.github/workflows/workflow-hygiene.yml` | every pull request, manual | Fails the pull request when an action is not pinned to a commit or a token scope is too wide |
-| `.github/workflows/ci.yml` | every pull request, push to `main`, published release, manual | Go lint and tests, image build with the Linux assertion and a Trivy scan, chart lint and dry-run render; on a published release, the chart gate once more and the chart packaging and publication (see [Chart release](#chart-release)) |
+| `.github/workflows/ci.yml` | every pull request, push to `main`, published release, manual | Go lint and tests, image build with the Linux assertion and a Trivy scan, chart lint and dry-run render, the admission catalogue and the admission reconciler each on a kind cluster (see [Admission reconciler](#admission-reconciler)); on a published release, the chart gate once more and the chart packaging and publication (see [Chart release](#chart-release)) |
 | `.github/workflows/release.yml` | manual, push to a `candidate/**` branch | Release candidate: the chart gate (see [Chart gate](#chart-gate)), then builds, pushes, signs and attests every image by digest and verifies each one (see [Image signing](#image-signing)); beside it the secrets baseline (see [Secrets](secrets.md#the-baseline-proof-tdr-bdd-08)) |
 | `.github/workflows/measurement-determinism.yml` | pull request and push to `main` touching the check, manual | Measures one fixture on a hosted runner, in a container, and on a deliberately divergent checkout, and requires the normalised measurement to be the same on all three |
-| `.github/workflows/policy-hook.yml` | pull requests touching the policy-hook probe, its script, the pinned Envoy image or the policy fixtures; manual | Runs the guard policy-hook proofs (`scripts/verify-policy-hook/verify.sh`) against Envoy from the pinned image, uploads the records as an artefact and writes the verdict and the latency numbers to the job summary |
 | `.github/workflows/token-store.yml` | pull requests touching the token store, the connector, the Participant, the Protected Resource (their services and their `cmd/` entry points), the shared `internal/` packages, the images of the token store, the connector, the Participant and the Protected Resource, the chart or the pinned images; pushes to `main`; manual | Runs the whole token path against a PostgreSQL and an OpenBao from the pinned images, once with opaque and once with signed access tokens, and fails on any skipped test: the schema migrations and queries, the store (replay check, acquisition and its recovery, substitution, renewal) with the real connector binary as the peer zone, the connector's conformance suite on the database stores, the shared packages, and the Participant and Protected Resource end to end through the real connector, their `cmd/` entry points included; then the chart's lifecycle (install, upgrade, uninstall) and the service's readiness against PostgreSQL and OpenBao on kind; the records are the run's artefact and the verdict goes to the job summary |
+| `.github/workflows/policy-hook.yml` | pull requests touching the policy-hook probe, its script, the pinned Envoy image or the policy fixtures; manual | Runs the guard policy-hook proofs (`scripts/verify-policy-hook/verify.sh`) against Envoy from the pinned image, uploads the records as an artefact and writes the verdict and the latency numbers to the job summary |
+| `.github/workflows/connector.yml` | pull requests touching the connector service, the shared client and DPoP packages, the images of the connector and the token store, either chart, the proof or the pinned images; pushes to `main`; manual | Installs the token-store and connector charts on kind against a PostgreSQL and an OpenBao from the pinned images, waits for the connector to be ready on all four checks, registers a client through the registrar with the connector's own image, has the policy refuse a registration with its specific error, and reads both decisions back from the audit trail and the security-state feed; the records are the run's artefact and the verdict goes to the job summary |
 
 ## The service pipeline
 
@@ -84,7 +85,8 @@ propose in `eclipse-xfsc/dev-ops`.
 
 No release candidate is built unless every chart passes (TDR-BDD-11). The `chart-gate` job of
 `release.yml` creates a disposable kind cluster, installs the CRDs the charts render against (Cilium's
-network policies and Gatekeeper's external-data `Provider`, pinned in `scripts/tools/pins.env`), and
+network policies, Gatekeeper's external-data `Provider` and Argo CD's `Application` and `AppProject`,
+each from a chart or manifest pinned in `scripts/tools/pins.env`), and
 runs the row in cluster mode: `scripts/ci/check-charts.sh --server-dry-run` lints, renders and
 dry-runs every chart against that API server, and two deliberately broken charts under
 `features/fixtures/broken-charts/` must be refused by the check each targets — one by `helm lint`,
@@ -103,6 +105,21 @@ as in the pull-request job, the script records the server dry-run as not run, ne
 The gate and the secrets baseline (TDR-BDD-08) run on a disposable cluster in `release.yml`, which
 decides both rows with a sheet of its own; the pull-request sheet and the client-target sheets list
 them as not run.
+
+## Admission reconciler
+
+The `admission-gitops` job proves the path from Git to the cluster that
+[deployment/argocd](../deployment/argocd/README.md) builds: a kind cluster with Gatekeeper and the
+pinned Argo CD, handed the admission policy of the revision under test by `scripts/argocd/install.sh`,
+fetched from the repository the revision came from (the pull request's head repository and commit, or
+the pushed commit). The job checks out that same commit, not the merge commit, so the catalogue the
+cluster converged to can be compared file by file with the checkout. It then proves what the zones
+rely on: every Application `Synced/Healthy`, the zone's repository prefix patched into the
+allowed-repositories constraint, a hand-edited constraint put back (`scripts/argocd/drift-check.sh`),
+a hand-edited child Application put back by its parent, and one `argocd_app_info` series with
+`sync_status="Synced"` per Application in the controller's metrics. What it cannot prove on a
+disposable cluster is a change *merged* after the install reaching the cluster: that is the same
+reconciliation the self-heal exercises, and it is observed on the zones after a merge.
 
 ## Image signing
 
@@ -222,14 +239,31 @@ Both jobs stay off until the repository variable `BDD_CLUSTER_ENABLED` is `true`
 `BDD_<KEY>_ORCE_READ_TOKEN`, `BDD_<KEY>_ORCE_HTTP_USER` and `BDD_<KEY>_ORCE_HTTP_PASS`, and as a
 repository variable `BDD_<KEY>_ORCE_LOGS_CMD`, plus its entry in the job's matrix.
 
+## Cluster reachability
+
+The `cluster-reachability` job checks, for each client cluster (IONOS, OSC zone A, OSC zone B), that
+the API server answers the pipeline and that the observer identity authenticates (`kubectl version`,
+`kubectl auth whoami`). It runs on pushes to `main`, on releases and on demand, never on pull requests,
+and does not depend on `BDD_CLUSTER_ENABLED`. A target is checked once its secret
+`BDD_<KEY>_OBSERVER_KUBECONFIG` is set (`IONOS`, `ZONE_A`, `ZONE_B`); until then the run says it was
+not checked, and never that it was reachable.
+
+The OSC zones have no BDD pool, so their observer is the service account in
+[deployment/ci/reachability-observer.yaml](https://github.com/eclipse-xfsc/facis-zero-trust-demonstrator/blob/main/deployment/ci/reachability-observer.yaml): the
+manifest grants it nothing, so it holds only what every authenticated identity is bound to by default
+(API discovery, the server version, a review of its own access). A cluster administrator applies it,
+checks its effective rights (`kubectl auth can-i --list --as=system:serviceaccount:ztd-ci:ztd-ci-observer`),
+builds the kubeconfig from the token in `ztd-ci/ztd-ci-observer-token` and hands it to a maintainer
+for the secret. The token does not expire; deleting that Secret revokes it.
+
 ## Image scan exceptions
 
 Every image is scanned and a HIGH or CRITICAL finding fails the build. When a finding sits in an
 upstream component that this project cannot fix in its own layer, a `scan-exception.json` next to
 the image's Dockerfile may exclude named paths from the gate. It must carry an expiry date, the
 reason and the tracking of the upstream fix; the job prints it into the run summary and fails the
-build once it has expired. The ORCE image carries one for the upstream ORCE runtime, kubectl and the bundled Helm,
-expiring 13 November 2026.
+build once it has expired. The ORCE image carries one for the upstream ORCE runtime and kubectl,
+expiring 16 December 2026; the bundled Helm stays under the gate.
 
 ## Repository protection and least privilege
 

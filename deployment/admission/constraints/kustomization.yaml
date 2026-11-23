@@ -1,0 +1,11 @@
+# The constraints as a kustomize base, so the reconciler (deployment/argocd) sets a zone's trusted
+# repository prefixes with a patch instead of the sed that scripts/admission/install.sh runs. Each file
+# still applies on its own with `kubectl apply -f <file>`; the directory as a whole applies with
+# `kubectl apply -k deployment/admission/constraints`.
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources:
+  - allowed-repositories.yaml
+  - image-digest.yaml
+  - naming.yaml
+  - verified-images.yaml

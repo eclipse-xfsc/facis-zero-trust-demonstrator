@@ -2,6 +2,8 @@
 image:
   repository: ghcr.io/eclipse-xfsc/facis-zero-trust-demonstrator/connector
   digest: ""
+# The zone this connector serves, a or b: the source connector-<zone> of its security-state events.
+zone: ""
 database:
   existingSecret: ""
   secretKey: url
