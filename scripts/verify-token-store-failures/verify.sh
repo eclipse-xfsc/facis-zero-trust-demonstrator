@@ -643,6 +643,7 @@ spec:
           args:
             - serve
             - --issuer=https://connector.zone-b.verify.invalid
+            - --zone=b
             - --signing-key=$connector_key
             - --signing-key-version=1
             - --registration-endpoint=$register_url
