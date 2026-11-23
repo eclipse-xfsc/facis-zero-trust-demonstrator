@@ -1,22 +1,29 @@
 package verificationclient_test
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
+	"io"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
 	"os"
 	"regexp"
+	"runtime"
 	"strings"
+	"sync"
 	"sync/atomic"
 	"testing"
 	"time"
 
 	"github.com/eclipse-xfsc/facis-zero-trust-demonstrator/internal/connectorclient"
 	"github.com/eclipse-xfsc/facis-zero-trust-demonstrator/internal/if03"
+	"github.com/eclipse-xfsc/facis-zero-trust-demonstrator/internal/if03/if03fixture"
 	"github.com/eclipse-xfsc/facis-zero-trust-demonstrator/internal/jose"
 	"github.com/eclipse-xfsc/facis-zero-trust-demonstrator/internal/oid4vp"
+	"github.com/eclipse-xfsc/facis-zero-trust-demonstrator/internal/sdjwt"
 	"github.com/eclipse-xfsc/facis-zero-trust-demonstrator/internal/sdjwt/sdjwtfixture"
 	"github.com/eclipse-xfsc/facis-zero-trust-demonstrator/internal/statuslist"
 	"github.com/eclipse-xfsc/facis-zero-trust-demonstrator/internal/verificationclient"
@@ -164,6 +171,8 @@ func TestOutcomesThroughTheHookFollowTheIF03Contract(t *testing.T) {
 				t.Errorf("verified outcome refused: %v", err)
 			case c.status != if03.StatusVerified && (!errors.As(err, &refused) || refused.Code != if03.CodeNotVerified):
 				t.Errorf("a %s outcome must be refused with %s, got %v", c.status, if03.CodeNotVerified, err)
+			case c.status != if03.StatusVerified && refused.Cause != c.reasonCode:
+				t.Errorf("the refusal of a %s outcome names the cause %q; want %q", c.status, refused.Cause, c.reasonCode)
 			}
 		})
 	}
@@ -439,6 +448,270 @@ func TestAHolderOutlivedByItsCallIsToldFromARefusal(t *testing.T) {
 	}
 }
 
+// eventually polls until ok holds: for what happens just after a holder returns, in a goroutine the
+// test does not otherwise see.
+func eventually(t *testing.T, what string, ok func() bool) {
+	t.Helper()
+	for deadline := time.Now().Add(5 * time.Second); !ok(); time.Sleep(5 * time.Millisecond) {
+		if time.Now().After(deadline) {
+			t.Fatalf("%s: not within 5 s", what)
+		}
+	}
+}
+
+// A holder that never answers and does not watch its context is left at the hook's deadline, and
+// it is contained: while it is still at work the hook does not ask it again, so calls it does not
+// answer neither pile up behind it nor enter it side by side. Once it returns it is asked again.
+func TestAHolderThatNeverAnswersIsLeftAtTheDeadlineAndNotAskedAgainUntilItReturns(t *testing.T) {
+	s := newSetup(t)
+	stuck := verificationtest.StuckHolder(t)
+	s.client.Holder = stuck
+	s.client.Timeout = 300 * time.Millisecond
+
+	start := time.Now()
+	_, err := s.client.Outcome(t.Context(), challenge("challenge-holderhang-0001"))
+	if !errors.Is(err, verificationclient.ErrHolder) || !errors.Is(err, context.DeadlineExceeded) {
+		t.Fatalf("got %v; want a holder failure that names the deadline", err)
+	}
+	if stage := verificationclient.Stage(err); stage != "holder" {
+		t.Errorf("stage %q; want holder", stage)
+	}
+	if took := time.Since(start); took > 3*time.Second {
+		t.Errorf("a holder that never answers held the call for %s", took)
+	}
+
+	asked := s.verifier.Calls()
+	for i := range 5 {
+		_, err := s.client.Outcome(t.Context(), challenge("challenge-holderhang-001"+string(rune('0'+i))))
+		if !errors.Is(err, verificationclient.ErrHolderBusy) || !errors.Is(err, verificationclient.ErrHolder) ||
+			errors.Is(err, context.DeadlineExceeded) || verificationclient.Stage(err) != "holder" {
+			t.Fatalf("call %d while the holder is still at work: %v; want a holder failure at once that says it is busy", i, err)
+		}
+	}
+	if n := stuck.Taken(); n != 1 {
+		t.Errorf("the holder was entered %d times while its first call had not returned; want 1", n)
+	}
+	if n := s.verifier.Calls() - asked; n != 0 {
+		t.Errorf("%d requests were made of the service for a holder that could not answer", n)
+	}
+	if n := len(s.verifier.Presentations()); n != 0 {
+		t.Errorf("%d presentations reached the service from a holder that never answered", n)
+	}
+
+	stuck.Release()
+	eventually(t, "the holder is asked again once it has returned", func() bool {
+		_, _ = s.client.Outcome(t.Context(), challenge("challenge-holderhang-0002"))
+		return stuck.Taken() == 2
+	})
+}
+
+func TestACallCancelledWhileTheHolderWorksReturnsAtOnce(t *testing.T) {
+	s := newSetup(t)
+	stuck := verificationtest.StuckHolder(t)
+	s.client.Holder = stuck
+	ctx, cancel := context.WithCancel(t.Context())
+	go func() {
+		<-stuck.Entered()
+		cancel()
+	}()
+	start := time.Now()
+	_, err := s.client.Outcome(ctx, challenge("challenge-holderleft-0001"))
+	if !errors.Is(err, verificationclient.ErrHolder) || !errors.Is(err, context.Canceled) {
+		t.Fatalf("got %v; want a holder failure that names the cancellation", err)
+	}
+	if took := time.Since(start); took > 3*time.Second {
+		t.Errorf("the caller waited %s for a holder it had given up on", took)
+	}
+}
+
+// A holder that panics has presented nothing, and the error says it panicked: with the stack, so a
+// fault in a wallet adaptor is not read as a wallet that declined, and without the panic's value,
+// which may quote the credential. The process goes on.
+func TestAHolderThatPanicsPresentsNothingAndIsToldFromOneThatDeclined(t *testing.T) {
+	s := newSetup(t)
+	const secret = "holder fault quoting a credential"
+	s.client.Holder = holderFunc(func(oid4vp.Request) (string, error) { panic(secret) })
+	_, err := s.client.Outcome(t.Context(), challenge("challenge-holderpanic-001"))
+	var fault *verificationclient.HolderPanic
+	if !errors.Is(err, verificationclient.ErrHolder) || !errors.As(err, &fault) {
+		t.Fatalf("got %v; want a holder failure that is a HolderPanic", err)
+	}
+	if !strings.Contains(string(fault.Stack), "panic") || !strings.Contains(string(fault.Stack), "verificationclient_test") {
+		t.Errorf("the stack does not lead to the holder:\n%s", fault.Stack)
+	}
+	if strings.Contains(err.Error(), secret) || strings.Contains(string(fault.Stack), secret) {
+		t.Error("the panic's value is in the error")
+	}
+	if strings.Contains(string(fault.Stack), "(0x") || strings.Contains(string(fault.Stack), "goroutine ") {
+		t.Errorf("the stack carries argument values, as a runtime trace does:\n%s", fault.Stack)
+	}
+	if verificationclient.Stage(err) != "holder" || errors.Is(err, context.DeadlineExceeded) {
+		t.Errorf("stage %q, deadline %v; want holder, at once", verificationclient.Stage(err), errors.Is(err, context.DeadlineExceeded))
+	}
+	if n := len(s.verifier.Presentations()); n != 0 {
+		t.Errorf("%d presentations reached the service", n)
+	}
+
+	s.client.Holder = holderFunc(func(oid4vp.Request) (string, error) { return "", errors.New("declined") })
+	_, err = s.client.Outcome(t.Context(), challenge("challenge-holderpanic-002"))
+	if !errors.Is(err, verificationclient.ErrHolder) || errors.As(err, &fault) || errors.Is(err, verificationclient.ErrHolderBusy) {
+		t.Errorf("a holder that declines: %v; want a holder failure that is neither a panic nor a busy holder", err)
+	}
+}
+
+// A holder whose goroutine ends without a result has presented nothing, and the call knows at once
+// instead of waiting for its deadline.
+func TestAHolderThatExitsWithoutAnAnswerPresentsNothingAtOnce(t *testing.T) {
+	s := newSetup(t)
+	s.client.Holder = holderFunc(func(oid4vp.Request) (string, error) { runtime.Goexit(); return "", nil })
+	s.client.Timeout = 5 * time.Second
+	start := time.Now()
+	_, err := s.client.Outcome(t.Context(), challenge("challenge-holderexit-0001"))
+	if !errors.Is(err, verificationclient.ErrHolder) || errors.Is(err, context.DeadlineExceeded) {
+		t.Fatalf("got %v; want a holder failure before the deadline", err)
+	}
+	if took := time.Since(start); took > 2*time.Second {
+		t.Errorf("the call waited %s for a holder that had exited", took)
+	}
+}
+
+// The hook compares the outcome with the credential in the presentation as the service reads it
+// from the form, so a holder that answers in the query-result form of a direct_post, one credential
+// under its query id, is matched like one that answers with the bare presentation.
+func TestAPresentationInTheQueryResultFormIsMatchedLikeABareOne(t *testing.T) {
+	s := newSetup(t)
+	bare := s.client.Holder
+	s.client.Holder = holderFunc(func(req oid4vp.Request) (string, error) {
+		vp, err := bare.Present(context.Background(), req)
+		if err != nil {
+			return "", err
+		}
+		form, err := json.Marshal(map[string][]string{"credential.query-1": {vp}})
+		return string(form), err
+	})
+	ch := challenge("challenge-queryform-0001")
+	jws, err := s.client.Outcome(t.Context(), ch)
+	if err != nil {
+		t.Fatalf("outcome: %v", err)
+	}
+	if _, err := if03.Verify(jws, s.trusted, expect(ch), time.Now()); err != nil {
+		t.Errorf("the consumer refuses the outcome: %v", err)
+	}
+}
+
+// only is a status list in which one entry is revoked.
+type only struct{ revoked int }
+
+func (o only) Status(_ context.Context, _, _ string, index int) (statuslist.Status, error) {
+	if index == o.revoked {
+		return statuslist.Invalid, nil
+	}
+	return statuslist.Valid, nil
+}
+
+// The hook does not authenticate the service at its url, so what answers there may be a relay: it
+// passes the request on to the real verification service and presents a credential of its own, a
+// revoked one, for the store's challenge. The service then signs "revoked" for this very request,
+// about a credential the holder never presented. The hook refuses that answer: an outcome that
+// names a credential must name the one it presented. Without this the consumer would read a
+// revocation of the holder's credential into it.
+func TestAnOutcomeAboutACredentialTheHolderDidNotPresentIsNotTheAnswer(t *testing.T) {
+	const relaysIndex = 7 // the holder's own credential has another index and is not revoked
+	key := sdjwtfixture.TestOtherIssuerKey()
+	v := verificationtest.Start(t, verificationtest.Options{Issuer: verifierIssuer, Kid: verifierKid, Key: key,
+		Policy: verificationtest.Policy(only{revoked: relaysIndex})})
+	holder, err := fixtureholder.New(verificationtest.Credential(t, "participant-operator", "write", time.Now()), sdjwtfixture.TestHolderKey(), time.Now())
+	if err != nil {
+		t.Fatal(err)
+	}
+	issued, err := sdjwtfixture.Issue(t.Context(), sdjwtfixture.IssueOptions{
+		IssuerKey: sdjwtfixture.TestIssuerKey(), Kid: verificationtest.CredentialKid, Issuer: verificationtest.CredentialIssuer,
+		VCT: verificationtest.CredentialVCT, JTI: "urn:uuid:" + if03fixture.NewUUID(),
+		Claims:      []sdjwtfixture.Claim{{Name: "role", Value: "former-participant"}, {Name: "entitlement", Value: "none"}},
+		Disclosable: []string{"role", "entitlement"}, Holder: &sdjwtfixture.TestHolderKey().PublicKey, IssuedAt: time.Now(),
+		Status: &sdjwt.StatusRef{URI: "https://status.fixture.invalid/lists/participant.jwt", Index: relaysIndex},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	revoked, err := sdjwtfixture.Select(issued, "role", "entitlement")
+	if err != nil {
+		t.Fatal(err)
+	}
+	relays, err := fixtureholder.New(revoked, sdjwtfixture.TestHolderKey(), time.Now())
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	var mu sync.Mutex
+	requests := map[string]oid4vp.Request{}
+	forward := func(w http.ResponseWriter, resp *http.Response) []byte {
+		defer func() { _ = resp.Body.Close() }()
+		answer, _ := io.ReadAll(resp.Body)
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(resp.StatusCode)
+		_, _ = w.Write(answer)
+		return answer
+	}
+	relay := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		body, _ := io.ReadAll(r.Body)
+		if r.URL.Path == verificationclient.RequestsPath {
+			resp, err := http.Post(v.URL+r.URL.Path, r.Header.Get("Content-Type"), bytes.NewReader(body))
+			if err != nil {
+				http.Error(w, "relay", http.StatusBadGateway)
+				return
+			}
+			var out struct {
+				RequestID string          `json:"request_id"`
+				Nonce     string          `json:"nonce"`
+				ClientID  string          `json:"client_id"`
+				DCQL      json.RawMessage `json:"dcql_query"`
+			}
+			_ = json.Unmarshal(forward(w, resp), &out)
+			mu.Lock()
+			requests[out.RequestID] = oid4vp.Request{ClientID: out.ClientID, Nonce: out.Nonce, DCQL: out.DCQL}
+			mu.Unlock()
+			return
+		}
+		mu.Lock()
+		req := requests[strings.TrimPrefix(r.URL.Path, verificationclient.ResponsesPath)]
+		mu.Unlock()
+		own, err := relays.Present(r.Context(), req) // its own credential, bound to the store's challenge
+		if err != nil {
+			http.Error(w, "relay", http.StatusBadGateway)
+			return
+		}
+		resp, err := http.PostForm(v.URL+r.URL.Path, url.Values{"vp_token": {own}})
+		if err != nil {
+			http.Error(w, "relay", http.StatusBadGateway)
+			return
+		}
+		forward(w, resp)
+	}))
+	t.Cleanup(relay.Close)
+
+	client := &verificationclient.Client{BaseURL: relay.URL, Holder: holder}
+	_, err = client.Outcome(t.Context(), challenge("challenge-relay-00000001"))
+	if !errors.Is(err, verificationclient.ErrResponse) || verificationclient.Stage(err) != "response" {
+		t.Fatalf("got %v; want no outcome: the answer is about another credential", err)
+	}
+	signed := v.Outcomes()
+	if len(signed) != 1 || signed[0].Status != if03.StatusRevoked || signed[0].ReasonCode != if03.CodeRevoked {
+		t.Fatalf("the relay did not obtain a signed revoked outcome for the request: %+v", signed)
+	}
+
+	// The same holder, asked through the service itself, is answered about its own credential.
+	direct := &verificationclient.Client{BaseURL: v.URL, Holder: holder}
+	ch := challenge("challenge-relay-00000002")
+	jws, err := direct.Outcome(t.Context(), ch)
+	if err != nil {
+		t.Fatalf("the holder's own presentation: %v", err)
+	}
+	if _, err := if03.Verify(jws, if03.Issuers{verifierIssuer: {verifierKid: &key.PublicKey}}, expect(ch), time.Now()); err != nil {
+		t.Errorf("the holder's own credential is not verified: %v", err)
+	}
+}
+
 func TestAnUnreachableServiceYieldsNoOutcome(t *testing.T) {
 	s := newSetup(t)
 	gone := httptest.NewServer(http.NotFoundHandler())
@@ -475,7 +748,7 @@ func TestAServiceRefusingRequestsYieldsNoOutcome(t *testing.T) {
 
 func TestAMisconfiguredClientIsRefusedBeforeAnyCall(t *testing.T) {
 	s := newSetup(t)
-	for name, c := range map[string]verificationclient.Client{
+	for name, c := range map[string]*verificationclient.Client{
 		"no holder":         {BaseURL: s.verifier.URL},
 		"no url":            {Holder: s.client.Holder},
 		"url with a query":  {BaseURL: s.verifier.URL + "?x=1", Holder: s.client.Holder},

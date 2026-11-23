@@ -134,3 +134,43 @@ func TestBindProducesWhatVerifyAccepts(t *testing.T) {
 		}
 	}
 }
+
+// Named reads which credential a presentation carries the way a verifier's outcome names it: the
+// issuer and the jti, or the vct when there is no jti. It reads the held credential and the
+// presentation built from it alike, and checks no signature.
+func TestNamedReadsTheIssuerAndIdentifierOfAPresentation(t *testing.T) {
+	now := time.Date(2026, 9, 9, 12, 0, 0, 0, time.UTC)
+	holderKey := sdjwtfixture.TestHolderKey()
+	sign := func(_ context.Context, in []byte) ([]byte, error) { return sdjwtfixture.SignES256(holderKey, in) }
+	for name, c := range map[string]struct{ jti, id string }{
+		"with a jti":    {"urn:uuid:0f0e0d0c-0b0a-4908-8706-050403020100", "urn:uuid:0f0e0d0c-0b0a-4908-8706-050403020100"},
+		"without a jti": {"", "vct:a"},
+	} {
+		t.Run(name, func(t *testing.T) {
+			issued, err := sdjwtfixture.Issue(context.Background(), sdjwtfixture.IssueOptions{
+				IssuerKey: sdjwtfixture.TestIssuerKey(), Kid: "k1", Issuer: "https://issuer.example", VCT: "vct:a", JTI: c.jti,
+				Claims: []sdjwtfixture.Claim{{Name: "role", Value: "participant"}}, Disclosable: []string{"role"},
+				Holder: &holderKey.PublicKey, IssuedAt: now,
+			})
+			if err != nil {
+				t.Fatal(err)
+			}
+			credential, _ := sdjwtfixture.Select(issued, "role")
+			vp, err := sdjwt.Bind(context.Background(), credential, sign, "nonce-0123456789abcdef", "https://aud.example", now)
+			if err != nil {
+				t.Fatal(err)
+			}
+			for form, compact := range map[string]string{"held": credential, "presented": vp} {
+				issuer, id, err := sdjwt.Named(compact)
+				if err != nil || issuer != "https://issuer.example" || id != c.id {
+					t.Errorf("%s: issuer %q id %q (%v); want https://issuer.example and %q", form, issuer, id, err, c.id)
+				}
+			}
+		})
+	}
+	for name, compact := range map[string]string{"no tilde": "a.b.c", "not a JWT": "abc~", "empty": ""} {
+		if _, _, err := sdjwt.Named(compact); !errors.Is(err, sdjwt.ErrMalformed) {
+			t.Errorf("%s: %v; want malformed", name, err)
+		}
+	}
+}

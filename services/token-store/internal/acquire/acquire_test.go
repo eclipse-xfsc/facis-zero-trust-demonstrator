@@ -35,6 +35,7 @@ import (
 	"github.com/eclipse-xfsc/facis-zero-trust-demonstrator/internal/replay"
 	"github.com/eclipse-xfsc/facis-zero-trust-demonstrator/internal/tokenverify"
 	"github.com/eclipse-xfsc/facis-zero-trust-demonstrator/internal/transit"
+	"github.com/eclipse-xfsc/facis-zero-trust-demonstrator/internal/verificationclient"
 	"github.com/eclipse-xfsc/facis-zero-trust-demonstrator/services/token-store/internal/acquire/acquiretest"
 	"github.com/eclipse-xfsc/facis-zero-trust-demonstrator/services/token-store/internal/keys"
 	"github.com/eclipse-xfsc/facis-zero-trust-demonstrator/services/token-store/internal/testsupport"
@@ -500,6 +501,127 @@ func TestOutcomeRefusedByAIsNeverSent(t *testing.T) {
 	if kind, code := e.lastAudit(); kind != "upstream.refused" || code != if03.CodeSignature {
 		t.Errorf("audit %s %s", kind, code)
 	}
+}
+
+// refusal is an outcome source whose verification signs a refusal: the fixture's outcome for the
+// challenge, signed again by the trusted key with another status and its reason.
+type refusal struct {
+	t              *testing.T
+	of             OutcomeSource
+	key            *ecdsa.PrivateKey
+	status, reason string
+}
+
+func (r refusal) Outcome(ctx context.Context, ch Challenge) (string, error) {
+	jws, err := r.of.Outcome(ctx, ch)
+	if err != nil {
+		return "", err
+	}
+	return resign(r.t, jws, r.key, func(p map[string]any) {
+		p["status"], p["reason_code"] = r.status, r.reason
+		p["credential_refs"] = []string{if03.CredentialRef("https://issuer.zone-b.test", "urn:uuid:"+randHex(8))}
+	}), nil
+}
+
+// A signed outcome that is not verified is refused by the store with its own code, and the audit
+// row, the error and the record say why the verification refused it: a revoked credential and a
+// status list nobody could read are the same refusal for different causes. A reason the contract
+// does not write names no cause. In every case no grant is asked of the peer.
+func TestAnOutcomeTheStoreRefusesIsAuditedWithTheProducersReason(t *testing.T) {
+	for name, c := range map[string]struct{ status, reason, cause string }{
+		"revoked":                 {if03.StatusRevoked, if03.CodeRevoked, if03.CodeRevoked},
+		"status list unavailable": {if03.StatusFailed, if03.CodeStatusUnavailable, if03.CodeStatusUnavailable},
+		"a reason of its own":     {if03.StatusFailed, "CRED-TEST", ""},
+	} {
+		t.Run(name, func(t *testing.T) {
+			e := newEnv(t)
+			e.route.Outcomes = refusal{t: t, of: e.route.Outcomes, key: e.issuer, status: c.status, reason: c.reason}
+			_, err := e.acquire()
+			e.wantCode(err, if03.CodeNotVerified)
+			var ae *Error
+			errors.As(err, &ae) // wantCode has checked it is one
+			if ae.Cause != c.cause {
+				t.Errorf("the error names the cause %q; want %q", ae.Cause, c.cause)
+			}
+			if strings.Contains(err.Error(), c.reason) {
+				t.Errorf("the error text carries the outcome's reason: %q", err)
+			}
+			var kind, code string
+			var cause *string
+			if err := e.poolA.QueryRow(e.ctx, `SELECT kind, reason_code, detail->>'cause' FROM audit_event ORDER BY event_id DESC LIMIT 1`).Scan(&kind, &code, &cause); err != nil {
+				t.Fatal(err)
+			}
+			if kind != "upstream.refused" || code != if03.CodeNotVerified {
+				t.Errorf("audit %s %s", kind, code)
+			}
+			switch {
+			case c.cause == "" && cause != nil:
+				t.Errorf("the audit row names the cause %q for a reason outside the contract", *cause)
+			case c.cause != "" && (cause == nil || *cause != c.cause):
+				t.Errorf("the audit row's cause is %v; want %s", cause, c.cause)
+			}
+			records := e.logs.String()
+			if c.cause != "" && !strings.Contains(records, `"cause":"`+c.cause+`"`) {
+				t.Errorf("the store's record does not name the cause %s", c.cause)
+			}
+			if c.cause == "" && strings.Contains(records, `"cause":`) {
+				t.Error("the store's record names a cause for a reason outside the contract")
+			}
+			if len(e.hook.tokenStatus) != 0 {
+				t.Errorf("the grant was sent %d times", len(e.hook.tokenStatus))
+			}
+			if s := e.state(); s.receipts != 0 || s.rows != 0 {
+				t.Errorf("state %+v", s)
+			}
+		})
+	}
+}
+
+// faulty is an outcome source whose holder panicked.
+type faulty struct{}
+
+func (faulty) Outcome(context.Context, Challenge) (string, error) {
+	return "", &verificationclient.HolderPanic{Stack: []byte("example.com/wallet.holder.Present\n\t/src/wallet/holder.go:42\n")}
+}
+
+// A holder that panicked leaves no outcome, like any failure of the source, and the store's record
+// says it was a panic and carries the stack: a fault to repair is not read as a wallet that
+// declined. The audit row keeps the one code for having no outcome.
+func TestAHolderThatPanickedIsRecordedAsAFaultWithItsStack(t *testing.T) {
+	e := newEnv(t)
+	e.route.Outcomes = faulty{}
+	_, err := e.acquire()
+	e.wantCode(err, CodeOutcomeSource)
+	if kind, code := e.lastAudit(); kind != "upstream.failed" || code != CodeOutcomeSource {
+		t.Errorf("audit %s %s", kind, code)
+	}
+	recorded := false
+	for line := range strings.SplitSeq(e.logs.String(), "\n") {
+		if strings.Contains(line, "outcome source failed") {
+			recorded = strings.Contains(line, `"stage":"holder"`) && strings.Contains(line, `"panicked":true`) && strings.Contains(line, `holder.Present`)
+		}
+	}
+	if !recorded {
+		t.Errorf("the record of the failed source does not say the holder panicked, with its stack:\n%s", e.logs.String())
+	}
+	if len(e.hook.tokenStatus) != 0 {
+		t.Errorf("the grant was sent %d times", len(e.hook.tokenStatus))
+	}
+
+	// A source that fails any other way is not marked.
+	e.route.Outcomes = unavailable{}
+	_, err = e.acquire()
+	e.wantCode(err, CodeOutcomeSource)
+	if n := strings.Count(e.logs.String(), `"panicked"`); n != 1 {
+		t.Errorf("%d records say a holder panicked; want 1: a source that only failed is not one", n)
+	}
+}
+
+// unavailable is an outcome source that fails without a panic.
+type unavailable struct{}
+
+func (unavailable) Outcome(context.Context, Challenge) (string, error) {
+	return "", verificationclient.ErrHolder
 }
 
 func TestLostPeerResponseIsTerminalForTheOutcome(t *testing.T) {

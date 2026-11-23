@@ -83,7 +83,9 @@ asked of the guard.
 Step 2 is where the outcome is first checked by its consumer. A caller that sends the outcome to
 the grant unread is refused there, as shown. The token store reads the outcome before it asks for
 a grant, so on a route it acquires for itself the same refusal comes from `token-store-a` and
-`connector-b` is not asked ([Token store](token-store.md#presentation-hook)).
+`connector-b` is not asked ([Token store](token-store.md#presentation-hook)). The store keeps
+`CRED-REVOKED` as the cause of that refusal in its audit trail and its records, and a renewal ends
+at the attempt that meets it.
 
 ### Wrong scope
 

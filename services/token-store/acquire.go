@@ -150,14 +150,24 @@ func acquireCmd(name string, args []string, stdout, stderr io.Writer) int {
 	}
 	tok, err := a.Acquire(ctx, route)
 	if err != nil {
-		var e *acquire.Error
-		code := ""
-		if errors.As(err, &e) {
-			code = e.Code
-		}
-		_ = json.NewEncoder(stdout).Encode(map[string]string{"route": route.Name, "reason_code": code})
+		_ = json.NewEncoder(stdout).Encode(acquisitionFailure(route.Name, err))
 		return exitFailed
 	}
 	_ = json.NewEncoder(stdout).Encode(map[string]any{"route": route.Name, "token_id": tok.ID, "expires_at": tok.ExpiresAt.UTC()})
 	return exitOK
+}
+
+// acquisitionFailure is what a failed acquisition prints: the route and the reason code, and the
+// cause when the store refused a signed outcome that says why (acquire.Error's Cause). An error
+// that is not an acquisition's has no code.
+func acquisitionFailure(route string, err error) map[string]string {
+	out := map[string]string{"route": route, "reason_code": ""}
+	var e *acquire.Error
+	if errors.As(err, &e) {
+		out["reason_code"] = e.Code
+		if e.Cause != "" {
+			out["cause"] = e.Cause
+		}
+	}
+	return out
 }

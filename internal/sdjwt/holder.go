@@ -69,6 +69,39 @@ func Inspect(credential string, now time.Time) (Verified, error) {
 	return v, nil
 }
 
+// Named reads which credential a presentation, or a credential as a holder keeps it, carries: its
+// issuer and its identifier, the jti, or the vct of a credential without one. Both come from the
+// issuer JWT's payload as it is, with no signature checked, so they say what the bytes claim to be
+// and nothing about whether a verifier accepts them.
+func Named(compact string) (issuer, id string, err error) {
+	p, err := Parse(compact)
+	if err != nil {
+		return "", "", err
+	}
+	raw, err := unverifiedPayload(p.IssuerJWT)
+	if err != nil {
+		return "", "", err
+	}
+	payload, err := jose.ParseObject(raw)
+	if err != nil {
+		return "", "", fmt.Errorf("%w: payload", ErrMalformed)
+	}
+	issuer, _, ok := jose.String(payload, "iss")
+	if !ok || issuer == "" {
+		return "", "", fmt.Errorf("%w: iss", ErrMalformed)
+	}
+	if _, present := payload["jti"]; present {
+		if id, _, ok = jose.String(payload, "jti"); !ok || id == "" {
+			return "", "", fmt.Errorf("%w: jti", ErrMalformed)
+		}
+		return issuer, id, nil
+	}
+	if id, _, ok = jose.String(payload, "vct"); !ok || id == "" {
+		return "", "", fmt.Errorf("%w: vct", ErrMalformed)
+	}
+	return issuer, id, nil
+}
+
 // Bind appends a key-binding JWT for nonce and audience, dated iat and signed by sign with the
 // credential's holder key, to credential, which must end with a tilde and carry exactly the
 // disclosures to reveal. The result is the presentation a verifier checks with Verify.

@@ -226,7 +226,10 @@ is fixed, and every hop keeps it:
   presentation for it is refused (`CRED-REQUEST-UNKNOWN`). Every outcome has a new `outcome_id`
   and is valid 60 to 120 s, so it serves one grant and no renewal.
 - **Every presentation that is judged is answered with an outcome.** `verified`, `failed` and
-  `revoked` are all signed; the consumer refuses the last two (`CRED-OUTCOME-NOT-VERIFIED`). A
+  `revoked` are all signed; the consumer refuses the last two (`CRED-OUTCOME-NOT-VERIFIED`) and
+  may keep the outcome's own reason as the cause of its refusal, when the outcome answers the
+  request it was checked against, inside its validity interval, with a reason this contract pairs
+  with its status. A
   `vp_token` that is not a credential is judged: `failed`, `CRED-INVALID`. No outcome exists when
   nothing was judged: a malformed request or response form (`CRED-REQUEST-INVALID`), a request
   that is unknown, expired or already answered (`CRED-REQUEST-UNKNOWN`), or a service that could
@@ -235,7 +238,9 @@ is fixed, and every hop keeps it:
   signed by the key the credential's `cnf` names. A holder presents only for a query naming its
   credential's type. Which wallet stands behind it is not part of this contract.
 - **No outcome is no token.** An unreachable, refusing or silent service, an answer that is not
-  bound to the challenge and a holder that presents nothing leave the caller without an outcome;
+  bound to the challenge or is about a credential the holder did not present (`credential_refs`
+  names another; a credential needs a `jti` to be told from others of its issuer and type), and a
+  holder that presents nothing leave the caller without an outcome;
   the token store issues nothing and records it under a code of its own audit, outside this
   registry ([Token store](token-store.md#presentation-hook)).
 - **Neither side is authenticated by this API.** That the caller reaches the real service, over a

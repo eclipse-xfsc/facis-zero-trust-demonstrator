@@ -88,7 +88,7 @@ func (p Policy) Judge(ctx context.Context, vpToken string, b Binding) (Verdict, 
 	if ref == "" {
 		ref = v.VCT
 	}
-	read := Verdict{Claims: claims, CredentialRefs: []string{v.Issuer + "#" + ref}}
+	read := Verdict{Claims: claims, CredentialRefs: []string{if03.CredentialRef(v.Issuer, ref)}}
 	status, err := p.Status.Status(ctx, v.Issuer, v.Status.URI, v.Status.Index)
 	switch {
 	case err != nil:

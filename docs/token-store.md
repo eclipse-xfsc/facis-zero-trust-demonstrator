@@ -455,7 +455,15 @@ presents is a stand-in, described below.
 The hook is one step of an acquisition and shares its time. A renewal attempt has 30 s; an
 acquisition on demand runs inside the 10 s of a [substitution](#substitution), which is why the
 bound is 10 s. A value close to it leaves the on-demand path no time for the grant: the caller's
-deadline then ends the call with 503, and the next call starts again.
+deadline then ends the call with 503, and the next call starts again. The bound holds against the
+holder as well: when the time is up the hook stops waiting for a holder that has not answered. A
+holder left that way, at the deadline or because the caller gave up, is not asked again until it
+has returned. An acquisition on the route that reaches the hook in between has no outcome: the
+hook does not wait for the holder, and the record has stage `holder` and `busy`. So the calls a
+holder does not answer do not pile up behind it, and it is not entered again because an earlier
+call was given up. The bound is per route. Two acquisitions of one route that are in the holder
+together before either is left, a renewal and one on demand, are both let in, and each can be left
+there.
 
 For one challenge the hook (`internal/verificationclient`) does three things:
 
@@ -467,7 +475,12 @@ For one challenge the hook (`internal/verificationclient`) does three things:
    over it whose `nonce` is the challenge and whose `aud` is the audience.
 3. `POST {url}/v1/responses/{request_id}` with the presentation as `vp_token`. The answer carries
    the signed IF-03 outcome, which the hook returns unchanged when it has the shape of a compact
-   JWS.
+   JWS and is about the credential presented: an outcome names the credential it judged
+   (`credential_refs`, the issuer and the `jti`, or the `vct` of a credential without one), and
+   one that names another credential is not this presentation's answer. A name built from the
+   `vct` is shared by every credential of that issuer and type, so the comparison tells one
+   credential from another only when the holder's credential has a `jti`. Naming the credential
+   is optional in the outcome's schema, and an outcome that names none is passed on as it is.
 
 The presentation is posted to the configured `url`. The `response_uri` of the service's answer is
 not used, and the holder is told the hook's own address, so no answer can direct the credential
@@ -479,29 +492,69 @@ mesh carries the mutual TLS and between zones the attested channel does. Whateve
 with a request for the credential's type receives the credential with its disclosures. It cannot
 obtain a token that way: only an outcome signed by one of the store's `trusted_issuers` passes the
 store's verification, and the peer Connector checks again. Point `url` only at an address those
-layers protect. The hook also does not judge the outcome. A service that answers with a signed
+layers protect. What answers there can also withhold the outcome, which fails the acquisition as
+any outage does. When the holder's credential has a `jti` and the verification service names the
+credential in its outcomes, it cannot make the store read a revocation of that credential out of
+somebody else's: an answer about a credential the holder did not present is not taken, even when
+the verification service signed it for this very challenge (a relay that presented a revoked
+credential of its own would obtain exactly that). Without a `jti` there is no such protection
+against another credential of the same issuer and type, and none at all against a service whose
+outcomes name no credential, so issue the holder's credential with a `jti` and have the service
+name what it judged. The hook also does not judge the outcome. A service that answers with a signed
 `failed` or `revoked` outcome has answered: the store's own verification (step 3 of the order
 above) refuses it with `CRED-OUTCOME-NOT-VERIFIED`, audited `upstream.refused`, and no grant is
-requested, so the peer Connector never sees it.
+requested, so the peer Connector never sees it. The refusal records the outcome's own reason as
+its cause (below).
 
 **Failures.** Everything that leaves the hook without an outcome is `ACQ-OUTCOME-UNAVAILABLE`,
-the code a route with no outcome source also gets: an unreachable, refusing or silent service, an
-answer that is not bound to the challenge or is not a compact JWS, and a holder that presents
-nothing. The audit row does not say which. The store's log does: each such attempt writes one
-`outcome source failed` record with the route, the attempt's id (the one in the audit row) and a
-`stage` (`config`, `request`, `holder` or `response`; empty for a source that names none), and
-`cancelled` or `timed_out` when the attempt was cut short. Two things the store
-cannot tell apart at all: a revoked credential and an unavailable status list both arrive as a
-signed outcome it refuses with `CRED-OUTCOME-NOT-VERIFIED`; which of the two it was is in the
-verification service's records. Either way no token is issued, and a renewal that keeps failing
-ends as in [Renewal](#renewal): the row `failed`, then `TOK-NO-UPSTREAM`.
+the code an acquisition on a route with no outcome source also gets: an unreachable, refusing or
+silent service, an answer that is not bound to the challenge, is not a compact JWS or is about
+another credential, and a holder that presents nothing, does not answer in time or is still at work
+on an earlier request. The audit row does not say which. The store's log does: each such attempt
+writes one `outcome source failed` record with the route, the attempt's id (the one in the audit
+row) and a `stage` (`config`, `request`, `holder` or `response`; empty for a source that names
+none), and `cancelled` or `timed_out` when the attempt was cut short. Two holder failures are not
+a wallet that declined, and the record marks them. `busy` is a holder that was not asked because a
+call it was left in has not returned. `panicked` is a fault to repair: the record carries the
+`stack` of the panic as functions, files and lines, never the panic's own text or the values of
+its arguments, and the store goes on. A panic that happens after the hook has stopped waiting is
+not recorded.
+
+A signed outcome that is not verified is not a failure of the hook: the store refuses it with
+`CRED-OUTCOME-NOT-VERIFIED` and records the reason the verification service signed as the
+refusal's **cause**. A revoked credential and a status list that could not be read are therefore
+the same refusal with different causes:
+
+| Cause | The verification service says |
+|---|---|
+| `CRED-REVOKED` | The credential is revoked or suspended |
+| `CRED-STATUS-UNAVAILABLE` | The status list could not be read, so revocation is unknown |
+| `CRED-INVALID` | The presentation is not a credential it accepts |
+| `CRED-ISSUER-UNTRUSTED` | It does not trust the credential's issuer |
+
+The cause is recorded in five places: the attempt's audit row (`detail.cause`); the `upstream
+acquisition refused or failed` record; the `renewal.failed` row and record of a renewal that ends
+with it; the record of a substitution whose acquisition on demand was refused; and the output of
+`token-store acquire`. It is recorded only when the outcome answers this request, inside its
+validity interval, with a reason the IF-03 contract pairs with its status. An outcome signed for
+another challenge, an old one, or one with a reason of its own is refused with the same code and
+no cause: it says nothing about this request. The reason code stays the store's own refusal in
+every case, and the answer of a [substitution](#substitution) does not change.
+
+Either way no token is issued, and a renewal ends as in [Renewal](#renewal): at the attempt that
+meets a revoked credential, after the bounded attempts for every other cause; the row `failed`,
+then `TOK-NO-UPSTREAM`.
 
 **The holder.** The hook asks a holder through one interface, `verificationclient.Holder`: one
 OID4VP request in, one `dc+sd-jwt` presentation out, key binding signed with the credential's
 holder key. Kind `file` is a stand-in (`internal/verificationclient/fixtureholder`): it reads one
 credential and its key from two files and presents when the request's one query asks for an SD-JWT
 VC of the credential's type. It is not a wallet of record. A wallet that can answer an OID4VP
-request takes its place as another `kind`, behind the same interface.
+request takes its place as another `kind`, behind the same interface. The interface asks one more
+thing of a holder: to return when the call's context ends. The hook does not depend on it (above),
+but a holder that does not return keeps a goroutine until it does and is not asked again
+meanwhile, so its route has no outcome for as long. The credential it holds should carry a `jti`,
+which is what lets the hook tell an outcome about it from one about another credential.
 
 The two files are read at every presentation, like the route's client secret, and not when the
 routes file is read. A credential issued again is therefore presented from the next acquisition
@@ -527,15 +580,28 @@ the members the IF-03 v1 schemas define and is accepted or refused by `internal/
 contract says; that pins the exchange and the test service, since the hook passes the outcome on
 unchanged. An answer not bound to the challenge, a redirect or an oversized answer at either step,
 an outcome that is not a compact JWS, an unreachable and a silent service yield no outcome and an
-error that repeats nothing the service said. The test service's own request rules (one answer per
+error that repeats nothing the service said. A holder that never answers is left at the hook's
+deadline and not asked again until it returns (the calls in between say `busy`), one the caller
+gave up on is left at once, one that panics has presented nothing and is reported as a panic with
+its stack, and one that ends without an answer is known at once. A relay that passes the request
+to the service and presents a revoked credential of its own obtains a signed `revoked` outcome for
+the challenge, and the hook does not take it; a presentation in the query-result form is matched
+like a bare one. The test service's own request rules (one answer per
 request, one open request per challenge, the expiry bounds) have tests of their own. With the
 database and OpenBao variables above, `go test ./services/token-store/internal/renew` runs the
 renewal worker with the hook on the route against the real `connector` binary: one acquisition and
 three renewals are four presentations and four outcomes, each the one zone B consumed, and a new
-active row per renewal; a credential revoked before a renewal ends at the store with
-`CRED-OUTCOME-NOT-VERIFIED` on each attempt and zone B issues nothing; a refusing or silent
-service, an unavailable status list and an outcome for another audience each leave the row `failed`
-with the attempt's code audited three times, and the first two with their `stage` in the log.
+active row per renewal; a credential revoked before a renewal ends at the store at that attempt,
+with one presentation, `CRED-OUTCOME-NOT-VERIFIED` and the cause `CRED-REVOKED` on the attempt and
+on `renewal.failed`, zone B issues nothing, and the next substitution presents once more, records
+the same cause and has no upstream token; a refusing or silent service, a holder that never
+answers, an unavailable status list, an outcome for another audience, a revocation signed for
+another audience and a presentation that is not a credential each leave the row `failed` with the
+attempt's code audited three times, the first three with their `stage` in the log, the status list
+with its cause `CRED-STATUS-UNAVAILABLE` and the unreadable presentation with `CRED-INVALID`; and a
+route whose outcome source was removed is failed at once with `REN-NOT-AUTOMATED`, its record
+naming the route, with nothing presented and nothing asked of zone B. `internal/acquire` checks
+that a routes file gives a route an outcome source only through one of the two blocks.
 
 **Commands.**
 
@@ -547,7 +613,8 @@ token-store sweep-orphans          # run the orphan sweep once; prints {"deleted
 Both take `--database-url`, `--openbao-url`, `--openbao-token-file` (the OpenBao token, read on every
 call, as for the connector) and `--acquire-config`, each defaulting to the `TOKEN_STORE_*` variable
 of the same name, and `--timeout` (default 1m). Exit 0 on success, 1 on a failed acquisition (the
-reason code is printed), 2 for a usage error.
+route and the reason code are printed, with the `cause` when the store refused a signed outcome
+that gives one), 2 for a usage error.
 
 **Verification.** `go test ./services/token-store/internal/acquire` with
 `TOKEN_STORE_TEST_DATABASE_URL`, `TRANSIT_TEST_ADDR` and `TRANSIT_TEST_TOKEN` runs the real `connector` binary
@@ -786,7 +853,18 @@ and KV failures answer 503 and a peer refusing the outcome 409; the
 ## Renewal
 
 Every `token-store serve` with a routes file runs the renewal worker (`services/token-store/internal/renew`,
-D11), in every replica; the replica's pod name is its `claimed_by`. Each cycle, every 15 s:
+D11), in every replica; the replica's pod name is its `claimed_by`.
+
+**Eligibility.** The peer Connector has no refresh grant, so every renewal presents a credential
+again, and the worker does it without a person. A route's outcome source is the only thing in the
+store that presents, so the routes file decides which routes are renewed: a route with
+`verification_outcomes` (the [presentation hook](#presentation-hook)) is, and so is one with
+`fixture_outcomes` in tests and the demonstrator. A route that names neither is not eligible. The
+store has no attended path for it: such a route cannot acquire a token either, so it has one to
+renew only when its outcome source was taken out of the routes file after the token was acquired.
+That token is not renewed, and its row ends as step 4 says. There is no other setting.
+
+Each cycle, every 15 s:
 
 1. **Staleness sweep.** A claim older than 5 minutes belongs to a worker taken to be dead: the row
    goes back to `active` with the claim cleared when the token is still valid (it is due, so the next
@@ -820,9 +898,20 @@ D11), in every replica; the replica's pod name is its `claimed_by`. Each cycle, 
    stops if not.
 4. **Fail.** After three failed attempts, with 2 s then 4 s of backoff, the row becomes `failed`,
    again only under the worker's fence, audited `renewal.failed` with the last attempt's reason code
-   in the same statement. `failed` is terminal: substitution never reads it, and the route's next
-   substitution acquires on demand, or answers `TOK-NO-UPSTREAM` while the peer is down. A row whose
-   route is no longer configured fails at once (`REN-NO-ROUTE`).
+   in the same statement, and its cause when the store refused a signed outcome (the failures of
+   the [presentation hook](#presentation-hook)). The attempts are for what may pass: an outcome
+   source that cannot be reached or does not answer, a peer that is down, a status list that could
+   not be read, and also a presentation the verification could not accept or an issuer it does not
+   trust (`CRED-INVALID`, `CRED-ISSUER-UNTRUSTED`), which can be its side of a rollout. A revoked
+   credential does not pass, and a suspended one reads the same in an outcome, so an attempt that
+   ends with the cause `CRED-REVOKED` is the last one, whichever of the three it is: the row fails
+   without the remaining attempts, and this renewal does not present the credential again.
+   `failed` is terminal: substitution never reads it. The route's next substitution acquires on
+   demand, which is one full attempt with no retry of its own: it presents the credential again
+   and answers `TOK-NO-UPSTREAM` while the peer is down or the credential stays revoked, on every
+   call, since the store keeps no memory of a refusal. Two rows fail at once, with no attempt at
+   all: one whose route is no longer configured (`REN-NO-ROUTE`), and one whose route no longer
+   names an outcome source (`REN-NOT-AUTOMATED`).
 
 While a row is `renewing` it is still the route's token: substitution keeps serving it until the
 replacement commits (see [Substitution](#substitution)). The worker also runs the orphan sweep of
@@ -834,7 +923,12 @@ of any replica. A `failed` token stays `failed` (it is history, as `retired` is)
 by the next substitution acquiring on demand once the peer answers, or by
 `token-store acquire --route NAME`. `audit_event` holds the whole trail of a route: `upstream.acquired`,
 `upstream.renewed`, `upstream.failed` and `upstream.refused` per attempt, `renewal.*` for the
-worker's own decisions, all with the reason code.
+worker's own decisions, all with the reason code, and with the cause where the store refused a
+signed outcome. A route that failed for a revoked credential recovers the same way, once the
+holder has a credential that verifies or a suspension is lifted; one that failed with
+`REN-NOT-AUTOMATED` needs its outcome source back in the routes file and a restart, and the
+`upstream token renewal failed; token failed` record names the route, since no acquisition was
+attempted that would have.
 
 **Verification.** `go test ./services/token-store/internal/renew` with the three variables above,
 against zone A's database, OpenBao and the real `connector` binary as zone B: two workers started

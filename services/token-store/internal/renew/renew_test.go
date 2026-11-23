@@ -392,7 +392,7 @@ func TestASlowWorkersCompletionIsRejectedByTheFence(t *testing.T) {
 		t.Fatalf("w2 claim: %v %v", claims, err)
 	}
 	lateCompletion(c1)
-	w1.fail(e.ctx, c1, "TEST-LATE-FAILURE")
+	w1.fail(e.ctx, c1, e.route.Name, "TEST-LATE-FAILURE", "")
 	if s := e.state(renewed); s != "renewing" {
 		t.Fatalf("w1's late completion or failure touched w2's claim: %s", s)
 	}

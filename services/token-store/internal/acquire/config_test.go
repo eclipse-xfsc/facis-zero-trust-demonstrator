@@ -195,3 +195,43 @@ func TestLoadConfigRefusesABadKeyName(t *testing.T) {
 		}
 	}
 }
+
+// Whether a route's token is renewed without a person is decided here: a route is given an outcome
+// source only by one of the two blocks. One that names neither, or names them as null, is loaded
+// with none, which is what the renewal worker reads as not eligible.
+func TestARouteThatNamesNoOutcomeSourceIsLoadedWithNone(t *testing.T) {
+	dir := t.TempDir()
+	key, _ := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
+	pub, _ := x509.MarshalPKIXPublicKey(&key.PublicKey)
+	path := filepath.Join(dir, "acquire.json")
+	for name, extra := range map[string]map[string]any{
+		"neither block":       {},
+		"both blocks null":    {"fixture_outcomes": nil, "verification_outcomes": nil},
+		"the hook block null": {"verification_outcomes": nil},
+	} {
+		t.Run(name, func(t *testing.T) {
+			route := map[string]any{
+				"name": "zone-b-api", "peer_zone": "zone-b", "audience": audience, "connector_url": "https://connector.zone-b.test/",
+				"client_id": clientID, "client_secret_file": filepath.Join(dir, "secret"),
+			}
+			for k, v := range extra {
+				route[k] = v
+			}
+			raw, _ := json.Marshal(map[string]any{
+				"signing_key":     "token-store",
+				"trusted_issuers": []any{map[string]any{"issuer": vpIssuer, "kid": vpKid, "public_key_file": writePEM(t, dir, "pub.pem", "PUBLIC KEY", pub)}},
+				"routes":          []any{route},
+			})
+			if err := os.WriteFile(path, raw, 0o600); err != nil {
+				t.Fatal(err)
+			}
+			got, err := LoadConfig(path)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if r, ok := got.Routes["zone-b-api"]; !ok || r.Outcomes != nil {
+				t.Errorf("loaded %v with outcome source %v; want the route with none", ok, r.Outcomes)
+			}
+		})
+	}
+}
