@@ -51,6 +51,7 @@ spec:
             {{- $env := dict
               "CONNECTOR_ADDR" ":8080"
               "CONNECTOR_OPS_ADDR" ":9090"
+              "CONNECTOR_ZONE" .Values.zone
               "CONNECTOR_OPENBAO_URL" .Values.openbao.address
               "CONNECTOR_OPENBAO_TOKEN_FILE" "/var/run/connector/credentials/openbao-token"
               "CONNECTOR_SIGNING_KEY" .Values.openbao.signingKey

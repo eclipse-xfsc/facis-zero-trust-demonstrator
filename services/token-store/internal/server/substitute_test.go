@@ -23,13 +23,13 @@ import (
 
 	"github.com/eclipse-xfsc/facis-zero-trust-demonstrator/internal/if03"
 	"github.com/eclipse-xfsc/facis-zero-trust-demonstrator/internal/jose"
+	"github.com/eclipse-xfsc/facis-zero-trust-demonstrator/internal/meshcaller"
 	"github.com/eclipse-xfsc/facis-zero-trust-demonstrator/internal/pgtest"
 	"github.com/eclipse-xfsc/facis-zero-trust-demonstrator/internal/replay"
 	"github.com/eclipse-xfsc/facis-zero-trust-demonstrator/internal/tokenverify"
 	"github.com/eclipse-xfsc/facis-zero-trust-demonstrator/internal/transit"
 	"github.com/eclipse-xfsc/facis-zero-trust-demonstrator/services/token-store/internal/acquire"
 	"github.com/eclipse-xfsc/facis-zero-trust-demonstrator/services/token-store/internal/acquire/acquiretest"
-	"github.com/eclipse-xfsc/facis-zero-trust-demonstrator/services/token-store/internal/caller"
 	"github.com/eclipse-xfsc/facis-zero-trust-demonstrator/services/token-store/internal/keys"
 	"github.com/eclipse-xfsc/facis-zero-trust-demonstrator/services/token-store/internal/testsupport"
 )
@@ -155,7 +155,7 @@ func newSubEnv(t *testing.T, withB bool) *subEnv {
 		Routes:     map[string]acquire.Route{},
 	}
 	secretFile := acquiretest.WriteFile(t, "secret", secret+"\n")
-	var subs []caller.Route
+	var subs []meshcaller.Route
 	for _, tenant := range tenants {
 		name := "zone-b-api"
 		if tenant != "" {
@@ -165,10 +165,10 @@ func newSubEnv(t *testing.T, withB bool) *subEnv {
 			ConnectorURL: connector, ClientID: clientID, ClientSecretFile: secretFile,
 			Outcomes: acquire.Fixture{Issuer: acquiretest.VPIssuer, Kid: acquiretest.VPKid, Key: issuer,
 				Claims: if03.Claims{Role: acquiretest.VPRole, Entitlement: acquiretest.VPEntitle}}}
-		subs = append(subs, caller.Route{Callers: []string{guardID}, PeerZone: "zone-b", Audience: acquiretest.Audience,
+		subs = append(subs, meshcaller.Route{Callers: []string{guardID}, PeerZone: "zone-b", Audience: acquiretest.Audience,
 			Tenant: tenant, Methods: []string{"GET", "POST"}, TargetPrefix: acquiretest.Audience + "/v1"})
 	}
-	if e.loaded.Substitution, err = caller.NewRoutes(subs); err != nil {
+	if e.loaded.Substitution, err = meshcaller.NewRoutes(subs); err != nil {
 		t.Fatal(err)
 	}
 	return e

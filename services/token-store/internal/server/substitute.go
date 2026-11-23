@@ -9,7 +9,7 @@ import (
 	"slices"
 	"time"
 
-	"github.com/eclipse-xfsc/facis-zero-trust-demonstrator/services/token-store/internal/caller"
+	"github.com/eclipse-xfsc/facis-zero-trust-demonstrator/internal/meshcaller"
 	"github.com/eclipse-xfsc/facis-zero-trust-demonstrator/services/token-store/internal/substitute"
 )
 
@@ -52,13 +52,13 @@ func (s *Server) handleSubstitute(w http.ResponseWriter, r *http.Request) {
 		s.refuse(w, r, http.StatusForbidden, "TOK-ROUTE-DENIED")
 		return
 	}
-	creq := caller.Request{PeerZone: req.PeerZone, Audience: req.Audience, Method: req.Method, TargetURI: req.TargetURI}
+	creq := meshcaller.Request{PeerZone: req.PeerZone, Audience: req.Audience, Method: req.Method, TargetURI: req.TargetURI}
 	if req.Tenant != nil {
 		creq.Tenant = *req.Tenant
 	}
 	if _, err := s.routes.Authorize(c, creq); err != nil {
 		code := "TOK-ROUTE-DENIED"
-		if errors.Is(err, caller.ErrCallerDenied) {
+		if errors.Is(err, meshcaller.ErrCallerDenied) {
 			code = "TOK-CALLER-DENIED"
 		}
 		s.refuse(w, r, http.StatusForbidden, code)
@@ -79,7 +79,7 @@ func (s *Server) handleSubstitute(w http.ResponseWriter, r *http.Request) {
 	switch {
 	case errors.Is(err, substitute.ErrNoUpstream):
 		s.refuse(w, r, http.StatusConflict, "TOK-NO-UPSTREAM")
-	case errors.Is(err, caller.ErrRouteDenied):
+	case errors.Is(err, meshcaller.ErrRouteDenied):
 		s.refuse(w, r, http.StatusForbidden, "TOK-ROUTE-DENIED")
 	case err != nil:
 		s.refuse(w, r, http.StatusServiceUnavailable, "TOK-STORE-UNAVAILABLE")

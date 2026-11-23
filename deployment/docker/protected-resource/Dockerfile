@@ -19,7 +19,8 @@ RUN go build -mod=readonly -trimpath -buildvcs=false \
 
 FROM scratch
 
-COPY --from=build --chmod=0444 /etc/ssl/certs/ca-certificates.crt /etc/ssl/certs/ca-certificates.crt
+# Preserve traversable parent directories for the non-root runtime user.
+COPY --from=build /etc/ssl/certs/ca-certificates.crt /etc/ssl/certs/ca-certificates.crt
 COPY --from=build --chmod=0555 /out/protected-resource /app/protected-resource
 
 WORKDIR /app

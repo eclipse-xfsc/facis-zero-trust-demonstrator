@@ -12,6 +12,10 @@ on:
       - services/connector/**
       - services/participant/**
       - services/protectedresource/**
+      - services/guard/**
+      - services/policyevaluator/**
+      - cmd/guard/**
+      - cmd/policy-evaluator/**
       - cmd/participant/**
       - cmd/protected-resource/**
       - internal/**
@@ -20,6 +24,9 @@ on:
       - deployment/docker/participant/**
       - deployment/docker/protected-resource/**
       - deployment/helm/token-store/**
+      - deployment/helm/guard/**
+      - deployment/docker/guard/**
+      - deployment/docker/policy-evaluator/**
       - scripts/verify-token-store/**
       - scripts/verify-token-store-failures/**
       - scripts/tools/pins.env
@@ -33,6 +40,10 @@ on:
       - services/connector/**
       - services/participant/**
       - services/protectedresource/**
+      - services/guard/**
+      - services/policyevaluator/**
+      - cmd/guard/**
+      - cmd/policy-evaluator/**
       - cmd/participant/**
       - cmd/protected-resource/**
       - internal/**
@@ -41,6 +52,9 @@ on:
       - deployment/docker/participant/**
       - deployment/docker/protected-resource/**
       - deployment/helm/token-store/**
+      - deployment/helm/guard/**
+      - deployment/docker/guard/**
+      - deployment/docker/policy-evaluator/**
       - scripts/verify-token-store/**
       - scripts/verify-token-store-failures/**
       - scripts/tools/pins.env
@@ -102,6 +116,7 @@ jobs:
               ./services/token-store/... ./services/connector/... ./internal/... \
               ./services/participant/... ./services/protectedresource/... \
               ./cmd/participant/... ./cmd/protected-resource/... \
+              ./services/guard/... ./services/policyevaluator/... ./cmd/guard/... ./cmd/policy-evaluator/... \
               | tee "$RUNNER_TEMP/token-path-$tokens.log"
             if grep -q -- '--- SKIP' "$RUNNER_TEMP/token-path-$tokens.log"; then
               echo "::error::a test was skipped with $tokens tokens; this job must run them against PostgreSQL and OpenBao"

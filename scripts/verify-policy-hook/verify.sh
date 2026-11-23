@@ -171,6 +171,9 @@ verdict() {
 			and .decision_event.correlation_id == .upstream.headers["X-Request-Id"][0]'
 	check "the probe's own checks all passed" expect "$f" '.checks | all'
 
+	section "Host routing stays on the protected resource"
+	check "resource Host is rewritten and a foreign Host never reaches upstream" expect "$out/host-routing.json" ' .checks | all'
+
 	section "On deny, the response carries status, headers and the OID4VP link in the body"
 	f=$out/responses.json
 	check "both refusal cases were sent and answered with the status the reason-code registry gives their code" \

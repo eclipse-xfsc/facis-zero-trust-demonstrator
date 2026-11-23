@@ -15,10 +15,12 @@ import (
 	"runtime"
 	"strconv"
 	"strings"
+	"sync/atomic"
 	"syscall"
 	"time"
 
-	"github.com/eclipse-xfsc/facis-zero-trust-demonstrator/cmd/policy-hook-probe/internal/hook"
+	"github.com/eclipse-xfsc/facis-zero-trust-demonstrator/internal/policyhook/hook"
+	"github.com/eclipse-xfsc/facis-zero-trust-demonstrator/internal/policyhook/hookfixture"
 )
 
 // The bootstraps, by the name the proofs and the evidence use.
@@ -102,7 +104,7 @@ func prove(ctx context.Context, args []string, stderr io.Writer) int {
 type harness struct {
 	o      proveOptions
 	stderr io.Writer
-	fx     *hook.Fixtures
+	fx     *hookfixture.Fixtures
 	work   string
 	// bind is what the host processes bind to; fromEnvoy is how the container reaches them.
 	bind, fromEnvoy string
@@ -114,11 +116,12 @@ type harness struct {
 	client          *http.Client
 	adapter         *adapter
 	envoy           *envoyInstance
+	upstreamCalls   atomic.Int64
 	cancel          context.CancelFunc
 }
 
 func newHarness(o proveOptions, stderr io.Writer) (*harness, error) {
-	fx, err := hook.LoadFixtures(o.fixtures)
+	fx, err := hookfixture.LoadFixtures(o.fixtures)
 	if err != nil {
 		return nil, fmt.Errorf("fixtures: %w", err)
 	}
@@ -155,7 +158,7 @@ func (h *harness) logf(format string, args ...any) {
 // start brings up the upstream and the hook; each proof then picks its Envoy bootstrap.
 func (h *harness) start(ctx context.Context) error {
 	ctx, h.cancel = context.WithCancel(ctx)
-	addr, err := serveEcho(ctx, net.JoinHostPort(h.bind, strconv.Itoa(h.upstreamPort)))
+	addr, err := serveEcho(ctx, net.JoinHostPort(h.bind, strconv.Itoa(h.upstreamPort)), &h.upstreamCalls)
 	if err != nil {
 		return fmt.Errorf("echo upstream: %w", err)
 	}
@@ -238,10 +241,15 @@ type response struct {
 
 // send sends one request to Envoy's listener and reads the answer.
 func (h *harness) send(ctx context.Context, path string, headers http.Header) (response, error) {
+	return h.sendHost(ctx, path, headers, "guard-a.example")
+}
+
+func (h *harness) sendHost(ctx context.Context, path string, headers http.Header, host string) (response, error) {
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, h.guardURL()+path, nil)
 	if err != nil {
 		return response{}, err
 	}
+	req.Host = host
 	for k, v := range headers {
 		req.Header[k] = v
 	}
@@ -294,7 +302,8 @@ func (h *harness) allowedRequest() (*http.Request, error) {
 	if err != nil {
 		return nil, err
 	}
-	req.Header = callerHeaders("DPoP " + hook.FixtureTokenRead)
+	req.Host = "guard-a.example"
+	req.Header = callerHeaders("DPoP " + hookfixture.FixtureTokenRead)
 	return req, nil
 }
 
@@ -345,12 +354,13 @@ func echoHandler() http.Handler {
 }
 
 // serveEcho listens on addr and serves the echo handler until ctx ends; it returns the bound address.
-func serveEcho(ctx context.Context, addr string) (string, error) {
+func serveEcho(ctx context.Context, addr string, calls *atomic.Int64) (string, error) {
 	ln, err := net.Listen("tcp", addr)
 	if err != nil {
 		return "", err
 	}
-	srv := &http.Server{Handler: echoHandler(), ReadHeaderTimeout: 5 * time.Second}
+	echo := echoHandler()
+	srv := &http.Server{Handler: http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) { calls.Add(1); echo.ServeHTTP(w, r) }), ReadHeaderTimeout: 5 * time.Second}
 	go func() { _ = srv.Serve(ln) }()
 	go func() {
 		<-ctx.Done()

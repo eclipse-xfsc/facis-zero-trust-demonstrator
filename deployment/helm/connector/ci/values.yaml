@@ -1,6 +1,7 @@
 # Render-only references. No credentials or deployable image in this file.
 image:
   digest: sha256:0000000000000000000000000000000000000000000000000000000000000000
+zone: b
 database:
   existingSecret: ztd-connector-database
 credentials:

@@ -19,7 +19,8 @@ done
 [ "$(id -u)" = 0 ] || { echo "needs root: the servers listen on port 53" >&2; exit 2; }
 work="$(mktemp -d)"
 cleanup() {
-  for p in "$work"/s*/nsd.pid "$work/r/unbound.pid"; do [ -f "$p" ] && kill "$(cat "$p")" 2>/dev/null; done
+  # Every daemon, and its children, gone before their directories go: see stop.
+  for p in "$work"/s*/nsd.pid "$work/r/unbound.pid"; do [ -f "$p" ] && stop "$p"; done
   [ -f "$work/hosts" ] && cat "$work/hosts" > /etc/hosts
   rm -rf "$work"
 }
@@ -47,11 +48,32 @@ sed 's/^@ *NS *ns2$/@ NS ns3/' base > other-ns && sign other-ns signed-other-ns
 grep -v ' URI ' base > no-uri && sign no-uri signed-no-uri
 sed 's/127\.0\.53\.[12]$/127.0.53.4/' base > unsigned   # its own name servers point at it
 
-stop() { # stop <pid file>: the daemon is gone and its port free when this returns
-  local pid
+using() { # using <dir>: the live processes whose working directory is <dir>, one pid per line
+  # nsd changes into zonesdir and unbound into directory, and their children inherit it; a zombie's
+  # cwd cannot be read, so it does not count.
+  local p
+  for p in /proc/[0-9]*; do
+    [ "$(readlink "$p/cwd" 2>/dev/null)" = "$1" ] && echo "${p#/proc/}"
+  done
+  return 0
+}
+stop() { # stop <pid file>: the daemon and its children are gone, and the port free, when this returns
+  local pid tries=0 dir
+  dir=$(dirname "$1")   # $work is absolute, so the pid file's directory is too
   pid=$(cat "$1" 2>/dev/null) || return 0
   kill "$pid" 2>/dev/null || true
-  while kill -0 "$pid" 2>/dev/null; do sleep 0.1; done
+  # The pid file names nsd's main process, which exits first; its children (xfrd, the server that
+  # holds the port) stop a moment later and write their state on the way out. Removing their
+  # directory, or binding their port, before they are gone is a race: wait for every process still
+  # working in the directory, not for one pid. A daemon whose parent never collects it stays as a
+  # zombie, with no cwd to read, and counts as gone: that is every daemon here when PID 1 is not an
+  # init, as in a CI job container. The wait is bounded: a daemon that will not stop fails the run
+  # instead of holding it.
+  while [ -n "$(using "$dir")" ]; do
+    tries=$((tries + 1))
+    [ "$tries" -le 100 ] || { echo "a daemon under $dir did not stop: $(using "$dir" | tr '\n' ' ')" >&2; exit 1; }
+    sleep 0.1
+  done
   rm -f "$1"
 }
 serve() { # serve <last octet of 127.0.53.x> <zone file> [zone name]

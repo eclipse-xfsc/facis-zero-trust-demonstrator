@@ -16,8 +16,8 @@ import (
 	"github.com/eclipse-xfsc/facis-zero-trust-demonstrator/internal/connectorclient"
 	"github.com/eclipse-xfsc/facis-zero-trust-demonstrator/internal/if03"
 	"github.com/eclipse-xfsc/facis-zero-trust-demonstrator/internal/if03/if03fixture"
+	"github.com/eclipse-xfsc/facis-zero-trust-demonstrator/internal/meshcaller"
 	"github.com/eclipse-xfsc/facis-zero-trust-demonstrator/internal/transit"
-	"github.com/eclipse-xfsc/facis-zero-trust-demonstrator/services/token-store/internal/caller"
 )
 
 // Config is the acquisition configuration file (JSON). It holds file paths, never secrets.
@@ -66,8 +66,8 @@ type Loaded struct {
 	KVPrefix   string
 	Trusted    if03.Issuers
 	Routes     map[string]Route
-	// Substitution authorizes /internal/substitute: one caller.Route per route with callers.
-	Substitution caller.Routes
+	// Substitution authorizes /internal/substitute: one meshcaller.Route per route with callers.
+	Substitution meshcaller.Routes
 }
 
 // For is the route of (peer zone, audience, tenant); a route key names at most one route.
@@ -141,9 +141,9 @@ func LoadConfig(path string) (Loaded, error) {
 			return Loaded{}, fmt.Errorf("acquisition config: route %q: another route has the same peer_zone, audience and tenant", r.Name)
 		}
 		if len(r.Callers) > 0 {
-			out.Substitution = append(out.Substitution, caller.Route{Callers: r.Callers, PeerZone: r.PeerZone,
+			out.Substitution = append(out.Substitution, meshcaller.Route{Callers: r.Callers, PeerZone: r.PeerZone,
 				Audience: r.Audience, Tenant: r.Tenant, Methods: r.Methods, TargetPrefix: r.TargetPrefix})
-			if _, err := caller.NewRoutes(out.Substitution[len(out.Substitution)-1:]); err != nil {
+			if _, err := meshcaller.NewRoutes(out.Substitution[len(out.Substitution)-1:]); err != nil {
 				return Loaded{}, fmt.Errorf("acquisition config: route %q: %w", r.Name, err)
 			}
 		} else if len(r.Methods) > 0 || r.TargetPrefix != "" {

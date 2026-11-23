@@ -12,6 +12,9 @@ app.kubernetes.io/instance: {{ .Release.Name }}
 {{- if not (regexMatch "^sha256:[a-f0-9]{64}$" .Values.image.digest) -}}
 {{- fail "image.digest must be a sha256 digest" -}}
 {{- end -}}
+{{- if not (has (.Values.zone | toString) (list "a" "b")) -}}
+{{- fail "zone must be a or b: the source of the connector's security-state events" -}}
+{{- end -}}
 {{- if not (and .Values.database.existingSecret .Values.database.secretKey .Values.credentials.existingSecret) -}}
 {{- fail "database and credentials existingSecret references are required" -}}
 {{- end -}}

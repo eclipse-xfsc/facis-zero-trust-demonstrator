@@ -20,7 +20,7 @@ import (
 	"github.com/eclipse-xfsc/facis-zero-trust-demonstrator/internal/dpopproof"
 	"github.com/eclipse-xfsc/facis-zero-trust-demonstrator/internal/jose"
 
-	"github.com/eclipse-xfsc/facis-zero-trust-demonstrator/services/token-store/internal/caller"
+	"github.com/eclipse-xfsc/facis-zero-trust-demonstrator/internal/meshcaller"
 	"github.com/eclipse-xfsc/facis-zero-trust-demonstrator/services/token-store/internal/testsupport"
 )
 
@@ -34,12 +34,12 @@ const (
 // its Authenticator says, which is the point of injecting one.
 type headerCaller struct{}
 
-func (headerCaller) Authenticate(r *http.Request) (caller.Caller, error) {
+func (headerCaller) Authenticate(r *http.Request) (meshcaller.Caller, error) {
 	id := r.Header.Get("X-Test-Caller")
 	if id == "" {
-		return caller.Caller{}, caller.ErrCallerDenied
+		return meshcaller.Caller{}, meshcaller.ErrCallerDenied
 	}
-	return caller.Caller{SPIFFEID: id}, nil
+	return meshcaller.Caller{SPIFFEID: id}, nil
 }
 
 func replayServer(t *testing.T, buf *testsupport.Buffer) (*Server, string) {

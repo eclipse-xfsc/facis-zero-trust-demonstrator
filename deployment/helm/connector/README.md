@@ -12,7 +12,7 @@ nonces and replay records in PostgreSQL directly; it has no token-store HTTP add
 The guard calls the token store, whose acquisition routes point to this Connector. Do not introduce
 an unused Connector-to-store chart value or conflate the issuer and requester ledgers.
 
-Required references: image digest, database Secret, credential Secret, OpenBao transit key name and
+Required references: the zone (`zone`), image digest, database Secret, credential Secret, OpenBao transit key name and
 version, issuer and registration URLs, registrar audience ceiling, and the public verification
 ConfigMap. The credential Secret has OpenBao token, access-token HMAC, registration HMAC and
 registrar-secret keys; the three HMAC/client secrets must be at least 32 bytes. Values carry names
@@ -65,3 +65,41 @@ The bootstrap refuses to overwrite a registrar with conflicting settings.
 Set `CONNECTOR_EXCLUSIVE_AUDIENCES` (chart `oauth.exclusiveAudiences`) to the guard's inbound audience and the Resource's upstream audience. `Config.ExclusiveAudiences` is an additive provider contract field. A client may hold at most one member of this set. Registration returns `invalid_client_metadata` for a dual-role request, even with a registrar token authorizing both. Both grant handlers return `invalid_request` for existing clients holding both; the migration flag never relaxes issuance.
 
 The Participant requests only the guard's `inbound_audience`. The store requests only its route's upstream audience, equal to both the guard's `upstream_audience` and `PROTECTED_RESOURCE_AUDIENCE`. The audiences must differ. Provision separate registrar identities for each role; the bootstrap registrar in the guarded example provisions Participants. `/readyz` reports conflicting client IDs and count, and fails until their registrations are repaired. `CONNECTOR_ALLOW_AUDIENCE_MIGRATION=true` (chart `oauth.allowAudienceMigration`) explicitly downgrades this readiness failure to `migration_warning`; use only during a controlled migration. The report and warning contain no credentials.
+
+## Zone and security-state events
+
+`zone` names the zone the connector serves, `a` or `b`. It is the source `connector-<zone>` of the
+IF-01 security-state events the connector writes on stdout, one per registration decision; the
+chart refuses any other value.
+
+## Registration policy and audit
+
+`POST /oauth2/register` sits behind the connector's own policy gate: a request whose token the
+connector's store does not know goes to the library unjudged; for a known token the metadata must
+be one strict JSON object with only the contract's members, a `client_name`, a `client_secret_basic`
+client, `dpop_bound_access_tokens: true`, offered grant types, scope tokens never naming the
+registration scope, and one or more absolute audiences. A violation is refused with 400
+`invalid_client_metadata`, reason `registration_rejected`. Every decision writes an `audit_event`
+row and one IF-01 `token_event` line. The rules are in
+[docs/connector.md](../../../docs/connector.md#registration).
+
+## Registering a client
+
+The same image registers a client the way a participant obtains its credentials: a Pod or Job
+running `connector register` with the registrar's secret mounted from the credentials Secret (key
+`registrar-secret`) writes the strict `{"client_id","client_secret"}` file the participant reads as
+`PARTICIPANT_CREDENTIALS_FILE`.
+
+```bash
+connector register --connector http://ztd-connector.ztd-mgmt.svc:8080 \
+  --registrar-id ztd-registrar --registrar-secret-file /var/run/connector/credentials/registrar-secret \
+  --client-name "participant backend" --scope resource.read --audience https://resource.example \
+  --out /out/credentials.json --request-id my-registration
+```
+
+The registrar's token must carry the client's scopes and audiences, so `oauth.registrarScopes` and
+`oauth.registrarAudiences` must cover them; a client for a verified-presentation scope needs
+`--delegable-scopes` naming `oauth.registrarDelegableScopes`. A mounted Secret is owned by root: a
+pod running the command as a non-root user needs `fsGroup` to read it, as the chart's own
+Deployment sets. Flags and exit codes: [docs/connector.md](../../../docs/connector.md#registering-a-participant).
+The proof `scripts/verify-connector/verify.sh` installs this chart on kind and runs the path end to end.
