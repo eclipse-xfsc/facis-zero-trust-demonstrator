@@ -7,9 +7,9 @@ import (
 	"strings"
 	"time"
 
+	"github.com/eclipse-xfsc/facis-zero-trust-demonstrator/internal/meshcaller"
 	"github.com/eclipse-xfsc/facis-zero-trust-demonstrator/internal/transit"
 	"github.com/eclipse-xfsc/facis-zero-trust-demonstrator/services/token-store/internal/acquire"
-	"github.com/eclipse-xfsc/facis-zero-trust-demonstrator/services/token-store/internal/caller"
 )
 
 // Config is the service's configuration surface. The command line and the environment fill it;
@@ -35,11 +35,11 @@ type Config struct {
 	// the guard). With none, every call to it is refused.
 	ReplayCallers []string
 	// Callers authenticates the store's internal callers. Nil means the forwarded client certificate
-	// (caller.XFCC) checked against the allow-lists above and the substitution routes' callers;
+	// (meshcaller.XFCC) checked against the allow-lists above and the substitution routes' callers;
 	// tests inject their own.
-	Callers caller.Authenticator
+	Callers meshcaller.Authenticator
 	// Acquisition is the routes file (--acquire-config): the routes /internal/substitute authorizes
-	// and acquires tokens for. Nil refuses every substitution caller.
+	// and acquires tokens for. Nil refuses every substitution meshcaller.
 	Acquisition *acquire.Loaded
 	// OpenBao signs the store's proofs and holds the upstream token values; required with
 	// Acquisition.
@@ -80,7 +80,7 @@ func (c Config) Validate() error {
 	if c.ShutdownTimeout <= 0 {
 		return errors.New("the shutdown timeout must be longer than 0")
 	}
-	if _, err := caller.NewXFCC(c.ReplayCallers); err != nil {
+	if _, err := meshcaller.NewXFCC(c.ReplayCallers); err != nil {
 		return errors.New("the replay-check callers must be spiffe:// IDs")
 	}
 	if c.Acquisition != nil && c.OpenBao == nil {

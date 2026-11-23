@@ -34,7 +34,7 @@ One call per request, before routing. The hook answers in one of three ways:
 
 ## What the hook does with a request
 
-The hook's core (`cmd/policy-hook-probe/internal/hook`) is transport-neutral: it turns one request
+The hook's core (`internal/policyhook/hook`) is transport-neutral: it turns one request
 into one outcome, and one package (`internal/envoyhook`) translates that outcome into the messages
 of either filter. A
 decision therefore does not depend on which filter carries it, which is what the filter-parity
@@ -189,3 +189,23 @@ only. The guard's deployable adapter — the policy engine
 client, the token store client, the guard's own token check feeding the policy input, and the
 Helm wiring that attaches the filter to the mesh's Envoy — is recorded as open in the
 [decision on the policy hook](adr/0008-envoy-ext-authz-as-the-guard-policy-hook.md).
+
+## M3 deployable adapter — local integration
+
+The the policy-hook proof transport/core is reused from `internal/policyhook`; the probe still
+provides its original fixture-based transport comparison. `cmd/guard` is a
+separate runtime using real token/proof verification, a durable replay check via
+the token-store API, a real IF-05 evaluator (`cmd/policy-evaluator`) and real
+substitution. It validates the inbound proof before replacement. Full-report and
+summary claims select separate acquisition tenants, preventing privilege growth.
+
+The guard chart (`deployment/helm/guard/README.md`) supplies namespace-local
+Envoy and mesh/network controls. The local real-dependency test uses a local proxy
+to model the trusted XFCC boundary; this is **not** proof of SPIRE, mTLS, admission
+or bypass refusal on FACIS. Those acceptance lines remain OPEN until deployed
+and tested with final admitted digests. No global extensionProvider is changed.
+
+This deployment applies ADR-0008's ext_authz choice using a dedicated namespace
+Envoy. It does not claim native mesh CUSTOM attachment or deployed evidence.
+
+The guarded token path uses two distinct audiences. Participant clients obtain only the guard's inbound audience; token-store clients obtain only the Resource's upstream audience. The latter equals the guard's `upstream_audience` and the Resource's `PROTECTED_RESOURCE_AUDIENCE`. Configure the Connector's `oauth.exclusiveAudiences` with both values: registration and issuance enforce the boundary, including legacy client rows. Use separate registrar identities for the two roles.

@@ -23,10 +23,10 @@ static_resources:
                   name: protected
                   virtual_hosts:
                     - name: protected
-                      domains: ["*"]
+                      domains: ["guard-a.example"]
                       routes:
                         - match: { prefix: "/" }
-                          route: { cluster: upstream, timeout: 5s }
+                          route: { cluster: upstream, timeout: 5s, host_rewrite_literal: ztd-protected-resource.demo.svc.cluster.local }
                 # When the hook itself cannot answer — unreachable, reset, or past its timeout —
                 # the filter refuses the request (failure_mode_allow is false). Envoy answers that
                 # refusal itself, so the reason code is set here, not by the hook.

@@ -65,13 +65,13 @@ Direct dependencies of the Go module. Transitive dependencies are listed in the 
 | Dependency | Version | Licence | Purpose |
 |---|---|---|---|
 | `authelia.com/provider/oauth2` | v0.3.2 | Apache-2.0 | OAuth 2.0 framework behind the connector's provider adapter: RFC 7591 client registration and RFC 9449 DPoP. Requires Go 1.27.x. |
-| `golang.org/x/crypto` | v0.57.0 | BSD-3-Clause | bcrypt hashing of client secrets |
+| `golang.org/x/crypto` | v0.58.0 | BSD-3-Clause | bcrypt hashing of client secrets |
 | `github.com/cucumber/godog` | v0.16.0 | MIT | runs the Go acceptance scenarios (`internal/bdd`) |
 | `github.com/cucumber/gherkin/go/v42` | v42.0.0 | MIT | parses the feature files for the Annex verbatim check (`cmd/bddpack`) |
 | `github.com/cucumber/messages/go/v34` | v34.2.0 | MIT | the Gherkin document model used with it |
 | `github.com/santhosh-tekuri/jsonschema/v6` | v6.0.3 | Apache-2.0 | validates SBOMs and mock attestations against their JSON Schemas at admission |
-| `github.com/envoyproxy/go-control-plane/envoy` | v1.37.0 | Apache-2.0 | the Envoy `ext_authz` and `ext_proc` API types the guard policy hook is served through (`cmd/policy-hook-probe`); only its `envoyhook` package may import them |
 | `github.com/jackc/pgx/v5` | v5.11.0 | MIT | PostgreSQL driver of the token store: the schema migrations today (`services/token-store`), the service's queries as they land |
+| `github.com/envoyproxy/go-control-plane/envoy` | v1.37.0 | Apache-2.0 | the Envoy `ext_authz` and `ext_proc` API types the guard policy hook is served through (`cmd/policy-hook-probe`); only its `envoyhook` package may import them |
 | `google.golang.org/grpc` | v1.83.2 | Apache-2.0 | gRPC transport of the policy hook's Envoy services |
 
 The SD-JWT VC, Token Status List and OID4VP handling (`internal/sdjwt`, `internal/statuslist`,

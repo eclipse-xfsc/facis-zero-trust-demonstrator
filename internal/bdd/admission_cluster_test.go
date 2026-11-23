@@ -26,6 +26,7 @@ import (
 //	BDD_ADM_FIXTURES  file of "<case> <image digest reference>" lines (the admission-fixtures workflow output)
 //	BDD_ADM_NAMESPACE namespace under admission control (default ztd-adm-001)
 //	BDD_TARGET        target name, BDD_RUN_ID run identifier
+//	BDD_CLUSTER_KIND  "target" or "non-target" (default), recorded with the evidence
 //
 // In the cluster dry run (BDD_MODE=cluster-dryrun) every step is skipped, so a pull request lists the
 // row as not run and can never report it as passed.
@@ -176,7 +177,7 @@ func (a *admissionProof) writeEvidence(problems []string) error {
 		}
 	}
 	record := map[string]any{
-		"label":     "non-target cluster; interim signing key; not the client trust chain",
+		"label":     clusterKind() + " cluster; interim signing key; not the client trust chain",
 		"target":    a.target,
 		"run":       a.run,
 		"namespace": a.namespace,
@@ -192,9 +193,17 @@ func (a *admissionProof) writeEvidence(problems []string) error {
 	}
 	scenario, _ := json.MarshalIndent(map[string]any{
 		"row": "ZT-72", "target": a.target, "run": a.run,
-		"chart": "admission fixtures signed with the interim key (non-target)", "fixture": false,
+		"chart": "admission fixtures signed with the interim key (" + clusterKind() + ")", "fixture": false,
 	}, "", "  ")
 	return os.WriteFile(filepath.Join(a.evidence, "scenario.json"), scenario, 0o644)
+}
+
+// clusterKind is how the evidence classifies the cluster: "target" only when the run says so.
+func clusterKind() string {
+	if os.Getenv("BDD_CLUSTER_KIND") == "target" {
+		return "target"
+	}
+	return "non-target"
 }
 
 // pod is a manifest that meets the restricted Pod Security Standard, so a refusal is always the

@@ -20,9 +20,9 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"github.com/eclipse-xfsc/facis-zero-trust-demonstrator/internal/dpopproof"
+	"github.com/eclipse-xfsc/facis-zero-trust-demonstrator/internal/meshcaller"
 	"github.com/eclipse-xfsc/facis-zero-trust-demonstrator/internal/transit"
 	"github.com/eclipse-xfsc/facis-zero-trust-demonstrator/services/token-store/internal/acquire"
-	"github.com/eclipse-xfsc/facis-zero-trust-demonstrator/services/token-store/internal/caller"
 )
 
 // OpTimeout bounds every single database, key-value store and transit operation of a substitution.
@@ -47,7 +47,7 @@ var (
 // Request is an authorized substitution: the route, the upstream request and the upstream's nonce.
 type Request struct {
 	PeerZone, Audience, Tenant string
-	Method, TargetURI          string // TargetURI as caller.Target accepts it
+	Method, TargetURI          string // TargetURI as meshcaller.Target accepts it
 	Nonce                      string // the upstream's DPoP-Nonce, or empty
 }
 
@@ -86,9 +86,9 @@ var tokenPattern = regexp.MustCompile(`^[A-Za-z0-9._~+/-]+=*$`)
 // ExpiryMargin of the answer; ErrUnavailable when a dependency failed. The
 // request must already be authorized: nothing here decides who may ask.
 func (s *Service) Substitute(ctx context.Context, req Request) (Result, error) {
-	origin, path, err := caller.Target(req.TargetURI)
+	origin, path, err := meshcaller.Target(req.TargetURI)
 	if err != nil {
-		return Result{}, caller.ErrRouteDenied
+		return Result{}, meshcaller.ErrRouteDenied
 	}
 	tok, err := s.lookup(ctx, s.DB, req)
 	if errors.Is(err, pgx.ErrNoRows) {
