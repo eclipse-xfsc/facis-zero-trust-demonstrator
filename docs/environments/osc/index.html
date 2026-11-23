@@ -592,6 +592,17 @@ start.</p>
 <p><strong>Verify:</strong> deploy an unsigned image and confirm it is refused, and that the refusal names the
 reason code rather than a generic admission error. A cluster where that image starts is not
 configured.</p>
+<p>The policy catalogue is then handed to the zone's Argo CD, which keeps it equal to Git from there on
+(<a href="../../deployment/argocd/README.md">deployment/argocd</a>). The two OSC clusters are Gardener shoots
+with Cilium, so the installer gets the Cilium lane to the API server and the namespace label that
+keeps the platform's API proxy out of it:</p>
+<pre><code class="language-bash">BIN=&lt;dir&gt; TRUST_REPOSITORY=&lt;the zone's trusted repository prefix&gt; CILIUM=1 \
+NAMESPACE_LABELS=apiserver-proxy.networking.gardener.cloud/inject=disable \
+scripts/argocd/install.sh
+</code></pre>
+<p><strong>Verify:</strong> the installer ends with every Application <code>Synced/Healthy</code> and one <code>argocd_app_info</code>
+series with <code>sync_status="Synced"</code> per Application; <code>scripts/argocd/drift-check.sh</code> then reports
+the seconds until a hand-edited constraint is put back.</p>
 <h2 id="6-the-demonstrator-workloads">6. The demonstrator workloads<a class="headerlink" href="#6-the-demonstrator-workloads" title="Permanent link">&para;</a></h2>
 <p>The demonstrator services install into the data plane as regular resources; the jobs they bring
 sit in the <code>workloads</code> band of the hook-weight scheme. A workload cannot become READY before its

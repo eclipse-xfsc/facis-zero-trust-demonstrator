@@ -164,6 +164,8 @@
     </li>
     <li class="toctree-l2"><a class="reference internal" href="#chart-gate">Chart gate</a>
     </li>
+    <li class="toctree-l2"><a class="reference internal" href="#admission-reconciler">Admission reconciler</a>
+    </li>
     <li class="toctree-l2"><a class="reference internal" href="#image-signing">Image signing</a>
     </li>
     <li class="toctree-l2"><a class="reference internal" href="#release-sbom">Release SBOM</a>
@@ -316,7 +318,7 @@ and is declared as such in <a href="../specifications/#readings-and-additions">S
 <tr>
 <td><code>.github/workflows/ci.yml</code></td>
 <td>every pull request, push to <code>main</code>, published release, manual</td>
-<td>Go lint and tests, image build with the Linux assertion and a Trivy scan, chart lint and dry-run render; on a published release, the chart gate once more and the chart packaging and publication (see <a href="#chart-release">Chart release</a>)</td>
+<td>Go lint and tests, image build with the Linux assertion and a Trivy scan, chart lint and dry-run render, the admission catalogue and the admission reconciler each on a kind cluster (see <a href="#admission-reconciler">Admission reconciler</a>); on a published release, the chart gate once more and the chart packaging and publication (see <a href="#chart-release">Chart release</a>)</td>
 </tr>
 <tr>
 <td><code>.github/workflows/release.yml</code></td>
@@ -444,7 +446,8 @@ propose in <code>eclipse-xfsc/dev-ops</code>.</p>
 <h2 id="chart-gate">Chart gate<a class="headerlink" href="#chart-gate" title="Permanent link">&para;</a></h2>
 <p>No release candidate is built unless every chart passes (TDR-BDD-11). The <code>chart-gate</code> job of
 <code>release.yml</code> creates a disposable kind cluster, installs the CRDs the charts render against (Cilium's
-network policies and Gatekeeper's external-data <code>Provider</code>, pinned in <code>scripts/tools/pins.env</code>), and
+network policies, Gatekeeper's external-data <code>Provider</code> and Argo CD's <code>Application</code> and <code>AppProject</code>,
+each from a chart or manifest pinned in <code>scripts/tools/pins.env</code>), and
 runs the row in cluster mode: <code>scripts/ci/check-charts.sh --server-dry-run</code> lints, renders and
 dry-runs every chart against that API server, and two deliberately broken charts under
 <code>features/fixtures/broken-charts/</code> must be refused by the check each targets — one by <code>helm lint</code>,
@@ -461,6 +464,19 @@ as in the pull-request job, the script records the server dry-run as not run, ne
 <p>The gate and the secrets baseline (TDR-BDD-08) run on a disposable cluster in <code>release.yml</code>, which
 decides both rows with a sheet of its own; the pull-request sheet and the client-target sheets list
 them as not run.</p>
+<h2 id="admission-reconciler">Admission reconciler<a class="headerlink" href="#admission-reconciler" title="Permanent link">&para;</a></h2>
+<p>The <code>admission-gitops</code> job proves the path from Git to the cluster that
+<a href="../deployment/argocd/README.md">deployment/argocd</a> builds: a kind cluster with Gatekeeper and the
+pinned Argo CD, handed the admission policy of the revision under test by <code>scripts/argocd/install.sh</code>,
+fetched from the repository the revision came from (the pull request's head repository and commit, or
+the pushed commit). The job checks out that same commit, not the merge commit, so the catalogue the
+cluster converged to can be compared file by file with the checkout. It then proves what the zones
+rely on: every Application <code>Synced/Healthy</code>, the zone's repository prefix patched into the
+allowed-repositories constraint, a hand-edited constraint put back (<code>scripts/argocd/drift-check.sh</code>),
+a hand-edited child Application put back by its parent, and one <code>argocd_app_info</code> series with
+<code>sync_status="Synced"</code> per Application in the controller's metrics. What it cannot prove on a
+disposable cluster is a change <em>merged</em> after the install reaching the cluster: that is the same
+reconciliation the self-heal exercises, and it is observed on the zones after a merge.</p>
 <h2 id="image-signing">Image signing<a class="headerlink" href="#image-signing" title="Permanent link">&para;</a></h2>
 <p>The candidate job of <code>release.yml</code> builds every image under <code>deployment/docker/</code> for <code>linux/amd64</code>,
 labels it <code>eu.facis.ztd.signing-key=interim</code> and pushes it to <code>ghcr.io/&lt;owner&gt;/&lt;repository&gt;/&lt;name&gt;</code>.

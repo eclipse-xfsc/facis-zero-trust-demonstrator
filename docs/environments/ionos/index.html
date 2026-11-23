@@ -414,8 +414,8 @@ removed while the provider cache is warm denies the next admission once every re
 the change; break-glass (the webhook removed, then restored by <code>install.sh</code>); and the admission
 latency from Gatekeeper's own request histogram (p99 below 1.5 s).</p>
 <p><strong>Break-glass:</strong> <code>kubectl delete validatingwebhookconfiguration gatekeeper-validating-webhook-configuration</code>,
-then <code>helm uninstall gatekeeper -n gatekeeper-system</code>. <strong>Teardown:</strong> <code>kubectl delete -f
-deployment/admission/constraints/ -f deployment/admission/templates/</code>, then <code>helm uninstall
+then <code>helm uninstall gatekeeper -n gatekeeper-system</code>. <strong>Teardown:</strong> <code>kubectl delete -k
+deployment/admission/constraints</code>, then <code>kubectl delete -f deployment/admission/templates/</code>, then <code>helm uninstall
 admission-pool admission gatekeeper -n gatekeeper-system</code>.</p>
 <h2 id="planned-runner-registry-access-and-visualization">Planned: runner, registry access and visualization<a class="headerlink" href="#planned-runner-registry-access-and-visualization" title="Permanent link">&para;</a></h2>
 <p>Not installed on this cluster yet. Each gets its stage and its check when it is.</p>

@@ -62,6 +62,8 @@
     </li>
     <li class="toctree-l2"><a class="reference internal" href="#installing-a-zone">Installing a zone</a>
         <ul>
+    <li class="toctree-l3"><a class="reference internal" href="#admission-policy-from-git">Admission policy from Git</a>
+    </li>
     <li class="toctree-l3"><a class="reference internal" href="#through-the-orce-workflow">Through the ORCE workflow</a>
     </li>
         </ul>
@@ -334,6 +336,18 @@ from what the cluster baseline recorded; the charts have no defaults for it. The
 hook-weight scheme and the evidence are in <a href="../umbrella-chart/">Umbrella chart</a> and
 <a href="../workload-identity/">Workload identity</a>, and chart values are documented with each chart under
 <code>deployment/helm/</code>.</p>
+<h3 id="admission-policy-from-git">Admission policy from Git<a class="headerlink" href="#admission-policy-from-git" title="Permanent link">&para;</a></h3>
+<p>Gatekeeper, the provider and the policy catalogue install with <code>scripts/admission/install.sh</code>
+(<a href="../deployment/admission/README.md">deployment/admission</a>). From then on the catalogue is kept equal
+to Git by an Argo CD in the zone, installed after it:</p>
+<pre><code class="language-bash">BIN=&lt;dir with the Argo CD chart&gt; TRUST_REPOSITORY=&lt;the zone's trusted repository prefix&gt; CILIUM=1 \
+NAMESPACE_LABELS=apiserver-proxy.networking.gardener.cloud/inject=disable \
+scripts/argocd/install.sh
+</code></pre>
+<p>A change merged to <code>deployment/admission/</code> on the revision the zone follows reaches the cluster on the
+next reconciliation, a constraint edited in the cluster is put back, and the sync status is exported
+as metrics. The layout, the lanes it needs and how it is operated are in
+<a href="../deployment/argocd/README.md">deployment/argocd/README.md</a>.</p>
 <h3 id="through-the-orce-workflow">Through the ORCE workflow<a class="headerlink" href="#through-the-orce-workflow" title="Permanent link">&para;</a></h3>
 <p>The same install, redeploy and uninstall run through ORCE with zero manual steps: a
 <code>POST /lifecycle</code> command (<a href="../api-docs/">IF-08</a>) that the <code>ztd-lifecycle</code> node validates, checks
