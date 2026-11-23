@@ -137,6 +137,8 @@
     </li>
     <li class="toctree-l2"><a class="reference internal" href="#if-01-security-state-feed">IF-01 — security-state feed</a>
     </li>
+    <li class="toctree-l2"><a class="reference internal" href="#if-02-connector-authorization-surface">IF-02 — connector authorization surface</a>
+    </li>
     <li class="toctree-l2"><a class="reference internal" href="#if-03-signed-verification-outcome">IF-03 — signed verification outcome</a>
     </li>
     <li class="toctree-l2"><a class="reference internal" href="#if-04-observability-and-evidence">IF-04 — observability and evidence</a>
@@ -284,8 +286,8 @@ compatible addition; anything else is a v2.</p>
 <tr>
 <td>IF-02</td>
 <td>Connector authorization surface — registration and token issuance</td>
-<td><a href="../contracts/if02-connector.v1.openapi.yaml">connector API</a></td>
-<td>v1</td>
+<td><a href="../contracts/if02-connector.v1.openapi.yaml">connector API</a>, <a href="#if-02-connector-authorization-surface">rules</a></td>
+<td>v1 (1.1)</td>
 </tr>
 <tr>
 <td>IF-03</td>
@@ -496,6 +498,10 @@ registry's codes; the HTTP status stays the connector's:</p>
 <td><code>dpop_invalid_ath</code></td>
 <td><code>TOK-ATH-MISMATCH</code></td>
 </tr>
+<tr>
+<td><code>CRED-OUTCOME-SIGNATURE</code>, <code>CRED-OUTCOME-NOT-VERIFIED</code>, <code>CRED-OUTCOME-MISMATCH</code>, <code>CRED-OUTCOME-EXPIRED</code>, <code>CRED-OUTCOME-CONSUMED</code></td>
+<td>The same code (verified-presentation grant, below)</td>
+</tr>
 </tbody>
 </table>
 <p>IF-08 keeps the <code>errors.action</code> vocabulary it was delivered with (below); it reports the outcome of
@@ -515,6 +521,40 @@ way.</p>
 <li><strong>Content.</strong> A decision or admission event is <code>allowed</code> or <code>denied</code>, and a denial names its
   reason code. Events carry no secrets or tokens; <code>detail</code> is at most 512 characters.</li>
 </ul>
+<h2 id="if-02-connector-authorization-surface">IF-02 — connector authorization surface<a class="headerlink" href="#if-02-connector-authorization-surface" title="Permanent link">&para;</a></h2>
+<p>The connector's token, registration and challenge endpoints
+(<a href="../contracts/if02-connector.v1.openapi.yaml">connector API</a>, v1.1;
+<a href="../oauth2-provider/">Connector OAuth2 provider</a>). Version 1.1 adds, compatibly, the
+verified-presentation grant, which consumes IF-03 outcomes:</p>
+<ul>
+<li><strong>Challenge.</strong> <code>POST /oauth2/challenge</code>, client authentication as at the token endpoint, form
+  <code>audience</code> — exactly one of the client's registered audiences. The client must be registered for
+  the grant. The answer, <code>{"challenge", "expires_in": 120}</code> with <code>Cache-Control: no-store</code>, is a
+  single-use value of at least 128 random bits, bound to that client and audience.</li>
+<li><strong>Grant.</strong> <code>POST /oauth2/token</code> with
+  <code>grant_type=urn:facis:params:oauth:grant-type:verified-presentation</code>, <code>outcome</code> (the IF-03 compact
+  JWS), <code>challenge</code> and a single <code>audience</code>, and a DPoP proof, which this grant always requires. The
+  checks run in this order, each refusing with <code>400 invalid_grant</code> and its code: signature
+  (<code>CRED-OUTCOME-SIGNATURE</code>); status (<code>CRED-OUTCOME-NOT-VERIFIED</code>); the outcome's client, challenge
+  and audience against the authenticated client and the form, and the stored challenge's binding to
+  that client and audience (<code>CRED-OUTCOME-MISMATCH</code>); the outcome's and the challenge's validity
+  (<code>CRED-OUTCOME-EXPIRED</code>); the outcome and the challenge unconsumed (<code>CRED-OUTCOME-CONSUMED</code>). A
+  refusal never repeats the outcome.</li>
+<li><strong>Consumption.</strong> The challenge, the outcome (recorded in <code>verified_outcome</code>) and the issued token
+  (<code>oauth2_token.outcome_id</code>) are written in one transaction, which locks the challenge first and
+  judges validity at an instant taken after the lock is held, and is settled before the response is
+  written. A second use of an outcome or a challenge is <code>CRED-OUTCOME-CONSUMED</code> and is never signed
+  again; of concurrent uses exactly one is issued a token. When the commit's outcome is unknown the
+  answer is <code>500</code> without the token and the consumption stands; the client starts again with a fresh
+  challenge and outcome.</li>
+<li><strong>Scopes.</strong> The outcome's <code>role</code> and <code>entitlement</code> map to scopes by configuration, limited to the
+  client's registered scopes; claims that map to nothing are refused (<code>invalid_scope</code>). Those scopes
+  are never issued through <code>client_credentials</code>. The token is an RFC 9068 JWT with <code>cnf.jkt</code> and the
+  one <code>aud</code>.</li>
+<li><strong>Registration.</strong> A deployment may admit the grant type in dynamic registration. A registrar can
+  grant a client a verified-presentation scope only through a delegation ceiling the server
+  configures for it, since its own token can never carry such a scope.</li>
+</ul>
 <h2 id="if-03-signed-verification-outcome">IF-03 — signed verification outcome<a class="headerlink" href="#if-03-signed-verification-outcome" title="Permanent link">&para;</a></h2>
 <p>The verification service signs the outcome of an OID4VP presentation check; the connector's
 issuance consumes it. The outcome is an object, never a boolean.</p>
@@ -527,7 +567,11 @@ issuance consumes it. The outcome is an object, never a boolean.</p>
   <code>x5c</code> — is refused, so a key or a processing rule is never taken from the token itself.</li>
 <li><strong>Key selection.</strong> The verifier holds a configured set of trusted issuers, each with its keys.
   <code>kid</code> selects one key; the payload's <code>iss</code> must be the issuer that key belongs to. An unknown
-  <code>kid</code>, a key of another issuer, or a signature that does not verify → <code>CRED-OUTCOME-SIGNATURE</code>.</li>
+  <code>kid</code>, a key of another issuer, or a signature that does not verify → <code>CRED-OUTCOME-SIGNATURE</code>.
+  A header or payload that does not follow its schema (an unknown or differently cased member, a
+  <code>null</code> where a value is required, a malformed <code>uri</code> or <code>date-time</code>) is refused with the same code:
+  whoever signed it, it is not an outcome in the agreed form, so nothing in it is used
+  (<code>internal/if03</code>).</li>
 <li><strong>Consumption.</strong> An outcome is consumed only when all hold, otherwise the grant is refused with
   the code named:<ul>
 <li><code>status</code> is <code>verified</code> → else <code>CRED-OUTCOME-NOT-VERIFIED</code>;</li>

@@ -330,8 +330,8 @@ and is declared as such in <a href="../specifications/#readings-and-additions">S
 </tr>
 <tr>
 <td><code>.github/workflows/token-store.yml</code></td>
-<td>pull requests touching the token store, its image, its chart or the pinned images; pushes to <code>main</code>; manual</td>
-<td>Runs the schema migrations, the store's queries and the service's readiness checks against a PostgreSQL from the pinned image, then the chart's lifecycle (install, upgrade, uninstall) and the service's readiness against PostgreSQL and OpenBao on kind; the records are the run's artefact and the verdict goes to the job summary</td>
+<td>pull requests touching the token store, the connector, the Participant, the Protected Resource (their services and their <code>cmd/</code> entry points), the shared <code>internal/</code> packages, the images of the token store, the connector, the Participant and the Protected Resource, the chart or the pinned images; pushes to <code>main</code>; manual</td>
+<td>Runs the whole token path against a PostgreSQL and an OpenBao from the pinned images, once with opaque and once with signed access tokens, and fails on any skipped test: the schema migrations and queries, the store (replay check, acquisition and its recovery, substitution, renewal) with the real connector binary as the peer zone, the connector's conformance suite on the database stores, the shared packages, and the Participant and Protected Resource end to end through the real connector, their <code>cmd/</code> entry points included; then the chart's lifecycle (install, upgrade, uninstall) and the service's readiness against PostgreSQL and OpenBao on kind; the records are the run's artefact and the verdict goes to the job summary</td>
 </tr>
 <tr>
 <td><code>.github/workflows/policy-hook.yml</code></td>

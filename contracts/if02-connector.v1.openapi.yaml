@@ -1,10 +1,12 @@
 openapi: 3.1.0
 info:
   title: FACIS ZTD connector authorization surface (IF-02)
-  version: 1.0.0
+  version: 1.1.0
   description: >-
     Dynamic client registration and DPoP-bound token issuance, served by the zone's connector
-    (architecture decision 0003). Registration is not open: it takes an access token from this token
+    (architecture decision 0003). Version 1.1 adds the verified-presentation grant: a client obtains
+    a single-use challenge from /oauth2/challenge, has a credential presentation verified against
+    it, and exchanges the signed IF-03 outcome for a token at /oauth2/token. Registration is not open: it takes an access token from this token
     endpoint whose audience is the registration endpoint and whose scope includes
     connector:client_registration. Error responses keep the OAuth 2.0 members and add a reason
     member; the mapping of reason values to the reason-code registry is in the API documentation.
@@ -20,9 +22,60 @@ servers:
         default: connector.zone-a.example
         description: The connector's published host name.
 paths:
+  /oauth2/challenge:
+    post:
+      summary: Challenge for the verified-presentation grant
+      description: >-
+        Issues a single-use challenge bound to the authenticated client and to one of its registered
+        audiences, valid for 120 seconds. The client must be registered for the
+        verified-presentation grant. The challenge is consumed by the grant together with the
+        outcome that names it, in one transaction.
+      operationId: challenge
+      security:
+        - clientSecretBasic: []
+      requestBody:
+        required: true
+        content:
+          application/x-www-form-urlencoded:
+            schema:
+              type: object
+              additionalProperties: false
+              required: [audience]
+              properties:
+                audience:
+                  type: string
+                  description: Exactly one audience, among the client's registered audiences.
+      responses:
+        '200':
+          description: Challenge issued.
+          headers:
+            Cache-Control:
+              schema:
+                const: no-store
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: false
+                required: [challenge, expires_in]
+                properties:
+                  challenge:
+                    type: string
+                    pattern: '^[A-Za-z0-9_-]{16,256}$'
+                    description: At least 128 random bits, base64url without padding.
+                  expires_in:
+                    const: 120
+        '400':
+          $ref: '#/components/responses/error'
+        '401':
+          $ref: '#/components/responses/error'
+        '500':
+          $ref: '#/components/responses/error'
   /oauth2/token:
     post:
-      summary: Client credentials grant, DPoP-bound (RFC 6749 section 4.4, RFC 9449)
+      summary: >-
+        Client credentials grant and verified-presentation grant, DPoP-bound (RFC 6749 section 4.4,
+        RFC 9449)
       operationId: token
       security:
         - clientSecretBasic: []
@@ -32,7 +85,8 @@ paths:
           required: false
           description: >-
             A DPoP proof for this request. Required from a client registered with
-            dpop_bound_access_tokens, and from every client when the deployment enforces DPoP.
+            dpop_bound_access_tokens, from every client when the deployment enforces DPoP, and for
+            the verified-presentation grant always.
           schema:
             type: string
       requestBody:
@@ -40,21 +94,14 @@ paths:
         content:
           application/x-www-form-urlencoded:
             schema:
-              type: object
-              additionalProperties: false
-              required: [grant_type]
-              properties:
-                grant_type:
-                  const: client_credentials
-                scope:
-                  type: string
-                  description: Space-separated scopes, within the client's registered scopes.
-                audience:
-                  type: string
-                  description: Space-separated audiences, within the client's registered audiences.
+              oneOf:
+                - $ref: '#/components/schemas/clientCredentialsForm'
+                - $ref: '#/components/schemas/verifiedPresentationForm'
       responses:
         '200':
-          description: Token issued. token_type is DPoP when a proof was presented.
+          description: >-
+            Token issued. token_type is DPoP when a proof was presented, which the
+            verified-presentation grant requires.
           headers:
             Cache-Control:
               schema:
@@ -149,6 +196,39 @@ components:
         The same kind of token, bound to a key (RFC 9449), presented with a DPoP proof. A bound
         token presented under the Bearer scheme is refused.
   schemas:
+    clientCredentialsForm:
+      type: object
+      additionalProperties: false
+      required: [grant_type]
+      properties:
+        grant_type:
+          const: client_credentials
+        scope:
+          type: string
+          description: >-
+            Space-separated scopes, within the client's registered scopes. A scope the
+            verified-presentation grant issues is refused here.
+        audience:
+          type: string
+          description: Space-separated audiences, within the client's registered audiences.
+    verifiedPresentationForm:
+      type: object
+      additionalProperties: false
+      required: [grant_type, outcome, challenge, audience]
+      properties:
+        grant_type:
+          const: urn:facis:params:oauth:grant-type:verified-presentation
+        outcome:
+          type: string
+          description: >-
+            The signed IF-03 verification outcome, a compact JWS. Its client_id, challenge and
+            audience must equal the authenticated client, the challenge and the audience below.
+        challenge:
+          type: string
+          description: A challenge from /oauth2/challenge, issued to this client for this audience.
+        audience:
+          type: string
+          description: Exactly one audience, the one the challenge was issued for.
     clientMetadata:
       type: object
       properties:
@@ -157,14 +237,19 @@ components:
         grant_types:
           type: array
           items:
-            const: client_credentials
+            enum:
+              - client_credentials
+              - urn:facis:params:oauth:grant-type:verified-presentation
+          description: >-
+            Within the grant types the deployment offers for registration.
         token_endpoint_auth_method:
           const: client_secret_basic
         scope:
           type: string
           description: >-
-            Space-separated; within the registration token's scopes, and never
-            connector:client_registration itself.
+            Space-separated; within the registration token's scopes or the delegation ceiling the
+            server configures for the registrar (how a verified-presentation scope is registered,
+            since no token carries one), and never connector:client_registration itself.
         dpop_bound_access_tokens:
           type: boolean
     error:
@@ -189,11 +274,19 @@ components:
             - dpop_use_nonce
             - dpop_jkt_mismatch
             - dpop_invalid_ath
+            - CRED-OUTCOME-SIGNATURE
+            - CRED-OUTCOME-NOT-VERIFIED
+            - CRED-OUTCOME-MISMATCH
+            - CRED-OUTCOME-EXPIRED
+            - CRED-OUTCOME-CONSUMED
   responses:
     error:
       description: >-
         Refused, with the OAuth 2.0 status. Token endpoint - 400 for invalid_request and every
-        dpop_* reason, 401 for invalid_client, 500 for server_error. Registration endpoint (a
+        dpop_* reason, 401 for invalid_client, 500 for server_error; the verified-presentation
+        grant answers 400 invalid_grant with the reason of the failed outcome check, in the
+        order signature, status, mismatch, interval, consumption, and never echoes the outcome.
+        Challenge endpoint - as the token endpoint. Registration endpoint (a
         protected resource) - 400 for invalid_request and registration_rejected, 401 with a
         WWW-Authenticate challenge for invalid_token and every dpop_* reason, 403 for
         insufficient_scope, 500 for server_error. With reason dpop_use_nonce

@@ -97,6 +97,24 @@
     </li>
         </ul>
     </li>
+    <li class="toctree-l2"><a class="reference internal" href="#modes">Modes</a>
+        <ul>
+    <li class="toctree-l3"><a class="reference internal" href="#token-mode">Token mode</a>
+    </li>
+    <li class="toctree-l3"><a class="reference internal" href="#scope-table">Scope table</a>
+    </li>
+    <li class="toctree-l3"><a class="reference internal" href="#participant-token-adapter">Participant token adapter</a>
+    </li>
+    <li class="toctree-l3"><a class="reference internal" href="#participant-lifecycle-and-get-state">Participant lifecycle and GET /state</a>
+    </li>
+    <li class="toctree-l3"><a class="reference internal" href="#post-reset">POST /reset</a>
+    </li>
+    <li class="toctree-l3"><a class="reference internal" href="#seed-data">Seed data</a>
+    </li>
+    <li class="toctree-l3"><a class="reference internal" href="#deterministic-runs">Deterministic runs</a>
+    </li>
+        </ul>
+    </li>
     <li class="toctree-l2"><a class="reference internal" href="#how-the-services-communicate">How the services communicate</a>
     </li>
     <li class="toctree-l2"><a class="reference internal" href="#local-source-smoke-check">Local source smoke check</a>
@@ -250,9 +268,10 @@
             <div class="section" itemprop="articleBody">
               
                 <h1 id="participant-and-protected-resource-services">Participant and Protected Resource services<a class="headerlink" href="#participant-and-protected-resource-services" title="Permanent link">&para;</a></h1>
-<p>Two Go sample services for application deployment and HTTP integration. It does not implement the Connector/guard authorization path, Keycloak login, workload identity, attestation or real API replacement. A sample <code>denied</code> result is deliberately selected test data, not a security decision. The responses remain marked <code>source: sample</code> and <code>mode: sample</code>; health reports <code>liveMode: unavailable</code>.</p>
+<p>Two Go sample services for application deployment and HTTP integration. They do not implement the guard, Keycloak login, workload identity, attestation or real API replacement. A sample <code>denied</code> result is deliberately selected test data, not a security decision. In sample mode the responses are marked <code>source: sample</code> and <code>mode: sample</code>; health reports <code>liveMode: unavailable</code>.</p>
+<p>Both services also have a token mode (see <a href="#modes">Modes</a> and <a href="#token-mode">Token mode</a>): the Participant obtains a DPoP-bound access token from the Connector through the verified-presentation grant and calls the Resource with it and a fresh proof per call; the Resource verifies both with <code>internal/tokenverify</code> and answers by the token's scope. <code>PARTICIPANT_ADAPTER_MODE=token</code> and <code>PROTECTED_RESOURCE_MODE=token</code> select it; without them both binaries run in sample mode exactly as before.</p>
 <h2 id="source-and-build">Source and build<a class="headerlink" href="#source-and-build" title="Permanent link">&para;</a></h2>
-<p>Use the repository root as the build context and retain its <code>go.mod</code> and <code>go.sum</code>. The services use the standard library only and add no module dependencies.</p>
+<p>Use the repository root as the build context and retain its <code>go.mod</code> and <code>go.sum</code>. The services use the standard library and the repository's <code>internal/</code> packages (token path: <code>connectorclient</code>, <code>dpopproof</code>, <code>if03</code>, <code>jose</code>, <code>replay</code>, <code>tokenverify</code>) and add no module dependencies; both images therefore copy <code>internal/</code>.</p>
 <table>
 <thead>
 <tr>
@@ -269,14 +288,14 @@
 <td><code>cmd/participant</code></td>
 <td><code>services/participant</code></td>
 <td>8085</td>
-<td><code>GET /health</code>, <code>POST /demo</code></td>
+<td><code>GET /health</code>, <code>POST /demo</code>, <code>GET /state</code>, <code>POST /reset</code></td>
 </tr>
 <tr>
 <td>Protected Resource</td>
 <td><code>cmd/protected-resource</code></td>
 <td><code>services/protectedresource</code></td>
 <td>8086</td>
-<td><code>GET /health</code>, <code>POST /demo</code></td>
+<td><code>GET /health</code>, <code>POST /demo</code>, <code>POST /reset</code></td>
 </tr>
 </tbody>
 </table>
@@ -318,17 +337,52 @@ docker build --platform linux/amd64 -f deployment/docker/protected-resource/Dock
 <tr>
 <td><code>PARTICIPANT_ADAPTER_MODE</code></td>
 <td><code>sample</code></td>
-<td><code>sample</code> handles the result internally. <code>http-sample</code> calls Protected Resource over HTTP(S).</td>
+<td><code>sample</code> handles the result internally. <code>http-sample</code> calls Protected Resource over HTTP(S). <code>token</code> selects <a href="#token-mode">token mode</a>.</td>
 </tr>
 <tr>
 <td><code>PARTICIPANT_RESOURCE_URL</code></td>
 <td>Empty</td>
-<td>Required for <code>http-sample</code>; base URL without <code>/demo</code>, credentials, query or fragment. The adapter appends <code>/demo</code>.</td>
+<td>Required for <code>http-sample</code> and <code>token</code>; base URL without <code>/demo</code>, credentials, query or fragment. The adapter appends <code>/demo</code>. In token mode it must be the Resource's public base URL, since the proof's <code>htu</code> is built from it.</td>
 </tr>
 <tr>
 <td><code>PARTICIPANT_LOG_LEVEL</code></td>
 <td><code>info</code></td>
 <td><code>debug</code>, <code>info</code>, <code>warn</code> or <code>error</code>.</td>
+</tr>
+</tbody>
+</table>
+<p>Token mode only; each is required there except the entitlement, and none is read otherwise:</p>
+<table>
+<thead>
+<tr>
+<th>Variable</th>
+<th>Meaning</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>PARTICIPANT_CONNECTOR_URL</code></td>
+<td>The Connector's base URL; <code>/oauth2/challenge</code> and <code>/oauth2/token</code> are called below it.</td>
+</tr>
+<tr>
+<td><code>PARTICIPANT_CREDENTIALS_FILE</code></td>
+<td>Mounted file with the provisioned client: one JSON object with exactly the members <code>client_id</code> and <code>client_secret</code> (case-sensitive), both non-empty strings, no duplicate member and nothing after the object; read at every bootstrap run, never logged.</td>
+</tr>
+<tr>
+<td><code>PARTICIPANT_AUDIENCE</code></td>
+<td>The audience the token is requested for: the guard's <code>inbound_audience</code> for the guarded path, registered for the Participant client. It differs from the Resource's <code>PROTECTED_RESOURCE_AUDIENCE</code>, which equals the guard's <code>upstream_audience</code>.</td>
+</tr>
+<tr>
+<td><code>PARTICIPANT_OUTCOME_ISSUER</code>, <code>PARTICIPANT_OUTCOME_KID</code></td>
+<td><code>iss</code> and <code>kid</code> of the fixture IF-03 outcomes; the Connector's trusted-issuers file must hold this issuer and key id.</td>
+</tr>
+<tr>
+<td><code>PARTICIPANT_OUTCOME_KEY_FILE</code></td>
+<td>PEM P-256 private key (<code>EC PRIVATE KEY</code> or <code>PRIVATE KEY</code>) the fixture signs outcomes with; read at start.</td>
+</tr>
+<tr>
+<td><code>PARTICIPANT_OUTCOME_ROLE</code>, <code>PARTICIPANT_OUTCOME_ENTITLEMENT</code></td>
+<td>The outcome's claims; the Connector's scope map turns them into the token's scopes. The entitlement is optional.</td>
 </tr>
 </tbody>
 </table>
@@ -361,7 +415,7 @@ docker build --platform linux/amd64 -f deployment/docker/protected-resource/Dock
 <tr>
 <td><code>PROTECTED_RESOURCE_MODE</code></td>
 <td><code>sample</code></td>
-<td>Only <code>sample</code> is supported.</td>
+<td><code>sample</code>, or <code>token</code> for <a href="#token-mode">token mode</a>.</td>
 </tr>
 <tr>
 <td><code>PROTECTED_RESOURCE_ADAPTER_MODE</code></td>
@@ -375,7 +429,239 @@ docker build --platform linux/amd64 -f deployment/docker/protected-resource/Dock
 </tr>
 </tbody>
 </table>
-<p>The current sample services require no application secrets, database, persistent volume or Keycloak client secret. Registry credentials and ingress TLS secrets belong to deployment configuration; secret values must not enter this repository. The applications serve plain HTTP; HTTPS routes require the approved ingress configuration. Do not disable certificate verification for outbound HTTPS calls.</p>
+<p>Token mode only, all required there:</p>
+<table>
+<thead>
+<tr>
+<th>Variable</th>
+<th>Meaning</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>PROTECTED_RESOURCE_TOKEN_ISSUER</code></td>
+<td>Required <code>iss</code> of the access tokens: the Connector's <code>--issuer</code>.</td>
+</tr>
+<tr>
+<td><code>PROTECTED_RESOURCE_JWKS_URL</code></td>
+<td>The Connector's key set, <code>&lt;connector&gt;/.well-known/jwks.json</code>; the only place keys come from.</td>
+</tr>
+<tr>
+<td><code>PROTECTED_RESOURCE_AUDIENCE</code></td>
+<td>The audience a token must carry.</td>
+</tr>
+<tr>
+<td><code>PROTECTED_RESOURCE_PUBLIC_BASE_URL</code></td>
+<td>The Resource's base URL as callers reach it; a proof's <code>htu</code> must be this plus the request path. <code>Host</code> and forwarded headers are ignored.</td>
+</tr>
+</tbody>
+</table>
+<p>In sample mode the services require no application secrets, database, persistent volume or Keycloak client secret. In token mode the Participant needs two mounted secrets, the client credentials file and the outcome signer's key; the Resource needs none. Registry credentials and ingress TLS secrets belong to deployment configuration; secret values must not enter this repository. The applications serve plain HTTP; HTTPS routes require the approved ingress configuration. Do not disable certificate verification for outbound HTTPS calls.</p>
+<h2 id="modes">Modes<a class="headerlink" href="#modes" title="Permanent link">&para;</a></h2>
+<p>Each service has two modes. The package derives the mode from <code>Config</code> (a verifier or a bootstrapper set), and is reported as <code>mode</code> in <code>/health</code>, in every <code>/demo</code> response and, for the Participant, in <code>/state</code>.</p>
+<table>
+<thead>
+<tr>
+<th>Service</th>
+<th><code>sample</code> (default)</th>
+<th><code>token</code></th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Protected Resource</td>
+<td>No <code>Config.Verifier</code>. <code>/demo</code> is unauthenticated and the <code>scenario</code> field selects the result, as described below.</td>
+<td><code>Config.Verifier</code> (a <code>tokenverify.RequestVerifier</code>) is set. <code>/demo</code> runs behind its <code>Middleware</code>; the response is chosen by the caller's token scopes (<a href="#scope-table">scope table</a>). A <code>scenario</code> field that is non-empty after trimming whitespace is rejected; an empty or whitespace-only one counts as absent.</td>
+</tr>
+<tr>
+<td>Participant</td>
+<td>No <code>Config.Bootstrapper</code>. The <code>sample</code> or <code>http-sample</code> adapter (or one injected through <code>NewServerWithAdapter</code>) is used, as before.</td>
+<td><code>Config.Bootstrapper</code> is set. The lifecycle runs it at start and the request adapter calls the Resource with credentials from the resulting <code>TokenSession</code>. An adapter injected through <code>NewServerWithAdapter</code> is ignored in this mode.</td>
+</tr>
+</tbody>
+</table>
+<p><code>LoadConfig</code> sets them only when the mode variable says <code>token</code>: the Participant's to a <code>ConnectorBootstrap</code>, the Resource's to a <code>tokenverify.Verifier</code>. Without it both binaries start in sample mode with the existing settings and no new required variable. A token-mode setting that is missing or invalid stops the process at start; it never falls back to sample mode.</p>
+<h3 id="token-mode">Token mode<a class="headerlink" href="#token-mode" title="Permanent link">&para;</a></h3>
+<p><strong>Participant.</strong> <code>ConnectorBootstrap</code> (<code>services/participant/connector.go</code>) is the <code>Bootstrapper</code> (design D12). Its DPoP key is a P-256 key generated in the process when it starts: a Participant is a workload, not the token store, so it has no transit key, and the key never leaves the process or survives a restart. The client is provisioned (its credentials come from the mounted file), so the <code>registering</code> step is skipped and a run starts at <code>presenting</code>:</p>
+<ol>
+<li><code>presenting</code> / <code>step_started</code>; read the credentials file.</li>
+<li><code>POST /oauth2/challenge</code> with <code>client_secret_basic</code> and the audience.</li>
+<li>The fixture <code>OutcomeSource</code> (<code>internal/if03/if03fixture</code>) signs an IF-03 outcome for that challenge.</li>
+<li><code>acquiring_token</code> / <code>step_started</code>; the grant with a proof of the Participant's key, retried once with the Connector's nonce (<code>internal/connectorclient</code>, shared with the token store).</li>
+<li>The token must be <code>token_type</code> DPoP, <code>cnf.jkt</code> the Participant key's thumbprint, <code>aud</code> the audience, <code>exp</code> in the future; then <code>ready</code> / <code>step_completed</code>.</li>
+</ol>
+<table>
+<thead>
+<tr>
+<th>Failure</th>
+<th>State / reason</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Credentials file missing or malformed</td>
+<td><code>failed_registration</code> / <code>bootstrap_error</code></td>
+</tr>
+<tr>
+<td>Connector answers 401 (client unknown or secret wrong)</td>
+<td><code>failed_registration</code> / <code>registration_rejected</code></td>
+</tr>
+<tr>
+<td>No answer, 5xx, or the grant's answer lost</td>
+<td><code>failed_connector_unreachable</code> / <code>connector_unreachable</code> (retried by the lifecycle, bounded, with backoff; each retry starts again with a fresh challenge and outcome)</td>
+</tr>
+<tr>
+<td>Challenge refused or malformed; outcome source failed</td>
+<td><code>failed_presentation</code> / <code>presentation_rejected</code> or <code>upstream_error</code></td>
+</tr>
+<tr>
+<td>Grant refused with a <code>CRED-OUTCOME-*</code> code</td>
+<td><code>failed_presentation</code> / <code>presentation_rejected</code></td>
+</tr>
+<tr>
+<td>Nonce demanded again after the one retry</td>
+<td><code>failed_token</code> / <code>nonce_retry_exhausted</code></td>
+</tr>
+<tr>
+<td>Grant refused otherwise; the token fails a check</td>
+<td><code>failed_token</code> / <code>token_rejected</code></td>
+</tr>
+</tbody>
+</table>
+<p><code>TokenSession.Authorize</code> returns <code>DPoP &lt;token&gt;</code> and a fresh proof per call (<code>htm</code>, <code>htu</code>, <code>ath</code> of the token, a new <code>jti</code>). Once three quarters of the token's lifetime have passed, the next <code>Authorize</code> runs the grant again (challenge, outcome, grant, checks) before answering; one lock covers every grant, so concurrent calls wait for one renewal and never start two. If the renewal fails, the current token is used until it expires and the grant is tried again at most every 5 s, counted from the end of the failed attempt; expiry is judged by the clock after the attempt and again just before <code>Authorize</code> returns, so an expired token is never handed out. Past expiry <code>Authorize</code> fails and <code>/demo</code> answers <code>TOKEN_AUTHORIZE_FAILED</code>. A renewal failure does not change <code>/state</code>.</p>
+<p><strong>Protected Resource.</strong> The verifier requires no scope itself; the <a href="#scope-table">scope table</a> decides, so a token with neither scope is answered 403 <code>RESOURCE_SCOPE_INSUFFICIENT</code>. Its replay record is its own, in memory (<code>replay.Memory</code>), not the zone's shared <code>proof_jti</code> table: a proof names this Resource in <code>htu</code>, so only this Resource can be presented with it and nothing else needs to see the record, and the Resource needs no database. A restart empties the record, which re-opens at most one proof window (120 s: lifespan plus twice the skew) for proofs captured before it; replicas do not share it, so run one replica, or give replicas the shared Postgres record instead.</p>
+<p><strong>What the demo needs.</strong> A Connector with the verified-presentation grant on: its trusted-issuers file holds the fixture issuer's public key under <code>PARTICIPANT_OUTCOME_KID</code>, its scope map maps the outcome's role (and entitlement) to <code>report:read</code> or <code>report:summary</code>, and the Participant registrar may delegate those scopes and name the guard's inbound audience. A separate store client and registrar name only the Resource's upstream audience. For the direct two-service example, the Participant instead names the Resource's audience. The Participant's client is registered through the registrar's DCR for the grant, DPoP-bound, with that scope and audience, and its credentials are mounted as the credentials file. The Resource points at the Connector's issuer and key set. Two Participants with different roles show the two answers of the scope table.</p>
+<p>The end-to-end test <code>services/participant/tokenpath_test.go</code> does exactly this against the real <code>connector</code> binary (<code>internal/connectortest</code>), PostgreSQL and OpenBao, and skips without <code>TOKEN_STORE_TEST_DATABASE_URL</code>, <code>TRANSIT_TEST_ADDR</code> and <code>TRANSIT_TEST_TOKEN</code>. It drives <code>/demo</code> on two Participants and checks the <code>/state</code> path, the answer per scope, the identity in the Resource's log, the refusal of a request without a proof, with a replayed proof and with a token for another audience, and that no token, proof or secret reaches a log or a body.</p>
+<h3 id="scope-table">Scope table<a class="headerlink" href="#scope-table" title="Permanent link">&para;</a></h3>
+<p>In token mode the Protected Resource answers <code>POST /demo</code> for <code>sample-report</code> / <code>read</code> as follows. The verifier has already accepted the token and its DPoP proof; refusals by the verifier (401, 403, 503 with <code>WWW-Authenticate</code>) never reach this table.</p>
+<table>
+<thead>
+<tr>
+<th>Token scopes</th>
+<th>HTTP</th>
+<th>Outcome</th>
+<th>Reason</th>
+<th><code>safeData</code></th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>includes <code>report:read</code></td>
+<td>200</td>
+<td><code>success</code></td>
+<td><code>RESOURCE_REPORT_RETURNED</code></td>
+<td><code>{resource, action, report: {id, title, content}}</code></td>
+</tr>
+<tr>
+<td>includes <code>report:summary</code>, not <code>report:read</code></td>
+<td>200</td>
+<td><code>success</code></td>
+<td><code>RESOURCE_SUMMARY_RETURNED</code></td>
+<td><code>{resource, action, summary: {id, title, summary}}</code></td>
+</tr>
+<tr>
+<td>neither</td>
+<td>403</td>
+<td><code>denied</code></td>
+<td><code>RESOURCE_SCOPE_INSUFFICIENT</code></td>
+<td><code>{}</code></td>
+</tr>
+</tbody>
+</table>
+<p>Other token-mode answers: an uncatalogued resource or action is 404 <code>SAMPLE_RESOURCE_NOT_FOUND</code>; a <code>scenario</code> field that is non-empty after trimming is 400 <code>RESOURCE_SCENARIO_NOT_ALLOWED</code>. Every log line for a token-mode request that reached the verified handler (passed the verifier) carries <code>client_id</code>, <code>sub</code> and <code>jkt</code> from the verified identity. A request the verifier refused is logged as <code>protected resource request refused</code> with its HTTP status and IDs only. Neither service logs or returns a token, a DPoP proof, a token ID or any request header.</p>
+<h3 id="participant-token-adapter">Participant token adapter<a class="headerlink" href="#participant-token-adapter" title="Permanent link">&para;</a></h3>
+<p>For each <code>/demo</code> call in token mode the adapter calls <code>TokenSession.Authorize(ctx, "POST", &lt;resource&gt;/demo)</code> and sends the returned <code>Authorization</code> and <code>DPoP</code> headers. Nothing is cached: every call gets a fresh pair. The <code>scenario</code> field is not forwarded. The Resource answer maps as follows:</p>
+<table>
+<thead>
+<tr>
+<th>Situation</th>
+<th>Participant HTTP</th>
+<th>Outcome</th>
+<th>Reason</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Lifecycle not <code>ready</code> (no session)</td>
+<td>503</td>
+<td><code>unavailable</code></td>
+<td><code>TOKEN_SESSION_NOT_READY</code></td>
+</tr>
+<tr>
+<td><code>Authorize</code> fails (the error text is discarded)</td>
+<td>502</td>
+<td><code>error</code></td>
+<td><code>TOKEN_AUTHORIZE_FAILED</code></td>
+</tr>
+<tr>
+<td>Resource 401</td>
+<td>403</td>
+<td><code>denied</code></td>
+<td><code>TOKEN_REJECTED</code></td>
+</tr>
+<tr>
+<td>Resource 403</td>
+<td>403</td>
+<td><code>denied</code></td>
+<td><code>TOKEN_FORBIDDEN</code></td>
+</tr>
+<tr>
+<td>Resource 503</td>
+<td>503</td>
+<td><code>unavailable</code></td>
+<td><code>TOKEN_RESOURCE_UNAVAILABLE</code></td>
+</tr>
+<tr>
+<td>Resource answer repeats a JSON member name in any object, at any depth (compared after unescaping)</td>
+<td>502</td>
+<td><code>error</code></td>
+<td><code>TOKEN_RESOURCE_DUPLICATE_MEMBER</code></td>
+</tr>
+<tr>
+<td>Resource answer contains this request's <code>Authorization</code> value, bare token or DPoP proof, or a standard or URL-safe base64 encoding of one (raw, in any decoded JSON string, or in the result about to be returned)</td>
+<td>502</td>
+<td><code>error</code></td>
+<td><code>TOKEN_CREDENTIAL_ECHOED</code></td>
+</tr>
+<tr>
+<td>Resource answer is not valid against the token-mode contract, including the strict success shape below</td>
+<td>502</td>
+<td><code>error</code></td>
+<td><code>TOKEN_RESOURCE_INVALID</code></td>
+</tr>
+<tr>
+<td>Resource 200</td>
+<td>200</td>
+<td><code>success</code></td>
+<td>the Resource's scope-table reason</td>
+</tr>
+<tr>
+<td>Other documented Resource answers</td>
+<td>as for <code>http-sample</code></td>
+<td>as for <code>http-sample</code></td>
+<td>the Resource's reason</td>
+</tr>
+</tbody>
+</table>
+<p>Token-mode success data must have the documented shape exactly: <code>resource</code>, <code>action</code> and either <code>report</code> (<code>id</code>, <code>title</code>, <code>content</code>) or <code>summary</code> (<code>id</code>, <code>title</code>, <code>summary</code>), with no other key. <code>id</code> is at most 64 bytes of <code>A-Z</code>, <code>0-9</code> and <code>-</code>; <code>title</code> is at most 128 bytes and the text at most 512; no whitespace-separated word may be longer than 32 bytes. This refuses an encoded credential carried whole in a free-form field. A credential split into short fragments is not detected; the bounds only limit how much can be carried. The credential checks run on the body before decoding and again on the result as it will be returned.</p>
+<p>The bodies of 401, 403 and 503 answers are not read into the result. For every other answer the Resource's <code>explanation</code> is replaced by a fixed local text, so no upstream text is forwarded in token mode.</p>
+<h3 id="participant-lifecycle-and-get-state">Participant lifecycle and <code>GET /state</code><a class="headerlink" href="#participant-lifecycle-and-get-state" title="Permanent link">&para;</a></h3>
+<p>In token mode <code>Start</code> runs the injected <code>Bootstrapper</code> in the background. Every state transition is recorded with a timestamp and a reason from a fixed vocabulary; a reason the bootstrapper passes that is not in the vocabulary is recorded as <code>unspecified</code>, so no upstream text reaches <code>/state</code>.</p>
+<p>States: <code>idle</code>, <code>registering</code>, <code>presenting</code>, <code>acquiring_token</code>, <code>ready</code>, <code>failed_registration</code>, <code>failed_presentation</code>, <code>failed_token</code>, <code>failed_connector_unreachable</code>. <code>ConnectorBootstrap</code> never reports <code>registering</code>: its client is provisioned (<a href="#token-mode">Token mode</a>).</p>
+<p>Reasons: <code>step_started</code>, <code>step_completed</code>, <code>connector_unreachable</code>, <code>registration_rejected</code>, <code>presentation_rejected</code>, <code>token_rejected</code>, <code>nonce_retry_exhausted</code>, <code>upstream_error</code>, <code>timeout</code>, <code>bootstrap_error</code>, <code>retry_scheduled</code>, <code>retries_exhausted</code>, <code>reset</code>, <code>unspecified</code>.</p>
+<p>If a run ends in an error without a <code>failed_*</code> state, the lifecycle records the failure state of the step in progress with reason <code>bootstrap_error</code>. Only <code>failed_connector_unreachable</code> is retried: up to <code>Config.BootstrapAttempts</code> runs (default 3), waiting <code>Config.BootstrapBackoff</code> (default 500 ms) doubled per retry, each wait recorded as <code>retry_scheduled</code>. After the bound the state stays <code>failed_connector_unreachable</code> with <code>retries_exhausted</code>. Every other failure is final until <code>/reset</code>.</p>
+<p><code>GET /state</code> returns:</p>
+<pre><code class="language-json">{&quot;mode&quot;:&quot;token&quot;,&quot;state&quot;:&quot;ready&quot;,&quot;attempt&quot;:1,&quot;lastErrorCode&quot;:&quot;&quot;,&quot;history&quot;:[{&quot;state&quot;:&quot;presenting&quot;,&quot;reason&quot;:&quot;step_started&quot;,&quot;at&quot;:&quot;2026-10-21T09:00:00Z&quot;},{&quot;state&quot;:&quot;acquiring_token&quot;,&quot;reason&quot;:&quot;step_started&quot;,&quot;at&quot;:&quot;2026-10-21T09:00:00Z&quot;},{&quot;state&quot;:&quot;ready&quot;,&quot;reason&quot;:&quot;step_completed&quot;,&quot;at&quot;:&quot;2026-10-21T09:00:01Z&quot;}]}
+</code></pre>
+<p><code>lastErrorCode</code> is the reason of the most recent failure. In sample mode <code>/state</code> reports <code>mode: sample</code> and <code>state: idle</code>; the history is empty until the first <code>/reset</code>, after which it holds the <code>idle</code> / <code>reset</code> entry.</p>
+<h3 id="post-reset"><code>POST /reset</code><a class="headerlink" href="#post-reset" title="Permanent link">&para;</a></h3>
+<p><code>POST /reset</code> on the Participant waits for an in-flight bootstrap run to return (it is not cancelled, so a token acquisition is never cut short), then retires the ready session, if any: that session starts no further renewal, and a renewal it is running is waited for in the same way. It also stops any pending retry (no new run starts once a reset has begun), clears the history, <code>lastErrorCode</code> and the session reference, records <code>idle</code> / <code>reset</code> and starts a new bootstrap. It returns 200 with the state taken right after the reset, before the new run can change it: always <code>idle</code> with the single <code>idle</code> / <code>reset</code> entry. Resets are serialised. A reset that does not get its turn, or whose wait for the run does not finish, within <code>PARTICIPANT_REQUEST_TIMEOUT</code> returns 503 <code>{"reason":"reset_wait_timeout"}</code> and clears nothing (a session it was retiring may renew again); if it had already stopped pending retries, they stay stopped, and a later reset restarts the bootstrap. In sample mode it only records the reset.</p>
+<p><code>POST /reset</code> on the Protected Resource returns 200 with <code>status: reset</code>, <code>mode</code> and <code>seedVersion</code>. Its demo data is the read-only seed, so there is nothing to rebuild.</p>
+<p>Neither reset touches replay, consumption or key state. The Participant's reset drops its session, so the new run acquires a new token with a fresh challenge and outcome; its DPoP key stays. The Resource's reset leaves its replay record as it is. Both reset endpoints are unauthenticated demo controls: expose them on restricted routes only.</p>
+<h3 id="seed-data">Seed data<a class="headerlink" href="#seed-data" title="Permanent link">&para;</a></h3>
+<p>The Resource's report data is in <code>services/protectedresource/seed/v1.json</code>, embedded at build time. It holds a <code>version</code> (now <code>v1</code>), the standard report, the alternative report and the summary. <code>/health</code> reports it as <code>seedVersion</code>. A change to the data is a new file with a new version, not an edit of <code>v1.json</code>.</p>
+<h3 id="deterministic-runs">Deterministic runs<a class="headerlink" href="#deterministic-runs" title="Permanent link">&para;</a></h3>
+<p>Request and correlation IDs and timestamps can be fixed only through unexported test hooks (<code>Server.now</code>, <code>Server.newID</code>) set from <code>_test.go</code> files. No environment variable or configuration field reaches them. With the hooks fixed, the tests check that two identical runs of <code>/health</code>, <code>/state</code>, <code>/demo</code> and <code>/reset</code> produce byte-identical responses on both services.</p>
 <h2 id="how-the-services-communicate">How the services communicate<a class="headerlink" href="#how-the-services-communicate" title="Permanent link">&para;</a></h2>
 <pre><code class="language-text">Test caller / future journey runtime
   -&gt; POST Participant:8085/demo
@@ -383,7 +669,7 @@ docker build --platform linux/amd64 -f deployment/docker/protected-resource/Dock
   -&gt; POST Protected Resource:8086/demo
   &lt;- sample JSON result, matched requestId and correlationId
 </code></pre>
-<p>Only Participant makes an outbound application call. Resource has no callback to Participant or other outbound application dependency. Participant forwards the documented JSON fields, with <code>Content-Type</code> and <code>Accept</code> set to <code>application/json</code>. It does not forward bearer tokens, passwords or cookies, does not retry, and refuses redirects. The server-controlled Resource URL is not accepted as a request-body input.</p>
+<p>Only Participant makes an outbound application call. Resource has no callback to Participant or other outbound application dependency. Participant forwards the documented JSON fields, with <code>Content-Type</code> and <code>Accept</code> set to <code>application/json</code>. In sample mode it does not forward bearer tokens, passwords or cookies; in token mode it sends only the <code>Authorization</code> and <code>DPoP</code> headers from its own <code>TokenSession</code>, never ones received from its caller. It does not retry requests and refuses redirects. The server-controlled Resource URL is not accepted as a request-body input.</p>
 <p>Both demo endpoints accept one JSON object, at most 64 KiB, with these fields:</p>
 <pre><code class="language-json">{
   &quot;resource&quot;: &quot;sample-report&quot;,
@@ -474,7 +760,7 @@ go run ./cmd/participant
 <p>Then run the dependency-free Node.js 22+ checker from another terminal:</p>
 <pre><code class="language-sh">node scripts/smoke-application-services.mjs
 </code></pre>
-<p>It checks both health endpoints, all five standard scenarios directly and through Participant, ID propagation, sample labels, reasons and safe-data shape. It exits nonzero on failure. Use <code>--participant-url</code> and <code>--resource-url</code> for explicitly approved test endpoints; it does not create deployments or configure credentials. Health only establishes that the service is running; Participant health does not probe Resource. The sample endpoint has no built-in authentication: use approved restricted routes, not an unrestricted public endpoint.</p>
+<p>It covers sample mode only. It checks both health endpoints, all five standard scenarios directly and through Participant, ID propagation, sample labels, reasons and safe-data shape. It exits nonzero on failure. Use <code>--participant-url</code> and <code>--resource-url</code> for explicitly approved test endpoints; it does not create deployments or configure credentials. Health only establishes that the service is running; Participant health does not probe Resource. The sample endpoint has no built-in authentication: use approved restricted routes, not an unrestricted public endpoint.</p>
 <h2 id="deployment-and-returned-evidence">Deployment and returned evidence<a class="headerlink" href="#deployment-and-returned-evidence" title="Permanent link">&para;</a></h2>
 <p>Deploy the two services in the shared OSC <code>zero-trust</code> namespace per <a href="../environments/application-workloads/">Application workloads</a>, as separate releases outside the platform umbrella. Images target <code>linux/amd64</code>, are published by the release workflow and selected by digest; the application-service chart (<code>deployment/helm/application-service</code>) installs each one. Network policy must allow the approved caller to Participant, Participant to Resource and required DNS; Resource needs no outbound application route. Observe namespace quotas and minimum requests. No cluster-scoped resources are needed by these applications.</p>
 <p>Return the source revision, image digests, effective non-secret environment settings, both health results, scenario results and correlated JSON logs from both processes. The current deployment and its results are recorded in <a href="../application-services-verification/">Application service verification</a>. The UI/ORCE bridge is outside these services. Shared-OSC deployment and sample HTTP results establish application integration only, not final two-zone security acceptance.</p>

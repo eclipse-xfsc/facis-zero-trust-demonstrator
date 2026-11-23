@@ -125,13 +125,43 @@
     </li>
     <li class="toctree-l2"><a class="reference internal" href="#dpop-behaviour">DPoP behaviour</a>
     </li>
+    <li class="toctree-l2"><a class="reference internal" href="#signed-access-tokens">Signed access tokens</a>
+    </li>
+    <li class="toctree-l2"><a class="reference internal" href="#verified-presentation-grant">Verified-presentation grant</a>
+    </li>
     <li class="toctree-l2"><a class="reference internal" href="#reason-codes">Reason codes</a>
     </li>
     <li class="toctree-l2"><a class="reference internal" href="#configuration">Configuration</a>
     </li>
+    <li class="toctree-l2"><a class="reference internal" href="#running-the-connector">Running the connector</a>
+        <ul>
+    <li class="toctree-l3"><a class="reference internal" href="#configuration_1">Configuration</a>
+    </li>
+    <li class="toctree-l3"><a class="reference internal" href="#verified-presentation-files">Verified-presentation files</a>
+    </li>
+    <li class="toctree-l3"><a class="reference internal" href="#registrar-bootstrap">Registrar bootstrap</a>
+    </li>
+    <li class="toctree-l3"><a class="reference internal" href="#endpoints">Endpoints</a>
+    </li>
+    <li class="toctree-l3"><a class="reference internal" href="#start-readiness-and-drain">Start, readiness and drain</a>
+    </li>
+    <li class="toctree-l3"><a class="reference internal" href="#upkeep">Upkeep</a>
+    </li>
+    <li class="toctree-l3"><a class="reference internal" href="#records">Records</a>
+    </li>
+        </ul>
+    </li>
     <li class="toctree-l2"><a class="reference internal" href="#running-the-conformance-tests">Running the conformance tests</a>
+        <ul>
+    <li class="toctree-l3"><a class="reference internal" href="#session-records">Session records</a>
+    </li>
+        </ul>
     </li>
     <li class="toctree-l2"><a class="reference internal" href="#limitations">Limitations</a>
+        <ul>
+    <li class="toctree-l3"><a class="reference internal" href="#exclusive-audiences-for-guarded-access">Exclusive audiences for guarded access</a>
+    </li>
+        </ul>
     </li>
     </ul>
                 </li>
@@ -259,7 +289,8 @@ The library it is built on, and why, is recorded in the
 the endpoints as other components see them are defined in the
 <a href="../contracts/if02-connector.v1.openapi.yaml">connector contract</a>.
 This page describes the part of that authorization surface that exists today: dynamic client
-registration and DPoP-bound access tokens.</p>
+registration, DPoP-bound access tokens, and the verified-presentation grant that exchanges a signed
+IF-03 verification outcome for a token.</p>
 <table>
 <thead>
 <tr>
@@ -284,9 +315,16 @@ registration and DPoP-bound access tokens.</p>
 <td>Resource-side validation of bound tokens</td>
 <td>RFC 9449 section 7</td>
 </tr>
+<tr>
+<td>Signed access tokens, when a signer is configured</td>
+<td>RFC 9068</td>
+</tr>
+<tr>
+<td>Verified-presentation grant and its challenge endpoint</td>
+<td>RFC 6749 section 4.5 (extension grant), <a href="../api-docs/#if-02-connector-authorization-surface">IF-02 v1.1</a></td>
+</tr>
 </tbody>
 </table>
-<p>Issuing tokens from a verified credential presentation is not part of this layer yet.</p>
 <h2 id="architecture">Architecture<a class="headerlink" href="#architecture" title="Permanent link">&para;</a></h2>
 <p>Connector code depends on a contract the project owns. The OAuth 2.0 library sits behind an adapter
 and is invisible to everything else.</p>
@@ -312,7 +350,15 @@ and is invisible to everything else.</p>
 </tr>
 <tr>
 <td><code>oauth2provider/memstore</code></td>
-<td>In-memory stores for tests and local development. Nothing is persisted.</td>
+<td>In-memory stores for tests and local development. Nothing is persisted. Transactions are serialised by one lock and undo-logged; they cover token creation and challenge and outcome consumption only, not client changes or token deletion.</td>
+</tr>
+<tr>
+<td><code>signing</code></td>
+<td>Access-token signers: <code>Transit</code> over an OpenBao transit key, and <code>Local</code> over an in-process key for tests only.</td>
+</tr>
+<tr>
+<td><code>oauth2provider/pgstore</code></td>
+<td>Clients, issued tokens, DPoP nonces, challenges and consumed outcomes in the zone's authorization database (<code>oauth2_client</code>, <code>oauth2_token</code>, <code>oauth2_dpop_nonce</code>, <code>oauth2_challenge</code>, <code>verified_outcome</code>; schema in the <a href="../token-store/">token store</a>'s migrations). Validity is checked against the stores' clock, passed as a parameter. Its <code>Transactions</code> store runs a PostgreSQL transaction that every client, token, challenge and outcome call made with its context joins; nonce and replay writes never do. <code>Sweep</code> removes expired tokens, nonces and unconsumed challenges, never a consumed challenge or outcome.</td>
 </tr>
 <tr>
 <td><code>dpoptest</code></td>
@@ -338,7 +384,20 @@ identifier per line, and a test regenerates the listing from the package and fai
 so the contract cannot change in passing. A struct field's line carries its position, so reordering
 two fields of one type, which would silently swap them for a caller building the struct
 positionally, is a difference too. To change it on purpose, describe the change here and
-regenerate the listing:</p>
+regenerate the listing. Changes so far: <code>TokenRecord.ExpiresAt</code> (field 8) was added so a store can
+sweep expired records without reading the session; <code>Config.Issuer</code> (field 4),
+<code>Config.AccessTokenSigner</code> (field 5) and the <code>TokenSigner</code> interface were added for signed access
+tokens. For the verified-presentation grant: <code>Provider.ChallengeHandler</code> was added, a deliberate
+change to the interface (an implementation outside this repository would have to add the method;
+there is none); <code>Config.VerifiedPresentation</code> (field 6) with <code>VerifiedPresentationConfig</code> and
+<code>ClaimScopes</code>; <code>TokenRecord.OutcomeID</code> (field 9); <code>Stores.Challenges</code>, <code>Stores.Outcomes</code> and
+<code>Stores.Transactions</code> (fields 5 to 7) with the <code>ChallengeStore</code>, <code>OutcomeStore</code> and <code>Transactor</code>
+interfaces and the <code>Challenge</code> and <code>VerifiedOutcome</code> types; <code>ErrConsumed</code>;
+<code>VerifiedPresentationGrantType</code> and <code>ChallengeLifetime</code>; and the five <code>CodeCredOutcome*</code> reason
+codes. With the review of that grant, before it was merged: <code>TokenRecord.GrantType</code> (field 10);
+<code>RegistrationConfig.DelegableScopes</code> (field 3); <code>ChallengeStore.LockChallenge</code>; and
+<code>ChallengeStore.ConsumeChallenge</code> and <code>OutcomeStore.ConsumeOutcome</code> take the instant they act at,
+so the provider's one clock decides every validity question.</p>
 <pre><code class="language-bash">OAUTH2PROVIDER_API_UPDATE=1 go test -run TestContractAPIIsFrozen ./services/connector/internal/oauth2provider
 </code></pre>
 <h3 id="changing-the-library-version">Changing the library version<a class="headerlink" href="#changing-the-library-version" title="Permanent link">&para;</a></h3>
@@ -374,11 +433,12 @@ the proof's key. A proof is refused when</p>
   <code>iat + ProofLifespan + ClockSkew</code>;</li>
 <li>it has been used before.</li>
 </ul>
-<p><strong>Replay protection.</strong> A proof is accepted once. The guarantee holds under concurrency: of one hundred
-simultaneous presentations of the same proof, exactly one is accepted and the rest are refused as
-replays. A <code>jti</code> is scoped to the URI and method the proof was made for, following RFC 9449 sections
-4.2 and 11.1, and additionally to the proof key and nonce. Reusing a <code>jti</code> in a new proof for another
-endpoint is therefore not a replay; presenting any proof a second time is.</p>
+<p><strong>Replay protection.</strong> A proof is accepted once. The guarantee holds under concurrency: of one
+hundred simultaneous presentations of the same proof, exactly one is accepted and the rest are
+refused as replays. A <code>jti</code> is scoped to the URI and method the proof was made for, following RFC
+9449 sections 4.2 and 11.1, and additionally to the proof key (the in-memory store also to the
+nonce). Reusing a <code>jti</code> in a new proof for another endpoint is therefore not a replay; presenting
+any proof a second time is.</p>
 <p><strong>Server nonce.</strong> With <code>NonceRequired</code>, a request without a nonce is answered with <code>400</code>
 <code>use_dpop_nonce</code> and a <code>DPoP-Nonce</code> header. Retrying with that nonce succeeds. A nonce the server did
 not issue, or one past <code>NonceLifespan</code>, is challenged again.</p>
@@ -391,6 +451,183 @@ with a proof that</p>
 <li>satisfies the same <code>htm</code>, <code>htu</code>, freshness and replay checks as at the token endpoint.</li>
 </ul>
 <p>A bound token presented under the <code>Bearer</code> scheme is refused, with or without a proof next to it.</p>
+<h2 id="signed-access-tokens">Signed access tokens<a class="headerlink" href="#signed-access-tokens" title="Permanent link">&para;</a></h2>
+<p>With <code>Config.AccessTokenSigner</code> set, access tokens are RFC 9068 JWTs that a protected resource
+validates against the connector's published key set and the DPoP proof, without calling the
+connector (<code>internal/tokenverify</code> does this). Without it, access tokens stay opaque, as before.
+Registration access tokens are opaque in both cases.</p>
+<p>Header: <code>typ</code> <code>at+jwt</code>, <code>alg</code> <code>ES256</code>, <code>kid</code> the signer's <code>KeyID()</code>. Nothing else.</p>
+<table>
+<thead>
+<tr>
+<th>Claim</th>
+<th>Value</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>iss</code></td>
+<td><code>Config.Issuer</code>, required when a signer is set</td>
+</tr>
+<tr>
+<td><code>sub</code></td>
+<td>The client id. No end user is involved in the grant (RFC 9068 section 2.2)</td>
+</tr>
+<tr>
+<td><code>client_id</code></td>
+<td>The client id</td>
+</tr>
+<tr>
+<td><code>aud</code></td>
+<td>The granted audience</td>
+</tr>
+<tr>
+<td><code>scope</code></td>
+<td>The granted scopes as one space-separated string</td>
+</tr>
+<tr>
+<td><code>jti</code></td>
+<td>A random id per token</td>
+</tr>
+<tr>
+<td><code>iat</code>, <code>nbf</code>, <code>exp</code></td>
+<td>Integer seconds. The lifetime defaults to five minutes with a signer</td>
+</tr>
+<tr>
+<td><code>cnf.jkt</code></td>
+<td>The thumbprint of the key of the DPoP proof validated at the token endpoint</td>
+</tr>
+</tbody>
+</table>
+<p><code>scope</code> is a string, as RFC 9068 section 2.2.3 defines it and as the resource-side verifier reads
+it. The library's default is a JSON list under the same name, which the verifier refuses; the adapter
+selects the string form.</p>
+<p>Every signed token carries <code>cnf.jkt</code> and <code>aud</code>, so a signed token is issued only to a request that
+presents a valid DPoP proof and names an audience the client is allowed. Without a proof the request
+is refused with <code>invalid_dpop_proof</code> (<code>reason</code> <code>dpop_invalid_proof</code>) even when <code>DPoP.Enforce</code> is off
+and the client is not registered for bound tokens; without an audience it is refused with
+<code>invalid_request</code>. No default audience is assumed. A dynamically registered client therefore
+registers the audiences it needs, and the token that authorises the registration must carry them.</p>
+<p>The signer contract, <code>oauth2provider.TokenSigner</code>, is <code>KeyID()</code>, <code>Public()</code> (the P-256 public key)
+and <code>Sign(ctx, signingInput)</code> returning the 64-byte <code>R||S</code> ES256 signature. <code>Sign</code> receives the
+context of the request being served. The adapter refuses at start-up a signer with an empty key id or
+a key that is not P-256.</p>
+<p><code>signing.Transit</code> implements it over one pinned version of an OpenBao transit key: the public key is
+read once by <code>NewTransit</code>, the key id is its RFC 7638 thumbprint, and <code>Sign</code> asks transit to sign, so
+the private key never enters the process. <code>signing.Local</code> holds the key in memory and is for tests
+only.</p>
+<p>The token is still recorded in the access-token store under its signature, like an opaque token, so
+<code>ValidateResourceRequest</code> accepts it on the same terms: the record must exist, the signature must
+verify against the configured key with exactly that <code>kid</code>, <code>alg</code> and <code>typ</code>, <code>iss</code> must match and the
+token must not have expired. The algorithm and key are fixed by the adapter; whatever a registered
+client's metadata says about access-token signing or encryption is not used.</p>
+<h2 id="verified-presentation-grant">Verified-presentation grant<a class="headerlink" href="#verified-presentation-grant" title="Permanent link">&para;</a></h2>
+<p>A client proves a credential presentation instead of only its secret. It obtains a challenge from
+the connector, has its presentation verified against that challenge, and exchanges the signed IF-03
+outcome (<a href="../api-docs/#if-03-signed-verification-outcome">IF-03</a>) for an access token. The grant is
+enabled by <code>Config.VerifiedPresentation</code> and is served by <code>TokenHandler</code>, with the challenge
+endpoint served by <code>ChallengeHandler</code>.</p>
+<p><strong>Challenge.</strong> <code>POST</code> to the challenge endpoint with client authentication as at the token endpoint
+(the library's own client authentication is reused) and one form value <code>audience</code>, which must be one
+of the client's registered audiences. The client must be registered for the grant type. The answer
+is <code>{"challenge": ..., "expires_in": 120}</code> with <code>Cache-Control: no-store</code>; the challenge is 256
+random bits, base64url (43 characters), stored single-use in <code>oauth2_challenge</code> bound to the client
+and the audience.</p>
+<p><strong>Token request.</strong> <code>grant_type=urn:facis:params:oauth:grant-type:verified-presentation</code>, <code>outcome</code>
+(the compact JWS), <code>challenge</code> and <code>audience</code>, each exactly once, with a DPoP proof. <code>scope</code> and
+<code>resource</code> are refused: the outcome's claims decide the scopes. The request is validated without any
+write, in this order:</p>
+<table>
+<thead>
+<tr>
+<th>Check</th>
+<th>Refusal</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>The client is authenticated, confidential and registered for the grant</td>
+<td><code>invalid_client</code> 401, <code>unauthorized_client</code> 400</td>
+</tr>
+<tr>
+<td>The audience is one of the client's</td>
+<td><code>invalid_request</code> 400</td>
+</tr>
+<tr>
+<td><code>internal/if03</code> verifies the JWS against the configured trusted issuers</td>
+<td><code>CRED-OUTCOME-SIGNATURE</code></td>
+</tr>
+<tr>
+<td>The outcome's status is <code>verified</code></td>
+<td><code>CRED-OUTCOME-NOT-VERIFIED</code></td>
+</tr>
+<tr>
+<td>The outcome's <code>client_id</code>, <code>challenge</code> and <code>audience</code> equal the authenticated client and the form's; the stored challenge exists and is bound to that client and audience</td>
+<td><code>CRED-OUTCOME-MISMATCH</code></td>
+</tr>
+<tr>
+<td>The outcome's interval is sound and current; the challenge has not expired</td>
+<td><code>CRED-OUTCOME-EXPIRED</code></td>
+</tr>
+<tr>
+<td>The challenge is unconsumed</td>
+<td><code>CRED-OUTCOME-CONSUMED</code></td>
+</tr>
+<tr>
+<td>The claims map to at least one scope the client is registered for</td>
+<td><code>invalid_scope</code> 400 (<code>reason</code> <code>invalid_request</code>)</td>
+</tr>
+</tbody>
+</table>
+<p>Every <code>CRED-OUTCOME-*</code> refusal is <code>400 invalid_grant</code> with the code as <code>reason</code>. Error responses and
+the errors behind them carry fixed text only, never anything of the outcome.</p>
+<p><strong>Transaction.</strong> <code>TokenHandler</code> begins a transaction only after <code>NewAccessRequest</code> has accepted a
+request of this grant, so client authentication, the DPoP proof and its nonce and replay records stay
+outside it. <code>NewAccessResponse</code> runs with the transaction's context. In it the grant checks that a
+DPoP binding was validated (a token without <code>cnf.jkt</code> is never issued), then takes the challenge's
+row lock (<code>SELECT ... FOR UPDATE</code>) <strong>before</strong> anything is judged, and only then reads the clock: every
+check above runs again at that instant, so a request that waited behind another transaction is never
+judged at the time it started waiting. It then consumes the challenge (a conditional update at the
+same instant, passed to the database as a parameter), inserts the outcome into <code>verified_outcome</code>
+already consumed (a second insert of one <code>outcome_id</code> is a no-op), reads the clock once more and
+refuses <code>CRED-OUTCOME-EXPIRED</code> if the outcome or the challenge expired meanwhile, and only then signs
+the token and stores it with <code>oauth2_token.outcome_id</code> and its <code>grant_type</code>. Validity, the challenge's
+expiry and every instant written come from one clock, the provider's.</p>
+<p>The transaction is settled before any response is written. It commits after <code>NewAccessResponse</code>
+returns; on any error before that, it is rolled back and the error answered. A commit that reports
+an error is cleaned up the same way, since a transactor may fail without settling; but a commit can
+also have succeeded before its acknowledgement was lost. That request is answered <code>500 server_error</code>
+without the token, and the consumption stands: nothing resets a consumption to compensate, so the
+outcome and the challenge cannot be used again (IF-03, D10: the next attempt uses a fresh challenge
+and outcome). A panic during the transaction rolls it back as well. The store adapter implements the
+library's <code>storage.Transactional</code> by delegating to <code>Stores.Transactions</code>, and the grant refuses to
+run outside a transaction. Of concurrent requests with one outcome or one challenge exactly one is
+issued a token; the others wait for its row lock and are refused <code>CRED-OUTCOME-CONSUMED</code>. A refused
+request is never signed.</p>
+<p><strong>Token records.</strong> <code>TokenHandler</code> records the grant it validated with every access token
+(<code>TokenRecord.GrantType</code>, <code>oauth2_token.grant_type</code>), independently of the grant handler that adds
+the outcome. A verified-presentation token without an outcome, or an outcome on any other token, is
+refused by the adapter before the store is called, by the in-memory store, and in PostgreSQL by the
+constraints <code>oauth2_token_vp_has_outcome</code> and <code>oauth2_token_outcome_only_vp</code>; <code>outcome_id</code> is unique
+and references <code>verified_outcome</code>.</p>
+<p><strong>Scopes.</strong> <code>VerifiedPresentation.Scopes</code> maps an outcome's <code>role</code> and <code>entitlement</code>, compared exactly
+(an empty entitlement matches only an outcome without one), to scopes. What is issued is that list
+limited to the client's registered scopes; claims that match no entry, or leave the client nothing,
+are refused. Every scope in the mapping is refused by <code>client_credentials</code>, however the client is
+registered, and the mapping may not contain the registration scope.</p>
+<p><strong>Requirements.</strong> The grant issues signed tokens only, since the token must carry <code>cnf.jkt</code> and <code>aud</code>:
+<code>New</code> refuses <code>VerifiedPresentation</code> without <code>AccessTokenSigner</code>, without the <code>Challenges</code>, <code>Outcomes</code>
+and <code>Transactions</code> stores, without trusted issuers or a mapping, with a key id shared by two issuers,
+or with a claim pair mapped twice. The token is the RFC 9068 JWT described below, with <code>sub</code> and
+<code>client_id</code> the client, <code>aud</code> the one audience and <code>scope</code> the mapped scopes.</p>
+<p><strong>Registration.</strong> <code>Registration.GrantTypes</code> may include the grant type, so a client can register for
+it dynamically. A client needs a mapped scope among its registered scopes to be issued it, and
+registration limits a new client's scopes to those of the registrar's token, which can never carry a
+verified-presentation scope (<code>client_credentials</code> refuses it). <code>Registration.DelegableScopes</code> closes
+that gap: per registrar client id, the scopes the server lets that registrar grant to the clients it
+registers, in addition to its token's. Only the registration endpoint consults it; the registrar is
+never issued those scopes itself, and the registration scope is never delegable (refused at start-up,
+and by the library whatever the ceiling).</p>
 <h2 id="reason-codes">Reason codes<a class="headerlink" href="#reason-codes" title="Permanent link">&para;</a></h2>
 <p>Error responses keep the members the OAuth 2.0 specifications define and add a <code>reason</code> member with a
 machine-readable code, in line with the project's <a href="../api-docs/#conventions">error conventions</a>. The
@@ -443,6 +680,26 @@ fails if the two lists differ.</p>
 <td>The submitted client metadata was refused</td>
 </tr>
 <tr>
+<td><code>CRED-OUTCOME-SIGNATURE</code></td>
+<td>The verification outcome's JWS does not verify with a trusted issuer key, or it is not an IF-03 outcome</td>
+</tr>
+<tr>
+<td><code>CRED-OUTCOME-NOT-VERIFIED</code></td>
+<td>The outcome's status is not <code>verified</code></td>
+</tr>
+<tr>
+<td><code>CRED-OUTCOME-MISMATCH</code></td>
+<td>The outcome's client, challenge or audience differs from the request, or the challenge was not issued to this client for this audience</td>
+</tr>
+<tr>
+<td><code>CRED-OUTCOME-EXPIRED</code></td>
+<td>The outcome or the challenge is outside its validity</td>
+</tr>
+<tr>
+<td><code>CRED-OUTCOME-CONSUMED</code></td>
+<td>The outcome or the challenge was already used</td>
+</tr>
+<tr>
 <td><code>invalid_request</code>, <code>server_error</code></td>
 <td>As named</td>
 </tr>
@@ -460,11 +717,19 @@ fails if the two lists differ.</p>
 <tbody>
 <tr>
 <td><code>Secret</code></td>
-<td>Signs access tokens. At least 32 bytes.</td>
+<td>Signs opaque access tokens. At least 32 bytes.</td>
 </tr>
 <tr>
 <td><code>AccessTokenLifespan</code></td>
-<td>Defaults to one hour.</td>
+<td>Defaults to one hour, or five minutes with <code>AccessTokenSigner</code>.</td>
+</tr>
+<tr>
+<td><code>Issuer</code></td>
+<td>The <code>iss</code> of signed access tokens. Required with <code>AccessTokenSigner</code>.</td>
+</tr>
+<tr>
+<td><code>AccessTokenSigner</code></td>
+<td>Makes access tokens signed JWTs (see <a href="#signed-access-tokens">Signed access tokens</a>). Opaque tokens when nil.</td>
 </tr>
 <tr>
 <td><code>DPoP.Enforce</code></td>
@@ -498,16 +763,326 @@ fails if the two lists differ.</p>
 <td><code>Registration.GrantTypes</code></td>
 <td>Grant types a client may register for.</td>
 </tr>
+<tr>
+<td><code>Registration.DelegableScopes</code></td>
+<td>Per registrar client id, scopes it may grant to clients it registers beyond its token's scopes; never the registration scope.</td>
+</tr>
+<tr>
+<td><code>VerifiedPresentation.TrustedIssuers</code></td>
+<td>IF-03 issuers and their P-256 keys by <code>kid</code>. Non-empty enables the grant.</td>
+</tr>
+<tr>
+<td><code>VerifiedPresentation.Scopes</code></td>
+<td>Claims to scopes: <code>Role</code>, <code>Entitlement</code>, <code>Scopes</code> per entry. The challenge lifetime is fixed at 120 s (<code>ChallengeLifetime</code>).</td>
+</tr>
 </tbody>
 </table>
 <p>Persistence is supplied through small interfaces — clients, access tokens, registration tokens, DPoP
-nonces and DPoP replay state. Stores are handed token signatures, never usable tokens, and the
+nonces and DPoP replay state, and for the verified-presentation grant challenges, consumed outcomes
+and transactions. Stores are handed token signatures, never usable tokens, and the
 request form is not persisted because it can carry client credentials.</p>
 <p>The replay store receives a proof's identity as separate values — key thumbprint, method, normalized
 target URI, <code>jti</code> and nonce — together with the proof's <code>iat</code> and the instant it stops being
 acceptable. It decides atomically whether the proof was seen before; two uses are the same proof
 when thumbprint, method, URI and <code>jti</code> are equal, and a store may also distinguish by nonce, as the
-in-memory one does.</p>
+in-memory one does. <code>pgstore</code> records the use in the zone's shared <code>proof_jti</code> table
+(<code>internal/replay</code>), the record the token store's replay check uses and a resource-side verifier
+(<code>internal/tokenverify</code>) can be given, with the URI normalised once more by <code>dpopproof.NormalizeURI</code>
+(the provider keeps an empty port, the shared form does not), so a proof seen by one is seen by all;
+a URI that has no such form fails closed.</p>
+<h2 id="running-the-connector">Running the connector<a class="headerlink" href="#running-the-connector" title="Permanent link">&para;</a></h2>
+<p><code>connector serve</code> (<code>services/connector</code>, image <code>deployment/docker/connector/Dockerfile</code>) runs the
+provider on the PostgreSQL stores (<code>pgstore</code>, replay included) with access tokens signed through
+<code>signing.Transit</code>. It has two plain-HTTP listeners and writes JSON records on stdout.</p>
+<h3 id="configuration_1">Configuration<a class="headerlink" href="#configuration_1" title="Permanent link">&para;</a></h3>
+<p>Every flag defaults to the environment variable of the same name; a flag set on the command line
+wins, and the environment fills in after parsing, so no value, the database URL above all, ever
+reaches the usage text. The database URL is never logged. Secrets never come from a flag or a
+variable: the OpenBao token and the two HMAC secrets are read from files, named below. A trailing
+line break in a secret file is not part of the secret.</p>
+<table>
+<thead>
+<tr>
+<th>Flag</th>
+<th>Environment</th>
+<th>Default</th>
+<th>Meaning</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>--addr</code></td>
+<td><code>CONNECTOR_ADDR</code></td>
+<td><code>:8080</code></td>
+<td>The API listener</td>
+</tr>
+<tr>
+<td><code>--ops-addr</code></td>
+<td><code>CONNECTOR_OPS_ADDR</code></td>
+<td><code>:9090</code></td>
+<td>The ops listener the kubelet probes: <code>/healthz</code> and <code>/readyz</code></td>
+</tr>
+<tr>
+<td><code>--database-url</code></td>
+<td><code>CONNECTOR_DATABASE_URL</code></td>
+<td>required</td>
+<td>PostgreSQL connection URL of the zone's authorization database</td>
+</tr>
+<tr>
+<td><code>--openbao-url</code></td>
+<td><code>CONNECTOR_OPENBAO_URL</code></td>
+<td>required</td>
+<td>OpenBao, <code>http(s)://host[:port]</code> and nothing more</td>
+</tr>
+<tr>
+<td><code>--openbao-token-file</code></td>
+<td><code>CONNECTOR_OPENBAO_TOKEN_FILE</code></td>
+<td>required</td>
+<td>File holding the OpenBao token, read on every call, so a rotated token is picked up</td>
+</tr>
+<tr>
+<td><code>--issuer</code></td>
+<td><code>CONNECTOR_ISSUER</code></td>
+<td>required</td>
+<td><code>iss</code> of the access tokens, an <code>https://</code> URL</td>
+</tr>
+<tr>
+<td><code>--signing-key</code></td>
+<td><code>CONNECTOR_SIGNING_KEY</code></td>
+<td>required</td>
+<td>Transit key that signs the access tokens</td>
+</tr>
+<tr>
+<td><code>--signing-key-version</code></td>
+<td><code>CONNECTOR_SIGNING_KEY_VERSION</code></td>
+<td>required</td>
+<td>Pinned version of that key, 1 or more</td>
+</tr>
+<tr>
+<td><code>--registration-endpoint</code></td>
+<td><code>CONNECTOR_REGISTRATION_ENDPOINT</code></td>
+<td>required</td>
+<td>Absolute URL of <code>POST /oauth2/register</code> as clients reach it; also the audience a registration token must carry</td>
+</tr>
+<tr>
+<td><code>--token-secret-file</code></td>
+<td><code>CONNECTOR_TOKEN_SECRET_FILE</code></td>
+<td>required</td>
+<td>File holding the HMAC secret of opaque tokens, 32 bytes or more</td>
+</tr>
+<tr>
+<td><code>--registration-secret-file</code></td>
+<td><code>CONNECTOR_REGISTRATION_SECRET_FILE</code></td>
+<td>required</td>
+<td>File holding the HMAC secret of registration access tokens, 32 bytes or more, different from the other</td>
+</tr>
+<tr>
+<td><code>--registrar-id</code></td>
+<td><code>CONNECTOR_REGISTRAR_ID</code></td>
+<td>required</td>
+<td>Client id of the registrar, seeded at start (below)</td>
+</tr>
+<tr>
+<td><code>--registrar-secret-file</code></td>
+<td><code>CONNECTOR_REGISTRAR_SECRET_FILE</code></td>
+<td>required</td>
+<td>File holding the registrar's client secret, 32 bytes or more</td>
+</tr>
+<tr>
+<td><code>--registrar-scopes</code></td>
+<td><code>CONNECTOR_REGISTRAR_SCOPES</code></td>
+<td>required</td>
+<td>Comma-separated scopes of the registrar; must include <code>connector:client_registration</code>, plus the scopes registered clients may receive</td>
+</tr>
+<tr>
+<td><code>--registrar-audiences</code></td>
+<td><code>CONNECTOR_REGISTRAR_AUDIENCES</code></td>
+<td>required</td>
+<td>Comma-separated audiences of the registrar: the registration endpoint plus the resource audiences registered clients may name. A registrar token can carry no other, and a client can only register an audience its registrar token carries</td>
+</tr>
+<tr>
+<td><code>--registrar-delegable-scopes</code></td>
+<td><code>CONNECTOR_REGISTRAR_DELEGABLE_SCOPES</code></td>
+<td>none</td>
+<td>Comma-separated scopes the registrar may grant to the clients it registers beyond its own token's: <code>Registration.DelegableScopes</code> for <code>--registrar-id</code>. This is how a client gets a verified-presentation scope. Never <code>connector:client_registration</code></td>
+</tr>
+<tr>
+<td><code>--vp-trusted-issuers-file</code></td>
+<td><code>CONNECTOR_VP_TRUSTED_ISSUERS_FILE</code></td>
+<td>none</td>
+<td>JSON file of the IF-03 issuers and their keys (below). Set, it enables the verified-presentation grant; unset, the grant is off and the challenge endpoint refuses every request</td>
+</tr>
+<tr>
+<td><code>--vp-scope-map-file</code></td>
+<td><code>CONNECTOR_VP_SCOPE_MAP_FILE</code></td>
+<td>none</td>
+<td>JSON file mapping outcome claims to scopes (below); required with, and refused without, the issuers file</td>
+</tr>
+<tr>
+<td><code>--access-token-lifespan</code></td>
+<td><code>CONNECTOR_ACCESS_TOKEN_LIFESPAN</code></td>
+<td><code>300s</code></td>
+<td>Lifetime of an access token</td>
+</tr>
+<tr>
+<td><code>--dpop-enforce</code></td>
+<td><code>CONNECTOR_DPOP_ENFORCE</code></td>
+<td><code>true</code></td>
+<td>Require a proof from every client (<code>--dpop-enforce=false</code> to relax)</td>
+</tr>
+<tr>
+<td><code>--dpop-nonce</code></td>
+<td><code>CONNECTOR_DPOP_NONCE</code></td>
+<td><code>true</code></td>
+<td>Challenge with a server nonce</td>
+</tr>
+<tr>
+<td><code>--readiness-timeout</code></td>
+<td><code>CONNECTOR_READINESS_TIMEOUT</code></td>
+<td><code>2s</code></td>
+<td>Budget of one <code>/readyz</code> evaluation</td>
+</tr>
+<tr>
+<td><code>--drain-delay</code></td>
+<td><code>CONNECTOR_DRAIN_DELAY</code></td>
+<td><code>5s</code></td>
+<td>On SIGTERM, how long <code>/readyz</code> answers 503 while the listeners stay open</td>
+</tr>
+<tr>
+<td><code>--shutdown-timeout</code></td>
+<td><code>CONNECTOR_SHUTDOWN_TIMEOUT</code></td>
+<td><code>10s</code></td>
+<td>Drain of the listeners after that delay; what is still open then is closed</td>
+</tr>
+<tr>
+<td><code>--log-level</code></td>
+<td><code>CONNECTOR_LOG_LEVEL</code></td>
+<td><code>info</code></td>
+<td><code>debug</code>, <code>info</code>, <code>warn</code> or <code>error</code></td>
+</tr>
+</tbody>
+</table>
+<p>The DPoP proof window is fixed at 60 s lifespan and 30 s skew. A missing, short or shared secret
+file stops the process at start with exit 1; a usage error exits 2; a clean stop exits 0. A
+database URL that cannot be parsed is refused as "invalid database configuration" and nothing
+more: the driver's own error repeats the URL with only best-effort masking of the password.</p>
+<h3 id="verified-presentation-files">Verified-presentation files<a class="headerlink" href="#verified-presentation-files" title="Permanent link">&para;</a></h3>
+<p>Both files are read once at start and parsed strictly: valid UTF-8 JSON, no duplicate member at any
+depth, no member other than those below, at most 1 MiB. A file that breaks a rule stops the process
+with exit 2 and a fixed message naming the flag and the rule, never anything the file holds.</p>
+<p>The trusted-issuers file is <code>VerifiedPresentation.TrustedIssuers</code>: an object whose members are the
+issuer URIs (the outcomes' <code>iss</code>), each <code>{"keys": [...]}</code> with one or more public EC P-256 JWKs.
+A key has exactly <code>kty</code>, <code>crv</code>, <code>x</code>, <code>y</code> and <code>kid</code>: a private member (<code>d</code>), another curve, a missing
+<code>kid</code> or a <code>kid</code> used twice, within one issuer or across two, is refused.</p>
+<pre><code class="language-json">{
+  &quot;https://verifier.example&quot;: {
+    &quot;keys&quot;: [{&quot;kty&quot;: &quot;EC&quot;, &quot;crv&quot;: &quot;P-256&quot;, &quot;x&quot;: &quot;...&quot;, &quot;y&quot;: &quot;...&quot;, &quot;kid&quot;: &quot;verifier-2026-10&quot;}]
+  }
+}
+</code></pre>
+<p>The scope-map file is <code>VerifiedPresentation.Scopes</code>: a non-empty array of <code>{"role", "entitlement",
+"scopes"}</code>, <code>entitlement</code> optional (an entry without it matches only an outcome without one),
+<code>scopes</code> one or more scopes without whitespace. A role and entitlement pair may appear once, and
+<code>connector:client_registration</code> is never mapped.</p>
+<pre><code class="language-json">[
+  {&quot;role&quot;: &quot;operator&quot;, &quot;entitlement&quot;: &quot;line-3&quot;, &quot;scopes&quot;: [&quot;resource.write&quot;]},
+  {&quot;role&quot;: &quot;operator&quot;, &quot;scopes&quot;: [&quot;resource.read&quot;]}
+]
+</code></pre>
+<p>With the grant on, clients may register for <code>urn:facis:params:oauth:grant-type:verified-presentation</code>
+besides <code>client_credentials</code>. The registrar itself keeps <code>client_credentials</code> only: it never uses the
+grant, and delegation does not need it to. To register a client for a mapped scope, list that scope
+in <code>--registrar-delegable-scopes</code>; the registrar's own token can never carry it.</p>
+<h3 id="registrar-bootstrap">Registrar bootstrap<a class="headerlink" href="#registrar-bootstrap" title="Permanent link">&para;</a></h3>
+<p>Registration takes a token for the registration endpoint (above), so a fresh deployment needs one
+client that can get such a token: the registrar (D12). At start the connector seeds it in the
+background, retrying while the database is not there: client id <code>--registrar-id</code>, grant type
+<code>client_credentials</code>, DPoP-bound, the configured scopes and audiences, and the secret from
+<code>--registrar-secret-file</code> stored as a bcrypt hash (default cost). If the client already exists with
+exactly these settings (the secret verifies against the stored hash, same scopes, audiences, grant
+type and binding) nothing is written. If it exists with any other setting, it is never overwritten:
+the connector logs <code>registrar client exists with other settings; not overwriting it, not becoming
+ready</code> and stays not ready until an operator resolves it and restarts it.</p>
+<p>The registrar asks for a token with a DPoP proof, <code>scope</code> including <code>connector:client_registration</code>
+and <code>audience</code> naming the registration endpoint and the resource audience the new client will
+register, then posts the client's metadata to <code>/oauth2/register</code> with that token.</p>
+<h3 id="endpoints">Endpoints<a class="headerlink" href="#endpoints" title="Permanent link">&para;</a></h3>
+<table>
+<thead>
+<tr>
+<th>Listener</th>
+<th>Path</th>
+<th>Serves</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>API</td>
+<td><code>POST /oauth2/token</code></td>
+<td>The token endpoint (<code>Provider.TokenHandler</code>)</td>
+</tr>
+<tr>
+<td>API</td>
+<td><code>POST /oauth2/register</code></td>
+<td>Client registration (<code>Provider.RegistrationHandler</code>)</td>
+</tr>
+<tr>
+<td>API</td>
+<td><code>POST /oauth2/challenge</code></td>
+<td>The challenge endpoint (<code>Provider.ChallengeHandler</code>); refuses every request while the verified-presentation grant is off</td>
+</tr>
+<tr>
+<td>API</td>
+<td><code>GET /.well-known/jwks.json</code></td>
+<td>The signing key as a JWK set: <code>kid</code> the signer's <code>KeyID()</code>, <code>use</code> <code>sig</code>, <code>alg</code> <code>ES256</code>; <code>Cache-Control: public, max-age=300</code></td>
+</tr>
+<tr>
+<td>API and ops</td>
+<td><code>GET /healthz</code>, <code>GET /readyz</code></td>
+<td>Liveness and readiness</td>
+</tr>
+</tbody>
+</table>
+<p>Every API request runs under a 5 s deadline, which bounds its database and transit calls.</p>
+<h3 id="start-readiness-and-drain">Start, readiness and drain<a class="headerlink" href="#start-readiness-and-drain" title="Permanent link">&para;</a></h3>
+<p>The connector never waits for its dependencies. It reads the pinned key's public half from transit
+in the background, retrying with backoff up to 30 s, and until that succeeds every API path but the
+health ones answers 503 and readiness is red; a connector started before OpenBao, or before the key
+version exists, starts, stays up and becomes ready on its own.</p>
+<p><code>/readyz</code> answers 200 only when all four checks say <code>ok</code>, 503 otherwise, with the checks' words:</p>
+<pre><code class="language-json">{&quot;ready&quot;: false, &quot;checks&quot;: {&quot;postgres&quot;: &quot;ok&quot;, &quot;openbao&quot;: &quot;ok&quot;, &quot;signing_key&quot;: &quot;missing&quot;, &quot;registrar&quot;: &quot;ok&quot;}}
+</code></pre>
+<ul>
+<li><code>postgres</code>: <code>ok</code>, <code>unreachable</code>, or <code>schema_behind</code> when the newest version in <code>schema_migrations</code>
+  (written by <code>token-store migrate</code>) is below the one this build needs. The connector cannot import
+  the token store's migration runner, so it checks the version only; checksum drift is the token
+  store's readiness to report. A test keeps the needed version equal to the newest migration file,
+  so a new migration fails it until someone decides whether the connector needs that migration.</li>
+<li><code>openbao</code>: <code>/v1/sys/health</code>, <code>ok</code>, <code>unreachable</code>, <code>uninitialized</code> or <code>sealed</code>.</li>
+<li><code>signing_key</code>: the pinned version is read again and its RFC 7638 thumbprint must equal the
+  signer's <code>kid</code>: <code>ok</code>, <code>missing</code> (no such version), <code>mismatch</code>, <code>pending</code> (signer not built yet) or
+  <code>unreachable</code>.</li>
+<li><code>registrar</code>: the bootstrap's outcome, <code>ok</code>, <code>pending</code> (not seeded yet) or <code>conflict</code> (exists with
+  other settings).</li>
+</ul>
+<p>The signer and the route table built on it are published together, so readiness can never be green
+while the API still answers 503. The first three checks run at once under the readiness budget; only a change of outcome is logged. On SIGTERM
+<code>/readyz</code> answers 503 with <code>"draining": true</code> at once, both listeners keep answering for the drain
+delay, then drain within the shutdown timeout, are force-closed if that runs out, and the pool closes.</p>
+<h3 id="upkeep">Upkeep<a class="headerlink" href="#upkeep" title="Permanent link">&para;</a></h3>
+<p>As in the token store: the replay epoch sentinel (<code>replay_epoch</code>) is checked at start, every 10 s
+and whenever the pool opens a connection; a missing row is one warning naming the 120 s window in
+which a proof could be replayed once. Every minute <code>pgstore.Sweep</code> removes expired tokens and nonces
+and <code>replay.Sweep</code> expired proof records. Each of these database operations runs under a 2 s timeout.</p>
+<h3 id="records">Records<a class="headerlink" href="#records" title="Permanent link">&para;</a></h3>
+<p>One JSON object per line on stdout, with <code>service</code> <code>connector</code> and <code>instance</code> on all of them. A
+request's records carry its <code>correlation_id</code>: the caller's <code>x-request-id</code> when it is 1 to 128 visible
+ASCII characters, a minted one otherwise; the response echoes it. Every request ends with one
+<code>request</code> record (<code>method</code>, <code>path</code>, <code>status</code>, <code>duration_ms</code>). No header, query or body is logged, so
+no token, proof, client secret or <code>Authorization</code>/<code>DPoP</code> header reaches a record; a test runs the
+binary against PostgreSQL and OpenBao and checks the records for canary secrets.</p>
+<p>The challenge endpoint of the VP grant joins the route table in <code>services/connector/server.go</code>
+(<code>apiRoutes</code>) as one line beside the token endpoint.</p>
 <h2 id="running-the-conformance-tests">Running the conformance tests<a class="headerlink" href="#running-the-conformance-tests" title="Permanent link">&para;</a></h2>
 <pre><code class="language-sh">go test ./services/connector/...
 go test -race ./services/connector/...
@@ -515,22 +1090,61 @@ go test -race ./services/connector/...
 <p>The tests run the provider behind a real HTTP server and drive it from the outside. Stale, future and
 otherwise defective proofs are minted with the claims they need, and expiry is exercised by moving the
 stores' clock, so no test waits for time to pass. Test names state the rule they check:
-<code>TestDPoP_…</code>, <code>TestResource_…</code>, <code>TestRegistration_…</code>.</p>
+<code>TestDPoP_…</code>, <code>TestResource_…</code>, <code>TestRegistration_…</code>, <code>TestStore_…</code>, <code>TestVP_…</code>. The
+verified-presentation tests run with a signer of their own whatever <code>CONNECTOR_TEST_TOKENS</code> says, and
+sign IF-03 outcomes with an in-test issuer key; on PostgreSQL they also read <code>verified_outcome</code> and
+<code>oauth2_token.outcome_id</code> directly.</p>
+<p>The same suite runs on the PostgreSQL stores when <code>CONNECTOR_TEST_STORE=pg</code> and
+<code>TOKEN_STORE_TEST_DATABASE_URL</code> names a server (each test gets a database of its own with the schema
+applied); the token store's CI job runs it that way and fails on a skip:</p>
+<pre><code class="language-sh">CONNECTOR_TEST_STORE=pg TOKEN_STORE_TEST_DATABASE_URL=postgres://postgres:ci@127.0.0.1:5432/postgres?sslmode=disable \
+  go test -race ./services/connector/...
+</code></pre>
+<p><code>CONNECTOR_TEST_TOKENS=jwt</code> runs the same suite with signed access tokens from an in-process key
+(<code>opaque</code>, the default, keeps opaque tokens). The two settings combine. A test checks that a signed
+token is accepted by <code>internal/tokenverify</code> and refused by it for another proof key, a missing proof,
+an expired token and another audience. With <code>TRANSIT_TEST_ADDR</code> and <code>TRANSIT_TEST_TOKEN</code> naming an
+OpenBao dev server, the same check runs on a token signed through <code>signing.Transit</code>:</p>
+<pre><code class="language-sh">CONNECTOR_TEST_TOKENS=jwt go test -race ./services/connector/...
+TRANSIT_TEST_ADDR=http://127.0.0.1:8200 TRANSIT_TEST_TOKEN=dev \
+  go test -race -run TestSignedTokens ./services/connector/internal/oauth2provider/authelia
+</code></pre>
+<p>The binary's own tests (<code>services/connector</code>) need both servers for the end-to-end ones:</p>
+<pre><code class="language-sh">TOKEN_STORE_TEST_DATABASE_URL=postgres://postgres:ci@127.0.0.1:5432/postgres?sslmode=disable \
+TRANSIT_TEST_ADDR=http://127.0.0.1:8200 TRANSIT_TEST_TOKEN=dev \
+  go test -race ./services/connector
+</code></pre>
+<h3 id="session-records">Session records<a class="headerlink" href="#session-records" title="Permanent link">&para;</a></h3>
+<p>A token record keeps the adapter's own encoding of the session, versioned (<code>v: 1</code>): the access token's
+expiry, the subject and the key binding (<code>jkt</code>, or a certificate thumbprint). The library hands the
+store different session types for one token and their JSON forms differ, so the adapter writes and
+reads every field through the library's interfaces instead of storing the library's JSON. A record
+of another version, or a binding the requested session type cannot carry, is refused: a bound token
+never comes back looking unbound. <code>TestStore_BoundTokenStaysBoundAcrossRestart</code> proves it on both
+stores, for opaque and signed tokens: a signed token is stored from the library's JWT session and read
+back into its default session.</p>
 <h2 id="limitations">Limitations<a class="headerlink" href="#limitations" title="Permanent link">&para;</a></h2>
 <ul>
-<li>The only stores are in-memory; nothing survives a restart.</li>
-<li>Only the <code>client_credentials</code> grant and <code>client_secret_basic</code> client authentication are wired.
+<li><code>memstore</code> keeps replay detection, like everything else, in one process: with it a proof can be
+  replayed once against another replica or after a restart. <code>connector serve</code> uses <code>pgstore</code>, whose
+  replay record is the zone's shared <code>proof_jti</code> table in PostgreSQL.</li>
+<li>Only the <code>client_credentials</code> and verified-presentation grants and <code>client_secret_basic</code> client
+  authentication are wired.
   Client authentication by signed assertion is refused.</li>
 <li>Registration management (RFC 7592) and token introspection are not exposed. A registration
   response nevertheless carries a registration access token and a client configuration URI, which
   lead nowhere yet.</li>
-<li>Access tokens are opaque and validated by lookup, so a protected resource can only validate them
-  through the connector. Signed tokens carrying the key binding, validated against a published key
-  set, are the decided direction and not implemented yet.</li>
+<li>Without <code>AccessTokenSigner</code>, access tokens are opaque and validated by lookup, so a protected
+  resource can only validate them through the connector. The key set handler that publishes the
+  signer's public key is not part of this layer: <code>connector serve</code> serves it at
+  <code>/.well-known/jwks.json</code>.</li>
 <li>The proof URI is reconstructed from the request. Behind a proxy the scheme is taken from
   <code>X-Forwarded-Proto</code>, so that header must be set by a trusted hop only.</li>
 <li>The pinned <code>authelia.com/provider/oauth2</code> v0.3.2 requires Go 1.27.x.</li>
 </ul>
+<h3 id="exclusive-audiences-for-guarded-access">Exclusive audiences for guarded access<a class="headerlink" href="#exclusive-audiences-for-guarded-access" title="Permanent link">&para;</a></h3>
+<p>Set <code>CONNECTOR_EXCLUSIVE_AUDIENCES</code> (chart <code>oauth.exclusiveAudiences</code>) to the guard's inbound audience and the Resource's upstream audience. <code>Config.ExclusiveAudiences</code> is an additive provider contract field. A client may hold at most one member of this set. Registration returns <code>invalid_client_metadata</code> for a dual-role request, even with a registrar token authorizing both. Both grant handlers return <code>invalid_request</code> for existing clients holding both; the migration flag never relaxes issuance.</p>
+<p>The Participant requests only the guard's <code>inbound_audience</code>. The store requests only its route's upstream audience, equal to both the guard's <code>upstream_audience</code> and <code>PROTECTED_RESOURCE_AUDIENCE</code>. The audiences must differ. Provision separate registrar identities for each role; the bootstrap registrar in the guarded example provisions Participants. <code>/readyz</code> reports conflicting client IDs and count, and fails until their registrations are repaired. <code>CONNECTOR_ALLOW_AUDIENCE_MIGRATION=true</code> (chart <code>oauth.allowAudienceMigration</code>) explicitly downgrades this readiness failure to <code>migration_warning</code>; use only during a controlled migration. The report and warning contain no credentials.</p>
               
             </div>
           </div><footer>
