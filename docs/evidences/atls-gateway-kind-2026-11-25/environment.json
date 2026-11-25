@@ -1,8 +1,8 @@
 {
   "proof": "verify-atls-gateway",
-  "started": "2026-11-25T13:51:41Z",
-  "ended": "2026-11-25T14:02:07Z",
-  "commit": "c7f07c0f96d010fa2d3bcabb10d17a85dc8da8c0",
+  "started": "2026-11-25T15:34:39Z",
+  "ended": "2026-11-25T15:52:35Z",
+  "commit": "ed40cb66d410aa08b6d23d7eed2de2d5375885bf",
   "dirty": false,
   "cmc_version": "v0.9.15",
   "kubernetes": "v1.35.8",
@@ -10,8 +10,8 @@
   "go": "go1.27.0",
   "platform": "linux/arm64",
   "images": {
-    "atls-gateway": "sha256:aca34c2fd4d0a446c5309244ddcc93a36669d161dfa5d22fa6e5ad087be9a3b8",
-    "cmcd": "sha256:e4dd4dfa125ebe1502feddc15e73b40f92912b1df38182ca598f6b2607a38a25"
+    "atls-gateway": "sha256:6e6d2f7dfde11513543c7e0754dd82094d29560889dc109a4700f5d6fa8f4c58",
+    "cmcd": "sha256:03ba9e8b1f3f388b9c89fb175d109a5bac86e37f7dfab53278eaf26dd4b89c67"
   },
   "failures": 0
 }
