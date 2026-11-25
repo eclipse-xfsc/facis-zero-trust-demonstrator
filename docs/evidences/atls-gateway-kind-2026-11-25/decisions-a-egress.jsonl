@@ -1,4 +1,4 @@
 {"role":"egress","decision":"started","reason":"evidence_verified"}
-{"role":"egress","decision":"established","reason":"mutual_attestation","peer":"spiffe://zone-b/gateway","binding":"a8329530a89b2cbbbccb8fd874c6f35434557d04f7336a7b32cf78c4494e41d5","tlsVersion":772}
+{"role":"egress","decision":"established","reason":"mutual_attestation","peer":"spiffe://zone-b/gateway","binding":"217712666abc9bb54e4b93c64049dd6191f5e7d311d6a7e4b854f363744d46a3","tlsVersion":772}
 {"role":"egress","decision":"refused","reason":"atls: local attester unavailable"}
-{"role":"egress","decision":"established","reason":"mutual_attestation","peer":"spiffe://zone-b/gateway","binding":"506213d3c55c39504e1c5338c999c9605be1fd309e249057793d947573a5435b","tlsVersion":772}
+{"role":"egress","decision":"established","reason":"mutual_attestation","peer":"spiffe://zone-b/gateway","binding":"b57da3a5b4084331aaed6903c6ee7bffcdf41b85791cb6b0890583a1e0ddefb2","tlsVersion":772}

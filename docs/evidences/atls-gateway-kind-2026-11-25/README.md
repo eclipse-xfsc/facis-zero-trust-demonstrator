@@ -1,13 +1,13 @@
 # The attested-channel gateway between two zones on kind
 
-Run of 2026-11-25, 13:37 to 13:47 UTC, on a workstation: two kind clusters (`kindest/node` v1.35.8,
+Run of 2026-11-25, 13:51 to 14:02 UTC, on a workstation: two kind clusters (`kindest/node` v1.35.8,
 one control-plane and one worker each, Cilium 1.20.2 with `cni.exclusive=false`), both installed as
 participant zones through `scripts/install-zone` (umbrella, SPIRE, Istio sidecar mode, zone-policy),
 each with the attester release `ztd-cmcd` and the gateway release `ztd-atls-gateway` from its zone
 file; CMC v0.9.15; images built from the working tree for `linux/arm64`, the platform of these nodes.
-The tree under test is the one this evidence is committed with, before the commit (`dirty: true` in
-`environment.json`: the files of this change were not yet committed when the run started). Ten and a
-half minutes from two empty clusters to the verdict.
+Commit `c7f07c0f` (tree clean), the commit that adds the gateway's image, charts, startup check and
+this proof; an earlier run of the same day on the uncommitted tree gave the same seventeen verdicts.
+Ten and a half minutes from two empty clusters to the verdict.
 
 Reproduce:
 
@@ -34,9 +34,9 @@ scripts/verify-atls-gateway/verify.sh --kind --out .dev/verify-atls-gateway
 | zone A, zone B: base releases | PASS |
 | zone A, zone B: `ztd-cmcd` and `ztd-atls-gateway` installed from the zone file | PASS |
 | four roles: startup check `evidence_verified` before serving | PASS |
-| A → B: 200, body `from-zone-a`; both ends one channel, `mutual_attestation`, TLS 1.3 (772), binding `a8329530a89b2cbb…` at both ends, peer `spiffe://zone-b/gateway` seen by A and `spiffe://zone-a/gateway` seen by B | PASS |
-| B → A: 200, body `from-zone-b`; binding `a23f8ae5a7c06eff…` at both ends | PASS |
-| stranger at B's entry: `curl: (56) Recv failure: Connection reset by peer`; ingress recorded `refused` / `atls: peer certificate identity rejected` | PASS |
+| A → B: 200, body `from-zone-a`; both ends one channel, `mutual_attestation`, TLS 1.3 (772), binding `217712666abc9bb5…` at both ends, peer `spiffe://zone-b/gateway` seen by A and `spiffe://zone-a/gateway` seen by B | PASS |
+| B → A: 200, body `from-zone-b`; binding `f5ba83443c19b1f5…` at both ends | PASS |
+| stranger at B's entry: `curl: (56) … tlsv1 alert unknown ca` (the run on the uncommitted tree saw the connection reset instead; what the client sees depends on when the listener closes); ingress recorded `refused` / `atls: peer certificate identity rejected` | PASS |
 | A's attester away: the call ends in a reset (`exit code 56`), egress recorded `refused` / `atls: local attester unavailable` | PASS |
 | A's attester back: 200, body `attester-back` | PASS |
 | A's ingress with the tampered configuration: exit status 2, `{"role":"ingress","decision":"refused","reason":"evidence_rejected"}`, served nothing | PASS |
