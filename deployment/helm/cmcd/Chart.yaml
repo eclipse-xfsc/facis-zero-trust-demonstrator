@@ -1,0 +1,17 @@
+apiVersion: v2
+name: cmcd
+description: >-
+  The zone's attester: CMC's cmcd with the software driver, in the management plane. It signs the
+  zone's mock attestation evidence over the measurement log and the pipeline-signed reference metadata
+  it is given (ADR-0011, class 3), and verifies the peer zone's evidence for the attested-channel
+  gateway, which reaches it over the umbrella's lane atls-gateway-to-cmcd.
+type: application
+version: 0.1.0
+appVersion: "0.9.15"
+keywords:
+  - facis
+  - zero-trust
+  - attestation
+sources:
+  - https://github.com/eclipse-xfsc/facis-zero-trust-demonstrator
+  - https://github.com/Fraunhofer-AISEC/cmc

@@ -44,6 +44,14 @@
 #                                tenant's guard and policy evaluator (deployment/helm/guard, tenant
 #                                mode) from tenants.guard.values: target tenant <name>, its policy's
 #                                member that tenant's Participant, the other tenants' denied by policy
+#     ztd-cmcd     cmcd.namespace   only when the zone file sets cmcd.install (participant role): the
+#                                zone's attester, CMC's cmcd with the software driver, over the zone's
+#                                provisioned material (deployment/helm/cmcd), from cmcd.values
+#     ztd-atls-gateway  atlsGateway.namespace  only when the zone file sets atlsGateway.install
+#                                (participant role): the attested-channel gateway, its roles, policies
+#                                and startup check (deployment/helm/atls-gateway), from
+#                                atlsGateway.values, with zone.trustDomain and the zone's attestation
+#                                configuration from deployment/attestation/<zone.name>.json
 #  12 gatekeeper   gatekeeper-system  only when the zone file sets admission.install (either role, after
 #                                its last release): the admission release of the umbrella chart -
 #                                Gatekeeper, the image-verification provider, the admission policy and
@@ -236,6 +244,16 @@ load_steps() {
   if [ "$ROLE" = participant ] && [ "$(zone_fact guard.install)" = true ]; then
     STEPS+=("ztd-guard|=guard.namespace|guard|guard|trustDomain=zone.trustDomain|")
   fi
+  # The zone's attester and the attested-channel gateway (docs/atls-gateway.md), when a participant
+  # zone file opts in: cmcd first, in the management plane, then the gateway, in the data plane, whose
+  # startup check asks cmcd for the zone's evidence. "cmcd" and "atls-gateway" as values file mean the
+  # zone file's cmcd.values and atlsGateway.values (merged_values).
+  if [ "$ROLE" = participant ] && [ "$(zone_fact cmcd.install)" = true ]; then
+    STEPS+=("ztd-cmcd|=cmcd.namespace|cmcd|cmcd||")
+  fi
+  if [ "$ROLE" = participant ] && [ "$(zone_fact atlsGateway.install)" = true ]; then
+    STEPS+=("ztd-atls-gateway|=atlsGateway.namespace|atls-gateway|atls-gateway|trustDomain=zone.trustDomain|")
+  fi
   # One release per tenant (ZT-53), into the tenant's namespace, which the zone file declares as a
   # data-plane entry of planes.extra; "tenant:<name>" as values file is the zone file's tenants.values
   # for that tenant (merged_values).
@@ -415,6 +433,8 @@ chart_label() {
     ztd-openbao) echo "deployment/helm/ztd-openbao" ;;
     guard) echo "deployment/helm/guard" ;;
     tenant) echo "deployment/helm/tenant" ;;
+    cmcd) echo "deployment/helm/cmcd" ;;
+    atls-gateway) echo "deployment/helm/atls-gateway" ;;
     spire-crds) echo "spire-crds $SPIRE_CRDS_VERSION" ;;
     spire) echo "spire $SPIRE_VERSION" ;;
     istio-base) echo "base $ISTIO_VERSION" ;;
@@ -515,6 +535,8 @@ chart_path() {
     ztd-openbao) build_openbao_chart ;;
     guard) echo "$REPO/deployment/helm/guard" ;;
     tenant) echo "$REPO/deployment/helm/tenant" ;;
+    cmcd) echo "$REPO/deployment/helm/cmcd" ;;
+    atls-gateway) echo "$REPO/deployment/helm/atls-gateway" ;;
     spire-crds) fetch_spire_chart spire-crds "$SPIRE_CRDS_VERSION" "$SPIRE_CRDS_SHA256" ;;
     spire) fetch_spire_chart spire "$SPIRE_VERSION" "$SPIRE_SHA256" ;;
     istio-base) echo "$(fetch_istio)/base" ;;
@@ -549,6 +571,31 @@ merged_values() {
 yaml.safe_dump(fact(zone_doc(), "guard.values") or {}, open(ARGS[0], "w"), sort_keys=False)
 PY
     merged_values "$1" "$work/$1.guard-values.yaml" "$3" "$4"
+    return
+  fi
+  if [ "$2" = cmcd ]; then
+    zone_py "$work/$1.cmcd-values.yaml" <<'PY'
+yaml.safe_dump(fact(zone_doc(), "cmcd.values") or {}, open(ARGS[0], "w"), sort_keys=False)
+PY
+    merged_values "$1" "$work/$1.cmcd-values.yaml" "$3" "$4"
+    return
+  fi
+  if [ "$2" = atls-gateway ]; then
+    # The gateway's values, and the zone's attestation configuration from Git
+    # (deployment/attestation/<zone.name>.json) as attestation.zone when the values do not give it.
+    zone_py "$work/$1.atls-gateway-values.yaml" "$REPO/deployment/attestation" <<'PY'
+import json, os
+doc = zone_doc()
+values = dict(fact(doc, "atlsGateway.values") or {})
+attestation = dict(values.get("attestation") or {})
+if not attestation.get("zone") and attestation.get("enabled", True):
+    path = os.path.join(ARGS[1], f"{fact(doc, 'zone.name')}.json")
+    if os.path.isfile(path):
+        attestation["zone"] = json.load(open(path))
+        values["attestation"] = attestation
+yaml.safe_dump(values, open(ARGS[0], "w"), sort_keys=False)
+PY
+    merged_values "$1" "$work/$1.atls-gateway-values.yaml" "$3" "$4"
     return
   fi
   if [[ $2 == tenant-guard:* ]]; then

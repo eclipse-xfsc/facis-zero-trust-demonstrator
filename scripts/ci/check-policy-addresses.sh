@@ -10,13 +10,14 @@
 # CiliumClusterwideNetworkPolicy or AuthorizationPolicy document carries a key ipBlock, ipBlocks,
 # notIpBlocks, remoteIpBlocks, notRemoteIpBlocks, toCIDR, toCIDRSet, fromCIDR or fromCIDRSet, or a
 # string holding an IPv4 or IPv6 address (with or without a port: 10.0.0.1:8080, [::1]:8080) or a
-# CIDR, naming the zone file, the release, the policy and what it found. Only in the render of the
-# connector-gateway chart (and with --edge-manifest), two hops that leave the mesh are declared as EDGE
-# lines instead of failing, and only in the exact shape that chart renders: the egress-only
-# CiliumNetworkPolicy annotated ztd.facis.io/connector-hop: gateway-to-peer (one /32 to the peer
-# zone's entry, TCP ports, selected by service account) and the ingress-only NetworkPolicy annotated
-# outside-to-entry (ipBlock sources and TCP ports only); both carry ztd.facis.io/connector-route, and
-# only their address fields are excused. ZT-25 governs the mesh; these two hops are outside it.
+# CIDR, naming the zone file, the release, the policy and what it found. Only in the renders of the
+# two gateway charts, connector-gateway and atls-gateway (and with --edge-manifest), two hops that
+# leave the mesh are declared as EDGE lines instead of failing, and only in the exact shape those
+# charts render: the egress-only CiliumNetworkPolicy annotated ztd.facis.io/connector-hop:
+# gateway-to-peer (one /32 to the peer zone's entry, TCP ports, selected by service account) and the
+# ingress-only NetworkPolicy annotated outside-to-entry (ipBlock sources and TCP ports only); both
+# carry ztd.facis.io/connector-route, and only their address fields are excused. ZT-25 governs the
+# mesh; these two hops are outside it.
 # The component charts the
 # zone render does not cover (every chart under deployment/helm/ with a ci/values.yaml, except ztd,
 # zone-policy and ztd-openbao) are scanned too, rendered with ci/values.yaml and with each
@@ -108,9 +109,10 @@ def walk(node, path, found):
 def hop_of(d):
     return ((d.get("metadata") or {}).get("annotations") or {}).get("ztd.facis.io/connector-hop")
 def edge_fields(d):
-    """The address findings a Connector gateway edge hop may carry, and only those; empty unless this
-    scan is of the connector-gateway chart's own render (EDGE_HOPS=1) and the policy has exactly the
-    shape the chart renders for that hop (ZT-25 covers the mesh; these two hops leave it)."""
+    """The address findings a gateway edge hop may carry, and only those; empty unless this scan is
+    of a gateway chart's own render (connector-gateway or atls-gateway, EDGE_HOPS=1) and the policy
+    has exactly the shape those charts render for that hop (ZT-25 covers the mesh; these two hops
+    leave it)."""
     if os.environ.get("EDGE_HOPS") != "1":
         return set()
     ann = (d.get("metadata") or {}).get("annotations") or {}
@@ -200,10 +202,23 @@ for zone in "${zones[@]}"; do
     echo "FAIL $label: $render_error"
     failures=$((failures + 1)); continue
   fi
-  out=$(EDGE_HOPS= scan "$label" "${render_files[@]}"); rc=$?
+  # The attested-channel gateway release, when the zone installs it, is the one zone render whose two
+  # edge hops may name an address (as the chart's own scan below declares them); every other release
+  # is scanned with no excuse.
+  mesh_files=() gateway_files=()
+  for f in "${render_files[@]}"; do
+    case $f in */ztd-atls-gateway.yaml) gateway_files+=("$f") ;; *) mesh_files+=("$f") ;; esac
+  done
+  out=$(EDGE_HOPS= scan "$label" "${mesh_files[@]}"); rc=$?
   grep -E '^(FAIL|EDGE)' <<<"$out"
+  summary=$(tail -1 <<<"$out")
+  if [ ${#gateway_files[@]} -gt 0 ]; then
+    gw=$(EDGE_HOPS=1 scan "$label" "${gateway_files[@]}") || rc=1
+    grep -E '^(FAIL|EDGE)' <<<"$gw"
+    summary="$summary, $(tail -1 <<<"$gw") of ztd-atls-gateway"
+  fi
   if [ $rc -eq 0 ]; then
-    echo "$label (mesh.mode $render_mode): $(tail -1 <<<"$out") rendered by $render_releases, no undeclared address"
+    echo "$label (mesh.mode $render_mode): $summary rendered by $render_releases, no undeclared address"
   else
     failures=$((failures + 1))
   fi
@@ -222,7 +237,9 @@ if [ $# -eq 0 ]; then
         echo "FAIL $label: render failed: $(head -1 "$file.err")"
         failures=$((failures + 1)); continue
       fi
-      out=$(EDGE_HOPS=$([ "$name" = connector-gateway ] && echo 1) scan "$label" "$file"); rc=$?
+      edge=
+      case $name in connector-gateway | atls-gateway) edge=1 ;; esac
+      out=$(EDGE_HOPS=$edge scan "$label" "$file"); rc=$?
       grep -E '^(FAIL|EDGE)' <<<"$out"
       if [ $rc -eq 0 ]; then echo "$label: $(tail -1 <<<"$out"), no undeclared address"; else failures=$((failures + 1)); fi
     done

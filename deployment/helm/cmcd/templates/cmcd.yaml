@@ -1,0 +1,128 @@
+{{- $v := .Values }}
+{{- if not (regexMatch "^ztd-[a-z0-9-]+$" $v.name) }}{{ fail "name must match ^ztd-[a-z0-9-]+$ (the zone's naming rule)" }}{{ end }}
+{{- if not (regexMatch "^sha256:[a-f0-9]{64}$" $v.image.digest) }}{{ fail "image.digest must be a sha256 digest" }}{{ end }}
+{{- if not $v.materialSecret }}{{ fail "materialSecret is required: the zone's signed metadata, measurement log and metadata CA" }}{{ end }}
+{{- $p := toString $v.port }}
+{{- if or (not (regexMatch "^[1-9][0-9]{0,4}$" $p)) (gt (atoi $p) 65535) }}{{ fail "port must be one TCP port, 1-65535" }}{{ end }}
+{{- if hasKey $v.podAnnotations "proxy.istio.io/config" }}{{ fail "podAnnotations: proxy.istio.io/config is refused at admission in a plane namespace (zone-policy)" }}{{ end }}
+{{- $sel := dict "app.kubernetes.io/name" "cmcd" }}
+{{- /* cmcd v0.9.15's configuration (cmcd/config.go): the gRPC API on every pod address, the software
+driver measuring the container log, the signed metadata read from files, the metadata CA as the only
+root, the writable state under /var/cmcd. The enrolment server is never contacted: the software driver
+creates its own key, and the address below has nothing listening. */}}
+{{- $cfg := dict "cmcAddr" (printf "0.0.0.0:%s" $p) "api" "grpc" "drivers" (list "sw") "hashAlg" "SHA-256" "ctr" true "ctrDriver" "sw" "ctrLog" "/etc/cmcd/material/measurements.json" "metadata" (list "file:///etc/cmcd/metadata") "rootCas" (list "/etc/cmcd/material/metadata-ca.pem") "allowSystemCerts" false "storage" "/var/cmcd/storage" "cache" "/var/cmcd/cache" "peerCache" "/var/cmcd/peer-cache" "endorsementMode" "direct" "vendorCache" "/var/cmcd/vendor-cache" "enrollmentMode" "est" "enrollmentAddr" "https://127.0.0.1:1/never-contacted" "logLevel" $v.logLevel }}
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: cmcd
+  namespace: {{ .Release.Namespace }}
+automountServiceAccountToken: false
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ $v.name }}
+  namespace: {{ .Release.Namespace }}
+data:
+  cmcd.json: |
+    {{- toPrettyJson $cfg | nindent 4 }}
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ $v.name }}
+  namespace: {{ .Release.Namespace }}
+  labels: {{ toJson $sel }}
+spec:
+  replicas: 1
+  selector:
+    matchLabels: {{ toJson $sel }}
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: cmcd
+        app.kubernetes.io/component: attester
+        app.kubernetes.io/part-of: facis-zero-trust-demonstrator
+        spiffe.io/spire-managed-identity: "true"
+      annotations:
+        ztd.facis.io/config-sha256: {{ toPrettyJson $cfg | sha256sum }}
+        sidecar.istio.io/nativeSidecar: "true"
+        {{- with $v.podAnnotations }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+    spec:
+      serviceAccountName: cmcd
+      automountServiceAccountToken: false
+      enableServiceLinks: false
+      {{- with $v.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 65532
+        runAsGroup: 65532
+        fsGroup: 65532
+        seccompProfile: {type: RuntimeDefault}
+      containers:
+        - name: cmcd
+          image: "{{ $v.image.repository }}@{{ $v.image.digest }}"
+          args: ["--config", "/etc/cmcd/cmcd.json"]
+          ports: [{name: grpc, containerPort: {{ $v.port }}}]
+          readinessProbe:
+            tcpSocket: {port: grpc}
+          volumeMounts:
+            - {name: config, mountPath: /etc/cmcd/cmcd.json, subPath: cmcd.json, readOnly: true}
+            - {name: metadata, mountPath: /etc/cmcd/metadata, readOnly: true}
+            - {name: material, mountPath: /etc/cmcd/material, readOnly: true}
+            - {name: state, mountPath: /var/cmcd}
+          resources:
+            {{- toYaml $v.resources | nindent 12 }}
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities: {drop: [ALL]}
+      volumes:
+        - name: config
+          configMap: {name: {{ $v.name }}}
+        # The signed metadata alone in its folder: cmcd reads every file of a file:// location.
+        - name: metadata
+          secret:
+            secretName: {{ $v.materialSecret }}
+            defaultMode: 0440
+            items:
+              - {key: manifest.json, path: manifest.json}
+              - {key: image-description.json, path: image-description.json}
+        - name: material
+          secret:
+            secretName: {{ $v.materialSecret }}
+            defaultMode: 0440
+            items:
+              - {key: measurements.json, path: measurements.json}
+              - {key: metadata-ca.pem, path: metadata-ca.pem}
+        - name: state
+          emptyDir: {}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: cmcd
+  namespace: {{ .Release.Namespace }}
+spec:
+  selector: {{ toJson $sel }}
+  ports:
+    - name: grpc
+      port: {{ $v.port }}
+      targetPort: {{ $v.port }}
+      protocol: TCP
+---
+# Mesh mutual TLS on every port: the gateway reaches cmcd through its sidecar, under the mesh's
+# identity rule of the lane atls-gateway-to-cmcd (zone-policy renders the allow rule).
+apiVersion: security.istio.io/v1
+kind: PeerAuthentication
+metadata:
+  name: {{ $v.name }}
+  namespace: {{ .Release.Namespace }}
+spec:
+  selector: {matchLabels: {{ toJson $sel }}}
+  mtls: {mode: STRICT}

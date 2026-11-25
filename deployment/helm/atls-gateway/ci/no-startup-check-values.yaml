@@ -1,0 +1,2 @@
+# A render without the startup check: no attestation ConfigMap, no attestation block in the file.
+attestation: {enabled: false}

@@ -1,0 +1,2 @@
+{"role":"ingress","decision":"started","reason":"evidence_verified"}
+{"role":"ingress","decision":"established","reason":"mutual_attestation","peer":"spiffe://zone-b/gateway","binding":"a23f8ae5a7c06eff93bcb3b73aa7abd342919014b1ef7949d683ab8d34bb142c","tlsVersion":772}

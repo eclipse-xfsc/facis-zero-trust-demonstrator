@@ -1,0 +1,5 @@
+{"role":"ingress","decision":"started","reason":"evidence_verified"}
+{"role":"ingress","decision":"established","reason":"mutual_attestation","peer":"spiffe://zone-a/gateway","binding":"a8329530a89b2cbbbccb8fd874c6f35434557d04f7336a7b32cf78c4494e41d5","tlsVersion":772}
+{"role":"ingress","decision":"refused","reason":"atls: peer certificate identity rejected"}
+{"role":"ingress","decision":"refused","reason":"atls: handshake timed out"}
+{"role":"ingress","decision":"established","reason":"mutual_attestation","peer":"spiffe://zone-a/gateway","binding":"506213d3c55c39504e1c5338c999c9605be1fd309e249057793d947573a5435b","tlsVersion":772}

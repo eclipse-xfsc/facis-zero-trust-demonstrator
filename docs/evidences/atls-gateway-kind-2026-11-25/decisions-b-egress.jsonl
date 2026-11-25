@@ -1,0 +1,3 @@
+{"role":"egress","decision":"started","reason":"evidence_verified"}
+{"role":"egress","decision":"established","reason":"mutual_attestation","peer":"spiffe://zone-a/gateway","binding":"a23f8ae5a7c06eff93bcb3b73aa7abd342919014b1ef7949d683ab8d34bb142c","tlsVersion":772}
+{"role":"egress","decision":"established","reason":"mutual_attestation","peer":"spiffe://zone-a/gateway","binding":"00d5c791c211b1c15841df70c545bbcc6388bf452b11d9a3d27c034309f9b5c6","tlsVersion":772}

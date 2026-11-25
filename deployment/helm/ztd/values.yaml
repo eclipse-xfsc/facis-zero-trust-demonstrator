@@ -282,9 +282,10 @@ allowMatrix:
     to: { plane: management, podSelector: { app.kubernetes.io/name: tsa-policy-engine }, serviceAccount: tsa-policy-engine }
     enforcedBy: mesh
     l7Owner: sidecar
-  # The aTLS gateway's lanes (IF-07, v0, not frozen): no chart runs the gateway yet, so the label and
-  # account below are the contract its chart takes on; until then no pod holds them and both lanes
-  # stay unused. They hold the ZT-55 design's Attestation and TRAIN (resolution) roles.
+  # The aTLS gateway's lanes (IF-07, v0, not frozen): the label and account below are the contract
+  # the gateway chart (deployment/helm/atls-gateway, release ztd-atls-gateway) and the attester chart
+  # (deployment/helm/cmcd, release ztd-cmcd) honour; the TCR lane stays unused until the TCR has a
+  # chart. They hold the ZT-55 design's Attestation and TRAIN (resolution) roles.
   - name: atls-gateway-to-cmcd
     from: { plane: data, podSelector: { app.kubernetes.io/name: atls-gateway }, serviceAccount: atls-gateway }
     to: { plane: management, podSelector: { app.kubernetes.io/name: cmcd }, serviceAccount: cmcd }
@@ -468,6 +469,22 @@ observabilityBackends:
 # true. guard.values are the guard chart's values (deployment/helm/guard/README.md);
 # trustDomain comes from zone.trustDomain. The umbrella renders nothing from this block.
 guard:
+  install: false
+  namespace: ""
+  values: {}
+
+# The attested-channel gateway and the zone's attester (docs/atls-gateway.md): installed by
+# scripts/install-zone/install.sh as release ztd-cmcd into cmcd.namespace (the management plane)
+# and release ztd-atls-gateway into atlsGateway.namespace (the data plane) when their install is
+# true. Their values are the charts' values (deployment/helm/cmcd/README.md,
+# deployment/helm/atls-gateway/README.md); the gateway's trustDomain comes from zone.trustDomain,
+# and its attestation.zone from deployment/attestation/<zone.name>.json unless the values give it.
+# The umbrella renders nothing from these blocks.
+cmcd:
+  install: false
+  namespace: ""
+  values: {}
+atlsGateway:
   install: false
   namespace: ""
   values: {}

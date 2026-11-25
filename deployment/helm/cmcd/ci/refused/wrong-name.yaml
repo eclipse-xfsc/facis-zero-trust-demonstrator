@@ -1,0 +1,3 @@
+# Workload names follow the zone's naming rule (ztd-…).
+# expect: name must match
+name: cmcd

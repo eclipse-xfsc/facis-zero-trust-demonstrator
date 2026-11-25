@@ -1,0 +1,3 @@
+# The startup check needs the zone's attestation configuration.
+# expect: attestation.zone must be the zone's attestation configuration
+attestation: {zone: null}

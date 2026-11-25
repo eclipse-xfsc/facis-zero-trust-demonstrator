@@ -17,6 +17,8 @@ documents its values in its own README.
 | Umbrella chart for a zone | `deployment/helm/ztd` | in use on kind; design in [docs/umbrella-chart.md](../../docs/umbrella-chart.md) | [ztd/README.md](ztd/README.md) |
 | Zone policy | `deployment/helm/zone-policy` | in use on kind | the workloads' registration with SPIRE, mesh-wide STRICT mTLS, the mesh default deny with one allow rule per declared pair by identity and the denial log, the identity-band checks |
 | Secret store (OpenBao) | `deployment/helm/ztd-openbao` | in use on kind; the eighth release of a zone | [ztd-openbao/README.md](ztd-openbao/README.md): `managementNamespace`, `cilium.enabled`, `openbao.*` (upstream chart 0.28.3, locked), `bootstrap.image`, `external.address`, `external.verifyTokenSecret` |
+| Attested-channel gateway | `deployment/helm/atls-gateway` | new; the zone's attested entry and exit (ZT-28, ZT-65), both roles, startup check against the zone's evidence; proven between two zones on kind | [atls-gateway/README.md](atls-gateway/README.md) |
+| Attester (cmcd) | `deployment/helm/cmcd` | new; CMC's cmcd with the software driver over the pipeline-signed material, in the management plane | [cmcd/README.md](cmcd/README.md) |
 | IF-01 feed bridge | `deployment/helm/feed-bridge` | new; the feed in the mesh, the UI's identity only | [feed-bridge/README.md](feed-bridge/README.md) |
 | TSPA re-publication | `deployment/helm/tspa-republish` | in use on zone B (`ztd-train`) | [tspa-republish/README.md](tspa-republish/README.md) |
 | Upstream SPIRE and Istio charts (values only) | `deployment/helm/values` | in use on kind | [values/README.md](values/README.md) |

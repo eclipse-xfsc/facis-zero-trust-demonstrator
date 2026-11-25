@@ -1,0 +1,3 @@
+time="2026-11-25T13:47:32Z" level=info msg="SUCCESS: Verification for Prover ztd-cmcd-6b8655b75-4qgxh (2026-11-25T13:47:32.032652461Z)" service=ar
+{"role":"ingress","decision":"refused","reason":"evidence_rejected"}
+connector-gateway: startup check of zone zone-a: component atls-gateway: verified c410ce59e2941e318504ca94c02d1fc402078c06c4ee64d2708f2fd6351383c0, configured e247fa13e2ef619c95391b7f816ecf226686cdde22b56736442fe6242fbe4fd1

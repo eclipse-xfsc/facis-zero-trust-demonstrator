@@ -1,0 +1,39 @@
+{{- include "atls-gateway.validate" . -}}
+{{- $v := .Values }}
+# The trust anchors of the attested channel: the CA(s) of both zones' gateway certificates.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ $v.name }}-trust
+  namespace: {{ .Release.Namespace }}
+data:
+  ca.pem: |
+    {{- $v.trustCaCert | nindent 4 }}
+{{- if $v.attestation.enabled }}
+---
+# The startup check's inputs: the zone's attestation configuration as kept in Git, and the CA that
+# signed its reference metadata.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ $v.name }}-attestation
+  namespace: {{ .Release.Namespace }}
+data:
+  zone.json: |
+    {{- toPrettyJson $v.attestation.zone | nindent 4 }}
+  metadata-ca.pem: |
+    {{- $v.attestation.metadataCaCert | nindent 4 }}
+{{- end }}
+{{- range $role := list "ingress" "egress" }}
+{{- if (index $v $role).enabled }}
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ $v.name }}-{{ $role }}
+  namespace: {{ $.Release.Namespace }}
+data:
+  gateway.json: |
+    {{- include "atls-gateway.config" (list $role $) | nindent 4 }}
+{{- end }}
+{{- end }}

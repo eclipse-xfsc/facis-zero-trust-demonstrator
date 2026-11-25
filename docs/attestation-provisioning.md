@@ -85,10 +85,12 @@ proof on every pull request that touches them, and uploads the run's records.
 
 ## Not covered here
 
-- **The gateway.** It does not exist yet. The proof runs its startup check as a process; the
-  gateway calls `provision.Check` the same way when it is built.
-- **Deployment in the cluster.** `estserver` and `cmcd` run as processes in the proof. The umbrella
-  chart reserves their network paths (`atls-gateway-to-cmcd`); their charts are not written.
+- **The gateway's own check and its deployment** are on their page,
+  [Attested-channel gateway](atls-gateway.md): the gateway calls `provision.Check` at startup with
+  the configuration file the zone installer takes from Git, and the attester runs in the management
+  plane from the pipeline-signed material handed to it as a Secret (`deployment/helm/cmcd`), reading
+  the signed metadata from files; the `estserver` stays a step of the pipeline and of this proof, not
+  a workload of the zone.
 - **The pipeline's signing key.** The proof and the workflow sign with a key created for the run.
   Where the pipeline's long-lived metadata signing key is held, and how the zones receive the
   metadata CA, is not decided here.

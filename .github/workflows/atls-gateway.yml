@@ -1,0 +1,76 @@
+name: Attested-channel gateway
+
+# The gateway process and its deployment (docs/atls-gateway.md): the binary's tests over the test
+# attesters, then the two-zone proof on kind, both zones installed through scripts/install-zone with
+# the attester and the gateway built from the commit under review. The evidence committed under
+# docs/evidences/ comes from a local run and is never written here; this run's records are uploaded.
+on:
+  pull_request:
+    paths:
+      - cmd/connector-gateway/**
+      - internal/connectorgateway/**
+      - internal/atls/**
+      - deployment/docker/atls-gateway/**
+      - deployment/docker/cmcd/**
+      - deployment/helm/atls-gateway/**
+      - deployment/helm/cmcd/**
+      - deployment/attestation/**
+      - scripts/verify-atls-gateway/**
+      - scripts/install-zone/**
+      - go.mod
+      - go.sum
+      - .github/workflows/atls-gateway.yml
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  gateway:
+    name: Gateway process
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+      - name: Set up Go
+        uses: actions/setup-go@40f1582b2485089dde7abd97c1529aa768e1baff # v5.6.0
+        with:
+          go-version-file: go.mod
+      - name: The binary's decisions, refusals and startup gating
+        run: go test -count=1 -race -timeout=10m ./cmd/connector-gateway/ ./internal/connectorgateway/ ./internal/atls/provision/
+
+  two-zones:
+    name: Two zones on kind
+    runs-on: ubuntu-24.04
+    timeout-minutes: 75
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+      - name: Set up Go
+        uses: actions/setup-go@40f1582b2485089dde7abd97c1529aa768e1baff # v5.6.0
+        with:
+          go-version-file: go.mod
+      - name: Pinned kind, kubectl and the Cilium CLI
+        run: |
+          scripts/tools/install.sh "$RUNNER_TEMP/bin" kind kubectl cilium-cli
+          echo "$RUNNER_TEMP/bin" >> "$GITHUB_PATH"
+      - name: PyYAML for the zone files
+        run: pip3 install --quiet pyyaml
+      # The Istio CNI agent crashes when the host's inotify instances, shared by the kind nodes, run
+      # out (docs/troubleshooting.md).
+      - name: Raise the inotify limits
+        run: sudo sysctl -w fs.inotify.max_user_instances=8192 fs.inotify.max_user_watches=1048576
+      - name: Two zones, the attester and the gateway, the channel between them
+        run: scripts/verify-atls-gateway/verify.sh --kind --out "$RUNNER_TEMP/verify-atls-gateway"
+      - name: Write the verdict to the job summary
+        if: ${{ !cancelled() }}
+        run: |
+          { echo '```'; cat "$RUNNER_TEMP/verify-atls-gateway/verdict.txt" 2>/dev/null || echo "no verdict written"; echo '```'; } >> "$GITHUB_STEP_SUMMARY"
+      - name: Upload this run's records
+        if: ${{ !cancelled() }}
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: verify-atls-gateway
+          path: ${{ runner.temp }}/verify-atls-gateway
+          if-no-files-found: ignore

@@ -1,0 +1,4 @@
+# A release without a role serves nothing.
+# expect: at least one of ingress.enabled and egress.enabled
+ingress: {enabled: false}
+egress: {enabled: false}

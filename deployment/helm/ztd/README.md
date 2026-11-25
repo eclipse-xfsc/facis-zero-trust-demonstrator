@@ -89,6 +89,8 @@ declared derogation of the preferred stack first (`docs/workload-identity.md`).
 | `intraPlanePairs` | `[]` | Pairs inside one plane namespace between components of different releases, enforced at the mesh layer only (see below) |
 | `verification.enabled` | `true` | Post-install job that reads the layout back and fails the release if it is wrong |
 | `verification.image` | `curlimages/curl` by digest | Image of the verification job |
+| `cmcd.install`, `cmcd.namespace`, `cmcd.values` | `false`, `""`, `{}` | The zone installer installs the attester release `ztd-cmcd` ([deployment/helm/cmcd](../cmcd/README.md)) into `cmcd.namespace` (the management plane) with `cmcd.values`; the umbrella renders nothing from the block |
+| `atlsGateway.install`, `atlsGateway.namespace`, `atlsGateway.values` | `false`, `""`, `{}` | The zone installer installs the attested-channel gateway release `ztd-atls-gateway` ([deployment/helm/atls-gateway](../atls-gateway/README.md)) into `atlsGateway.namespace` (the data plane) with `atlsGateway.values`, `zone.trustDomain` and the zone's attestation configuration from Git; the umbrella renders nothing from the block |
 | `openbao.*`, `openbaoBootstrap`, `openbaoExternal` | unset | Refused by the schema: the chart installs no OpenBao (below), and no zone file places the release `ztd-openbao` on a node |
 
 The chart installs no OpenBao. The secret store is the release `ztd-openbao`, the last of a zone,

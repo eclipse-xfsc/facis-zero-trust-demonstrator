@@ -43,6 +43,7 @@ nav:
   - Interface contracts: contracts/index.md
   - Attested channel control: attested-channel.md
   - Attestation evidence provisioning: attestation-provisioning.md
+  - Attested-channel gateway: atls-gateway.md
   - TRAIN trust-list publishing: tspa-publish-api.md
   - TRAIN DNS zone: train-dns.md
   - BDD acceptance:

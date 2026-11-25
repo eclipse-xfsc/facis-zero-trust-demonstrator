@@ -54,6 +54,19 @@ print((z.get("guard") or {}).get("install") is True)' "$zone")" = True ]; then
       fi
       render_files+=("$dir/mesh/ztd-guard.yaml"); render_releases+=", ztd-guard"
     fi
+    local block release
+    for block in cmcd:ztd-cmcd atlsGateway:ztd-atls-gateway; do
+      release=${block#*:}
+      if [ "$(python3 -c 'import sys,yaml
+z = yaml.safe_load(open(sys.argv[1])) or {}
+print((z.get(sys.argv[2]) or {}).get("install") is True)' "$zone" "${block%%:*}")" = True ]; then
+        if ! ZONE_VALUES=$zone RENDER_DIR=$dir/mesh "$root/scripts/install-zone/install.sh" render "$release" >"$dir/$release.log" 2>&1; then
+          render_error="$release does not render: $(grep -v '^$' "$dir/$release.log" | tail -3 | tr '\n' ' ')"
+          return 1
+        fi
+        render_files+=("$dir/mesh/$release.yaml"); render_releases+=", $release"
+      fi
+    done
   fi
   return 0
 }

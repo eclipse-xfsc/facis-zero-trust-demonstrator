@@ -43,6 +43,68 @@
         }
       }
     },
+    "cmcd": {
+      "type": "object",
+      "description": "The zone's attester release (deployment/helm/cmcd, CMC's cmcd), installed by the installer into the management plane when install is true; the umbrella renders nothing from it.",
+      "additionalProperties": false,
+      "properties": {
+        "install": {
+          "type": "boolean"
+        },
+        "namespace": {
+          "type": "string",
+          "pattern": "^([a-z0-9]([-a-z0-9]{0,61}[a-z0-9])?)?$"
+        },
+        "values": {
+          "type": "object"
+        }
+      },
+      "if": {
+        "properties": {
+          "install": {
+            "const": true
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "namespace": {
+            "minLength": 1
+          }
+        }
+      }
+    },
+    "atlsGateway": {
+      "type": "object",
+      "description": "The attested-channel gateway release (deployment/helm/atls-gateway), installed by the installer into the data plane when install is true; the umbrella renders nothing from it.",
+      "additionalProperties": false,
+      "properties": {
+        "install": {
+          "type": "boolean"
+        },
+        "namespace": {
+          "type": "string",
+          "pattern": "^([a-z0-9]([-a-z0-9]{0,61}[a-z0-9])?)?$"
+        },
+        "values": {
+          "type": "object"
+        }
+      },
+      "if": {
+        "properties": {
+          "install": {
+            "const": true
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "namespace": {
+            "minLength": 1
+          }
+        }
+      }
+    },
     "zone": {
       "type": "object",
       "description": "Recorded per zone from the cluster baseline; no defaults on purpose.",

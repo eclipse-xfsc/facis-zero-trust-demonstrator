@@ -16,8 +16,8 @@
 #   - a rendered allow-matrix policy (a NetworkPolicy annotated ztd.facis.io/allow-matrix, or an
 #     AuthorizationPolicy annotated ztd.facis.io/pair) without the annotation ztd.facis.io/l7-owner, or with
 #     a value other than sidecar or none;
-#   - a Connector route policy of the connector-gateway chart (annotated ztd.facis.io/connector-route, rendered
-#     with its ci/values.yaml and with each ci/<variant>-values.yaml layered on it) without its hop
+#   - a route policy of the connector-gateway or atls-gateway chart (annotated ztd.facis.io/connector-route,
+#     rendered with its ci/values.yaml and with each ci/<variant>-values.yaml layered on it) without its hop
 #     (ztd.facis.io/connector-hop) or whose ztd.facis.io/l7-owner is not the hop's owner: caller-to-gateway
 #     and entry-to-upstream sidecar (the destination's sidecar decides), gateway-to-peer and
 #     outside-to-entry none (no proxy of the zone decides; docs/architecture.md, Zero Trust Connector routing).
@@ -162,15 +162,18 @@ for zone in "${zones[@]}"; do
   fi
   report "$label" " (mesh.mode $render_mode, rendered by $render_releases)" "${render_files[@]}" || failures=$((failures + 1))
 done
-# The connector-gateway chart, one rendering per role (its CI values and each variant layered on them).
-gw=$root/deployment/helm/connector-gateway
-for values in "$gw"/ci/values.yaml "$gw"/ci/*-values.yaml; do
-  label=${values#"$root"/}; extra=()
-  [ "$values" = "$gw/ci/values.yaml" ] || extra=(-f "$values")
-  if ! helm template connector-gateway "$gw" -n ztd-data -f "$gw/ci/values.yaml" "${extra[@]}" >"$work/gateway.yaml" 2>"$work/gateway.err"; then
-    echo "FAIL $label: $(head -1 "$work/gateway.err")"; failures=$((failures + 1)); continue
-  fi
-  report "$label" " (connector-gateway)" "$work/gateway.yaml" || failures=$((failures + 1))
+# The two gateway charts, one rendering per role (their CI values and each variant layered on them):
+# the Connector's zone gateway and the attested-channel gateway annotate their hops the same way.
+for chart in connector-gateway atls-gateway; do
+  gw=$root/deployment/helm/$chart
+  for values in "$gw"/ci/values.yaml "$gw"/ci/*-values.yaml; do
+    label=${values#"$root"/}; extra=()
+    [ "$values" = "$gw/ci/values.yaml" ] || extra=(-f "$values")
+    if ! helm template "$chart" "$gw" -n ztd-data -f "$gw/ci/values.yaml" ${extra[@]+"${extra[@]}"} >"$work/gateway.yaml" 2>"$work/gateway.err"; then
+      echo "FAIL $label: $(head -1 "$work/gateway.err")"; failures=$((failures + 1)); continue
+    fi
+    report "$label" " ($chart)" "$work/gateway.yaml" || failures=$((failures + 1))
+  done
 done
 if [ "$failures" -gt 0 ]; then
   echo "$failures zone file(s) render a Cilium object that sends traffic to Cilium's L7 proxy, or an allow-matrix policy without its L7 owner" >&2

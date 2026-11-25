@@ -1,0 +1,123 @@
+{{- $v := .Values }}
+# One account for the zone's gateway pods: the identity the umbrella's lanes to cmcd and to the TCR
+# admit (atls-gateway-to-cmcd, atls-gateway-to-tcr), and the identity the egress lane to the peer is
+# bound to.
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: atls-gateway
+  namespace: {{ .Release.Namespace }}
+automountServiceAccountToken: false
+{{- range $role := list "ingress" "egress" }}
+{{- $r := index $v $role }}
+{{- if $r.enabled }}
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ $v.name }}-{{ $role }}
+  namespace: {{ $.Release.Namespace }}
+  labels:
+    {{- include "atls-gateway.podLabels" $role | nindent 4 }}
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: atls-gateway
+      app.kubernetes.io/component: {{ $role }}
+  template:
+    metadata:
+      labels:
+        {{- include "atls-gateway.podLabels" $role | nindent 8 }}
+      annotations:
+        # The gateway reads its configuration at start: a change rolls the pod.
+        ztd.facis.io/config-sha256: {{ include "atls-gateway.config" (list $role $) | sha256sum }}
+        sidecar.istio.io/nativeSidecar: "true"
+        {{- with $v.podAnnotations }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+    spec:
+      serviceAccountName: atls-gateway
+      automountServiceAccountToken: false
+      enableServiceLinks: false
+      {{- with $v.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 65532
+        runAsGroup: 65532
+        fsGroup: 65532
+        seccompProfile: {type: RuntimeDefault}
+      containers:
+        - name: atls-gateway
+          image: "{{ $v.image.repository }}@{{ $v.image.digest }}"
+          args: ["--config", "/etc/gateway/gateway.json"]
+          ports: [{name: {{ ternary "tcp-atls" "tcp-egress" (eq $role "ingress") }}, containerPort: {{ $r.port }}}]
+          # Neither port is probed: a connect to the ingress port is an attested handshake the gateway
+          # records as a refusal, and a connect to the egress port makes it open a channel to the peer.
+          # A role's readiness is its start, after the startup check passed.
+          lifecycle:
+            preStop: {sleep: {seconds: 5}}
+          volumeMounts:
+            - {name: config, mountPath: /etc/gateway, readOnly: true}
+            - {name: tls, mountPath: /etc/gateway/tls, readOnly: true}
+            - {name: trust, mountPath: /etc/gateway/trust, readOnly: true}
+            {{- if $v.attestation.enabled }}
+            - {name: attestation, mountPath: /etc/gateway/attestation, readOnly: true}
+            {{- end }}
+          resources:
+            {{- toYaml $v.resources | nindent 12 }}
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities: {drop: [ALL]}
+      volumes:
+        - name: config
+          configMap: {name: {{ $v.name }}-{{ $role }}}
+        - name: tls
+          secret: {secretName: {{ $v.tlsSecret }}, defaultMode: 0440}
+        - name: trust
+          configMap: {name: {{ $v.name }}-trust}
+        {{- if $v.attestation.enabled }}
+        - name: attestation
+          configMap: {name: {{ $v.name }}-attestation}
+        {{- end }}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ $v.name }}-{{ $role }}
+  namespace: {{ $.Release.Namespace }}
+  {{- if eq $role "ingress" }}
+  # The zone's attested entry address belongs to this Service: an uninstall leaves it in place.
+  annotations: {helm.sh/resource-policy: keep}
+  {{- end }}
+spec:
+  {{- if eq $role "ingress" }}
+  type: {{ $r.service.type }}
+  {{- if ne $r.service.type "ClusterIP" }}
+  externalTrafficPolicy: {{ $r.service.externalTrafficPolicy }}
+  {{- end }}
+  {{- end }}
+  selector:
+    app.kubernetes.io/name: atls-gateway
+    app.kubernetes.io/component: {{ $role }}
+  ports:
+    {{- if eq $role "ingress" }}
+    - name: tcp-atls
+      port: {{ $r.service.port }}
+      targetPort: {{ $r.port }}
+      protocol: TCP
+      {{- if and (ne $r.service.type "ClusterIP") (gt (int $r.service.nodePort) 0) }}
+      nodePort: {{ $r.service.nodePort }}
+      {{- end }}
+    {{- else }}
+    - name: tcp-egress
+      port: {{ $r.port }}
+      targetPort: {{ $r.port }}
+      protocol: TCP
+    {{- end }}
+{{- end }}
+{{- end }}
