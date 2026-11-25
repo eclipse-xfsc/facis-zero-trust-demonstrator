@@ -3,6 +3,7 @@
 {{- if not (regexMatch "^ztd-[a-z0-9-]+$" $v.name) -}}{{ fail "name must match ^ztd-[a-z0-9-]+$ (the zone's naming rule)" }}{{- end -}}
 {{- if not (regexMatch "^sha256:[a-f0-9]{64}$" $v.image.digest) -}}{{ fail "image.digest must be a sha256 digest" }}{{- end -}}
 {{- if and (not $v.ingress.enabled) (not $v.egress.enabled) -}}{{ fail "at least one of ingress.enabled and egress.enabled: a release without a role serves nothing" }}{{- end -}}
+{{- include "atls-gateway.port" (list "healthPort" $v.healthPort) -}}
 {{- if hasKey $v.podAnnotations "proxy.istio.io/config" -}}{{ fail "podAnnotations: proxy.istio.io/config is refused at admission in a plane namespace (zone-policy)" }}{{- end -}}
 {{- if not $v.tlsSecret -}}{{ fail "tlsSecret is required: the gateway's zone certificate" }}{{- end -}}
 {{- if not (contains "BEGIN CERTIFICATE" $v.trustCaCert) -}}{{ fail "trustCaCert must hold the PEM CA certificate(s) of the zones' gateway certificates" }}{{- end -}}
@@ -57,10 +58,18 @@ app.kubernetes.io/part-of: facis-zero-trust-demonstrator
 spiffe.io/spire-managed-identity: "true"
 {{- end -}}
 
+{{/* What a pod reads at start besides its configuration file: the trust anchors and the startup
+check's inputs. Their digest is a pod annotation, so a change of any of them rolls the pod. */}}
+{{- define "atls-gateway.material" -}}
+{{- $v := .Values -}}
+{{- $v.trustCaCert -}}
+{{- if $v.attestation.enabled -}}{{ toPrettyJson $v.attestation.zone }}{{ $v.attestation.metadataCaCert }}{{- end -}}
+{{- end -}}
+
 {{/* The configuration file of one role, as mounted. */}}
 {{- define "atls-gateway.config" -}}
 {{- $role := index . 0 -}}{{- $v := (index . 1).Values -}}
-{{- $cfg := dict "role" $role "certificate" "/etc/gateway/tls/tls.crt" "key" "/etc/gateway/tls/tls.key" "ca" "/etc/gateway/trust/ca.pem" "cmcd" $v.cmcd.address -}}
+{{- $cfg := dict "role" $role "certificate" "/etc/gateway/tls/tls.crt" "key" "/etc/gateway/tls/tls.key" "ca" "/etc/gateway/trust/ca.pem" "cmcd" $v.cmcd.address "health" (printf "0.0.0.0:%v" $v.healthPort) -}}
 {{- if eq $role "ingress" -}}
 {{- $_ := set $cfg "listen" (printf "0.0.0.0:%v" $v.ingress.port) -}}
 {{- $_ := set $cfg "target" (printf "%s:%v" $v.ingress.upstream.name $v.ingress.upstream.port) -}}

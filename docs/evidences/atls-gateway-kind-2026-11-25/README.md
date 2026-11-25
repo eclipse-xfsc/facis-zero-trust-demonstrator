@@ -25,7 +25,7 @@ scripts/verify-atls-gateway/verify.sh --kind --out .dev/verify-atls-gateway
 | call | a `curl` from the zone's caller pod to `ztd-atls-gateway-egress:8080`, answered by the peer zone's echo | the HTTP status and body; both ends' `established` records |
 | stranger | a pod outside the mesh with a certificate from another CA, `curl -k --cert` at zone B's entry | no application answer; a new `refused` record at the ingress |
 | attester | `ztd-cmcd` of zone A scaled to zero, a new call, then scaled back and a new call | the egress's `refused` record; the later call's status |
-| tamper | the `rootfs_sha256` of zone A's `zone.json` ConfigMap changed in place, the ingress restarted; then restored and restarted | the pod's exit code and its previous log; zone B's call afterwards |
+| tamper | the `rootfs_sha256` of zone A's `zone.json` ConfigMap changed in place, the ingress restarted; then restored and restarted | the new pod's exit code and its previous log; whether a Ready pod remained; zone B's call afterwards |
 
 ## Result
 
@@ -39,15 +39,16 @@ scripts/verify-atls-gateway/verify.sh --kind --out .dev/verify-atls-gateway
 | stranger at B's entry: `curl: (56) … tlsv1 alert unknown ca` (the run on the uncommitted tree saw the connection reset instead; what the client sees depends on when the listener closes); ingress recorded `refused` / `atls: peer certificate identity rejected` | PASS |
 | A's attester away: the call ends in a reset (`exit code 56`), egress recorded `refused` / `atls: local attester unavailable` | PASS |
 | A's attester back: 200, body `attester-back` | PASS |
-| A's ingress with the tampered configuration: exit status 2, `{"role":"ingress","decision":"refused","reason":"evidence_rejected"}`, served nothing | PASS |
+| A's ingress with the tampered configuration: the new pod exits 2, `{"role":"ingress","decision":"refused","reason":"evidence_rejected"}`, never Ready; the rolling update keeps the previously verified pod, so the entry stays up on the configuration it was verified against | PASS |
 | A's ingress restored: B's call answered, 200, body `after-restore` | PASS |
 
 `verdict.txt`: `verdict: all checks passed`, 17 checks.
 
 The records here: `verdict.txt`, `environment.json` (commit, dirty flag, versions, image digests),
 `calls.txt` (each call's status and body), `decisions-<zone>-<role>.jsonl` (every decision each role
-recorded: the startup outcome, the established channels with their bindings, the refusals) and
-`tampered-ingress-a.log` (the refused start). The installer, Cilium, metatool and attester logs and
+recorded, from every pod of the role: the startup outcome, the established channels with their
+bindings, the refusals; for zone A's ingress the verified pod's record, then the tampered pod's,
+then the restored pod's) and `tampered-ingress-a.log` (the refused start). The installer, Cilium, metatool and attester logs and
 the plane listings stay in the run directory (`--out`), delivered with the milestone submission.
 
 ## Limits

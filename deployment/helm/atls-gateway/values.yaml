@@ -18,6 +18,10 @@ podAnnotations: {}
 resources:
   requests: {cpu: 50m, memory: 64Mi}
   limits: {memory: 256Mi}
+# The readiness endpoint of each role (GET /healthz): answers only once the startup check passed
+# and the role listens, so a pod is Ready when it serves, and a rollout keeps the verified pod
+# until the new one is.
+healthPort: 8081
 
 # The gateway's zone certificate: a kubernetes.io/tls Secret (tls.crt, tls.key) whose URI subject
 # alternative name is the zone's gateway identity, spiffe://<zone>/gateway, issued by the zone PKI.
@@ -53,7 +57,10 @@ ingress:
   port: 8443
   # spiffe://<peer zone>/gateway: the identity the peer's certificate must carry.
   peerIdentity: ""
-  # The in-zone upstream every stream goes to: its pods' label and port.
+  # The in-zone upstream every stream goes to: `name` is both the Service the ingress dials and
+  # the value of its pods' label app.kubernetes.io/name (the network lane), `port` the port of both.
+  # The Service port must be a TCP port of the mesh (name tcp-…): the forwarded bytes carry the peer
+  # zone's Host header, and an HTTP port would have the sidecar route by it.
   upstream: {name: "", port: 8080}
   # The entry's Service: LoadBalancer on the zones, NodePort on kind (nodePort 0: assigned). Local
   # keeps the peer's source address as the entry's network lane sees it (sourceRanges); Cluster lets

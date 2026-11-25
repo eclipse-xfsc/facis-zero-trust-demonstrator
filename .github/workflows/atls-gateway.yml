@@ -17,6 +17,8 @@ on:
       - deployment/attestation/**
       - scripts/verify-atls-gateway/**
       - scripts/install-zone/**
+      - scripts/tools/**
+      - cmd/attestation-provision/**
       - go.mod
       - go.sum
       - .github/workflows/atls-gateway.yml
@@ -51,12 +53,15 @@ jobs:
         uses: actions/setup-go@40f1582b2485089dde7abd97c1529aa768e1baff # v5.6.0
         with:
           go-version-file: go.mod
-      - name: Pinned kind, kubectl and the Cilium CLI
+      - name: Pinned kind, kubectl, the Cilium CLI and PyYAML
         run: |
           scripts/tools/install.sh "$RUNNER_TEMP/bin" kind kubectl cilium-cli
           echo "$RUNNER_TEMP/bin" >> "$GITHUB_PATH"
-      - name: PyYAML for the zone files
-        run: pip3 install --quiet pyyaml
+          if ! python3 -c 'import yaml' 2>/dev/null; then
+            . scripts/tools/pins.env
+            echo "pyyaml==$PYYAML_VERSION --hash=sha256:$PYYAML_SHA256" >"$RUNNER_TEMP/pyyaml.txt"
+            python3 -m pip install --user --only-binary=:all: --require-hashes -r "$RUNNER_TEMP/pyyaml.txt"
+          fi
       # The Istio CNI agent crashes when the host's inotify instances, shared by the kind nodes, run
       # out (docs/troubleshooting.md).
       - name: Raise the inotify limits

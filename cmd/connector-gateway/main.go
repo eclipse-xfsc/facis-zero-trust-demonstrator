@@ -5,15 +5,18 @@
 //
 //	connector-gateway --config /etc/gateway/gateway.json
 //
-// The configuration is the channel configuration of internal/connectorgateway plus an optional
-// "attestation" block: when present, the gateway first obtains a fresh attestation report from
-// its zone's cmcd and verifies it against the metadata CA and the zone's attestation
-// configuration in Git (internal/atls/provision.Check) before it opens any listener; a zone whose
-// evidence is not the one in Git refuses to serve. Every decision is one JSON line on stdout.
+// The configuration is the channel configuration of internal/connectorgateway plus two optional
+// fields: an "attestation" block, with which the gateway first obtains a fresh attestation report
+// from its zone's cmcd and verifies it against the metadata CA and the zone's attestation
+// configuration in Git (internal/atls/provision.Check) before it opens any listener, so a zone
+// whose evidence is not the one in Git refuses to serve; and "health", an address on which GET
+// /healthz answers 200 once the role serves, and never before: the readiness of the pod. Every
+// decision is one JSON line on stdout.
 //
 // Exit status: 0 after an orderly stop (SIGINT, SIGTERM); 2 when the startup check obtained a
 // report and rejected it; 3 when no report could be obtained from cmcd; 1 for a configuration or
-// listener error.
+// listener error, or when a decision could not be recorded (the role stops: an unrecorded decision
+// must not serve).
 package main
 
 import (
@@ -25,6 +28,8 @@ import (
 	"flag"
 	"fmt"
 	"io"
+	"net"
+	"net/http"
 	"os"
 	"os/signal"
 	"sync"
@@ -40,6 +45,8 @@ type fileConfig struct {
 	connectorgateway.Config
 	// StartupCheck is the "attestation" block; absent, the role serves without the check.
 	StartupCheck *attestationConfig `json:"attestation,omitempty"`
+	// Health is the host:port of the readiness endpoint; empty, none is served.
+	Health string `json:"health,omitempty"`
 }
 
 // attestationConfig is the startup check of the zone's evidence (docs/attestation-provisioning.md,
@@ -110,10 +117,15 @@ func run(ctx context.Context, args []string, out io.Writer, stop func()) error {
 	}
 	enc := json.NewEncoder(out)
 	var mu sync.Mutex
+	var recordErr error
 	record := func(e connectorgateway.Event) {
 		mu.Lock()
 		defer mu.Unlock()
+		if recordErr != nil {
+			return
+		}
 		if err := enc.Encode(e); err != nil {
+			recordErr = err
 			stop()
 		}
 	}
@@ -126,8 +138,31 @@ func run(ctx context.Context, args []string, out io.Writer, stop func()) error {
 	if err != nil {
 		return err
 	}
+	// The readiness endpoint opens last: ready means the check passed and the role listens.
+	if cfg.Health != "" {
+		ln, err := net.Listen("tcp", cfg.Health)
+		if err != nil {
+			_ = g.Close()
+			return fmt.Errorf("health: %w", err)
+		}
+		srv := &http.Server{Handler: http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			if r.URL.Path != "/healthz" {
+				w.WriteHeader(http.StatusNotFound)
+				return
+			}
+			w.WriteHeader(http.StatusOK)
+		}), ReadHeaderTimeout: 5 * time.Second}
+		go func() { _ = srv.Serve(ln) }()
+		defer func() { _ = srv.Close() }()
+	}
 	<-ctx.Done()
-	return g.Close()
+	err = g.Close()
+	mu.Lock()
+	defer mu.Unlock()
+	if recordErr != nil {
+		return fmt.Errorf("a decision could not be recorded: %w", recordErr)
+	}
+	return err
 }
 
 // load reads the configuration file; unknown fields are refused.
@@ -142,6 +177,11 @@ func load(path string) (*fileConfig, error) {
 	dec.DisallowUnknownFields()
 	if err := dec.Decode(&cfg); err != nil {
 		return nil, fmt.Errorf("%s: %w", path, err)
+	}
+	if cfg.Health != "" {
+		if _, _, err := net.SplitHostPort(cfg.Health); err != nil {
+			return nil, fmt.Errorf("health: %w", err)
+		}
 	}
 	if a := cfg.StartupCheck; a != nil {
 		if a.Zone == "" || len(a.MetadataCA) == 0 {

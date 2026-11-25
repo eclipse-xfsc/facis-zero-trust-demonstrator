@@ -32,7 +32,7 @@ credentials:
 | `started` | `evidence_verified` | the startup check passed; the role serves |
 | `refused` | `evidence_rejected`, `attester_unavailable` | the startup check failed; the process exits (2, 3) and serves nothing |
 | `established` | `mutual_attestation` | a channel opened: `peer` (the identity expected and found), `binding` (RFC 9266, the same at both ends), `tlsVersion` (772, TLS 1.3) |
-| `refused` | the refusal's sentinel (`atls: peer does not speak attested TLS 1.3`, `atls: handshake timed out`, `atls: attester unavailable`, `atls: peer certificate identity rejected`, …), `upstream_unavailable`, `channel_expired` | a handshake or stream was refused or ended by the gateway |
+| `refused` | the refusal's sentinel (`atls: peer does not speak attested TLS 1.3`, `atls: handshake timed out`, `atls: local attester unavailable`, `atls: peer certificate identity rejected`, …), `upstream_unavailable`, `channel_expired` | a handshake or stream was refused or ended by the gateway |
 
 The record is the proof's input: the two zones' records of one channel must carry the same binding.
 
@@ -43,9 +43,13 @@ report from the zone's cmcd and verifies it in process (`provision.Check`) again
 `deployment/attestation/<zone>.json`): every verified measured value must be exactly the configured
 one, and the aggregate the evidence signs must be the configuration's. A zone whose evidence is not
 the one in Git does not serve: exit status 2 when a report was obtained and rejected, 3 when none
-could be obtained, after recording the refusal. The check runs at start; a change of the zone's
-configuration rolls the pod (its ConfigMap digest is a pod annotation), so a changed configuration is
-checked against the attester's evidence before the new pod serves.
+could be obtained, after recording the refusal. The check runs at start, and the readiness endpoint
+(`health`, `GET /healthz`) opens only after it passed and the role listens; the chart puts the
+digest of the configuration and of the material read at start (trust anchors, the zone's
+attestation configuration, the metadata CA) on the pod, so a change of any of them rolls the pod,
+and the new pod checks the new inputs before it is Ready. The rollout keeps the previously verified
+pod serving until then: a change that the attester's evidence does not match leaves the new pod
+exiting 2 and the entry on the configuration it was verified against.
 
 The unit tests of the binary (`cmd/connector-gateway/main_test.go`) run two processes' worth of roles
 over the test attesters and hold the decisions, the refusals, the configuration refusals and the
@@ -119,8 +123,8 @@ installs `ztd-cmcd` and `ztd-atls-gateway` (both roles) from the zone file, and 
 | startup | each gateway role recorded `started`/`evidence_verified` before serving |
 | A → B, B → A | a caller's HTTP request in one zone, through its egress and the peer's ingress, answered by the peer's echo; both ends recorded one channel: mutual attestation, TLS 1.3, the same binding, the peer identity each expected |
 | plain TLS | a TLS client outside the zone PKI, speaking no attestation, at zone B's entry from outside the mesh: no application answer, the refusal recorded |
-| attester | zone A's cmcd scaled to zero: the next channel is refused (`atls: attester unavailable`), the caller gets no answer; the attester back, the next call goes through |
-| tamper | zone A's attestation configuration changed in place (another rootfs digest) and the ingress restarted: the pod exits 2 with `evidence_rejected` and serves nothing; restored, zone B's call is answered again |
+| attester | zone A's cmcd scaled to zero: the next channel is refused (`atls: local attester unavailable`), the caller gets no answer; the attester back, the next call goes through |
+| tamper | zone A's attestation configuration changed in place (another rootfs digest) and the ingress restarted: the new pod exits 2 with `evidence_rejected` and is never Ready, so the rollout keeps the verified pod serving; restored, the new pod serves and zone B's call is answered again |
 
 The peer is reached at the peer zone's worker node and the entry's NodePort over kind's Docker
 network; the entry's network lane admits that network, and `externalTrafficPolicy: Local` keeps the
@@ -134,9 +138,9 @@ facts; the CUG interconnect (SRS 2.4.3) is the transport this hop will run over.
 ## Not covered here
 
 - **TRAIN at the handshake.** The peer's measurement is verified against the configuration the
-  attester holds, not yet against TRAIN: the resolver
-  ([TRAIN resolution at the handshake](train-resolve.md)) plugs into `atls.Config.PeerVerifier` in the
-  gateway when that work lands.
+  attester holds, not yet against TRAIN: the resolver of the TRAIN work plugs into
+  `atls.Config.PeerVerifier` ([Attested channel control, interface](attested-channel.md#interface))
+  when that work lands.
 - **The Connector's routing.** How the attested channel composes with the Connector's zone gateway
   (Envoy, its per-request routing record) is the chaining work that follows; on the zones the
   inter-zone hop is still the Connector routing over verified TLS until then.

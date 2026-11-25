@@ -10,7 +10,8 @@ one-sided mode and no switch for either.
 `ingress.port` behind a Service of `ingress.service.type` (`externalTrafficPolicy` Local keeps the
 peer's source address as the lane sees it); each channel is terminated here, its peer's certificate
 checked for `ingress.peerIdentity` and its evidence verified by the zone's cmcd, and the stream is
-forwarded as it is, bytes intact, to `ingress.upstream` (its pods' label and port), whose own rules
+forwarded as it is, bytes intact, to `ingress.upstream` (`name` is both the Service dialled and the
+pods' `app.kubernetes.io/name` label of the network lane; `port` the port of both), whose own rules
 must admit this release's identity (`<trust domain>/ns/<namespace>/sa/atls-gateway`). The upstream's
 Service port must be a TCP port of the mesh (name `tcp-…`, or `appProtocol: tcp`): the bytes carry the
 peer zone's Host header, and an HTTP port would make the ingress's sidecar route by that header. Mesh mutual TLS
@@ -47,11 +48,15 @@ records why. Off (`attestation.enabled: false`) only for a render with no attest
 Every decision is one JSON line on stdout: `started` with `evidence_verified`; `established` with
 `mutual_attestation`, the peer identity, the channel binding and the TLS version; `refused` with the
 reason (`atls: peer does not speak attested TLS 1.3`, `atls: handshake timed out`,
-`atls: attester unavailable`, `evidence_rejected`, `channel_expired`, …). No application byte, header
+`atls: local attester unavailable`, `evidence_rejected`, `channel_expired`, …). No application byte, header
 or credential is logged. The gateway reads its configuration at start, so the pod carries the
-configuration's digest and a change rolls it. Neither port has a probe: a connect to the ingress port is
-an attested handshake the gateway records as a refusal, and a connect to the egress port opens a
-channel to the peer; a role is ready once it started, after the startup check passed.
+configuration's digest and a change rolls it. Neither channel port has a probe: a connect to the ingress
+port is an attested handshake the gateway records as a refusal, and a connect to the egress port
+opens a channel to the peer. Readiness is `GET /healthz` on `healthPort`, which the gateway opens only
+once the startup check passed and the role listens: a rollout keeps the verified pod until the new
+one serves, and a pod that refuses to serve is never Ready. The pod carries the digest of its
+configuration and of the material it reads at start (trust anchors, the zone's attestation
+configuration, the metadata CA), so a change of any of them rolls it.
 
 Each policy carries its hop (`ztd.facis.io/connector-hop`) and that hop's single L7 owner:
 caller-to-gateway and entry-to-upstream `sidecar`, gateway-to-peer and outside-to-entry `none`;

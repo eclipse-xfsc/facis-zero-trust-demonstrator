@@ -30,8 +30,10 @@ spec:
       labels:
         {{- include "atls-gateway.podLabels" $role | nindent 8 }}
       annotations:
-        # The gateway reads its configuration at start: a change rolls the pod.
+        # The gateway reads its configuration, trust anchors and check inputs at start: a change of
+        # any of them rolls the pod, and the new pod checks the new inputs before it serves.
         ztd.facis.io/config-sha256: {{ include "atls-gateway.config" (list $role $) | sha256sum }}
+        ztd.facis.io/material-sha256: {{ include "atls-gateway.material" $ | sha256sum }}
         sidecar.istio.io/nativeSidecar: "true"
         {{- with $v.podAnnotations }}
         {{- toYaml . | nindent 8 }}
@@ -54,10 +56,15 @@ spec:
         - name: atls-gateway
           image: "{{ $v.image.repository }}@{{ $v.image.digest }}"
           args: ["--config", "/etc/gateway/gateway.json"]
-          ports: [{name: {{ ternary "tcp-atls" "tcp-egress" (eq $role "ingress") }}, containerPort: {{ $r.port }}}]
-          # Neither port is probed: a connect to the ingress port is an attested handshake the gateway
-          # records as a refusal, and a connect to the egress port makes it open a channel to the peer.
-          # A role's readiness is its start, after the startup check passed.
+          ports:
+            - {name: {{ ternary "tcp-atls" "tcp-egress" (eq $role "ingress") }}, containerPort: {{ $r.port }}}
+            - {name: http-health, containerPort: {{ $v.healthPort }}}
+          # Neither channel port is probed: a connect to the ingress port is an attested handshake the
+          # gateway records as a refusal, and a connect to the egress port makes it open a channel to
+          # the peer. Readiness is the health endpoint, which the gateway opens only once the startup
+          # check passed and the role listens.
+          readinessProbe:
+            httpGet: {path: /healthz, port: http-health}
           lifecycle:
             preStop: {sleep: {seconds: 5}}
           volumeMounts:

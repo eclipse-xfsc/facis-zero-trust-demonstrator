@@ -160,9 +160,11 @@ func TestRunPairCarriesHTTPOverTheAttestedChannel(t *testing.T) {
 		"role": "ingress", "listen": ingressAddr, "target": strings.TrimPrefix(upstream.URL, "http://"),
 		"certificate": mb.cert, "key": mb.key, "ca": mb.ca, "cmcd": mb.cmcd, "peerIdentity": ma.identity,
 	})
+	health := freeAddr(t)
 	egress := configFile(t, dir, "egress", map[string]any{
 		"role": "egress", "listen": egressAddr, "target": ingressAddr,
 		"certificate": ma.cert, "key": ma.key, "ca": ma.ca, "cmcd": ma.cmcd, "peerIdentity": mb.identity,
+		"health": health,
 	})
 	ctx, cancel := context.WithCancel(t.Context())
 	out := &safeBuffer{}
@@ -194,6 +196,17 @@ func TestRunPairCarriesHTTPOverTheAttestedChannel(t *testing.T) {
 	}
 	if res.StatusCode != http.StatusAccepted || string(body) != "answer" {
 		t.Fatalf("the answer changed on the way: %d %q", res.StatusCode, body)
+	}
+	// The readiness endpoint answers once the role serves, /healthz only.
+	for path, want := range map[string]int{"/healthz": http.StatusOK, "/": http.StatusNotFound} {
+		hr, err := http.Get("http://" + health + path)
+		if err != nil {
+			t.Fatal(err)
+		}
+		_ = hr.Body.Close()
+		if hr.StatusCode != want {
+			t.Fatalf("health %s: %d", path, hr.StatusCode)
+		}
 	}
 	cancel()
 	for range 2 {
@@ -268,6 +281,7 @@ func TestRunRefusesAConfigurationItCannotHonour(t *testing.T) {
 		"certificate missing":    {cfg: with(map[string]any{"certificate": filepath.Join(dir, "none.pem")}), want: "gateway certificate"},
 		"attestation incomplete": {cfg: with(map[string]any{"attestation": map[string]any{"zone": "x.json"}}), want: "metadataCA"},
 		"attestation negative":   {cfg: with(map[string]any{"attestation": map[string]any{"zone": "x.json", "metadataCA": []string{m.ca}, "timeoutSeconds": -1}}), want: "negative"},
+		"health without port":    {cfg: with(map[string]any{"health": "0.0.0.0"}), want: "health"},
 	}
 	for name, c := range cases {
 		t.Run(name, func(t *testing.T) {
@@ -333,11 +347,12 @@ func TestStartupCheckGatesTheRole(t *testing.T) {
 				return &provision.Evidence{}, nil
 			}
 			t.Cleanup(func() { checkEvidence = provision.Check })
-			listen := freeAddr(t)
+			listen, health := freeAddr(t), freeAddr(t)
 			cfg := configFile(t, dir, strings.ReplaceAll(name, " ", "-"), map[string]any{
 				"role": "ingress", "listen": listen, "target": "127.0.0.1:1",
 				"certificate": m.cert, "key": m.key, "ca": m.ca, "cmcd": m.cmcd, "peerIdentity": b.Identity,
 				"attestation": map[string]any{"zone": zoneFile, "metadataCA": []string{m.ca}, "timeoutSeconds": 5},
+				"health":      health,
 			})
 			ctx, cancel := context.WithCancel(t.Context())
 			defer cancel()
@@ -346,7 +361,21 @@ func TestStartupCheckGatesTheRole(t *testing.T) {
 			go func() { done <- run(ctx, []string{"--config", cfg}, out, cancel) }()
 			var err error
 			if c.serves {
-				waitListening(t, listen)
+				// Ready only once the check passed and the listener is up: /healthz answers.
+				deadline := time.Now().Add(8 * time.Second)
+				for {
+					hr, err := http.Get("http://" + health + "/healthz")
+					if err == nil {
+						_ = hr.Body.Close()
+						if hr.StatusCode == http.StatusOK {
+							break
+						}
+					}
+					if time.Now().After(deadline) {
+						t.Fatalf("the readiness endpoint never answered: %v", err)
+					}
+					time.Sleep(20 * time.Millisecond)
+				}
 				cancel()
 			}
 			select {
@@ -369,9 +398,11 @@ func TestStartupCheckGatesTheRole(t *testing.T) {
 				t.Fatalf("the first decision must be the startup outcome %s/%s: %+v", decision, c.reason, events)
 			}
 			if !c.serves {
-				if conn, dialErr := net.DialTimeout("tcp", listen, 200*time.Millisecond); dialErr == nil {
-					_ = conn.Close()
-					t.Fatal("a refused startup check opened the listener")
+				for _, addr := range []string{listen, health} {
+					if conn, dialErr := net.DialTimeout("tcp", addr, 200*time.Millisecond); dialErr == nil {
+						_ = conn.Close()
+						t.Fatalf("a refused startup check opened %s", addr)
+					}
 				}
 				if len(events) != 1 {
 					t.Fatalf("a refused startup records one decision only: %+v", events)
@@ -437,5 +468,40 @@ func TestExitCode(t *testing.T) {
 	if exitCode(nil) != 0 || exitCode(errors.New("x")) != 1 || exitCode(checkFailed{errors.New("x")}) != 2 ||
 		exitCode(fmt.Errorf("wrapped: %w", checkFailed{errors.New("x")})) != 2 || exitCode(fmt.Errorf("%w: y", provision.ErrNoReport)) != 3 {
 		t.Fatal("exit status mapping changed")
+	}
+}
+
+// brokenWriter fails every write: the decisions cannot be recorded.
+type brokenWriter struct{}
+
+func (brokenWriter) Write([]byte) (int, error) { return 0, errors.New("stdout gone") }
+
+// A decision that cannot be recorded stops the role and is an error of the run (exit status 1),
+// never a silent orderly stop.
+func TestRunStopsWhenADecisionCannotBeRecorded(t *testing.T) {
+	pki := atlstest.NewPKI(t)
+	a, b := atlstest.NewZone(t, pki, "a"), atlstest.NewZone(t, pki, "b")
+	dir := t.TempDir()
+	m := materialOf(t, dir, a, b)
+	checkEvidence = func(context.Context, string, []*x509.Certificate, *provision.Zone) (*provision.Evidence, error) {
+		return &provision.Evidence{}, nil
+	}
+	t.Cleanup(func() { checkEvidence = provision.Check })
+	cfg := configFile(t, dir, "broken", map[string]any{
+		"role": "ingress", "listen": freeAddr(t), "target": "127.0.0.1:1",
+		"certificate": m.cert, "key": m.key, "ca": m.ca, "cmcd": m.cmcd, "peerIdentity": b.Identity,
+		"attestation": map[string]any{"zone": filepath.Join("..", "..", "deployment", "attestation", "zone-a.json"), "metadataCA": []string{m.ca}},
+	})
+	ctx, cancel := context.WithCancel(t.Context())
+	defer cancel()
+	done := make(chan error, 1)
+	go func() { done <- run(ctx, []string{"--config", cfg}, brokenWriter{}, cancel) }()
+	select {
+	case err := <-done:
+		if err == nil || !strings.Contains(err.Error(), "could not be recorded") || exitCode(err) != 1 {
+			t.Fatalf("the run must end with the recording error, exit 1: %v", err)
+		}
+	case <-time.After(10 * time.Second):
+		t.Fatal("the run did not stop when its first decision could not be recorded")
 	}
 }

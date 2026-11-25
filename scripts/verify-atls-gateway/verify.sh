@@ -17,8 +17,8 @@
 #   attester    with zone A's cmcd scaled to zero, a new call from A is refused (attester
 #               unavailable); the attester back, the next call goes through
 #   tamper      zone A's attestation configuration changed in place (a different rootfs digest):
-#               the restarted ingress refuses to serve (exit status 2, evidence_rejected); restored,
-#               it serves again
+#               the restarted ingress's new pod refuses to serve (exit status 2, evidence_rejected)
+#               and is never Ready, so the rollout keeps the verified pod; restored, it serves again
 #
 #   scripts/verify-atls-gateway/verify.sh --kind [--out DIR]
 #       DIR (default .dev/verify-atls-gateway) receives verdict.txt, the gateways' decision records,
@@ -91,8 +91,9 @@ trap 'echo "verify-atls-gateway: command failed at line $LINENO: $BASH_COMMAND" 
 k() { local z=$1; shift; kubectl --kubeconfig "$work/kubeconfig-$z" "$@"; }
 node_ip() { docker inspect -f '{{(index .NetworkSettings.Networks "kind").IPAddress}}' "$(cluster_of "$1")-worker"; }
 peer_of() { [ "$1" = a ] && echo b || echo a; }
-# events ZONE ROLE: the decisions a gateway role recorded, one JSON object per line.
-events() { k "$1" -n ztd-data logs "deploy/ztd-atls-gateway-$2" -c atls-gateway --tail=-1 2>/dev/null | grep '^{' || true; }
+# events ZONE ROLE: the decisions a gateway role recorded, one JSON object per line, from every pod
+# of the role that exists (a rollout has two for a while; a Deployment's log would show one of them).
+events() { k "$1" -n ztd-data logs -l "app.kubernetes.io/name=atls-gateway,app.kubernetes.io/component=$2" -c atls-gateway --tail=-1 2>/dev/null | grep '^{' || true; }
 # await ZONE ROLE JQ [SECONDS]: wait until a recorded decision matches JQ.
 await() {
   local deadline=$(($(date +%s) + ${4:-60}))
@@ -168,6 +169,7 @@ zone_up() {
   local z=$1 cluster
   cluster=$(cluster_of "$z")
   export KUBECONFIG="$work/kubeconfig-$z"
+  owned_clusters+=("$z")   # before creating: a half-created cluster is this run's to delete
   kind create cluster --name "$cluster" --image "$KIND_NODE_IMAGE" --wait 0s --config - <<EOF >"$out/kind-create-$z.txt" 2>&1
 kind: Cluster
 apiVersion: kind.x-k8s.io/v1alpha4
@@ -180,7 +182,6 @@ nodes:
   - role: control-plane
   - role: worker
 EOF
-  owned_clusters+=("$z")
   chmod 600 "$KUBECONFIG"
   local node
   for node in $(kind get nodes --name "$cluster"); do
@@ -402,25 +403,30 @@ before=$(events b ingress | jq -c 'select(.decision == "refused")' | wc -l | tr 
 k a create namespace ztd-stranger >/dev/null 2>&1 || true
 k a -n ztd-stranger create secret generic stranger --from-file=cert.pem="$pki/stranger.pem" --from-file=key.pem="$pki/stranger.key" >/dev/null 2>&1 || true
 stranger_out=$(k a -n ztd-stranger run stranger --rm -i --restart=Never --quiet --pod-running-timeout=3m --image "$CURL_IMAGE" \
-  --overrides='{"spec":{"volumes":[{"name":"s","secret":{"secretName":"stranger"}}],"containers":[{"name":"stranger","image":"'"$CURL_IMAGE"'","command":["curl","-sS","-m","25","-k","--cert","/s/cert.pem","--key","/s/key.pem","https://'"$ip_b:$ingress_node_port"'/"],"volumeMounts":[{"name":"s","mountPath":"/s"}]}]}}' 2>&1 || true)
+  --overrides='{"spec":{"volumes":[{"name":"s","secret":{"secretName":"stranger"}}],"containers":[{"name":"stranger","image":"'"$CURL_IMAGE"'","command":["curl","-sS","-m","25","-k","-o","/dev/null","-w","status=%{http_code}","--cert","/s/cert.pem","--key","/s/key.pem","https://'"$ip_b:$ingress_node_port"'/"],"volumeMounts":[{"name":"s","mountPath":"/s"}]}]}}' 2>&1 || true)
 echo "stranger: $stranger_out" | tee -a "$out/calls.txt"
-if [[ "$stranger_out" != *"HTTP/"* ]] && await b ingress '.decision == "refused"' 30 \
-    && [ "$(events b ingress | jq -c 'select(.decision == "refused")' | wc -l | tr -d ' ')" -gt "$before" ]; then
-  reason=$(events b ingress | jq -r 'select(.decision == "refused") | .reason' | tail -1)
-  pass "zone B entry: the stranger's TLS got no application answer and the ingress recorded the refusal ($reason)"
+# The refusal expected of a TLS 1.3 client whose certificate is not the zone PKI's: not any refusal
+# recorded since the count was taken, the identity one.
+stranger_reason='atls: peer certificate identity rejected'
+if [[ "$stranger_out" != *"status=2"* ]] && [[ "$stranger_out" != *"status=3"* ]] && await b ingress '.decision == "refused"' 30 \
+    && [ "$(events b ingress | jq -c 'select(.decision == "refused")' | wc -l | tr -d ' ')" -gt "$before" ] \
+    && [ "$(events b ingress | jq -c 'select(.decision == "refused")' | tail -n +"$((before + 1))" | jq -r 'select(.reason == "'"$stranger_reason"'") | .reason' | head -1)" = "$stranger_reason" ]; then
+  pass "zone B entry: the stranger's TLS got no application answer and the ingress recorded the refusal ($stranger_reason)"
 else
-  fail "zone B entry: the stranger was not refused as recorded: $stranger_out"
+  fail "zone B entry: the stranger was not refused as recorded ($(events b ingress | jq -r 'select(.decision == "refused") | .reason' | tail -n +"$((before + 1))" | tr '\n' ';')): $stranger_out"
 fi
 k a delete namespace ztd-stranger --wait=false >/dev/null 2>&1 || true
 
 # --- 10. zone A's attester away, then back ------------------------------------------------------------------
 step "Zone A's attester scaled to zero: a new handshake is refused; back, the next call goes through"
+before_away=$(events a egress | jq -c 'select(.decision == "refused" and .reason == "atls: local attester unavailable")' | wc -l | tr -d ' ')
 k a -n ztd-mgmt scale deploy/ztd-cmcd --replicas=0 >/dev/null
 k a -n ztd-mgmt wait --for=delete pod -l app.kubernetes.io/name=cmcd --timeout=120s >/dev/null 2>&1 || true
 # A new connection: the egress pool does not reuse the caller's finished stream.
 result=$(call a "/echo?msg=attester-away")
 echo "zone a -> zone b with A's cmcd away: $result" | tee -a "$out/calls.txt"
-if [[ "$result" != 200\ * ]] && await a egress '.decision == "refused" and .reason == "atls: local attester unavailable"' 30; then
+if [[ "$result" != 200\ * ]] && await a egress '.decision == "refused" and .reason == "atls: local attester unavailable"' 30 \
+    && [ "$(events a egress | jq -c 'select(.decision == "refused" and .reason == "atls: local attester unavailable")' | wc -l | tr -d ' ')" -gt "$before_away" ]; then
   pass "zone A: with its attester away the egress refused the new channel (atls: local attester unavailable), and the caller got no answer"
 else
   fail "zone A: a channel was established without the zone's attester, or no refusal was recorded: $result"
@@ -438,6 +444,9 @@ fi
 
 # --- 11. zone A's configuration tampered in place --------------------------------------------------------------
 step "Zone A's attestation configuration changed in place: the restarted ingress refuses to serve; restored, it serves"
+# The pod verified at install is replaced by the rollout once the restored pod is Ready; its record
+# is kept now and the later pods' records are appended, so decisions-a-ingress.jsonl holds all of them.
+events a ingress >"$work/decisions-a-ingress.jsonl"
 original=$(k a -n ztd-data get configmap ztd-atls-gateway-attestation -o jsonpath='{.data.zone\.json}')
 tampered=$(printf 'facis-ztd zone-a atls-gateway rootfs 2' | openssl dgst -sha256 -r | cut -d' ' -f1)
 jq -n --arg z "$(jq --arg d "$tampered" '.components[0].rootfs_sha256 = $d' <<<"$original")" '{data: {"zone.json": $z}}' \
@@ -454,10 +463,14 @@ for _ in $(seq 1 60); do
   sleep 2
 done
 k a -n ztd-data logs "$pod" -c atls-gateway --previous >"$out/tampered-ingress-a.log" 2>/dev/null || true
-if [ "$tamper_ok" = true ]; then
-  pass "zone A ingress: with the configuration changed under it, the restarted gateway exited 2 and recorded evidence_rejected; it served nothing"
+grep '^{' "$out/tampered-ingress-a.log" >>"$work/decisions-a-ingress.jsonl" || true
+# The new pod never became Ready, so the rollout kept the verified pod: the entry stayed up on the
+# configuration it was verified against.
+verified_pod_kept=$(k a -n ztd-data get pods -l app.kubernetes.io/component=ingress -o jsonpath='{range .items[*]}{.status.containerStatuses[?(@.name=="atls-gateway")].ready}{" "}{end}' 2>/dev/null | tr ' ' '\n' | grep -c true || true)
+if [ "$tamper_ok" = true ] && [ "$verified_pod_kept" -ge 1 ]; then
+  pass "zone A ingress: with the configuration changed under it, the new pod exited 2, recorded evidence_rejected and was never Ready; the rollout kept the verified pod serving"
 else
-  fail "zone A ingress: the tampered configuration did not stop the gateway (last exit code '$code')"
+  fail "zone A ingress: the tampered configuration did not stop the new pod, or no verified pod stayed Ready (last exit code '$code', ready pods $verified_pod_kept)"
 fi
 jq -n --arg z "$original" '{data: {"zone.json": $z}}' | k a -n ztd-data patch configmap ztd-atls-gateway-attestation --type merge -p "$(cat)" >/dev/null
 k a -n ztd-data rollout restart deploy/ztd-atls-gateway-ingress >/dev/null
@@ -472,7 +485,13 @@ fi
 
 # --- records ------------------------------------------------------------------------------------------
 for z in "${zones[@]}"; do
-  for role in ingress egress; do events "$z" "$role" >"$out/decisions-$z-$role.jsonl" || true; done
+  for role in ingress egress; do
+    if [ "$z-$role" = a-ingress ]; then
+      { cat "$work/decisions-a-ingress.jsonl"; events a ingress; } >"$out/decisions-a-ingress.jsonl"
+    else
+      events "$z" "$role" >"$out/decisions-$z-$role.jsonl" || true
+    fi
+  done
   k "$z" get nodes -o wide >"$out/nodes-$z.txt" 2>/dev/null || true
   k "$z" -n ztd-data get pods,svc,networkpolicy,ciliumnetworkpolicy,peerauthentication,authorizationpolicy -o wide >"$out/data-plane-$z.txt" 2>/dev/null || true
   k "$z" -n ztd-mgmt get pods,svc,networkpolicy -o wide >"$out/management-plane-$z.txt" 2>/dev/null || true
