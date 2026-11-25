@@ -447,6 +447,7 @@ step "Zone A's attestation configuration changed in place: the restarted ingress
 # The pod verified at install is replaced by the rollout once the restored pod is Ready; its record
 # is kept now and the later pods' records are appended, so decisions-a-ingress.jsonl holds all of them.
 events a ingress >"$work/decisions-a-ingress.jsonl"
+verified_pods=$(k a -n ztd-data get pods -l app.kubernetes.io/component=ingress -o jsonpath='{.items[*].metadata.name}')
 original=$(k a -n ztd-data get configmap ztd-atls-gateway-attestation -o jsonpath='{.data.zone\.json}')
 tampered=$(printf 'facis-ztd zone-a atls-gateway rootfs 2' | openssl dgst -sha256 -r | cut -d' ' -f1)
 jq -n --arg z "$(jq --arg d "$tampered" '.components[0].rootfs_sha256 = $d' <<<"$original")" '{data: {"zone.json": $z}}' \
@@ -475,6 +476,8 @@ fi
 jq -n --arg z "$original" '{data: {"zone.json": $z}}' | k a -n ztd-data patch configmap ztd-atls-gateway-attestation --type merge -p "$(cat)" >/dev/null
 k a -n ztd-data rollout restart deploy/ztd-atls-gateway-ingress >/dev/null
 k a -n ztd-data rollout status deploy/ztd-atls-gateway-ingress --timeout=240s >/dev/null
+# The restored pod is Ready; the call below must be its, not the draining verified pod's.
+for p in $verified_pods; do k a -n ztd-data wait --for=delete "pod/$p" --timeout=120s >/dev/null 2>&1 || true; done
 result=$(call b "/echo?msg=after-restore")
 echo "zone b -> zone a after the restore: $result" | tee -a "$out/calls.txt"
 if [[ "$result" == 200\ * ]] && [[ "$result" == *after-restore* ]]; then
@@ -487,7 +490,13 @@ fi
 for z in "${zones[@]}"; do
   for role in ingress egress; do
     if [ "$z-$role" = a-ingress ]; then
-      { cat "$work/decisions-a-ingress.jsonl"; events a ingress; } >"$out/decisions-a-ingress.jsonl"
+      # The verified pod's record (taken before the tamper), the tampered pod's, then the pods that
+      # came after: no pod's lines twice.
+      cp "$work/decisions-a-ingress.jsonl" "$out/decisions-a-ingress.jsonl"
+      for p in $(k a -n ztd-data get pods -l app.kubernetes.io/component=ingress -o jsonpath='{.items[*].metadata.name}'); do
+        case " $verified_pods " in *" $p "*) continue ;; esac
+        k a -n ztd-data logs "pod/$p" -c atls-gateway --tail=-1 2>/dev/null | grep '^{' >>"$out/decisions-a-ingress.jsonl" || true
+      done
     else
       events "$z" "$role" >"$out/decisions-$z-$role.jsonl" || true
     fi
