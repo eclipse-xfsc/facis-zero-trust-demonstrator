@@ -1,0 +1,10 @@
+HTTP/1.1 503 Service Unavailable
+content-type: application/json
+x-facis-reason-code: TOK-STORE-UNAVAILABLE
+x-request-id: bd330426795384ceb06b339f9476f201
+content-length: 65
+date: Sun, 22 Nov 2026 00:39:17 GMT
+server: envoy
+x-envoy-upstream-service-time: 6
+
+{"error":"request_refused","reason_code":"TOK-STORE-UNAVAILABLE"}

@@ -1,0 +1,300 @@
+id: 0
+data: {"version":2,"run_id":"policy-20261122T014528.449566013Z","seq":0,"ts":"2026-11-22T01:45:43.911539381Z","source":"policy-b","kind":"decision","correlation_id":"5838d6e9924a35afc47d88f88557f002","payload":{"state":"denied","reason_code":"POL-PRESENTATION-REQUIRED","rule_id":"m3-presentation-required","caller_spiffe_id":"spiffe://cluster.local/ns/ztd-m3/sa/ztd-participant","token_subject":"amBe4xi21enuvk5hNvvn8rIvizBVOAMn1y55VAXvC2n4IV5ki5cnK51Md96jDJNb","resource":"POST ztd-guard:8080/demo","bundle_revision":"kind-catalogue-1"}}
+
+id: 1
+data: {"version":2,"run_id":"policy-20261122T014528.449566013Z","seq":1,"ts":"2026-11-22T01:45:44.283301256Z","source":"policy-b","kind":"decision","correlation_id":"c1ea36d58f757448ab6dd360a0186d9f","payload":{"state":"denied","reason_code":"POL-PRESENTATION-REQUIRED","rule_id":"m3-presentation-required","caller_spiffe_id":"spiffe://cluster.local/ns/ztd-m3/sa/ztd-participant","token_subject":"amBe4xi21enuvk5hNvvn8rIvizBVOAMn1y55VAXvC2n4IV5ki5cnK51Md96jDJNb","resource":"POST ztd-guard:8080/demo","bundle_revision":"kind-catalogue-1"}}
+
+id: 2
+data: {"version":2,"run_id":"policy-20261122T014528.449566013Z","seq":2,"ts":"2026-11-22T01:45:44.981263256Z","source":"policy-b","kind":"decision","correlation_id":"fac5ae2b52ddbfdf4ed5a6ec3d115d5e","payload":{"state":"denied","reason_code":"POL-PRESENTATION-REQUIRED","rule_id":"m3-presentation-required","caller_spiffe_id":"spiffe://cluster.local/ns/ztd-m3/sa/ztd-participant","token_subject":"amBe4xi21enuvk5hNvvn8rIvizBVOAMn1y55VAXvC2n4IV5ki5cnK51Md96jDJNb","resource":"POST ztd-guard:8080/demo","bundle_revision":"kind-catalogue-1"}}
+
+id: 3
+data: {"version":2,"run_id":"policy-20261122T014528.449566013Z","seq":3,"ts":"2026-11-22T01:45:45.301926923Z","source":"policy-b","kind":"decision","correlation_id":"80eb6f66a0ba20069507ce91478f41e6","payload":{"state":"denied","reason_code":"POL-PRESENTATION-REQUIRED","rule_id":"m3-presentation-required","caller_spiffe_id":"spiffe://cluster.local/ns/ztd-m3/sa/ztd-participant","token_subject":"amBe4xi21enuvk5hNvvn8rIvizBVOAMn1y55VAXvC2n4IV5ki5cnK51Md96jDJNb","resource":"POST ztd-guard:8080/demo","bundle_revision":"kind-catalogue-1"}}
+
+id: 4
+data: {"version":2,"run_id":"policy-20261122T014528.449566013Z","seq":4,"ts":"2026-11-22T01:45:45.641406632Z","source":"policy-b","kind":"decision","correlation_id":"7fc944a9c9fac8ecca1f1c402a063f9f","payload":{"state":"denied","reason_code":"POL-PRESENTATION-REQUIRED","rule_id":"m3-presentation-required","caller_spiffe_id":"spiffe://cluster.local/ns/ztd-m3/sa/ztd-participant","token_subject":"amBe4xi21enuvk5hNvvn8rIvizBVOAMn1y55VAXvC2n4IV5ki5cnK51Md96jDJNb","resource":"POST ztd-guard:8080/demo","bundle_revision":"kind-catalogue-1"}}
+
+id: 5
+data: {"version":2,"run_id":"policy-20261122T014528.449566013Z","seq":5,"ts":"2026-11-22T01:45:45.998913007Z","source":"policy-b","kind":"decision","correlation_id":"c1d0c7802dd394e10551dff7e216d4f9","payload":{"state":"denied","reason_code":"POL-PRESENTATION-REQUIRED","rule_id":"m3-presentation-required","caller_spiffe_id":"spiffe://cluster.local/ns/ztd-m3/sa/ztd-participant","token_subject":"amBe4xi21enuvk5hNvvn8rIvizBVOAMn1y55VAXvC2n4IV5ki5cnK51Md96jDJNb","resource":"POST ztd-guard:8080/demo","bundle_revision":"kind-catalogue-1"}}
+
+id: 6
+data: {"version":2,"run_id":"policy-20261122T014528.449566013Z","seq":6,"ts":"2026-11-22T01:45:46.307731423Z","source":"policy-b","kind":"decision","correlation_id":"525db05483ade397c594e3151e8eb0bd","payload":{"state":"denied","reason_code":"POL-PRESENTATION-REQUIRED","rule_id":"m3-presentation-required","caller_spiffe_id":"spiffe://cluster.local/ns/ztd-m3/sa/ztd-participant","token_subject":"amBe4xi21enuvk5hNvvn8rIvizBVOAMn1y55VAXvC2n4IV5ki5cnK51Md96jDJNb","resource":"POST ztd-guard:8080/demo","bundle_revision":"kind-catalogue-1"}}
+
+id: 7
+data: {"version":2,"run_id":"policy-20261122T014528.449566013Z","seq":7,"ts":"2026-11-22T01:45:46.667771424Z","source":"policy-b","kind":"decision","correlation_id":"35149685790a42677d37c0d8cc2a6256","payload":{"state":"denied","reason_code":"POL-PRESENTATION-REQUIRED","rule_id":"m3-presentation-required","caller_spiffe_id":"spiffe://cluster.local/ns/ztd-m3/sa/ztd-participant","token_subject":"amBe4xi21enuvk5hNvvn8rIvizBVOAMn1y55VAXvC2n4IV5ki5cnK51Md96jDJNb","resource":"POST ztd-guard:8080/demo","bundle_revision":"kind-catalogue-1"}}
+
+id: 8
+data: {"version":2,"run_id":"policy-20261122T014528.449566013Z","seq":8,"ts":"2026-11-22T01:45:47.005984424Z","source":"policy-b","kind":"decision","correlation_id":"1ff1ba924995f2e6ec021d7b6a3fb4ea","payload":{"state":"denied","reason_code":"POL-PRESENTATION-REQUIRED","rule_id":"m3-presentation-required","caller_spiffe_id":"spiffe://cluster.local/ns/ztd-m3/sa/ztd-participant","token_subject":"amBe4xi21enuvk5hNvvn8rIvizBVOAMn1y55VAXvC2n4IV5ki5cnK51Md96jDJNb","resource":"POST ztd-guard:8080/demo","bundle_revision":"kind-catalogue-1"}}
+
+id: 9
+data: {"version":2,"run_id":"policy-20261122T014528.449566013Z","seq":9,"ts":"2026-11-22T01:45:47.690880591Z","source":"policy-b","kind":"decision","correlation_id":"12965f203945c46c79bea56582491512","payload":{"state":"denied","reason_code":"POL-PRESENTATION-REQUIRED","rule_id":"m3-presentation-required","caller_spiffe_id":"spiffe://cluster.local/ns/ztd-m3/sa/ztd-participant","token_subject":"amBe4xi21enuvk5hNvvn8rIvizBVOAMn1y55VAXvC2n4IV5ki5cnK51Md96jDJNb","resource":"POST ztd-guard:8080/demo","bundle_revision":"kind-catalogue-1"}}
+
+id: 10
+data: {"version":2,"run_id":"policy-20261122T014528.449566013Z","seq":10,"ts":"2026-11-22T01:45:48.053041799Z","source":"policy-b","kind":"decision","correlation_id":"c6efdbc0463182fbcb2f3ace5fe10c4c","payload":{"state":"denied","reason_code":"POL-PRESENTATION-REQUIRED","rule_id":"m3-presentation-required","caller_spiffe_id":"spiffe://cluster.local/ns/ztd-m3/sa/ztd-participant","token_subject":"amBe4xi21enuvk5hNvvn8rIvizBVOAMn1y55VAXvC2n4IV5ki5cnK51Md96jDJNb","resource":"POST ztd-guard:8080/demo","bundle_revision":"kind-catalogue-1"}}
+
+id: 11
+data: {"version":2,"run_id":"policy-20261122T014528.449566013Z","seq":11,"ts":"2026-11-22T01:45:48.425108091Z","source":"policy-b","kind":"decision","correlation_id":"5f273e6e9b664b82c6e94ca1264f2479","payload":{"state":"denied","reason_code":"POL-PRESENTATION-REQUIRED","rule_id":"m3-presentation-required","caller_spiffe_id":"spiffe://cluster.local/ns/ztd-m3/sa/ztd-participant","token_subject":"amBe4xi21enuvk5hNvvn8rIvizBVOAMn1y55VAXvC2n4IV5ki5cnK51Md96jDJNb","resource":"POST ztd-guard:8080/demo","bundle_revision":"kind-catalogue-1"}}
+
+id: 12
+data: {"version":2,"run_id":"policy-20261122T014528.449566013Z","seq":12,"ts":"2026-11-22T01:45:48.793125508Z","source":"policy-b","kind":"decision","correlation_id":"d40f82fd31b915459ce68bcdc1abfa3b","payload":{"state":"denied","reason_code":"POL-PRESENTATION-REQUIRED","rule_id":"m3-presentation-required","caller_spiffe_id":"spiffe://cluster.local/ns/ztd-m3/sa/ztd-participant","token_subject":"amBe4xi21enuvk5hNvvn8rIvizBVOAMn1y55VAXvC2n4IV5ki5cnK51Md96jDJNb","resource":"POST ztd-guard:8080/demo","bundle_revision":"kind-catalogue-1"}}
+
+id: 13
+data: {"version":2,"run_id":"policy-20261122T014528.449566013Z","seq":13,"ts":"2026-11-22T01:45:49.125941217Z","source":"policy-b","kind":"decision","correlation_id":"210c93af829bb73a689a72e6ea389d98","payload":{"state":"denied","reason_code":"POL-PRESENTATION-REQUIRED","rule_id":"m3-presentation-required","caller_spiffe_id":"spiffe://cluster.local/ns/ztd-m3/sa/ztd-participant","token_subject":"amBe4xi21enuvk5hNvvn8rIvizBVOAMn1y55VAXvC2n4IV5ki5cnK51Md96jDJNb","resource":"POST ztd-guard:8080/demo","bundle_revision":"kind-catalogue-1"}}
+
+id: 14
+data: {"version":2,"run_id":"policy-20261122T014528.449566013Z","seq":14,"ts":"2026-11-22T01:45:49.428386092Z","source":"policy-b","kind":"decision","correlation_id":"b1e538a8505d792df9306cabeb197f2d","payload":{"state":"denied","reason_code":"POL-PRESENTATION-REQUIRED","rule_id":"m3-presentation-required","caller_spiffe_id":"spiffe://cluster.local/ns/ztd-m3/sa/ztd-participant","token_subject":"amBe4xi21enuvk5hNvvn8rIvizBVOAMn1y55VAXvC2n4IV5ki5cnK51Md96jDJNb","resource":"POST ztd-guard:8080/demo","bundle_revision":"kind-catalogue-1"}}
+
+id: 15
+data: {"version":2,"run_id":"policy-20261122T014528.449566013Z","seq":15,"ts":"2026-11-22T01:45:49.740111133Z","source":"policy-b","kind":"decision","correlation_id":"30dda74cffd7836f399d7185d212111e","payload":{"state":"denied","reason_code":"POL-PRESENTATION-REQUIRED","rule_id":"m3-presentation-required","caller_spiffe_id":"spiffe://cluster.local/ns/ztd-m3/sa/ztd-participant","token_subject":"amBe4xi21enuvk5hNvvn8rIvizBVOAMn1y55VAXvC2n4IV5ki5cnK51Md96jDJNb","resource":"POST ztd-guard:8080/demo","bundle_revision":"kind-catalogue-1"}}
+
+id: 16
+data: {"version":2,"run_id":"policy-20261122T014528.449566013Z","seq":16,"ts":"2026-11-22T01:45:50.053877217Z","source":"policy-b","kind":"decision","correlation_id":"4d1384dfc0f2946e16d5c57f48d4fcbf","payload":{"state":"denied","reason_code":"POL-PRESENTATION-REQUIRED","rule_id":"m3-presentation-required","caller_spiffe_id":"spiffe://cluster.local/ns/ztd-m3/sa/ztd-participant","token_subject":"amBe4xi21enuvk5hNvvn8rIvizBVOAMn1y55VAXvC2n4IV5ki5cnK51Md96jDJNb","resource":"POST ztd-guard:8080/demo","bundle_revision":"kind-catalogue-1"}}
+
+id: 17
+data: {"version":2,"run_id":"policy-20261122T014528.449566013Z","seq":17,"ts":"2026-11-22T01:45:50.459582425Z","source":"policy-b","kind":"decision","correlation_id":"b784a056f793c3fe52d1848479234225","payload":{"state":"denied","reason_code":"POL-PRESENTATION-REQUIRED","rule_id":"m3-presentation-required","caller_spiffe_id":"spiffe://cluster.local/ns/ztd-m3/sa/ztd-participant","token_subject":"amBe4xi21enuvk5hNvvn8rIvizBVOAMn1y55VAXvC2n4IV5ki5cnK51Md96jDJNb","resource":"POST ztd-guard:8080/demo","bundle_revision":"kind-catalogue-1"}}
+
+id: 18
+data: {"version":2,"run_id":"policy-20261122T014528.449566013Z","seq":18,"ts":"2026-11-22T01:45:50.808619759Z","source":"policy-b","kind":"decision","correlation_id":"fbed73f4344b30cbf235667b06cac1da","payload":{"state":"denied","reason_code":"POL-PRESENTATION-REQUIRED","rule_id":"m3-presentation-required","caller_spiffe_id":"spiffe://cluster.local/ns/ztd-m3/sa/ztd-participant","token_subject":"amBe4xi21enuvk5hNvvn8rIvizBVOAMn1y55VAXvC2n4IV5ki5cnK51Md96jDJNb","resource":"POST ztd-guard:8080/demo","bundle_revision":"kind-catalogue-1"}}
+
+id: 19
+data: {"version":2,"run_id":"policy-20261122T014528.449566013Z","seq":19,"ts":"2026-11-22T01:45:51.105410967Z","source":"policy-b","kind":"decision","correlation_id":"ec742966dd2ee9658d27e56b140e503c","payload":{"state":"denied","reason_code":"POL-PRESENTATION-REQUIRED","rule_id":"m3-presentation-required","caller_spiffe_id":"spiffe://cluster.local/ns/ztd-m3/sa/ztd-participant","token_subject":"amBe4xi21enuvk5hNvvn8rIvizBVOAMn1y55VAXvC2n4IV5ki5cnK51Md96jDJNb","resource":"POST ztd-guard:8080/demo","bundle_revision":"kind-catalogue-1"}}
+
+id: 20
+data: {"version":2,"run_id":"policy-20261122T014528.449566013Z","seq":20,"ts":"2026-11-22T01:45:51.464524551Z","source":"policy-b","kind":"decision","correlation_id":"34722552e014380b7135c51f1b333655","payload":{"state":"denied","reason_code":"POL-PRESENTATION-REQUIRED","rule_id":"m3-presentation-required","caller_spiffe_id":"spiffe://cluster.local/ns/ztd-m3/sa/ztd-participant","token_subject":"amBe4xi21enuvk5hNvvn8rIvizBVOAMn1y55VAXvC2n4IV5ki5cnK51Md96jDJNb","resource":"POST ztd-guard:8080/demo","bundle_revision":"kind-catalogue-1"}}
+
+id: 21
+data: {"version":2,"run_id":"policy-20261122T014528.449566013Z","seq":21,"ts":"2026-11-22T01:45:51.766103093Z","source":"policy-b","kind":"decision","correlation_id":"32705437a9187e6cfcfac9fa4f56b705","payload":{"state":"denied","reason_code":"POL-PRESENTATION-REQUIRED","rule_id":"m3-presentation-required","caller_spiffe_id":"spiffe://cluster.local/ns/ztd-m3/sa/ztd-participant","token_subject":"amBe4xi21enuvk5hNvvn8rIvizBVOAMn1y55VAXvC2n4IV5ki5cnK51Md96jDJNb","resource":"POST ztd-guard:8080/demo","bundle_revision":"kind-catalogue-1"}}
+
+id: 22
+data: {"version":2,"run_id":"policy-20261122T014528.449566013Z","seq":22,"ts":"2026-11-22T01:45:52.092218135Z","source":"policy-b","kind":"decision","correlation_id":"aab063c71e56dd7d5b3260212dccd377","payload":{"state":"denied","reason_code":"POL-PRESENTATION-REQUIRED","rule_id":"m3-presentation-required","caller_spiffe_id":"spiffe://cluster.local/ns/ztd-m3/sa/ztd-participant","token_subject":"amBe4xi21enuvk5hNvvn8rIvizBVOAMn1y55VAXvC2n4IV5ki5cnK51Md96jDJNb","resource":"POST ztd-guard:8080/demo","bundle_revision":"kind-catalogue-1"}}
+
+id: 23
+data: {"version":2,"run_id":"policy-20261122T014528.449566013Z","seq":23,"ts":"2026-11-22T01:45:52.398820093Z","source":"policy-b","kind":"decision","correlation_id":"f90b97587fb9a5ca2775173596ca3c69","payload":{"state":"denied","reason_code":"POL-PRESENTATION-REQUIRED","rule_id":"m3-presentation-required","caller_spiffe_id":"spiffe://cluster.local/ns/ztd-m3/sa/ztd-participant","token_subject":"amBe4xi21enuvk5hNvvn8rIvizBVOAMn1y55VAXvC2n4IV5ki5cnK51Md96jDJNb","resource":"POST ztd-guard:8080/demo","bundle_revision":"kind-catalogue-1"}}
+
+id: 24
+data: {"version":2,"run_id":"policy-20261122T014528.449566013Z","seq":24,"ts":"2026-11-22T01:45:52.730743802Z","source":"policy-b","kind":"decision","correlation_id":"9f1ea8ae62267e5d493899b304a94fda","payload":{"state":"denied","reason_code":"POL-PRESENTATION-REQUIRED","rule_id":"m3-presentation-required","caller_spiffe_id":"spiffe://cluster.local/ns/ztd-m3/sa/ztd-participant","token_subject":"amBe4xi21enuvk5hNvvn8rIvizBVOAMn1y55VAXvC2n4IV5ki5cnK51Md96jDJNb","resource":"POST ztd-guard:8080/demo","bundle_revision":"kind-catalogue-1"}}
+
+id: 25
+data: {"version":2,"run_id":"policy-20261122T014528.449566013Z","seq":25,"ts":"2026-11-22T01:45:53.135218635Z","source":"policy-b","kind":"decision","correlation_id":"13c98ee1ca30dcfa886e69e2c40df493","payload":{"state":"denied","reason_code":"POL-PRESENTATION-REQUIRED","rule_id":"m3-presentation-required","caller_spiffe_id":"spiffe://cluster.local/ns/ztd-m3/sa/ztd-participant","token_subject":"amBe4xi21enuvk5hNvvn8rIvizBVOAMn1y55VAXvC2n4IV5ki5cnK51Md96jDJNb","resource":"POST ztd-guard:8080/demo","bundle_revision":"kind-catalogue-1"}}
+
+id: 26
+data: {"version":2,"run_id":"policy-20261122T014528.449566013Z","seq":26,"ts":"2026-11-22T01:45:53.491544594Z","source":"policy-b","kind":"decision","correlation_id":"663ecdf5034b1da84a26ca29d628e22f","payload":{"state":"denied","reason_code":"POL-PRESENTATION-REQUIRED","rule_id":"m3-presentation-required","caller_spiffe_id":"spiffe://cluster.local/ns/ztd-m3/sa/ztd-participant","token_subject":"amBe4xi21enuvk5hNvvn8rIvizBVOAMn1y55VAXvC2n4IV5ki5cnK51Md96jDJNb","resource":"POST ztd-guard:8080/demo","bundle_revision":"kind-catalogue-1"}}
+
+id: 27
+data: {"version":2,"run_id":"policy-20261122T014528.449566013Z","seq":27,"ts":"2026-11-22T01:45:53.825304677Z","source":"policy-b","kind":"decision","correlation_id":"bb601bfa8557153e032a3ceb3803e959","payload":{"state":"denied","reason_code":"POL-PRESENTATION-REQUIRED","rule_id":"m3-presentation-required","caller_spiffe_id":"spiffe://cluster.local/ns/ztd-m3/sa/ztd-participant","token_subject":"amBe4xi21enuvk5hNvvn8rIvizBVOAMn1y55VAXvC2n4IV5ki5cnK51Md96jDJNb","resource":"POST ztd-guard:8080/demo","bundle_revision":"kind-catalogue-1"}}
+
+id: 28
+data: {"version":2,"run_id":"policy-20261122T014528.449566013Z","seq":28,"ts":"2026-11-22T01:45:54.141962219Z","source":"policy-b","kind":"decision","correlation_id":"edd84f608ae67e4eb0764ca492742cd0","payload":{"state":"denied","reason_code":"POL-PRESENTATION-REQUIRED","rule_id":"m3-presentation-required","caller_spiffe_id":"spiffe://cluster.local/ns/ztd-m3/sa/ztd-participant","token_subject":"amBe4xi21enuvk5hNvvn8rIvizBVOAMn1y55VAXvC2n4IV5ki5cnK51Md96jDJNb","resource":"POST ztd-guard:8080/demo","bundle_revision":"kind-catalogue-1"}}
+
+id: 29
+data: {"version":2,"run_id":"policy-20261122T014528.449566013Z","seq":29,"ts":"2026-11-22T01:45:54.481702719Z","source":"policy-b","kind":"decision","correlation_id":"8d4eeb88c5a0868199ad928405405708","payload":{"state":"denied","reason_code":"POL-PRESENTATION-REQUIRED","rule_id":"m3-presentation-required","caller_spiffe_id":"spiffe://cluster.local/ns/ztd-m3/sa/ztd-participant","token_subject":"amBe4xi21enuvk5hNvvn8rIvizBVOAMn1y55VAXvC2n4IV5ki5cnK51Md96jDJNb","resource":"POST ztd-guard:8080/demo","bundle_revision":"kind-catalogue-1"}}
+
+id: 30
+data: {"version":2,"run_id":"policy-20261122T014528.449566013Z","seq":30,"ts":"2026-11-22T01:45:54.858534719Z","source":"policy-b","kind":"decision","correlation_id":"33e8be1d4a342b5430f8bf312cc4dd6c","payload":{"state":"denied","reason_code":"POL-PRESENTATION-REQUIRED","rule_id":"m3-presentation-required","caller_spiffe_id":"spiffe://cluster.local/ns/ztd-m3/sa/ztd-participant","token_subject":"amBe4xi21enuvk5hNvvn8rIvizBVOAMn1y55VAXvC2n4IV5ki5cnK51Md96jDJNb","resource":"POST ztd-guard:8080/demo","bundle_revision":"kind-catalogue-1"}}
+
+id: 31
+data: {"version":2,"run_id":"policy-20261122T014528.449566013Z","seq":31,"ts":"2026-11-22T01:45:55.249023678Z","source":"policy-b","kind":"decision","correlation_id":"ce7b3fc4ecb253bc0f22468ae491a125","payload":{"state":"denied","reason_code":"POL-PRESENTATION-REQUIRED","rule_id":"m3-presentation-required","caller_spiffe_id":"spiffe://cluster.local/ns/ztd-m3/sa/ztd-participant","token_subject":"amBe4xi21enuvk5hNvvn8rIvizBVOAMn1y55VAXvC2n4IV5ki5cnK51Md96jDJNb","resource":"POST ztd-guard:8080/demo","bundle_revision":"kind-catalogue-1"}}
+
+id: 32
+data: {"version":2,"run_id":"policy-20261122T014528.449566013Z","seq":32,"ts":"2026-11-22T01:45:55.62232547Z","source":"policy-b","kind":"decision","correlation_id":"985a793781d20d5159df40f0438ff37c","payload":{"state":"denied","reason_code":"POL-PRESENTATION-REQUIRED","rule_id":"m3-presentation-required","caller_spiffe_id":"spiffe://cluster.local/ns/ztd-m3/sa/ztd-participant","token_subject":"amBe4xi21enuvk5hNvvn8rIvizBVOAMn1y55VAXvC2n4IV5ki5cnK51Md96jDJNb","resource":"POST ztd-guard:8080/demo","bundle_revision":"kind-catalogue-1"}}
+
+id: 33
+data: {"version":2,"run_id":"policy-20261122T014528.449566013Z","seq":33,"ts":"2026-11-22T01:45:56.104679928Z","source":"policy-b","kind":"decision","correlation_id":"22b2efafcf3469388aa1e30831510f45","payload":{"state":"denied","reason_code":"POL-PRESENTATION-REQUIRED","rule_id":"m3-presentation-required","caller_spiffe_id":"spiffe://cluster.local/ns/ztd-m3/sa/ztd-participant","token_subject":"amBe4xi21enuvk5hNvvn8rIvizBVOAMn1y55VAXvC2n4IV5ki5cnK51Md96jDJNb","resource":"POST ztd-guard:8080/demo","bundle_revision":"kind-catalogue-1"}}
+
+id: 34
+data: {"version":2,"run_id":"policy-20261122T014528.449566013Z","seq":34,"ts":"2026-11-22T01:45:56.618873928Z","source":"policy-b","kind":"decision","correlation_id":"b2d1c94a45f8beef7860704f43f75f89","payload":{"state":"denied","reason_code":"POL-PRESENTATION-REQUIRED","rule_id":"m3-presentation-required","caller_spiffe_id":"spiffe://cluster.local/ns/ztd-m3/sa/ztd-participant","token_subject":"amBe4xi21enuvk5hNvvn8rIvizBVOAMn1y55VAXvC2n4IV5ki5cnK51Md96jDJNb","resource":"POST ztd-guard:8080/demo","bundle_revision":"kind-catalogue-1"}}
+
+id: 35
+data: {"version":2,"run_id":"policy-20261122T014528.449566013Z","seq":35,"ts":"2026-11-22T01:45:56.963215804Z","source":"policy-b","kind":"decision","correlation_id":"5ff3a70ac2c2ae4d85f1e2140ded39be","payload":{"state":"denied","reason_code":"POL-PRESENTATION-REQUIRED","rule_id":"m3-presentation-required","caller_spiffe_id":"spiffe://cluster.local/ns/ztd-m3/sa/ztd-participant","token_subject":"amBe4xi21enuvk5hNvvn8rIvizBVOAMn1y55VAXvC2n4IV5ki5cnK51Md96jDJNb","resource":"POST ztd-guard:8080/demo","bundle_revision":"kind-catalogue-1"}}
+
+id: 36
+data: {"version":2,"run_id":"policy-20261122T014528.449566013Z","seq":36,"ts":"2026-11-22T01:45:57.332822262Z","source":"policy-b","kind":"decision","correlation_id":"592468701b647d3b39a427e090abe5aa","payload":{"state":"denied","reason_code":"POL-PRESENTATION-REQUIRED","rule_id":"m3-presentation-required","caller_spiffe_id":"spiffe://cluster.local/ns/ztd-m3/sa/ztd-participant","token_subject":"amBe4xi21enuvk5hNvvn8rIvizBVOAMn1y55VAXvC2n4IV5ki5cnK51Md96jDJNb","resource":"POST ztd-guard:8080/demo","bundle_revision":"kind-catalogue-1"}}
+
+id: 37
+data: {"version":2,"run_id":"policy-20261122T014528.449566013Z","seq":37,"ts":"2026-11-22T01:45:57.672721471Z","source":"policy-b","kind":"decision","correlation_id":"39ccb2e13730351cbe72337aff0ddc22","payload":{"state":"denied","reason_code":"POL-PRESENTATION-REQUIRED","rule_id":"m3-presentation-required","caller_spiffe_id":"spiffe://cluster.local/ns/ztd-m3/sa/ztd-participant","token_subject":"amBe4xi21enuvk5hNvvn8rIvizBVOAMn1y55VAXvC2n4IV5ki5cnK51Md96jDJNb","resource":"POST ztd-guard:8080/demo","bundle_revision":"kind-catalogue-1"}}
+
+id: 38
+data: {"version":2,"run_id":"policy-20261122T014528.449566013Z","seq":38,"ts":"2026-11-22T01:45:57.974052512Z","source":"policy-b","kind":"decision","correlation_id":"fdb23984a98a540ad2817c83e450c344","payload":{"state":"denied","reason_code":"POL-PRESENTATION-REQUIRED","rule_id":"m3-presentation-required","caller_spiffe_id":"spiffe://cluster.local/ns/ztd-m3/sa/ztd-participant","token_subject":"amBe4xi21enuvk5hNvvn8rIvizBVOAMn1y55VAXvC2n4IV5ki5cnK51Md96jDJNb","resource":"POST ztd-guard:8080/demo","bundle_revision":"kind-catalogue-1"}}
+
+id: 39
+data: {"version":2,"run_id":"policy-20261122T014528.449566013Z","seq":39,"ts":"2026-11-22T01:45:58.288849471Z","source":"policy-b","kind":"decision","correlation_id":"26c97a52f45a02433c63a368a57fcce8","payload":{"state":"denied","reason_code":"POL-PRESENTATION-REQUIRED","rule_id":"m3-presentation-required","caller_spiffe_id":"spiffe://cluster.local/ns/ztd-m3/sa/ztd-participant","token_subject":"amBe4xi21enuvk5hNvvn8rIvizBVOAMn1y55VAXvC2n4IV5ki5cnK51Md96jDJNb","resource":"POST ztd-guard:8080/demo","bundle_revision":"kind-catalogue-1"}}
+
+id: 40
+data: {"version":2,"run_id":"policy-20261122T014528.449566013Z","seq":40,"ts":"2026-11-22T01:45:58.593282429Z","source":"policy-b","kind":"decision","correlation_id":"c1f2e86cf747ade1419ca52c454cb518","payload":{"state":"denied","reason_code":"POL-PRESENTATION-REQUIRED","rule_id":"m3-presentation-required","caller_spiffe_id":"spiffe://cluster.local/ns/ztd-m3/sa/ztd-participant","token_subject":"amBe4xi21enuvk5hNvvn8rIvizBVOAMn1y55VAXvC2n4IV5ki5cnK51Md96jDJNb","resource":"POST ztd-guard:8080/demo","bundle_revision":"kind-catalogue-1"}}
+
+id: 41
+data: {"version":2,"run_id":"policy-20261122T014528.449566013Z","seq":41,"ts":"2026-11-22T01:45:58.917786346Z","source":"policy-b","kind":"decision","correlation_id":"212c41d9ecab5333c320a8311a2bb93a","payload":{"state":"denied","reason_code":"POL-PRESENTATION-REQUIRED","rule_id":"m3-presentation-required","caller_spiffe_id":"spiffe://cluster.local/ns/ztd-m3/sa/ztd-participant","token_subject":"amBe4xi21enuvk5hNvvn8rIvizBVOAMn1y55VAXvC2n4IV5ki5cnK51Md96jDJNb","resource":"POST ztd-guard:8080/demo","bundle_revision":"kind-catalogue-1"}}
+
+id: 42
+data: {"version":2,"run_id":"policy-20261122T014528.449566013Z","seq":42,"ts":"2026-11-22T01:45:59.22988068Z","source":"policy-b","kind":"decision","correlation_id":"931b1311a9c714bba84f4fbed54501b0","payload":{"state":"denied","reason_code":"POL-PRESENTATION-REQUIRED","rule_id":"m3-presentation-required","caller_spiffe_id":"spiffe://cluster.local/ns/ztd-m3/sa/ztd-participant","token_subject":"amBe4xi21enuvk5hNvvn8rIvizBVOAMn1y55VAXvC2n4IV5ki5cnK51Md96jDJNb","resource":"POST ztd-guard:8080/demo","bundle_revision":"kind-catalogue-1"}}
+
+id: 43
+data: {"version":2,"run_id":"policy-20261122T014528.449566013Z","seq":43,"ts":"2026-11-22T01:45:59.528876055Z","source":"policy-b","kind":"decision","correlation_id":"ee6a72c637d3a4d1e77ec6855d076ee4","payload":{"state":"denied","reason_code":"POL-PRESENTATION-REQUIRED","rule_id":"m3-presentation-required","caller_spiffe_id":"spiffe://cluster.local/ns/ztd-m3/sa/ztd-participant","token_subject":"amBe4xi21enuvk5hNvvn8rIvizBVOAMn1y55VAXvC2n4IV5ki5cnK51Md96jDJNb","resource":"POST ztd-guard:8080/demo","bundle_revision":"kind-catalogue-1"}}
+
+id: 44
+data: {"version":2,"run_id":"policy-20261122T014528.449566013Z","seq":44,"ts":"2026-11-22T01:45:59.824577597Z","source":"policy-b","kind":"decision","correlation_id":"30b4dda6847db4ceec702217efdfd2ae","payload":{"state":"denied","reason_code":"POL-PRESENTATION-REQUIRED","rule_id":"m3-presentation-required","caller_spiffe_id":"spiffe://cluster.local/ns/ztd-m3/sa/ztd-participant","token_subject":"amBe4xi21enuvk5hNvvn8rIvizBVOAMn1y55VAXvC2n4IV5ki5cnK51Md96jDJNb","resource":"POST ztd-guard:8080/demo","bundle_revision":"kind-catalogue-1"}}
+
+id: 45
+data: {"version":2,"run_id":"policy-20261122T014528.449566013Z","seq":45,"ts":"2026-11-22T01:46:00.118919888Z","source":"policy-b","kind":"decision","correlation_id":"4f220f7faab42f052e860e7ee69be522","payload":{"state":"denied","reason_code":"POL-PRESENTATION-REQUIRED","rule_id":"m3-presentation-required","caller_spiffe_id":"spiffe://cluster.local/ns/ztd-m3/sa/ztd-participant","token_subject":"amBe4xi21enuvk5hNvvn8rIvizBVOAMn1y55VAXvC2n4IV5ki5cnK51Md96jDJNb","resource":"POST ztd-guard:8080/demo","bundle_revision":"kind-catalogue-1"}}
+
+id: 46
+data: {"version":2,"run_id":"policy-20261122T014528.449566013Z","seq":46,"ts":"2026-11-22T01:46:00.403857347Z","source":"policy-b","kind":"decision","correlation_id":"fabc6cf47fb76841342aacca0b5a78e2","payload":{"state":"denied","reason_code":"POL-PRESENTATION-REQUIRED","rule_id":"m3-presentation-required","caller_spiffe_id":"spiffe://cluster.local/ns/ztd-m3/sa/ztd-participant","token_subject":"amBe4xi21enuvk5hNvvn8rIvizBVOAMn1y55VAXvC2n4IV5ki5cnK51Md96jDJNb","resource":"POST ztd-guard:8080/demo","bundle_revision":"kind-catalogue-1"}}
+
+id: 47
+data: {"version":2,"run_id":"policy-20261122T014528.449566013Z","seq":47,"ts":"2026-11-22T01:46:00.696790097Z","source":"policy-b","kind":"decision","correlation_id":"149f734c2a303e3013028e0b1bd4111c","payload":{"state":"denied","reason_code":"POL-PRESENTATION-REQUIRED","rule_id":"m3-presentation-required","caller_spiffe_id":"spiffe://cluster.local/ns/ztd-m3/sa/ztd-participant","token_subject":"amBe4xi21enuvk5hNvvn8rIvizBVOAMn1y55VAXvC2n4IV5ki5cnK51Md96jDJNb","resource":"POST ztd-guard:8080/demo","bundle_revision":"kind-catalogue-1"}}
+
+id: 48
+data: {"version":2,"run_id":"policy-20261122T014528.449566013Z","seq":48,"ts":"2026-11-22T01:46:01.0026485Z","source":"policy-b","kind":"decision","correlation_id":"60a9335b660a42be897c20cbd5b2fafb","payload":{"state":"denied","reason_code":"POL-PRESENTATION-REQUIRED","rule_id":"m3-presentation-required","caller_spiffe_id":"spiffe://cluster.local/ns/ztd-m3/sa/ztd-participant","token_subject":"amBe4xi21enuvk5hNvvn8rIvizBVOAMn1y55VAXvC2n4IV5ki5cnK51Md96jDJNb","resource":"POST ztd-guard:8080/demo","bundle_revision":"kind-catalogue-1"}}
+
+id: 49
+data: {"version":2,"run_id":"policy-20261122T014528.449566013Z","seq":49,"ts":"2026-11-22T01:46:01.342859791Z","source":"policy-b","kind":"decision","correlation_id":"2127e56fc9de5d437a0bbeb86264e5f0","payload":{"state":"denied","reason_code":"POL-PRESENTATION-REQUIRED","rule_id":"m3-presentation-required","caller_spiffe_id":"spiffe://cluster.local/ns/ztd-m3/sa/ztd-participant","token_subject":"amBe4xi21enuvk5hNvvn8rIvizBVOAMn1y55VAXvC2n4IV5ki5cnK51Md96jDJNb","resource":"POST ztd-guard:8080/demo","bundle_revision":"kind-catalogue-1"}}
+
+id: 50
+data: {"version":2,"run_id":"policy-20261122T014528.449566013Z","seq":50,"ts":"2026-11-22T01:46:01.753056333Z","source":"policy-b","kind":"decision","correlation_id":"d71b0a3684d467c625c2b691a1ca2543","payload":{"state":"denied","reason_code":"POL-PRESENTATION-REQUIRED","rule_id":"m3-presentation-required","caller_spiffe_id":"spiffe://cluster.local/ns/ztd-m3/sa/ztd-participant","token_subject":"amBe4xi21enuvk5hNvvn8rIvizBVOAMn1y55VAXvC2n4IV5ki5cnK51Md96jDJNb","resource":"POST ztd-guard:8080/demo","bundle_revision":"kind-catalogue-1"}}
+
+id: 51
+data: {"version":2,"run_id":"policy-20261122T014528.449566013Z","seq":51,"ts":"2026-11-22T01:46:02.128238958Z","source":"policy-b","kind":"decision","correlation_id":"17c13379466f41eb9267a0ca777de087","payload":{"state":"denied","reason_code":"POL-PRESENTATION-REQUIRED","rule_id":"m3-presentation-required","caller_spiffe_id":"spiffe://cluster.local/ns/ztd-m3/sa/ztd-participant","token_subject":"amBe4xi21enuvk5hNvvn8rIvizBVOAMn1y55VAXvC2n4IV5ki5cnK51Md96jDJNb","resource":"POST ztd-guard:8080/demo","bundle_revision":"kind-catalogue-1"}}
+
+id: 52
+data: {"version":2,"run_id":"policy-20261122T014528.449566013Z","seq":52,"ts":"2026-11-22T01:46:02.5541385Z","source":"policy-b","kind":"decision","correlation_id":"7a5189814b1cd11ff2e3f63a662d0f27","payload":{"state":"denied","reason_code":"POL-PRESENTATION-REQUIRED","rule_id":"m3-presentation-required","caller_spiffe_id":"spiffe://cluster.local/ns/ztd-m3/sa/ztd-participant","token_subject":"amBe4xi21enuvk5hNvvn8rIvizBVOAMn1y55VAXvC2n4IV5ki5cnK51Md96jDJNb","resource":"POST ztd-guard:8080/demo","bundle_revision":"kind-catalogue-1"}}
+
+id: 53
+data: {"version":2,"run_id":"policy-20261122T014528.449566013Z","seq":53,"ts":"2026-11-22T01:46:02.88601975Z","source":"policy-b","kind":"decision","correlation_id":"042e92364c7a71143a4378ab552206d9","payload":{"state":"denied","reason_code":"POL-PRESENTATION-REQUIRED","rule_id":"m3-presentation-required","caller_spiffe_id":"spiffe://cluster.local/ns/ztd-m3/sa/ztd-participant","token_subject":"amBe4xi21enuvk5hNvvn8rIvizBVOAMn1y55VAXvC2n4IV5ki5cnK51Md96jDJNb","resource":"POST ztd-guard:8080/demo","bundle_revision":"kind-catalogue-1"}}
+
+id: 54
+data: {"version":2,"run_id":"policy-20261122T014528.449566013Z","seq":54,"ts":"2026-11-22T01:46:03.187269542Z","source":"policy-b","kind":"decision","correlation_id":"bcc939f3f01fe8b0158e6596e49190ea","payload":{"state":"denied","reason_code":"POL-PRESENTATION-REQUIRED","rule_id":"m3-presentation-required","caller_spiffe_id":"spiffe://cluster.local/ns/ztd-m3/sa/ztd-participant","token_subject":"amBe4xi21enuvk5hNvvn8rIvizBVOAMn1y55VAXvC2n4IV5ki5cnK51Md96jDJNb","resource":"POST ztd-guard:8080/demo","bundle_revision":"kind-catalogue-1"}}
+
+id: 55
+data: {"version":2,"run_id":"policy-20261122T014528.449566013Z","seq":55,"ts":"2026-11-22T01:46:03.480249376Z","source":"policy-b","kind":"decision","correlation_id":"9da0cd88a35b734d22d73ee5c9eb25e4","payload":{"state":"denied","reason_code":"POL-PRESENTATION-REQUIRED","rule_id":"m3-presentation-required","caller_spiffe_id":"spiffe://cluster.local/ns/ztd-m3/sa/ztd-participant","token_subject":"amBe4xi21enuvk5hNvvn8rIvizBVOAMn1y55VAXvC2n4IV5ki5cnK51Md96jDJNb","resource":"POST ztd-guard:8080/demo","bundle_revision":"kind-catalogue-1"}}
+
+id: 56
+data: {"version":2,"run_id":"policy-20261122T014528.449566013Z","seq":56,"ts":"2026-11-22T01:46:03.775628709Z","source":"policy-b","kind":"decision","correlation_id":"bc09e4a83ff2b4ed1911a9f0f575a720","payload":{"state":"denied","reason_code":"POL-PRESENTATION-REQUIRED","rule_id":"m3-presentation-required","caller_spiffe_id":"spiffe://cluster.local/ns/ztd-m3/sa/ztd-participant","token_subject":"amBe4xi21enuvk5hNvvn8rIvizBVOAMn1y55VAXvC2n4IV5ki5cnK51Md96jDJNb","resource":"POST ztd-guard:8080/demo","bundle_revision":"kind-catalogue-1"}}
+
+id: 57
+data: {"version":2,"run_id":"policy-20261122T014528.449566013Z","seq":57,"ts":"2026-11-22T01:46:04.095923709Z","source":"policy-b","kind":"decision","correlation_id":"02fb78abd835a7632d36353bfaef72f4","payload":{"state":"denied","reason_code":"POL-PRESENTATION-REQUIRED","rule_id":"m3-presentation-required","caller_spiffe_id":"spiffe://cluster.local/ns/ztd-m3/sa/ztd-participant","token_subject":"amBe4xi21enuvk5hNvvn8rIvizBVOAMn1y55VAXvC2n4IV5ki5cnK51Md96jDJNb","resource":"POST ztd-guard:8080/demo","bundle_revision":"kind-catalogue-1"}}
+
+id: 58
+data: {"version":2,"run_id":"policy-20261122T014528.449566013Z","seq":58,"ts":"2026-11-22T01:46:04.409712876Z","source":"policy-b","kind":"decision","correlation_id":"a8e6fcc28b8e7ed0dea77ce65e4d70f9","payload":{"state":"denied","reason_code":"POL-PRESENTATION-REQUIRED","rule_id":"m3-presentation-required","caller_spiffe_id":"spiffe://cluster.local/ns/ztd-m3/sa/ztd-participant","token_subject":"amBe4xi21enuvk5hNvvn8rIvizBVOAMn1y55VAXvC2n4IV5ki5cnK51Md96jDJNb","resource":"POST ztd-guard:8080/demo","bundle_revision":"kind-catalogue-1"}}
+
+id: 59
+data: {"version":2,"run_id":"policy-20261122T014528.449566013Z","seq":59,"ts":"2026-11-22T01:46:04.80644046Z","source":"policy-b","kind":"decision","correlation_id":"990d66c1e6c9f8983052001810ced2bc","payload":{"state":"denied","reason_code":"POL-PRESENTATION-REQUIRED","rule_id":"m3-presentation-required","caller_spiffe_id":"spiffe://cluster.local/ns/ztd-m3/sa/ztd-participant","token_subject":"amBe4xi21enuvk5hNvvn8rIvizBVOAMn1y55VAXvC2n4IV5ki5cnK51Md96jDJNb","resource":"POST ztd-guard:8080/demo","bundle_revision":"kind-catalogue-1"}}
+
+id: 60
+data: {"version":2,"run_id":"policy-20261122T014528.449566013Z","seq":60,"ts":"2026-11-22T01:46:05.340584043Z","source":"policy-b","kind":"decision","correlation_id":"a0a033ce8337c7db21893d60fdc05ed2","payload":{"state":"denied","reason_code":"POL-PRESENTATION-REQUIRED","rule_id":"m3-presentation-required","caller_spiffe_id":"spiffe://cluster.local/ns/ztd-m3/sa/ztd-participant","token_subject":"amBe4xi21enuvk5hNvvn8rIvizBVOAMn1y55VAXvC2n4IV5ki5cnK51Md96jDJNb","resource":"POST ztd-guard:8080/demo","bundle_revision":"kind-catalogue-1"}}
+
+id: 61
+data: {"version":2,"run_id":"policy-20261122T014528.449566013Z","seq":61,"ts":"2026-11-22T01:46:05.670555668Z","source":"policy-b","kind":"decision","correlation_id":"462a49afd62d1a06ec71e80891129bab","payload":{"state":"denied","reason_code":"POL-PRESENTATION-REQUIRED","rule_id":"m3-presentation-required","caller_spiffe_id":"spiffe://cluster.local/ns/ztd-m3/sa/ztd-participant","token_subject":"amBe4xi21enuvk5hNvvn8rIvizBVOAMn1y55VAXvC2n4IV5ki5cnK51Md96jDJNb","resource":"POST ztd-guard:8080/demo","bundle_revision":"kind-catalogue-1"}}
+
+id: 62
+data: {"version":2,"run_id":"policy-20261122T014528.449566013Z","seq":62,"ts":"2026-11-22T01:46:06.02110446Z","source":"policy-b","kind":"decision","correlation_id":"c811fc85ca721aba51e18b32c566c0e3","payload":{"state":"denied","reason_code":"POL-PRESENTATION-REQUIRED","rule_id":"m3-presentation-required","caller_spiffe_id":"spiffe://cluster.local/ns/ztd-m3/sa/ztd-participant","token_subject":"amBe4xi21enuvk5hNvvn8rIvizBVOAMn1y55VAXvC2n4IV5ki5cnK51Md96jDJNb","resource":"POST ztd-guard:8080/demo","bundle_revision":"kind-catalogue-1"}}
+
+id: 63
+data: {"version":2,"run_id":"policy-20261122T014528.449566013Z","seq":63,"ts":"2026-11-22T01:46:06.363635127Z","source":"policy-b","kind":"decision","correlation_id":"32e3cc38e551f2f77cc30818d3d02ace","payload":{"state":"denied","reason_code":"POL-PRESENTATION-REQUIRED","rule_id":"m3-presentation-required","caller_spiffe_id":"spiffe://cluster.local/ns/ztd-m3/sa/ztd-participant","token_subject":"amBe4xi21enuvk5hNvvn8rIvizBVOAMn1y55VAXvC2n4IV5ki5cnK51Md96jDJNb","resource":"POST ztd-guard:8080/demo","bundle_revision":"kind-catalogue-1"}}
+
+id: 64
+data: {"version":2,"run_id":"policy-20261122T014528.449566013Z","seq":64,"ts":"2026-11-22T01:46:06.678316294Z","source":"policy-b","kind":"decision","correlation_id":"dd4e7a6c50a1af98792c45dce2cc9160","payload":{"state":"denied","reason_code":"POL-PRESENTATION-REQUIRED","rule_id":"m3-presentation-required","caller_spiffe_id":"spiffe://cluster.local/ns/ztd-m3/sa/ztd-participant","token_subject":"amBe4xi21enuvk5hNvvn8rIvizBVOAMn1y55VAXvC2n4IV5ki5cnK51Md96jDJNb","resource":"POST ztd-guard:8080/demo","bundle_revision":"kind-catalogue-1"}}
+
+id: 65
+data: {"version":2,"run_id":"policy-20261122T014528.449566013Z","seq":65,"ts":"2026-11-22T01:46:07.055576294Z","source":"policy-b","kind":"decision","correlation_id":"7b3da62d9f8b9dbd8c787ca9da39e784","payload":{"state":"denied","reason_code":"POL-PRESENTATION-REQUIRED","rule_id":"m3-presentation-required","caller_spiffe_id":"spiffe://cluster.local/ns/ztd-m3/sa/ztd-participant","token_subject":"amBe4xi21enuvk5hNvvn8rIvizBVOAMn1y55VAXvC2n4IV5ki5cnK51Md96jDJNb","resource":"POST ztd-guard:8080/demo","bundle_revision":"kind-catalogue-1"}}
+
+id: 66
+data: {"version":2,"run_id":"policy-20261122T014528.449566013Z","seq":66,"ts":"2026-11-22T01:46:07.966434753Z","source":"policy-b","kind":"decision","correlation_id":"4fcbb82502babfc6467c2da14f055a9e","payload":{"state":"denied","reason_code":"POL-PRESENTATION-REQUIRED","rule_id":"m3-presentation-required","caller_spiffe_id":"spiffe://cluster.local/ns/ztd-m3/sa/ztd-participant","token_subject":"amBe4xi21enuvk5hNvvn8rIvizBVOAMn1y55VAXvC2n4IV5ki5cnK51Md96jDJNb","resource":"POST ztd-guard:8080/demo","bundle_revision":"kind-catalogue-1"}}
+
+id: 67
+data: {"version":2,"run_id":"policy-20261122T014528.449566013Z","seq":67,"ts":"2026-11-22T01:46:08.313711045Z","source":"policy-b","kind":"decision","correlation_id":"26d49ae589c212f163ec199565524928","payload":{"state":"denied","reason_code":"POL-PRESENTATION-REQUIRED","rule_id":"m3-presentation-required","caller_spiffe_id":"spiffe://cluster.local/ns/ztd-m3/sa/ztd-participant","token_subject":"amBe4xi21enuvk5hNvvn8rIvizBVOAMn1y55VAXvC2n4IV5ki5cnK51Md96jDJNb","resource":"POST ztd-guard:8080/demo","bundle_revision":"kind-catalogue-1"}}
+
+id: 68
+data: {"version":2,"run_id":"policy-20261122T014528.449566013Z","seq":68,"ts":"2026-11-22T01:46:08.736644712Z","source":"policy-b","kind":"decision","correlation_id":"f0cd81eda8887fe7542b84eb250381bd","payload":{"state":"denied","reason_code":"POL-PRESENTATION-REQUIRED","rule_id":"m3-presentation-required","caller_spiffe_id":"spiffe://cluster.local/ns/ztd-m3/sa/ztd-participant","token_subject":"amBe4xi21enuvk5hNvvn8rIvizBVOAMn1y55VAXvC2n4IV5ki5cnK51Md96jDJNb","resource":"POST ztd-guard:8080/demo","bundle_revision":"kind-catalogue-1"}}
+
+id: 69
+data: {"version":2,"run_id":"policy-20261122T014528.449566013Z","seq":69,"ts":"2026-11-22T01:46:09.08229242Z","source":"policy-b","kind":"decision","correlation_id":"ebffed397b23a7f95af197e05acd2df3","payload":{"state":"denied","reason_code":"POL-PRESENTATION-REQUIRED","rule_id":"m3-presentation-required","caller_spiffe_id":"spiffe://cluster.local/ns/ztd-m3/sa/ztd-participant","token_subject":"amBe4xi21enuvk5hNvvn8rIvizBVOAMn1y55VAXvC2n4IV5ki5cnK51Md96jDJNb","resource":"POST ztd-guard:8080/demo","bundle_revision":"kind-catalogue-1"}}
+
+id: 70
+data: {"version":2,"run_id":"policy-20261122T014528.449566013Z","seq":70,"ts":"2026-11-22T01:46:09.378038504Z","source":"policy-b","kind":"decision","correlation_id":"92058f6f2c89ef97b6cc7ecae00b7ff0","payload":{"state":"denied","reason_code":"POL-PRESENTATION-REQUIRED","rule_id":"m3-presentation-required","caller_spiffe_id":"spiffe://cluster.local/ns/ztd-m3/sa/ztd-participant","token_subject":"amBe4xi21enuvk5hNvvn8rIvizBVOAMn1y55VAXvC2n4IV5ki5cnK51Md96jDJNb","resource":"POST ztd-guard:8080/demo","bundle_revision":"kind-catalogue-1"}}
+
+id: 71
+data: {"version":2,"run_id":"policy-20261122T014528.449566013Z","seq":71,"ts":"2026-11-22T01:46:09.763124129Z","source":"policy-b","kind":"decision","correlation_id":"f5c11097443989dee8745b14eaf5acf7","payload":{"state":"denied","reason_code":"POL-PRESENTATION-REQUIRED","rule_id":"m3-presentation-required","caller_spiffe_id":"spiffe://cluster.local/ns/ztd-m3/sa/ztd-participant","token_subject":"amBe4xi21enuvk5hNvvn8rIvizBVOAMn1y55VAXvC2n4IV5ki5cnK51Md96jDJNb","resource":"POST ztd-guard:8080/demo","bundle_revision":"kind-catalogue-1"}}
+
+id: 72
+data: {"version":2,"run_id":"policy-20261122T014528.449566013Z","seq":72,"ts":"2026-11-22T01:46:10.089550421Z","source":"policy-b","kind":"decision","correlation_id":"8f21b8f114c4f91224e2162637ab8d08","payload":{"state":"denied","reason_code":"POL-PRESENTATION-REQUIRED","rule_id":"m3-presentation-required","caller_spiffe_id":"spiffe://cluster.local/ns/ztd-m3/sa/ztd-participant","token_subject":"amBe4xi21enuvk5hNvvn8rIvizBVOAMn1y55VAXvC2n4IV5ki5cnK51Md96jDJNb","resource":"POST ztd-guard:8080/demo","bundle_revision":"kind-catalogue-1"}}
+
+id: 73
+data: {"version":2,"run_id":"policy-20261122T014528.449566013Z","seq":73,"ts":"2026-11-22T01:46:10.451658879Z","source":"policy-b","kind":"decision","correlation_id":"e73b771fb6bc93180f44e0942b5d2ed7","payload":{"state":"denied","reason_code":"POL-PRESENTATION-REQUIRED","rule_id":"m3-presentation-required","caller_spiffe_id":"spiffe://cluster.local/ns/ztd-m3/sa/ztd-participant","token_subject":"amBe4xi21enuvk5hNvvn8rIvizBVOAMn1y55VAXvC2n4IV5ki5cnK51Md96jDJNb","resource":"POST ztd-guard:8080/demo","bundle_revision":"kind-catalogue-1"}}
+
+id: 74
+data: {"version":2,"run_id":"policy-20261122T014528.449566013Z","seq":74,"ts":"2026-11-22T01:46:10.772247588Z","source":"policy-b","kind":"decision","correlation_id":"836d4164a7958bbf8bf6c06a4fe1dab4","payload":{"state":"denied","reason_code":"POL-PRESENTATION-REQUIRED","rule_id":"m3-presentation-required","caller_spiffe_id":"spiffe://cluster.local/ns/ztd-m3/sa/ztd-participant","token_subject":"amBe4xi21enuvk5hNvvn8rIvizBVOAMn1y55VAXvC2n4IV5ki5cnK51Md96jDJNb","resource":"POST ztd-guard:8080/demo","bundle_revision":"kind-catalogue-1"}}
+
+id: 75
+data: {"version":2,"run_id":"policy-20261122T014528.449566013Z","seq":75,"ts":"2026-11-22T01:46:11.109669754Z","source":"policy-b","kind":"decision","correlation_id":"bd9698ef4a2431314e7c14befeb0fe1d","payload":{"state":"denied","reason_code":"POL-PRESENTATION-REQUIRED","rule_id":"m3-presentation-required","caller_spiffe_id":"spiffe://cluster.local/ns/ztd-m3/sa/ztd-participant","token_subject":"amBe4xi21enuvk5hNvvn8rIvizBVOAMn1y55VAXvC2n4IV5ki5cnK51Md96jDJNb","resource":"POST ztd-guard:8080/demo","bundle_revision":"kind-catalogue-1"}}
+
+id: 76
+data: {"version":2,"run_id":"policy-20261122T014528.449566013Z","seq":76,"ts":"2026-11-22T01:46:11.540190755Z","source":"policy-b","kind":"decision","correlation_id":"2e49c1d02fd6cdfd64c26347987de3f5","payload":{"state":"denied","reason_code":"POL-PRESENTATION-REQUIRED","rule_id":"m3-presentation-required","caller_spiffe_id":"spiffe://cluster.local/ns/ztd-m3/sa/ztd-participant","token_subject":"amBe4xi21enuvk5hNvvn8rIvizBVOAMn1y55VAXvC2n4IV5ki5cnK51Md96jDJNb","resource":"POST ztd-guard:8080/demo","bundle_revision":"kind-catalogue-1"}}
+
+id: 77
+data: {"version":2,"run_id":"policy-20261122T014528.449566013Z","seq":77,"ts":"2026-11-22T01:46:11.935153213Z","source":"policy-b","kind":"decision","correlation_id":"17fc889f5dff0c129666e5ed1c833a89","payload":{"state":"denied","reason_code":"POL-PRESENTATION-REQUIRED","rule_id":"m3-presentation-required","caller_spiffe_id":"spiffe://cluster.local/ns/ztd-m3/sa/ztd-participant","token_subject":"amBe4xi21enuvk5hNvvn8rIvizBVOAMn1y55VAXvC2n4IV5ki5cnK51Md96jDJNb","resource":"POST ztd-guard:8080/demo","bundle_revision":"kind-catalogue-1"}}
+
+id: 78
+data: {"version":2,"run_id":"policy-20261122T014528.449566013Z","seq":78,"ts":"2026-11-22T01:46:12.265334338Z","source":"policy-b","kind":"decision","correlation_id":"2521fadd0293aefade97865cbde87288","payload":{"state":"denied","reason_code":"POL-PRESENTATION-REQUIRED","rule_id":"m3-presentation-required","caller_spiffe_id":"spiffe://cluster.local/ns/ztd-m3/sa/ztd-participant","token_subject":"amBe4xi21enuvk5hNvvn8rIvizBVOAMn1y55VAXvC2n4IV5ki5cnK51Md96jDJNb","resource":"POST ztd-guard:8080/demo","bundle_revision":"kind-catalogue-1"}}
+
+id: 79
+data: {"version":2,"run_id":"policy-20261122T014528.449566013Z","seq":79,"ts":"2026-11-22T01:46:12.611258922Z","source":"policy-b","kind":"decision","correlation_id":"2d96e89157d3e3e7f07ee2150e546ca8","payload":{"state":"denied","reason_code":"POL-PRESENTATION-REQUIRED","rule_id":"m3-presentation-required","caller_spiffe_id":"spiffe://cluster.local/ns/ztd-m3/sa/ztd-participant","token_subject":"amBe4xi21enuvk5hNvvn8rIvizBVOAMn1y55VAXvC2n4IV5ki5cnK51Md96jDJNb","resource":"POST ztd-guard:8080/demo","bundle_revision":"kind-catalogue-1"}}
+
+id: 80
+data: {"version":2,"run_id":"policy-20261122T014528.449566013Z","seq":80,"ts":"2026-11-22T01:46:12.93681338Z","source":"policy-b","kind":"decision","correlation_id":"6d779de6f229f5d721ad044af473abdb","payload":{"state":"denied","reason_code":"POL-PRESENTATION-REQUIRED","rule_id":"m3-presentation-required","caller_spiffe_id":"spiffe://cluster.local/ns/ztd-m3/sa/ztd-participant","token_subject":"amBe4xi21enuvk5hNvvn8rIvizBVOAMn1y55VAXvC2n4IV5ki5cnK51Md96jDJNb","resource":"POST ztd-guard:8080/demo","bundle_revision":"kind-catalogue-1"}}
+
+id: 81
+data: {"version":2,"run_id":"policy-20261122T014528.449566013Z","seq":81,"ts":"2026-11-22T01:46:13.286696089Z","source":"policy-b","kind":"decision","correlation_id":"c3edeee55ddc7d47087561e12629e480","payload":{"state":"denied","reason_code":"POL-PRESENTATION-REQUIRED","rule_id":"m3-presentation-required","caller_spiffe_id":"spiffe://cluster.local/ns/ztd-m3/sa/ztd-participant","token_subject":"amBe4xi21enuvk5hNvvn8rIvizBVOAMn1y55VAXvC2n4IV5ki5cnK51Md96jDJNb","resource":"POST ztd-guard:8080/demo","bundle_revision":"kind-catalogue-1"}}
+
+id: 82
+data: {"version":2,"run_id":"policy-20261122T014528.449566013Z","seq":82,"ts":"2026-11-22T01:46:13.793980839Z","source":"policy-b","kind":"decision","correlation_id":"657ca5aec9e1c69d6336d52a2fb2763c","payload":{"state":"denied","reason_code":"POL-PRESENTATION-REQUIRED","rule_id":"m3-presentation-required","caller_spiffe_id":"spiffe://cluster.local/ns/ztd-m3/sa/ztd-participant","token_subject":"amBe4xi21enuvk5hNvvn8rIvizBVOAMn1y55VAXvC2n4IV5ki5cnK51Md96jDJNb","resource":"POST ztd-guard:8080/demo","bundle_revision":"kind-catalogue-1"}}
+
+id: 83
+data: {"version":2,"run_id":"policy-20261122T014528.449566013Z","seq":83,"ts":"2026-11-22T01:46:14.152485672Z","source":"policy-b","kind":"decision","correlation_id":"15eabeb83debc756c24ec652814e3232","payload":{"state":"denied","reason_code":"POL-PRESENTATION-REQUIRED","rule_id":"m3-presentation-required","caller_spiffe_id":"spiffe://cluster.local/ns/ztd-m3/sa/ztd-participant","token_subject":"amBe4xi21enuvk5hNvvn8rIvizBVOAMn1y55VAXvC2n4IV5ki5cnK51Md96jDJNb","resource":"POST ztd-guard:8080/demo","bundle_revision":"kind-catalogue-1"}}
+
+id: 84
+data: {"version":2,"run_id":"policy-20261122T014528.449566013Z","seq":84,"ts":"2026-11-22T01:46:14.596073214Z","source":"policy-b","kind":"decision","correlation_id":"eb5aa64075a336a6ca87290efa1fd726","payload":{"state":"denied","reason_code":"POL-PRESENTATION-REQUIRED","rule_id":"m3-presentation-required","caller_spiffe_id":"spiffe://cluster.local/ns/ztd-m3/sa/ztd-participant","token_subject":"amBe4xi21enuvk5hNvvn8rIvizBVOAMn1y55VAXvC2n4IV5ki5cnK51Md96jDJNb","resource":"POST ztd-guard:8080/demo","bundle_revision":"kind-catalogue-1"}}
+
+id: 85
+data: {"version":2,"run_id":"policy-20261122T014528.449566013Z","seq":85,"ts":"2026-11-22T01:46:15.211604131Z","source":"policy-b","kind":"decision","correlation_id":"fadfd7e256a29e18059d3ebb7ecb8f46","payload":{"state":"denied","reason_code":"POL-PRESENTATION-REQUIRED","rule_id":"m3-presentation-required","caller_spiffe_id":"spiffe://cluster.local/ns/ztd-m3/sa/ztd-participant","token_subject":"amBe4xi21enuvk5hNvvn8rIvizBVOAMn1y55VAXvC2n4IV5ki5cnK51Md96jDJNb","resource":"POST ztd-guard:8080/demo","bundle_revision":"kind-catalogue-1"}}
+
+id: 86
+data: {"version":2,"run_id":"policy-20261122T014528.449566013Z","seq":86,"ts":"2026-11-22T01:46:15.740084048Z","source":"policy-b","kind":"decision","correlation_id":"3d38157528c4cccbb2335dbc56d5ce1e","payload":{"state":"denied","reason_code":"POL-PRESENTATION-REQUIRED","rule_id":"m3-presentation-required","caller_spiffe_id":"spiffe://cluster.local/ns/ztd-m3/sa/ztd-participant","token_subject":"amBe4xi21enuvk5hNvvn8rIvizBVOAMn1y55VAXvC2n4IV5ki5cnK51Md96jDJNb","resource":"POST ztd-guard:8080/demo","bundle_revision":"kind-catalogue-1"}}
+
+id: 87
+data: {"version":2,"run_id":"policy-20261122T014528.449566013Z","seq":87,"ts":"2026-11-22T01:46:16.09910809Z","source":"policy-b","kind":"decision","correlation_id":"8eba2fddc53e39dffa85072b1ee38eea","payload":{"state":"denied","reason_code":"POL-PRESENTATION-REQUIRED","rule_id":"m3-presentation-required","caller_spiffe_id":"spiffe://cluster.local/ns/ztd-m3/sa/ztd-participant","token_subject":"amBe4xi21enuvk5hNvvn8rIvizBVOAMn1y55VAXvC2n4IV5ki5cnK51Md96jDJNb","resource":"POST ztd-guard:8080/demo","bundle_revision":"kind-catalogue-1"}}
+
+id: 88
+data: {"version":2,"run_id":"policy-20261122T014528.449566013Z","seq":88,"ts":"2026-11-22T01:46:16.452056215Z","source":"policy-b","kind":"decision","correlation_id":"3f5e3877462966671fe909dfbd4f87b2","payload":{"state":"denied","reason_code":"POL-PRESENTATION-REQUIRED","rule_id":"m3-presentation-required","caller_spiffe_id":"spiffe://cluster.local/ns/ztd-m3/sa/ztd-participant","token_subject":"amBe4xi21enuvk5hNvvn8rIvizBVOAMn1y55VAXvC2n4IV5ki5cnK51Md96jDJNb","resource":"POST ztd-guard:8080/demo","bundle_revision":"kind-catalogue-1"}}
+
+id: 89
+data: {"version":2,"run_id":"policy-20261122T014528.449566013Z","seq":89,"ts":"2026-11-22T01:46:16.802365424Z","source":"policy-b","kind":"decision","correlation_id":"c688482ff55dbd4a79d4b2467927a110","payload":{"state":"denied","reason_code":"POL-PRESENTATION-REQUIRED","rule_id":"m3-presentation-required","caller_spiffe_id":"spiffe://cluster.local/ns/ztd-m3/sa/ztd-participant","token_subject":"amBe4xi21enuvk5hNvvn8rIvizBVOAMn1y55VAXvC2n4IV5ki5cnK51Md96jDJNb","resource":"POST ztd-guard:8080/demo","bundle_revision":"kind-catalogue-1"}}
+
+id: 90
+data: {"version":2,"run_id":"policy-20261122T014528.449566013Z","seq":90,"ts":"2026-11-22T01:46:17.172234674Z","source":"policy-b","kind":"decision","correlation_id":"cdee25e07ab9145f2f5d4b0a20e923c6","payload":{"state":"denied","reason_code":"POL-PRESENTATION-REQUIRED","rule_id":"m3-presentation-required","caller_spiffe_id":"spiffe://cluster.local/ns/ztd-m3/sa/ztd-participant","token_subject":"amBe4xi21enuvk5hNvvn8rIvizBVOAMn1y55VAXvC2n4IV5ki5cnK51Md96jDJNb","resource":"POST ztd-guard:8080/demo","bundle_revision":"kind-catalogue-1"}}
+
+id: 91
+data: {"version":2,"run_id":"policy-20261122T014528.449566013Z","seq":91,"ts":"2026-11-22T01:46:17.619579674Z","source":"policy-b","kind":"decision","correlation_id":"bf9a5909aba7531e569bc3e4987c2ed1","payload":{"state":"denied","reason_code":"POL-PRESENTATION-REQUIRED","rule_id":"m3-presentation-required","caller_spiffe_id":"spiffe://cluster.local/ns/ztd-m3/sa/ztd-participant","token_subject":"amBe4xi21enuvk5hNvvn8rIvizBVOAMn1y55VAXvC2n4IV5ki5cnK51Md96jDJNb","resource":"POST ztd-guard:8080/demo","bundle_revision":"kind-catalogue-1"}}
+
+id: 92
+data: {"version":2,"run_id":"policy-20261122T014528.449566013Z","seq":92,"ts":"2026-11-22T01:46:18.010965049Z","source":"policy-b","kind":"decision","correlation_id":"9d42a3693fb787fade40f7ceb058aec0","payload":{"state":"denied","reason_code":"POL-PRESENTATION-REQUIRED","rule_id":"m3-presentation-required","caller_spiffe_id":"spiffe://cluster.local/ns/ztd-m3/sa/ztd-participant","token_subject":"amBe4xi21enuvk5hNvvn8rIvizBVOAMn1y55VAXvC2n4IV5ki5cnK51Md96jDJNb","resource":"POST ztd-guard:8080/demo","bundle_revision":"kind-catalogue-1"}}
+
+id: 93
+data: {"version":2,"run_id":"policy-20261122T014528.449566013Z","seq":93,"ts":"2026-11-22T01:46:18.338474841Z","source":"policy-b","kind":"decision","correlation_id":"12346349641daae7b6d60aeecfc88fc5","payload":{"state":"denied","reason_code":"POL-PRESENTATION-REQUIRED","rule_id":"m3-presentation-required","caller_spiffe_id":"spiffe://cluster.local/ns/ztd-m3/sa/ztd-participant","token_subject":"amBe4xi21enuvk5hNvvn8rIvizBVOAMn1y55VAXvC2n4IV5ki5cnK51Md96jDJNb","resource":"POST ztd-guard:8080/demo","bundle_revision":"kind-catalogue-1"}}
+
+id: 94
+data: {"version":2,"run_id":"policy-20261122T014528.449566013Z","seq":94,"ts":"2026-11-22T01:46:18.647269966Z","source":"policy-b","kind":"decision","correlation_id":"94da551dfcc5573dfff145a287beeb94","payload":{"state":"denied","reason_code":"POL-PRESENTATION-REQUIRED","rule_id":"m3-presentation-required","caller_spiffe_id":"spiffe://cluster.local/ns/ztd-m3/sa/ztd-participant","token_subject":"amBe4xi21enuvk5hNvvn8rIvizBVOAMn1y55VAXvC2n4IV5ki5cnK51Md96jDJNb","resource":"POST ztd-guard:8080/demo","bundle_revision":"kind-catalogue-1"}}
+
+id: 95
+data: {"version":2,"run_id":"policy-20261122T014528.449566013Z","seq":95,"ts":"2026-11-22T01:46:18.961626716Z","source":"policy-b","kind":"decision","correlation_id":"7772c1b08baf909a30a90bc8198bccfc","payload":{"state":"denied","reason_code":"POL-PRESENTATION-REQUIRED","rule_id":"m3-presentation-required","caller_spiffe_id":"spiffe://cluster.local/ns/ztd-m3/sa/ztd-participant","token_subject":"amBe4xi21enuvk5hNvvn8rIvizBVOAMn1y55VAXvC2n4IV5ki5cnK51Md96jDJNb","resource":"POST ztd-guard:8080/demo","bundle_revision":"kind-catalogue-1"}}
+
+id: 96
+data: {"version":2,"run_id":"policy-20261122T014528.449566013Z","seq":96,"ts":"2026-11-22T01:46:19.313574967Z","source":"policy-b","kind":"decision","correlation_id":"3ba7293c7b43aa0ff3bbef91296ecf98","payload":{"state":"denied","reason_code":"POL-PRESENTATION-REQUIRED","rule_id":"m3-presentation-required","caller_spiffe_id":"spiffe://cluster.local/ns/ztd-m3/sa/ztd-participant","token_subject":"amBe4xi21enuvk5hNvvn8rIvizBVOAMn1y55VAXvC2n4IV5ki5cnK51Md96jDJNb","resource":"POST ztd-guard:8080/demo","bundle_revision":"kind-catalogue-1"}}
+
+id: 97
+data: {"version":2,"run_id":"policy-20261122T014528.449566013Z","seq":97,"ts":"2026-11-22T01:46:19.666278092Z","source":"policy-b","kind":"decision","correlation_id":"bd9259fdaaf0e03a1bcdea3ec1083bbe","payload":{"state":"denied","reason_code":"POL-PRESENTATION-REQUIRED","rule_id":"m3-presentation-required","caller_spiffe_id":"spiffe://cluster.local/ns/ztd-m3/sa/ztd-participant","token_subject":"amBe4xi21enuvk5hNvvn8rIvizBVOAMn1y55VAXvC2n4IV5ki5cnK51Md96jDJNb","resource":"POST ztd-guard:8080/demo","bundle_revision":"kind-catalogue-1"}}
+
+id: 98
+data: {"version":2,"run_id":"policy-20261122T014528.449566013Z","seq":98,"ts":"2026-11-22T01:46:20.838792509Z","source":"policy-b","kind":"decision","correlation_id":"df491bb3a1d1ce92ceb83fc828f609f2","payload":{"state":"denied","reason_code":"POL-PRESENTATION-REQUIRED","rule_id":"m3-presentation-required","caller_spiffe_id":"spiffe://cluster.local/ns/ztd-m3/sa/ztd-participant","token_subject":"amBe4xi21enuvk5hNvvn8rIvizBVOAMn1y55VAXvC2n4IV5ki5cnK51Md96jDJNb","resource":"POST ztd-guard:8080/demo","bundle_revision":"kind-catalogue-1"}}
+
+id: 99
+data: {"version":2,"run_id":"policy-20261122T014528.449566013Z","seq":99,"ts":"2026-11-22T01:46:21.220947134Z","source":"policy-b","kind":"decision","correlation_id":"98643d8c08417abf9e57cd93fd4125ee","payload":{"state":"denied","reason_code":"POL-PRESENTATION-REQUIRED","rule_id":"m3-presentation-required","caller_spiffe_id":"spiffe://cluster.local/ns/ztd-m3/sa/ztd-participant","token_subject":"amBe4xi21enuvk5hNvvn8rIvizBVOAMn1y55VAXvC2n4IV5ki5cnK51Md96jDJNb","resource":"POST ztd-guard:8080/demo","bundle_revision":"kind-catalogue-1"}}
+

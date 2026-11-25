@@ -1,0 +1,6 @@
+# The pinned FIXTURE trust list in place of the TCR, layered on ci/values.yaml.
+trust:
+  tcr:
+    url: ""
+    trustSchemePointers: []
+  fixtureTrustListKey: trust-list.fixture.json

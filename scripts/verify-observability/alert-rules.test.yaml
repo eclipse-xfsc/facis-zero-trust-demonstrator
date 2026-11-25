@@ -1,0 +1,276 @@
+# promtool unit tests of the alert rules (deployment/helm/values/prometheus.yaml and the silent-zone
+# rules the installer derives from the demonstrator zone file), run by test-alert-rules.sh against
+# the rules rendered for deployment/helm/ztd/zones/ionos.yaml (zones zone-a and zone-b). The series
+# are sampled every 5 s, the rules evaluate every 5 s.
+rule_files:
+  - rules.yml
+evaluation_interval: 5s
+tests:
+  # The SPIRE server of zone-a stops answering at 10 s: pending at 10 s, firing after for: 10s.
+  - interval: 5s
+    input_series:
+      - series: 'up{job="spire-server",zone="zone-a",ztd_source="collector"}'
+        values: '1 1 0 0 0 0 0 0 0 0'
+      - series: 'up{job="spire-server",zone="zone-b",ztd_source="collector"}'
+        values: '1 1 1 1 1 1 1 1 1 1'
+      - series: 'otelcol_process_uptime_total{collector="otel-gateway",zone="zone-a",ztd_source="collector"}'
+        values: '1+5x9'
+      - series: 'otelcol_process_uptime_total{collector="otel-gateway",zone="zone-b",ztd_source="collector"}'
+        values: '1+5x9'
+    alert_rule_test:
+      - eval_time: 15s
+        alertname: SpireServerDown
+        exp_alerts: []
+      - eval_time: 25s
+        alertname: SpireServerDown
+        exp_alerts:
+          - exp_labels: { severity: critical, target: spire-server, job: spire-server, zone: zone-a, ztd_source: collector }
+            exp_annotations:
+              summary: "The SPIRE server of zone-a does not answer its metrics scrape"
+  # One agent of three in zone-b stops answering: the alert names the zone and the node.
+  - interval: 5s
+    input_series:
+      - series: 'up{job="spire-agent",zone="zone-b",node="node-1",ztd_source="collector"}'
+        values: '1 1 1 1 1 1 1 1'
+      - series: 'up{job="spire-agent",zone="zone-b",node="node-2",ztd_source="collector"}'
+        values: '1 0 0 0 0 0 0 0'
+      - series: 'up{job="spire-agent",zone="zone-b",node="node-3",ztd_source="collector"}'
+        values: '1 1 1 1 1 1 1 1'
+    alert_rule_test:
+      - eval_time: 25s
+        alertname: SpireAgentDown
+        exp_alerts:
+          - exp_labels: { severity: critical, target: spire-agent, job: spire-agent, zone: zone-b, node: node-2, ztd_source: collector }
+            exp_annotations:
+              summary: "The SPIRE agent on node node-2 of zone-b does not answer its metrics scrape"
+  # The node collector of node-2 stops with its agent's series at 5 s: fewer agents report than the
+  # zone has ready nodes that the agent DaemonSet targets.
+  - interval: 5s
+    input_series:
+      - series: 'up{job="spire-agent",zone="zone-a",node="node-1",ztd_source="collector"}'
+        values: '1 1 1 1 1 1 1 1 1'
+      - series: 'up{job="spire-agent",zone="zone-a",node="node-2",ztd_source="collector"}'
+        values: '1 1'
+      - series: 'k8s_node_condition_ready{zone="zone-a",k8s_node_name="node-1",ztd_source="collector"}'
+        values: '1 1 1 1 1 1 1 1 1'
+      - series: 'k8s_node_condition_ready{zone="zone-a",k8s_node_name="node-2",ztd_source="collector"}'
+        values: '1 1 1 1 1 1 1 1 1'
+      - series: 'k8s_daemonset_desired_scheduled_nodes{zone="zone-a",k8s_daemonset_name="spire-agent",ztd_source="collector"}'
+        values: '2 2 2 2 2 2 2 2 2'
+    alert_rule_test:
+      - eval_time: 10s
+        alertname: SpireAgentsMissing
+        exp_alerts: []
+      # its last sample (5 s) leaves the 10 s window at 15 s; firing 10 s later, 20 s after it
+      - eval_time: 25s
+        alertname: SpireAgentsMissing
+        exp_alerts:
+          - exp_labels: { severity: critical, target: spire-agent, zone: zone-a, ztd_source: collector }
+            exp_annotations:
+              summary: "zone-a: 1 SPIRE agents report, fewer than the zone's ready nodes"
+      - eval_time: 30s
+        alertname: SpireAgentsMissing
+        exp_alerts:
+          - exp_labels: { severity: critical, target: spire-agent, zone: zone-a, ztd_source: collector }
+            exp_annotations:
+              summary: "zone-a: 1 SPIRE agents report, fewer than the zone's ready nodes"
+  # A tainted node that runs no agent does not count: two ready nodes, the DaemonSet targets one.
+  - interval: 5s
+    input_series:
+      - series: 'up{job="spire-agent",zone="zone-a",node="node-1",ztd_source="collector"}'
+        values: '1 1 1 1 1 1 1 1'
+      - series: 'k8s_node_condition_ready{zone="zone-a",k8s_node_name="node-1",ztd_source="collector"}'
+        values: '1 1 1 1 1 1 1 1'
+      - series: 'k8s_node_condition_ready{zone="zone-a",k8s_node_name="control-plane",ztd_source="collector"}'
+        values: '1 1 1 1 1 1 1 1'
+      - series: 'k8s_daemonset_desired_scheduled_nodes{zone="zone-a",k8s_daemonset_name="spire-agent",ztd_source="collector"}'
+        values: '1 1 1 1 1 1 1 1'
+    alert_rule_test:
+      - eval_time: 35s
+        alertname: SpireAgentsMissing
+        exp_alerts: []
+  # zone-a's gateway goes silent at 5 s (its last sample at 0 s): a silent-zone alert by 25 s; zone-b
+  # keeps reporting.
+  - interval: 5s
+    input_series:
+      - series: 'otelcol_process_uptime_total{collector="otel-gateway",zone="zone-a",ztd_source="collector"}'
+        values: '1 _ _ _ _ _ _ _'
+      - series: 'otelcol_process_uptime_total{collector="otel-gateway",zone="zone-b",ztd_source="collector"}'
+        values: '1+5x7'
+    alert_rule_test:
+      - eval_time: 10s
+        alertname: ZoneSilent
+        exp_alerts: []
+      - eval_time: 25s
+        alertname: ZoneSilent
+        exp_alerts:
+          - exp_labels: { severity: critical, target: zone-gateway, zone: zone-a, collector: otel-gateway, ztd_source: collector }
+            exp_annotations:
+              summary: "No telemetry from zone-a: its zone gateway, its export path or the zone is down"
+  # The revocation status list probed from zone-a stops answering at 5 s, and answers again at 30 s.
+  - interval: 5s
+    input_series:
+      - series: 'httpcheck_status{zone="zone-a",http_url="http://status-list/status/1",http_status_class="2xx",ztd_source="collector"}'
+        values: '1 _ _ _ _ _ 1 1 1 1 1 1'
+      - series: 'httpcheck_error{zone="zone-a",http_url="http://status-list/status/1",ztd_source="collector"}'
+        values: '_ 1 1 1 1 1 _ _ _ _ _ _'
+      - series: 'otelcol_process_uptime_total{collector="otel-gateway",zone="zone-a",ztd_source="collector"}'
+        values: '1+5x11'
+    alert_rule_test:
+      - eval_time: 20s
+        alertname: RevocationEndpointDown
+        exp_alerts:
+          - exp_labels: { severity: critical, target: revocation-endpoint, zone: zone-a, http_url: "http://status-list/status/1", ztd_source: collector }
+            exp_annotations:
+              summary: "zone-a: the revocation status list http://status-list/status/1 is unreachable"
+      - eval_time: 55s
+        alertname: RevocationEndpointDown
+        exp_alerts: []
+  # A data-plane workload forges the health signals through the zone gateway's OTLP receiver. The
+  # gateway drops those names from OTLP and stamps what it passes ztd_source="workload"; even a
+  # series that got through with the same name and labels would not join the collectors' own.
+  # The SPIRE server of zone-a stops while a forged up=1 keeps arriving: the alert still fires.
+  - interval: 5s
+    input_series:
+      - series: 'up{job="spire-server",zone="zone-a",ztd_source="collector"}'
+        values: '1 1 0 0 0 0 0 0 0 0'
+      - series: 'up{job="spire-server",zone="zone-a",ztd_source="workload"}'
+        values: '1 1 1 1 1 1 1 1 1 1'
+    alert_rule_test:
+      - eval_time: 25s
+        alertname: SpireServerDown
+        exp_alerts:
+          - exp_labels: { severity: critical, target: spire-server, job: spire-server, zone: zone-a, ztd_source: collector }
+            exp_annotations:
+              summary: "The SPIRE server of zone-a does not answer its metrics scrape"
+  # A forged up=0 and a forged probe error raise nothing while the collectors' signals are healthy.
+  - interval: 5s
+    input_series:
+      - series: 'up{job="spire-server",zone="zone-a",ztd_source="collector"}'
+        values: '1 1 1 1 1 1 1 1 1 1'
+      - series: 'up{job="spire-server",zone="zone-a",ztd_source="workload"}'
+        values: '0 0 0 0 0 0 0 0 0 0'
+      - series: 'httpcheck_status{zone="zone-a",http_url="http://status-list/status/1",http_status_class="2xx",ztd_source="collector"}'
+        values: '1 1 1 1 1 1 1 1 1 1'
+      - series: 'httpcheck_error{zone="zone-a",http_url="http://status-list/status/1",ztd_source="workload"}'
+        values: '1 1 1 1 1 1 1 1 1 1'
+      - series: 'httpcheck_status{zone="zone-a",http_url="http://status-list/status/1",http_status_class="2xx",ztd_source="workload"}'
+        values: '0 0 0 0 0 0 0 0 0 0'
+    alert_rule_test:
+      - eval_time: 40s
+        alertname: SpireServerDown
+        exp_alerts: []
+      - eval_time: 40s
+        alertname: RevocationEndpointDown
+        exp_alerts: []
+  # The status list stops answering while a forged 2xx=1 keeps arriving: the alert still fires.
+  - interval: 5s
+    input_series:
+      - series: 'httpcheck_status{zone="zone-a",http_url="http://status-list/status/1",http_status_class="2xx",ztd_source="collector"}'
+        values: '1 _ _ _ _ _ _ _'
+      - series: 'httpcheck_error{zone="zone-a",http_url="http://status-list/status/1",ztd_source="collector"}'
+        values: '_ 1 1 1 1 1 1 1'
+      - series: 'httpcheck_status{zone="zone-a",http_url="http://status-list/status/1",http_status_class="2xx",ztd_source="workload"}'
+        values: '1 1 1 1 1 1 1 1'
+    alert_rule_test:
+      - eval_time: 20s
+        alertname: RevocationEndpointDown
+        exp_alerts:
+          - exp_labels: { severity: critical, target: revocation-endpoint, zone: zone-a, http_url: "http://status-list/status/1", ztd_source: collector }
+            exp_annotations:
+              summary: "zone-a: the revocation status list http://status-list/status/1 is unreachable"
+  # An agent's series vanish with its node collector while a forged agent series keeps reporting.
+  - interval: 5s
+    input_series:
+      - series: 'up{job="spire-agent",zone="zone-a",node="node-1",ztd_source="collector"}'
+        values: '1 1 1 1 1 1 1 1 1'
+      - series: 'up{job="spire-agent",zone="zone-a",node="node-2",ztd_source="collector"}'
+        values: '1 1'
+      - series: 'up{job="spire-agent",zone="zone-a",node="node-2",ztd_source="workload"}'
+        values: '1 1 1 1 1 1 1 1 1'
+      - series: 'k8s_node_condition_ready{zone="zone-a",k8s_node_name="node-1",ztd_source="collector"}'
+        values: '1 1 1 1 1 1 1 1 1'
+      - series: 'k8s_node_condition_ready{zone="zone-a",k8s_node_name="node-2",ztd_source="collector"}'
+        values: '1 1 1 1 1 1 1 1 1'
+      - series: 'k8s_daemonset_desired_scheduled_nodes{zone="zone-a",k8s_daemonset_name="spire-agent",ztd_source="collector"}'
+        values: '2 2 2 2 2 2 2 2 2'
+    alert_rule_test:
+      - eval_time: 25s
+        alertname: SpireAgentsMissing
+        exp_alerts:
+          - exp_labels: { severity: critical, target: spire-agent, zone: zone-a, ztd_source: collector }
+            exp_annotations:
+              summary: "zone-a: 1 SPIRE agents report, fewer than the zone's ready nodes"
+  # A workload sends series named like the rules' own records and the cluster-state inputs. They
+  # carry ztd_source="workload" and never join the match: an agent that vanishes is still reported.
+  - interval: 5s
+    input_series:
+      - series: 'up{job="spire-agent",zone="zone-a",node="node-1",ztd_source="collector"}'
+        values: '1 1 1 1 1 1 1 1 1'
+      - series: 'up{job="spire-agent",zone="zone-a",node="node-2",ztd_source="collector"}'
+        values: '1 1'
+      - series: 'k8s_node_condition_ready{zone="zone-a",k8s_node_name="node-1",ztd_source="collector"}'
+        values: '1 1 1 1 1 1 1 1 1'
+      - series: 'k8s_node_condition_ready{zone="zone-a",k8s_node_name="node-2",ztd_source="collector"}'
+        values: '1 1 1 1 1 1 1 1 1'
+      - series: 'k8s_daemonset_desired_scheduled_nodes{zone="zone-a",k8s_daemonset_name="spire-agent",ztd_source="collector"}'
+        values: '2 2 2 2 2 2 2 2 2'
+      - series: 'ztd:spire_agents_expected:count{zone="zone-a",ztd_source="workload",job="evil",instance="x"}'
+        values: '0 0 0 0 0 0 0 0 0'
+      - series: 'ztd:spire_agents_reporting:count{zone="zone-a",ztd_source="workload",job="evil",instance="x"}'
+        values: '9 9 9 9 9 9 9 9 9'
+      - series: 'k8s_node_condition_ready{zone="zone-a",k8s_node_name="node-2",ztd_source="workload"}'
+        values: '0 0 0 0 0 0 0 0 0'
+      - series: 'k8s_daemonset_desired_scheduled_nodes{zone="zone-a",k8s_daemonset_name="spire-agent",ztd_source="workload"}'
+        values: '1 1 1 1 1 1 1 1 1'
+    alert_rule_test:
+      - eval_time: 25s
+        alertname: SpireAgentsMissing
+        exp_alerts:
+          - exp_labels: { severity: critical, target: spire-agent, zone: zone-a, ztd_source: collector }
+            exp_annotations:
+              summary: "zone-a: 1 SPIRE agents report, fewer than the zone's ready nodes"
+  # ... and forged records and cluster-state series raise nothing in a zone whose agents all report.
+  - interval: 5s
+    input_series:
+      - series: 'up{job="spire-agent",zone="zone-b",node="node-1",ztd_source="collector"}'
+        values: '1 1 1 1 1 1 1 1 1'
+      - series: 'k8s_node_condition_ready{zone="zone-b",k8s_node_name="node-1",ztd_source="collector"}'
+        values: '1 1 1 1 1 1 1 1 1'
+      - series: 'k8s_daemonset_desired_scheduled_nodes{zone="zone-b",k8s_daemonset_name="spire-agent",ztd_source="collector"}'
+        values: '1 1 1 1 1 1 1 1 1'
+      - series: 'ztd:spire_agents_expected:count{zone="zone-b",ztd_source="workload",job="evil",instance="x"}'
+        values: '5 5 5 5 5 5 5 5 5'
+      - series: 'ztd:spire_agents_reporting:count{zone="zone-b",ztd_source="workload",job="evil",instance="x"}'
+        values: '0 0 0 0 0 0 0 0 0'
+      - series: 'k8s_node_condition_ready{zone="zone-b",k8s_node_name="node-9",ztd_source="workload"}'
+        values: '1 1 1 1 1 1 1 1 1'
+      - series: 'k8s_daemonset_desired_scheduled_nodes{zone="zone-b",k8s_daemonset_name="spire-agent",ztd_source="workload"}'
+        values: '7 7 7 7 7 7 7 7 7'
+    alert_rule_test:
+      - eval_time: 35s
+        alertname: SpireAgentsMissing
+        exp_alerts: []
+    promql_expr_test:
+      - expr: ztd:spire_agents_expected:count{ztd_source="collector",zone="zone-b"}
+        eval_time: 35s
+        exp_samples:
+          - labels: 'ztd:spire_agents_expected:count{zone="zone-b",ztd_source="collector"}'
+            value: 1
+      - expr: ztd:spire_agents_reporting:count{ztd_source="collector",zone="zone-b"}
+        eval_time: 35s
+        exp_samples:
+          - labels: 'ztd:spire_agents_reporting:count{zone="zone-b",ztd_source="collector"}'
+            value: 1
+  # A forged ALERTS series that got past the gateway's filter still carries ztd_source="workload":
+  # the alerts read with ztd_source="collector" are the rules' own.
+  - interval: 5s
+    input_series:
+      - series: 'up{job="spire-server",zone="zone-b",ztd_source="collector"}'
+        values: '1 1 1 1 1 1 1 1 1'
+      - series: 'ALERTS{alertname="SpireServerDown",alertstate="firing",zone="zone-b",severity="critical",ztd_source="workload"}'
+        values: '1 1 1 1 1 1 1 1 1'
+    promql_expr_test:
+      - expr: ALERTS{alertname="SpireServerDown",alertstate="firing",ztd_source="collector"}
+        eval_time: 25s
+        exp_samples: []

@@ -1,0 +1,182 @@
+[
+  {
+    "kind": "AuthorizationPolicy",
+    "name": "allow-atls-gateway-to-cmcd",
+    "resourceVersion": "1675"
+  },
+  {
+    "kind": "AuthorizationPolicy",
+    "name": "allow-atls-gateway-to-tcr",
+    "resourceVersion": "1671"
+  },
+  {
+    "kind": "AuthorizationPolicy",
+    "name": "allow-backend-to-verification-service",
+    "resourceVersion": "1672"
+  },
+  {
+    "kind": "AuthorizationPolicy",
+    "name": "allow-connector-to-openbao",
+    "resourceVersion": "1678"
+  },
+  {
+    "kind": "AuthorizationPolicy",
+    "name": "allow-pdp-adapter-to-tsa",
+    "resourceVersion": "1673"
+  },
+  {
+    "kind": "AuthorizationPolicy",
+    "name": "allow-token-store-to-openbao",
+    "resourceVersion": "1674"
+  },
+  {
+    "kind": "AuthorizationPolicy",
+    "name": "allow-workloads-to-otel-collector",
+    "resourceVersion": "1676"
+  },
+  {
+    "kind": "AuthorizationPolicy",
+    "name": "allow-ztd-openbao-bootstrap-to-server",
+    "resourceVersion": "1850"
+  },
+  {
+    "kind": "AuthorizationPolicy",
+    "name": "allow-ztd-verify-openbao-to-server",
+    "resourceVersion": "1849"
+  },
+  {
+    "kind": "ConfigMap",
+    "name": "istio-ca-crl",
+    "resourceVersion": "1580"
+  },
+  {
+    "kind": "ConfigMap",
+    "name": "istio-ca-root-cert",
+    "resourceVersion": "1579"
+  },
+  {
+    "kind": "ConfigMap",
+    "name": "kube-root-ca.crt",
+    "resourceVersion": "839"
+  },
+  {
+    "kind": "ConfigMap",
+    "name": "ztd-openbao-config",
+    "resourceVersion": "1832"
+  },
+  {
+    "kind": "NetworkPolicy",
+    "name": "allow-atls-gateway-to-cmcd-ingress",
+    "resourceVersion": "827"
+  },
+  {
+    "kind": "NetworkPolicy",
+    "name": "allow-atls-gateway-to-tcr-ingress",
+    "resourceVersion": "831"
+  },
+  {
+    "kind": "NetworkPolicy",
+    "name": "allow-backend-to-verification-service-ingress",
+    "resourceVersion": "829"
+  },
+  {
+    "kind": "NetworkPolicy",
+    "name": "allow-connector-to-openbao-ingress",
+    "resourceVersion": "810"
+  },
+  {
+    "kind": "NetworkPolicy",
+    "name": "allow-dns-egress",
+    "resourceVersion": "817"
+  },
+  {
+    "kind": "NetworkPolicy",
+    "name": "allow-intra-plane",
+    "resourceVersion": "813"
+  },
+  {
+    "kind": "NetworkPolicy",
+    "name": "allow-mesh-control-plane-egress",
+    "resourceVersion": "808"
+  },
+  {
+    "kind": "NetworkPolicy",
+    "name": "allow-observability-scrape-egress",
+    "resourceVersion": "803"
+  },
+  {
+    "kind": "NetworkPolicy",
+    "name": "allow-pdp-adapter-to-tsa-ingress",
+    "resourceVersion": "833"
+  },
+  {
+    "kind": "NetworkPolicy",
+    "name": "allow-telemetry-export-egress",
+    "resourceVersion": "832"
+  },
+  {
+    "kind": "NetworkPolicy",
+    "name": "allow-token-store-to-openbao-ingress",
+    "resourceVersion": "816"
+  },
+  {
+    "kind": "NetworkPolicy",
+    "name": "allow-workloads-to-otel-collector-ingress",
+    "resourceVersion": "804"
+  },
+  {
+    "kind": "NetworkPolicy",
+    "name": "default-deny",
+    "resourceVersion": "799"
+  },
+  {
+    "kind": "Role",
+    "name": "ztd-openbao-bootstrap",
+    "resourceVersion": "1833"
+  },
+  {
+    "kind": "RoleBinding",
+    "name": "ztd-openbao-bootstrap",
+    "resourceVersion": "1834"
+  },
+  {
+    "kind": "Secret",
+    "name": "sh.helm.release.v1.ztd-openbao.v1",
+    "resourceVersion": "2178"
+  },
+  {
+    "kind": "Secret",
+    "name": "ztd-openbao-bootstrap",
+    "resourceVersion": "2070"
+  },
+  {
+    "kind": "Service",
+    "name": "ztd-openbao",
+    "resourceVersion": "1837"
+  },
+  {
+    "kind": "Service",
+    "name": "ztd-openbao-internal",
+    "resourceVersion": "1835"
+  },
+  {
+    "kind": "ServiceAccount",
+    "name": "default",
+    "resourceVersion": "840"
+  },
+  {
+    "kind": "ServiceAccount",
+    "name": "ztd-openbao",
+    "resourceVersion": "1831"
+  },
+  {
+    "kind": "ServiceAccount",
+    "name": "ztd-openbao-bootstrap",
+    "resourceVersion": "1830"
+  },
+  {
+    "kind": "ServiceAccount",
+    "name": "ztd-verify-openbao",
+    "resourceVersion": "2103"
+  }
+]

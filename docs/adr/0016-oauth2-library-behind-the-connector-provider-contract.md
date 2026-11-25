@@ -1,13 +1,10 @@
 # ADR-0016: OAuth2 library behind the connector's provider contract
 
-- **Status:** Proposed. Decisions 1 to 5 are implemented, signed access tokens included; what
-  remains open is signing-key rotation (see Open items). Deployment, once open, is settled: the
-  chart `deployment/helm/connector` deploys the connector into the management plane with its own
-  identity, behind a registration policy with every decision audited
-  ([Connector service](../connector.md)).
-- **Date:** 2026-10-05
-- **Deciders:** Delivery team, from the OAuth2 library evaluation of September 2026 and its
-  follow-up comparison of library versions. Confirmation by the deciders of ADR-0003 is pending.
+- **Status:** Accepted on 2026-11-22 by the Project Leader. Decisions 1 to 5 are implemented,
+  signed access tokens included; signing-key rotation remains open (see Open items).
+- **Date:** 2026-10-05 (proposed); 2026-11-22 (accepted)
+- **Deciders:** Project Leader (Daniel Pires), on the proposal of the delivery team from the OAuth2
+  library evaluation of September 2026 and its follow-up comparison of library versions.
 - **Requirement basis:** ZT-21, ZT-22
 - **Related:** [ADR-0003](0003-oauth2-authorisation-surface-in-the-go-connector.md) — the OAuth2
   authorisation surface is implemented in the Go connector. This record settles how; it does not
@@ -137,12 +134,31 @@ contract: the signer and the issuer in the configuration. Details in
 - Trigger to revisit: the library stops being maintained, or a release breaks the adapter in a way
   it cannot absorb. Either leads to the fallback adapter on the same contract.
 
+## Acceptance
+
+Accepted with the pin and the boundary as they stand, both held by tests that fail on a change:
+
+| What is fixed | Held by |
+|---|---|
+| `authelia.com/provider/oauth2` v0.3.2 in `go.mod` | `TestLibraryVersionIsTheOneVerified` (`oauth2provider/authelia/version_test.go`) |
+| The contract's exported API, struct field order included, equal to the committed listing `oauth2provider/api_v1.txt` (contract version 1) | `TestContractAPIIsFrozen` |
+| No library type reachable from the adapter's exported API | `TestAdapterExposesNoLibraryTypes` |
+| The adapter the only importer of the library | `TestOAuth2LibraryIsImportedOnlyByItsAdapter` |
+
+All four passed on 2026-11-22 under the race detector, with the registration conformance tests
+([record](../evidences/dcr-mtls-zone-b-2026-11-22/go-test-registration.txt)). A version bump or a
+change to the contract's API is a change to this record, made by the procedure in
+[Connector OAuth2 provider](../oauth2-provider.md#changing-the-library-version).
+
 ## Open items
 
 - **Signing key rotation.** Decision 5 is implemented with one pinned transit key version. Rotating
   it means publishing the new key next to the old one in the key set for at least the longest token
   lifetime before signing with it; the resource-side verifier (`internal/tokenverify`) already accepts
   several keys and refreshes on an unknown `kid`. The procedure is not automated yet.
+- **Deployment.** Closed: the connector chart (`deployment/helm/connector`) deploys it into the
+  management plane with its own identity, behind a registration policy with every decision audited
+  ([Connector service](../connector.md)), and it runs on zone B ([registration endpoint over SPIRE mTLS](../evidences/dcr-mtls-zone-b-2026-11-22/README.md)).
 
 ## References
 

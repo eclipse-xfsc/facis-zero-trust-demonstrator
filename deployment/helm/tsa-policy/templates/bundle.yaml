@@ -1,0 +1,10 @@
+{{- include "tsa.validate" . -}}
+# The Git-declared active bundle. Its own ConfigMap, and no checksum of it on the pod: a change is
+# picked up by the running sidecar (kubelet refreshes the mounted file), never by a restart.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: tsa-policy-bundle
+  namespace: {{ .Release.Namespace }}
+data:
+  desired.json: {{ toJson (dict "bundle" .Values.bundle.ref "revision" .Values.bundle.revision) | quote }}

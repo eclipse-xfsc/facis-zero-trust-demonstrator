@@ -8,7 +8,7 @@ Feature: Attested channel
     When Connector A initiates a connection to Connector B
     Then an authenticated protected channel is established before application traffic is forwarded AND a peer that cannot establish the required trusted channel receives no application traffic.
 
-  @ZT-19 @BDD-ZT-019 @pending
+  @ZT-19 @BDD-ZT-019 @cluster
   Scenario: Upstream / Downstream Proxy Functionality
     Given two Zero Trust Connectors with an established attested TLS channel
     When an upstream request including relevant HTTP/gRPC metadata is forwarded through the connector pair

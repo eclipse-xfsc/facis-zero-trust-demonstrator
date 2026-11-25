@@ -1,0 +1,20 @@
+# Runtime mode with OpenBao Kubernetes auth (openbao.auth), layered on values.yaml.
+openbao:
+  auth:
+    method: kubernetes
+    role: ztd-token-store
+runtime:
+  enabled: true
+  existingConfigMap: ztd-token-store-acquisition
+  credentialsSecret: ztd-token-store-credentials
+  credentialKeys: [store-client-secret]
+networkPolicy:
+  enabled: true
+  schemaEgress:
+    - to: [{podSelector: {matchLabels: {app: postgres}}}]
+      ports: [{port: 5432, protocol: TCP}]
+  egress:
+    - to: [{podSelector: {matchLabels: {app: postgres}}}]
+      ports: [{port: 5432, protocol: TCP}]
+    - to: [{podSelector: {matchLabels: {app: openbao}}}]
+      ports: [{port: 8200, protocol: TCP}]

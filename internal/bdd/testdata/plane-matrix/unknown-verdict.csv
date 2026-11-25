@@ -1,0 +1,2 @@
+row,role,namespace,probe,caller,destination,port,expected,outcome,layer,evidence,kind,verdict
+"tspa","TRAIN (publication)","ztd-data","TCP, proxy-less","probe-0","ztd-mgmt/tspa (tspa)","8080","denied","denied(28)","network","ev","stand-in","maybe"

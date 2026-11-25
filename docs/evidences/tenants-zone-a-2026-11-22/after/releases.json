@@ -1,0 +1,114 @@
+[
+  {
+    "name": "admission",
+    "namespace": "gatekeeper-system",
+    "revision": "17",
+    "status": "deployed",
+    "chart": "admission-0.1.0"
+  },
+  {
+    "name": "admission-pool",
+    "namespace": "gatekeeper-system",
+    "revision": "9",
+    "status": "deployed",
+    "chart": "admission-pool-0.1.0"
+  },
+  {
+    "name": "argocd",
+    "namespace": "argocd",
+    "revision": "1",
+    "status": "deployed",
+    "chart": "argo-cd-10.10.5"
+  },
+  {
+    "name": "gatekeeper",
+    "namespace": "gatekeeper-system",
+    "revision": "9",
+    "status": "deployed",
+    "chart": "gatekeeper-3.23.1"
+  },
+  {
+    "name": "istio-base",
+    "namespace": "istio-system",
+    "revision": "2",
+    "status": "deployed",
+    "chart": "base-1.31.1"
+  },
+  {
+    "name": "istio-cni",
+    "namespace": "istio-system",
+    "revision": "2",
+    "status": "deployed",
+    "chart": "cni-1.31.1"
+  },
+  {
+    "name": "istiod",
+    "namespace": "istio-system",
+    "revision": "2",
+    "status": "deployed",
+    "chart": "istiod-1.31.1"
+  },
+  {
+    "name": "spire",
+    "namespace": "spire-system",
+    "revision": "2",
+    "status": "deployed",
+    "chart": "spire-0.30.2"
+  },
+  {
+    "name": "spire-crds",
+    "namespace": "spire-system",
+    "revision": "2",
+    "status": "deployed",
+    "chart": "spire-crds-0.6.1"
+  },
+  {
+    "name": "zone-policy",
+    "namespace": "istio-system",
+    "revision": "4",
+    "status": "deployed",
+    "chart": "zone-policy-0.3.0"
+  },
+  {
+    "name": "ztd",
+    "namespace": "ztd-system",
+    "revision": "5",
+    "status": "deployed",
+    "chart": "ztd-0.4.0"
+  },
+  {
+    "name": "ztd-connector-gateway",
+    "namespace": "ztd-data",
+    "revision": "2",
+    "status": "deployed",
+    "chart": "connector-gateway-0.1.0"
+  },
+  {
+    "name": "ztd-guard",
+    "namespace": "ztd-data",
+    "revision": "2",
+    "status": "deployed",
+    "chart": "guard-0.1.0"
+  },
+  {
+    "name": "ztd-openbao",
+    "namespace": "ztd-mgmt",
+    "revision": "2",
+    "status": "deployed",
+    "chart": "ztd-openbao-0.2.0"
+  },
+  {
+    "name": "ztd-tenant-tenant-a",
+    "namespace": "tenant-a",
+    "revision": "1",
+    "status": "deployed",
+    "chart": "tenant-0.1.0"
+  },
+  {
+    "name": "ztd-tenant-tenant-b",
+    "namespace": "tenant-b",
+    "revision": "1",
+    "status": "deployed",
+    "chart": "tenant-0.1.0"
+  }
+]

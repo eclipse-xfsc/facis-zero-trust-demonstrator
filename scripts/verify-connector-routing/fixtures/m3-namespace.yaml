@@ -1,0 +1,84 @@
+# The kind rehearsal's copy of zone B's M3 namespace around the entry: the namespace (meshed, a plane
+# label so the zone's registration rule gives its pods an identity), its baseline network policies as
+# zone B holds them (default deny, DNS, mesh control), and a stand-in Participant (the entry's upstream)
+# with zone B's ingress rules for it: the entry's identity at the mesh layer, the entry's pods at the
+# network layer; and the opening to istiod that zone B holds for it. __NS__ is the rehearsal namespace.
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: __NS__
+  labels: { istio-injection: enabled, ztd.facis.io/plane: m3 }
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata: { name: ztd-default-deny, namespace: __NS__ }
+spec: { podSelector: {}, policyTypes: [Ingress, Egress] }
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata: { name: ztd-dns, namespace: __NS__ }
+spec:
+  podSelector: {}
+  policyTypes: [Egress]
+  egress: [{ to: [{ namespaceSelector: { matchLabels: { kubernetes.io/metadata.name: kube-system } }, podSelector: { matchLabels: { k8s-app: kube-dns } } }], ports: [{ port: 53, protocol: UDP }, { port: 53, protocol: TCP }] }]
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata: { name: ztd-mesh-control, namespace: __NS__ }
+spec:
+  podSelector: { matchLabels: { spiffe.io/spire-managed-identity: "true" } }
+  policyTypes: [Egress]
+  egress: [{ to: [{ namespaceSelector: { matchLabels: { kubernetes.io/metadata.name: istio-system } }, podSelector: { matchLabels: { app: istiod } } }], ports: [{ port: 15012, protocol: TCP }] }]
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata: { name: ztd-participant, namespace: __NS__ }
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata: { name: ztd-participant, namespace: __NS__ }
+spec:
+  replicas: 1
+  selector: { matchLabels: { app.kubernetes.io/name: ztd-participant } }
+  template:
+    metadata:
+      labels: { app.kubernetes.io/name: ztd-participant, spiffe.io/spire-managed-identity: "true" }
+    spec:
+      serviceAccountName: ztd-participant
+      containers:
+        - name: app
+          image: registry.k8s.io/e2e-test-images/agnhost:2.53
+          args: [netexec, --http-port=8080]
+          ports: [{ containerPort: 8080 }]
+---
+apiVersion: v1
+kind: Service
+metadata: { name: ztd-participant, namespace: __NS__ }
+spec:
+  selector: { app.kubernetes.io/name: ztd-participant }
+  ports: [{ name: http, port: 8080 }]
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata: { name: ztd-participant, namespace: __NS__ }
+spec:
+  podSelector: { matchLabels: { app.kubernetes.io/name: ztd-participant } }
+  policyTypes: [Ingress]
+  ingress: [{ from: [{ podSelector: { matchLabels: { app.kubernetes.io/name: ztd-edge } } }], ports: [{ port: 8080, protocol: TCP }] }]
+---
+apiVersion: security.istio.io/v1
+kind: AuthorizationPolicy
+metadata: { name: ztd-participant-identities, namespace: __NS__ }
+spec:
+  selector: { matchLabels: { app.kubernetes.io/name: ztd-participant } }
+  action: ALLOW
+  rules: [{ from: [{ source: { principals: ["__TD__/ns/__NS__/sa/ztd-edge"] } }], to: [{ operation: { paths: ["/*"], ports: ["8080"] } }] }]
+---
+# zone B's istio-system/ztd-m3-b-to-istiod: the namespace's meshed pods to istiod's xDS port.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata: { name: __NS__-to-istiod, namespace: istio-system }
+spec:
+  podSelector: { matchLabels: { app: istiod } }
+  policyTypes: [Ingress]
+  ingress: [{ from: [{ namespaceSelector: { matchLabels: { kubernetes.io/metadata.name: __NS__ } }, podSelector: { matchLabels: { spiffe.io/spire-managed-identity: "true" } } }], ports: [{ port: 15012, protocol: TCP }] }]

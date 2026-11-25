@@ -1,0 +1,63 @@
+PASS  pinned Cilium enforces NetworkPolicy
+PASS  namespace denies ingress and egress by default
+PASS  the database holds no table before the install
+PASS  schema hook blocked without its egress policy under enforced default-deny
+PASS  schema egress policy precedes migration and drop hooks
+PASS  the install applied the schema up to version 5, the embedded latest
+PASS  the schema's tables exist (11 tables, schema_migrations included)
+PASS  the succeeded migration Job was removed by its hook policy
+PASS  /readyz answers 200 with postgres ok and openbao ok
+PASS  the response echoes the caller's x-request-id
+PASS  /healthz answers 200
+PASS  the API listener serves the contract's /readyz too
+PASS  with postgres gone the pod leaves Ready
+PASS  /readyz answers 503 with postgres unreachable and openbao ok
+PASS  /healthz stays 200 while postgres is gone
+PASS  with postgres back the pod is Ready again
+PASS  /readyz answers 200 with both checks ok once postgres is back
+PASS  with openbao gone the pod leaves Ready
+PASS  /readyz answers 503 with openbao unreachable and postgres ok
+PASS  /healthz stays 200 while openbao is gone
+PASS  with openbao back the pod is Ready again
+PASS  /readyz answers 200 with both checks ok once openbao is back
+PASS  the pod runs as ServiceAccount ztd-token-store with the identity label
+PASS  liveness stayed green while the dependencies were gone: no restart
+PASS  every record the service wrote is JSON
+PASS  every one of the 24 request records carries a correlation_id
+PASS  the caller's x-request-id, trace_id and span_id are on the probe's record
+PASS  no credential in the records
+PASS  the upgrade changed nothing: schema_migrations is identical, applied_at included
+PASS  the upgrade went through as revision 2, so its hook ran and succeeded
+PASS  the uninstall left an empty schema, schema_migrations included
+PASS  by default the uninstall keeps the schema (11 tables before and after)
+PASS  runtime mode: a service token and an operator token, each with its own policy
+PASS  keys ensure created the key in transit and registered transit:ztd-token-store:v1 with its thumbprint
+PASS  signing_key holds one row: the reference, the thumbprint, the algorithm and the state
+PASS  the transit key is ecdsa-p256, not exportable, no plaintext backup
+PASS  the recorded thumbprint equals the RFC 7638 thumbprint computed with openssl from the public key
+PASS  transit refuses to export the key: 400 not exportable to the root token, 403 to the service token
+PASS  runtime mode: /readyz answers 200 with signing_key ok, through the service token alone
+PASS  the canary scan finds each of its seven needles where planted, and the PEM canary names this key alone
+PASS  the database dump carries no key material and no OpenBao token
+PASS  keys rotate activated transit:ztd-token-store:v2, retired v1 and set transit's signing floor to 2
+PASS  signing_key: v1 retired with retired_at, v2 the one active version
+PASS  runtime mode: the running service resolves the rotated key: /readyz 200 with signing_key ok
+PASS  keys status reports the two registered versions, transit's latest version and its signing floor
+PASS  transit refuses to sign with the retired version and signs with the active one
+PASS  kubernetes auth: the service token is revoked; only the login can serve the store
+PASS  kubernetes auth: the pod mounts one projected token for audience openbao (600 s, rotated by the kubelet) and no API token
+PASS  kubernetes auth: /readyz 200 with signing_key ok through the login alone
+PASS  kubernetes auth: ready throughout 75 s of 30 s tokens, with 7 logins (re-login before each expiry)
+PASS  kubernetes auth: with the login refused (role rebound to another namespace) readiness fails closed once the token expires: 503, signing_key unreachable, openbao ok
+PASS  kubernetes auth: with the role restored the same pod is Ready again
+PASS  kubernetes auth: no restart through re-logins, the refusal and the recovery
+PASS  kubernetes auth: no JWT, OpenBao token or key material in the records
+PASS  kubernetes auth: a restarted pod logs in fresh and is ready
+PASS  runtime mode: with openbao gone the pod leaves Ready
+PASS  runtime mode: /readyz answers 503 with openbao unreachable, signing_key unreachable and postgres ok
+PASS  runtime mode: /healthz stays 200 while openbao is gone
+PASS  runtime mode: no restart while OpenBao was gone
+PASS  runtime mode: every record is JSON
+PASS  startup resolved the signing keys once and found no misconfiguration
+PASS  no key material, OpenBao token or database credential in the records
+PASS  runtime mode: the uninstall left an empty schema

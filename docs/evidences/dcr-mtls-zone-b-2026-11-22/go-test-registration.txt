@@ -1,0 +1,38 @@
+# go test -count=1 -race -v -run '<pattern>' ./services/connector/... at b24fbd12, go1.27.0 darwin/arm64, local (no cluster)
+# pattern: Registration|Regist|TestServeBootstrapsTheRegistrar|TestLibraryVersionIsTheOneVerified|TestContractAPIIsFrozen|TestAdapterExposesNoLibraryTypes|TestOAuth2LibraryIsImportedOnlyByItsAdapter
+    serve_db_test.go:175: TRANSIT_TEST_ADDR and TRANSIT_TEST_TOKEN not set
+--- SKIP: TestServeBootstrapsTheRegistrarAndIssuesVerifiableTokens (0.00s)
+PASS
+ok  	github.com/eclipse-xfsc/facis-zero-trust-demonstrator/services/connector	1.705s
+--- PASS: TestContractAPIIsFrozen (11.53s)
+--- PASS: TestOAuth2LibraryIsImportedOnlyByItsAdapter (0.40s)
+--- PASS: TestAdapterExposesNoLibraryTypes (0.65s)
+PASS
+ok  	github.com/eclipse-xfsc/facis-zero-trust-demonstrator/services/connector/internal/oauth2provider	14.228s
+--- PASS: TestRegistrationAudienceCeiling (2.27s)
+--- PASS: TestExclusiveAudienceRegistration (1.62s)
+--- PASS: TestInterface_RegistrationRefusalsCarryAChallenge (0.04s)
+--- PASS: TestInterface_KeyBoundRegistrationToken (0.85s)
+--- PASS: TestRegistration_RequiresAnAuthorisedToken (0.82s)
+--- PASS: TestRegistration_RegisteredClientObtainsBoundToken (2.48s)
+--- PASS: TestRegistration_SecretIsStoredHashed (2.39s)
+--- PASS: TestRegistration_CannotExceedTheRegistrar (0.13s)
+--- PASS: TestVP_RegistrarDelegatesAVPScopeThroughRegistration (3.45s)
+--- PASS: TestVP_RegistrationScopeIsNeverDelegable (0.00s)
+--- PASS: TestLibraryVersionIsTheOneVerified (0.01s)
+PASS
+ok  	github.com/eclipse-xfsc/facis-zero-trust-demonstrator/services/connector/internal/oauth2provider/authelia	15.796s
+PASS
+ok  	github.com/eclipse-xfsc/facis-zero-trust-demonstrator/services/connector/internal/oauth2provider/pgstore	1.672s [no tests to run]
+PASS
+ok  	github.com/eclipse-xfsc/facis-zero-trust-demonstrator/services/connector/internal/signing	1.762s [no tests to run]
+
+# go test -count=1 -race -v -run TestServe ./services/connector/ with TOKEN_STORE_TEST_DATABASE_URL, TRANSIT_TEST_ADDR and TRANSIT_TEST_TOKEN set:
+# PostgreSQL postgres:16.10-alpine@sha256:029660641a0cfc575b14f336ba448fb8a75fd595d42e1fa316b9fb4378742297 and OpenBao openbao/openbao:2.7.0@sha256:71156a1c6623a5fa3f5e61b0c6a8ead0faf0df29a778339188443551995d1315 (dev mode, transit mounted) in local Docker, removed after the run
+--- PASS: TestServeBootstrapsTheRegistrarAndIssuesVerifiableTokens (8.09s)
+--- PASS: TestServeIsNotReadyWithoutTheKeyVersion (1.32s)
+--- PASS: TestServeIssuesVerifiedPresentationTokens (8.94s)
+--- PASS: TestServeRefusesMissingOrShortSecrets (0.01s)
+--- PASS: TestServeStartsWithoutDependenciesAndDrains (0.35s)
+--- PASS: TestServeNeverPrintsAnUnparsableDatabaseURL (0.01s)
+ok  	github.com/eclipse-xfsc/facis-zero-trust-demonstrator/services/connector	20.451s

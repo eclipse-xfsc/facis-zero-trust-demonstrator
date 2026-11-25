@@ -26,7 +26,7 @@ func isUniqueViolation(err error) bool {
 func seedKeyAndOutcome(t *testing.T, c *pgx.Conn, outcome string, audience string, expires time.Time) {
 	t.Helper()
 	ctx := context.Background()
-	if _, err := c.Exec(ctx, `INSERT INTO signing_key (key_ref, jkt, alg, state) VALUES ('transit/store-1', 'jkt-store-1', 'ES256', 'active')
+	if _, err := c.Exec(ctx, `INSERT INTO signing_key (key_ref, jkt, alg, state) VALUES ('transit:store-1:v1', 'jkt-store-1', 'ES256', 'active')
 		ON CONFLICT (key_ref) DO NOTHING`); err != nil {
 		t.Fatal(err)
 	}
@@ -57,7 +57,7 @@ func consume(ctx context.Context, c *pgx.Conn, outcome, audience, token string) 
 	}
 	if _, err := tx.Exec(ctx, `INSERT INTO upstream_token
 		(token_id, peer_zone, audience, tenant, outcome_id, token_ref, key_ref, state, issued_at, expires_at, renew_after)
-		VALUES ($1, 'zone-b', $2, '', $3, 'kv/upstream/' || $1::uuid::text, 'transit/store-1', 'active', now(), now() + interval '1 hour', now() + interval '45 minutes')`,
+		VALUES ($1, 'zone-b', $2, '', $3, 'kv/upstream/' || $1::uuid::text, 'transit:store-1:v1', 'active', now(), now() + interval '1 hour', now() + interval '45 minutes')`,
 		token, audience, outcome); err != nil {
 		return false, err
 	}
@@ -151,7 +151,7 @@ func TestAnOutcomeIsConsumedExactlyOnce(t *testing.T) {
 	// Even a path that skips the consumption check cannot add a second token for the outcome.
 	_, err = c.Exec(ctx, `INSERT INTO upstream_token
 		(token_id, peer_zone, audience, tenant, outcome_id, token_ref, key_ref, state, issued_at, expires_at, renew_after)
-		VALUES ('cccccccc-cccc-4ccc-8ccc-cccccccccccc', 'zone-b', 'https://zone-b.example/api', '', $1, 'kv/x', 'transit/store-1', 'active', now(), now() + interval '1 hour', now())`, outcome)
+		VALUES ('cccccccc-cccc-4ccc-8ccc-cccccccccccc', 'zone-b', 'https://zone-b.example/api', '', $1, 'kv/x', 'transit:store-1:v1', 'active', now(), now() + interval '1 hour', now())`, outcome)
 	if !isUniqueViolation(err) {
 		t.Errorf("second token for one outcome: %v; want a unique violation", err)
 	}
@@ -187,8 +187,8 @@ func TestSubstitutionFindsTheValidTokenOfARoute(t *testing.T) {
 	seedKeyAndOutcome(t, c, stale, "https://zone-b.example/api", time.Now().Add(time.Minute))
 	if _, err := c.Exec(ctx, `INSERT INTO upstream_token
 		(token_id, peer_zone, audience, tenant, outcome_id, token_ref, key_ref, state, issued_at, expires_at, renew_after) VALUES
-		('aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa', 'zone-b', 'https://zone-b.example/api', '', $1, 'kv/live',  'transit/store-1', 'active', now() - interval '1 hour', now() + interval '1 hour', now()),
-		('bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb', 'zone-b', 'https://zone-b.example/api', '', $2, 'kv/stale', 'transit/store-1', 'retired', now() - interval '3 hours', now() - interval '1 hour', now() - interval '2 hours')`,
+		('aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa', 'zone-b', 'https://zone-b.example/api', '', $1, 'kv/live',  'transit:store-1:v1', 'active', now() - interval '1 hour', now() + interval '1 hour', now()),
+		('bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb', 'zone-b', 'https://zone-b.example/api', '', $2, 'kv/stale', 'transit:store-1:v1', 'retired', now() - interval '3 hours', now() - interval '1 hour', now() - interval '2 hours')`,
 		live, stale); err != nil {
 		t.Fatal(err)
 	}
@@ -251,7 +251,7 @@ func TestRenewalClaimIsSingleFlight(t *testing.T) {
 	seedKeyAndOutcome(t, c, outcome, "https://zone-b.example/api", time.Now().Add(time.Minute))
 	if _, err := c.Exec(ctx, `INSERT INTO upstream_token
 		(token_id, peer_zone, audience, tenant, outcome_id, token_ref, key_ref, state, issued_at, expires_at, renew_after)
-		VALUES ('dddddddd-dddd-4ddd-8ddd-dddddddddddd', 'zone-b', 'https://zone-b.example/api', '', $1, 'kv/due', 'transit/store-1', 'active', now() - interval '50 minutes', now() + interval '10 minutes', now() - interval '5 minutes')`,
+		VALUES ('dddddddd-dddd-4ddd-8ddd-dddddddddddd', 'zone-b', 'https://zone-b.example/api', '', $1, 'kv/due', 'transit:store-1:v1', 'active', now() - interval '50 minutes', now() + interval '10 minutes', now() - interval '5 minutes')`,
 		outcome); err != nil {
 		t.Fatal(err)
 	}
@@ -396,5 +396,37 @@ func TestAuditEventsAreOrderedAndReferenceTheirSubject(t *testing.T) {
 	}
 	if _, err := c.Exec(ctx, `UPDATE audit_event SET event_id = 99 WHERE event_id = 1`); err == nil {
 		t.Error("an identity column accepted an explicit value")
+	}
+}
+
+// One active version per signing key (migration 5): rotation activates the next version only once
+// the previous one is retired, and the database refuses a second active version of the same key
+// name whatever path tried to insert it. Another key's active version is not affected.
+func TestOneActiveVersionPerSigningKey(t *testing.T) {
+	db := newTestDatabase(t)
+	c := db.migrated()
+	ctx := context.Background()
+	insert := func(ref, jkt string) error {
+		_, err := c.Exec(ctx, `INSERT INTO signing_key (key_ref, jkt, alg, state) VALUES ($1, $2, 'ES256', 'active')`, ref, jkt)
+		return err
+	}
+	if err := insert("transit:store-a:v1", "jkt-a1"); err != nil {
+		t.Fatal(err)
+	}
+	if err := insert("transit:store-a:v2", "jkt-a2"); !isUniqueViolation(err) {
+		t.Fatalf("a second active version of the same key: %v; want unique violation", err)
+	}
+	if err := insert("transit:store-b:v1", "jkt-b1"); err != nil {
+		t.Fatalf("another key's active version: %v", err)
+	}
+	if _, err := c.Exec(ctx, `UPDATE signing_key SET state = 'retired', retired_at = now() WHERE key_ref = 'transit:store-a:v1'`); err != nil {
+		t.Fatal(err)
+	}
+	if err := insert("transit:store-a:v2", "jkt-a2"); err != nil {
+		t.Fatalf("the next version once the previous one is retired: %v", err)
+	}
+	var active int
+	if err := c.QueryRow(ctx, `SELECT count(*) FROM signing_key WHERE state = 'active' AND split_part(key_ref, ':', 2) = 'store-a'`).Scan(&active); err != nil || active != 1 {
+		t.Fatalf("%d active versions of store-a, %v; want 1", active, err)
 	}
 }

@@ -1,0 +1,10 @@
+{
+  "automountServiceAccountToken": false,
+  "volumes": [
+    {
+      "audience": "openbao",
+      "expirationSeconds": 600,
+      "path": "token"
+    }
+  ]
+}

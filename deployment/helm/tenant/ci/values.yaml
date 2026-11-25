@@ -1,0 +1,5 @@
+# Render-only references, never deploy this placeholder digest.
+trustDomain: zone-a.trust.invalid
+guardNamespaces: [tenant-b]
+data:
+  image: {digest: "sha256:0000000000000000000000000000000000000000000000000000000000000000"}

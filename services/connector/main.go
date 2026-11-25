@@ -6,6 +6,7 @@
 //
 //	connector serve       run the service until SIGTERM
 //	connector register    register one client through the registrar and write its credentials file
+//	connector admit-peers answer the zone entry's ext_authz check from the TRAIN trust list (admit.go)
 //
 // The database URL comes from --database-url or CONNECTOR_DATABASE_URL and is never logged; the
 // OpenBao token and the HMAC and registrar secrets are read from files, never from a flag or a
@@ -30,6 +31,17 @@ const (
 const usage = `usage:
   connector serve      run the service until SIGTERM; JSON records on stdout
   connector register   register one client through the registrar and write its credentials file
+  connector admit-peers  answer the zone entry's ext_authz check: a counter-connector is admitted only
+                       when its client certificate's SAN is an active service of the TRAIN trust list
+
+flags of admit-peers (each defaults to the variable named):
+  --addr ADDR                        ext_authz gRPC listener (default 127.0.0.1:50051, $CONNECTOR_ADMIT_ADDR)
+  --tspa-url URL                     the TSPA's REST base, .../tspa/v1 ($CONNECTOR_TSPA_URL)
+  --trust-framework NAME             the trust framework whose list names the peers ($CONNECTOR_TRUST_FRAMEWORK)
+  --trust-list-issuer DID            did:web of the list's issuer ($CONNECTOR_TRUST_LIST_ISSUER)
+  --trust-ca-file PATH               PEM CA bundle for the HTTPS fetches ($CONNECTOR_TRUST_CA_FILE)
+  --zone a|b                         the zone of this entry ($CONNECTOR_ZONE)
+  --refresh DURATION                 how long a verified list is kept, never past its expiry (default 5m0s)
 
 flags of register:
   --connector URL                    the connector's base URL ($CONNECTOR_URL)
@@ -95,6 +107,8 @@ func run(args []string, stdout, stderr io.Writer) int {
 		return serve(args[1:], stdout, stderr)
 	case "register":
 		return register(args[1:], stdout, stderr)
+	case "admit-peers":
+		return admitPeers(args[1:], stdout, stderr)
 	case "help", "-h", "--help":
 		_, _ = fmt.Fprint(stdout, usage)
 		return exitOK

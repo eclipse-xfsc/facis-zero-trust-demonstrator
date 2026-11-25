@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/eclipse-xfsc/facis-zero-trust-demonstrator/internal/transit"
+	"github.com/eclipse-xfsc/facis-zero-trust-demonstrator/services/token-store/internal/acquire"
 	"github.com/eclipse-xfsc/facis-zero-trust-demonstrator/services/token-store/internal/keys"
 	"github.com/eclipse-xfsc/facis-zero-trust-demonstrator/services/token-store/internal/openbao"
 	"github.com/eclipse-xfsc/facis-zero-trust-demonstrator/services/token-store/internal/schema"
@@ -24,9 +25,12 @@ const (
 	checkSchemaDrift   = "schema_drift"
 	checkUninitialized = "uninitialized"
 	checkSealed        = "sealed"
-	checkMissing       = "missing"      // an active key reference names no key version
-	checkMismatch      = "mismatch"     // it names a version whose thumbprint is not the row's jkt
+	checkMissing       = "missing"      // an active key reference, or the configured key itself, names no key version
+	checkMismatch      = "mismatch"     // it names a version whose thumbprint is not the row's jkt, a key of another kind, or rows that conflict
 	checkUnconfigured  = "unconfigured" // active references exist but no transit key is configured
+	checkRetired       = "retired"      // the configured key has no usable version: retired, or below transit's signing floor
+	checkRefused       = "refused"      // transit refused the request: the token's policy
+	checkStarting      = "starting"     // the signing keys are still being resolved at startup
 )
 
 // readiness evaluates the store's dependencies within one budget. The checks are fields so the
@@ -192,26 +196,23 @@ func (s *Server) checkOpenBao(ctx context.Context) string {
 	return checkOK
 }
 
-// checkSigningKey is the contract's "every active key reference resolves" (D9): each active
-// signing_key row's key_ref must name a version of the configured transit key whose public key has
-// the row's thumbprint. No active row is fine; rows without a configured transit key are not.
+// checkSigningKey is the contract's "every active key reference resolves" (D9): the configured key
+// resolves the way the store resolves it before it mints (acquire.ResolveKey, so a store that is
+// Ready can mint), every active row of another key resolves against the key it names, and startup
+// has resolved the keys once. No active row is fine without an acquisition configuration; rows
+// without a configured transit key are not. A row of another key this token may not read is left
+// to that key's owner.
 func (s *Server) checkSigningKey(ctx context.Context) string {
-	rows, err := s.pool.Query(ctx, `SELECT key_ref, jkt FROM signing_key WHERE state = 'active'`)
+	if s.cfg.Acquisition != nil {
+		select {
+		case <-s.keyStarted:
+		default:
+			return checkStarting
+		}
+	}
+	refs, err := s.activeRefs(ctx)
 	if err != nil {
 		s.log.WarnContext(ctx, "signing keys unreadable", "err", err)
-		return checkUnreachable
-	}
-	type ref struct{ ref, jkt string }
-	var refs []ref
-	for rows.Next() {
-		var r ref
-		if err := rows.Scan(&r.ref, &r.jkt); err != nil {
-			rows.Close()
-			return checkUnreachable
-		}
-		refs = append(refs, r)
-	}
-	if rows.Err() != nil {
 		return checkUnreachable
 	}
 	if len(refs) == 0 && s.cfg.Acquisition == nil {
@@ -220,37 +221,116 @@ func (s *Server) checkSigningKey(ctx context.Context) string {
 	if s.cfg.Acquisition == nil || s.cfg.OpenBao == nil {
 		return checkUnconfigured
 	}
-	k := keys.Keys{Signer: s.cfg.OpenBao, Name: s.cfg.Acquisition.SigningKey}
-	latestRef, err := s.cfg.OpenBao.LatestKey(ctx, k.Name)
-	if err != nil {
-		return checkUnreachable
+	name := s.cfg.Acquisition.SigningKey
+	signer := keys.ReadOnly{Lister: s.cfg.OpenBao}
+	key, err := acquire.ResolveKey(ctx, s.pool, signer, name)
+	switch {
+	case err == nil:
+	case errors.Is(err, acquire.ErrKeyUnregistered) && !errors.Is(err, transit.ErrNotFound):
+		// Nothing registered yet and transit has the key: the next acquisition registers it.
+	default:
+		return keyWord(err)
 	}
-	pub, err := s.cfg.OpenBao.PublicKey(ctx, latestRef)
+	thumbprints, _, err := s.foreignRefs(ctx, refs, name, nil)
 	if err != nil {
-		return checkUnreachable
+		return keyWord(err)
 	}
-	latest, err := keys.Thumbprint(pub)
-	if err != nil {
-		return checkUnreachable
-	}
-	thumbprints := map[string]bool{latest: true}
-	for _, r := range refs {
-		thumbprints[r.jkt] = true
-		if _, err := transit.ParseRef(r.ref); err != nil {
-			return checkMissing
+	if key != nil {
+		thumbprints[key.JKT()] = true
+	} else {
+		// Nothing registered yet: the latest version is what the next acquisition registers.
+		latest, _, err := s.cfg.OpenBao.KeyStatus(ctx, name)
+		if err != nil {
+			return keyWord(err)
 		}
-		err := k.Check(ctx, r.ref, r.jkt)
-		switch {
-		case errors.Is(err, keys.ErrMismatch):
-			return checkMismatch
-		case errors.Is(err, transit.ErrNotFound):
-			return checkMissing
-		case err != nil:
-			s.log.WarnContext(ctx, "signing key unresolved", "err", err)
+		pub, err := s.cfg.OpenBao.PublicKey(ctx, latest)
+		if err != nil {
+			return keyWord(err)
+		}
+		jkt, err := keys.Thumbprint(pub)
+		if err != nil {
 			return checkUnreachable
 		}
+		thumbprints[jkt] = true
 	}
 	return s.checkIssuerSeparation(ctx, thumbprints)
+}
+
+// foreignRefs resolves every active row of a key other than own against the key it names and
+// collects every row's thumbprint (own's included, already verified by the caller). A row of
+// another key this token may not read is skipped, and reported to onUnreadable when given; a row
+// that is malformed or does not resolve is the error, with its reference.
+func (s *Server) foreignRefs(ctx context.Context, refs []keyRef, own string, onUnreadable func(ref string)) (map[string]bool, string, error) {
+	thumbprints := map[string]bool{}
+	for _, r := range refs {
+		thumbprints[r.jkt] = true
+		kv, err := transit.ParseRef(r.ref)
+		if err != nil {
+			return nil, r.ref, acquire.ErrMalformedRef
+		}
+		if kv.Name == own {
+			continue
+		}
+		err = keys.Keys{Signer: s.cfg.OpenBao, Name: kv.Name}.Check(ctx, r.ref, r.jkt)
+		switch {
+		case err == nil:
+		case foreignUnreadable(err):
+			if onUnreadable != nil {
+				onUnreadable(r.ref)
+			}
+		default:
+			return nil, r.ref, err
+		}
+	}
+	return thumbprints, "", nil
+}
+
+// keyWord is the readiness word of a key resolution error: acquire.Reason's word where the
+// readiness vocabulary has it, else the nearest, so startup and readiness never disagree on what
+// is a fault and what is an outage. nil is ok.
+func keyWord(err error) string {
+	if err == nil {
+		return checkOK
+	}
+	switch reason, _ := acquire.Reason(err); reason {
+	case acquire.ReasonMissing, acquire.ReasonMalformed:
+		return checkMissing
+	case acquire.ReasonMismatch, acquire.ReasonUnsupported:
+		return checkMismatch
+	case acquire.ReasonRetired:
+		return checkRetired
+	case acquire.ReasonRefused:
+		return checkRefused
+	}
+	return checkUnreachable
+}
+
+// foreignUnreadable says a row of another key could not be resolved because this token may not
+// read that key (its policy is scoped to the store's own): not this store's fault to report.
+func foreignUnreadable(err error) bool {
+	reason, _ := acquire.Reason(err)
+	return reason == acquire.ReasonRefused
+}
+
+// keyRef is one active signing_key row.
+type keyRef struct{ ref, jkt string }
+
+// activeRefs reads every active signing_key row, of every key.
+func (s *Server) activeRefs(ctx context.Context) ([]keyRef, error) {
+	rows, err := s.pool.Query(ctx, `SELECT key_ref, jkt FROM signing_key WHERE state = 'active' ORDER BY key_ref`)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var refs []keyRef
+	for rows.Next() {
+		var r keyRef
+		if err := rows.Scan(&r.ref, &r.jkt); err != nil {
+			return nil, err
+		}
+		refs = append(refs, r)
+	}
+	return refs, rows.Err()
 }
 
 // handleHealthz says the process is alive. It consults nothing, so no dependency outage ever

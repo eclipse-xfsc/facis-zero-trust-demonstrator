@@ -1,0 +1,40 @@
+== tenant-a
+DENIED ADM-NOT-DIGEST          docker.io/istio/proxyv2:1.31.1@sha256:d86cba0dd1eb15c00b6901c69ce5ae3d2d5f8427a47751098cf8c3ab2a4a62e9  (Pod/tenant-data-6c6bf85df7-xczm9/istio-proxy)
+DENIED ADM-NOT-DIGEST          docker.io/istio/proxyv2:1.31.1@sha256:d86cba0dd1eb15c00b6901c69ce5ae3d2d5f8427a47751098cf8c3ab2a4a62e9  (Pod/tenant-data-6c6bf85df7-xczm9/istio-validation)
+trusted-repository             ghcr.io/fune5tiatlas/facis-zero-trust-demonstrator/envoy-runtime@sha256:0cd70a69172bb144ba70ed7cad61f3f5172f971c5e130ef48116e60e5fa815c1  (Deployment/tenant-data/envoy)
+trusted-repository             ghcr.io/fune5tiatlas/facis-zero-trust-demonstrator/envoy-runtime@sha256:0cd70a69172bb144ba70ed7cad61f3f5172f971c5e130ef48116e60e5fa815c1  (Pod/tenant-data-6c6bf85df7-xczm9/envoy)
+trusted-repository             ghcr.io/fune5tiatlas/facis-zero-trust-demonstrator/envoy-runtime@sha256:0cd70a69172bb144ba70ed7cad61f3f5172f971c5e130ef48116e60e5fa815c1  (ReplicaSet/tenant-data-6c6bf85df7/envoy)
+5 image use(s) in tenant-a, 2 would be denied
+exit 1
+== tenant-b
+DENIED ADM-NOT-DIGEST          docker.io/istio/proxyv2:1.31.1@sha256:d86cba0dd1eb15c00b6901c69ce5ae3d2d5f8427a47751098cf8c3ab2a4a62e9  (Pod/tenant-data-649c557748-vb948/istio-proxy)
+DENIED ADM-NOT-DIGEST          docker.io/istio/proxyv2:1.31.1@sha256:d86cba0dd1eb15c00b6901c69ce5ae3d2d5f8427a47751098cf8c3ab2a4a62e9  (Pod/tenant-data-649c557748-vb948/istio-validation)
+trusted-repository             ghcr.io/fune5tiatlas/facis-zero-trust-demonstrator/envoy-runtime@sha256:0cd70a69172bb144ba70ed7cad61f3f5172f971c5e130ef48116e60e5fa815c1  (Deployment/tenant-data/envoy)
+trusted-repository             ghcr.io/fune5tiatlas/facis-zero-trust-demonstrator/envoy-runtime@sha256:0cd70a69172bb144ba70ed7cad61f3f5172f971c5e130ef48116e60e5fa815c1  (Pod/tenant-data-649c557748-vb948/envoy)
+trusted-repository             ghcr.io/fune5tiatlas/facis-zero-trust-demonstrator/envoy-runtime@sha256:0cd70a69172bb144ba70ed7cad61f3f5172f971c5e130ef48116e60e5fa815c1  (ReplicaSet/tenant-data-649c557748/envoy)
+5 image use(s) in tenant-b, 2 would be denied
+exit 1
+== ztd-data (for comparison)
+DENIED ADM-REGISTRY-DENIED     docker.io/envoyproxy/envoy@sha256:3a76238cdf52c7a3e33951f44c02d694108e6481feffe6663bf9319f55ec1394  (Deployment/ztd-connector-gateway/envoy)
+DENIED ADM-REGISTRY-DENIED     docker.io/envoyproxy/envoy@sha256:3a76238cdf52c7a3e33951f44c02d694108e6481feffe6663bf9319f55ec1394  (Pod/ztd-connector-gateway-55d9978c85-bhs9n/envoy)
+DENIED ADM-REGISTRY-DENIED     docker.io/envoyproxy/envoy@sha256:3a76238cdf52c7a3e33951f44c02d694108e6481feffe6663bf9319f55ec1394  (ReplicaSet/ztd-connector-gateway-55d9978c85/envoy)
+DENIED ADM-NOT-DIGEST          docker.io/istio/proxyv2:1.31.1@sha256:d86cba0dd1eb15c00b6901c69ce5ae3d2d5f8427a47751098cf8c3ab2a4a62e9  (Pod/ztd-connector-gateway-55d9978c85-bhs9n/istio-proxy)
+DENIED ADM-NOT-DIGEST          docker.io/istio/proxyv2:1.31.1@sha256:d86cba0dd1eb15c00b6901c69ce5ae3d2d5f8427a47751098cf8c3ab2a4a62e9  (Pod/ztd-connector-gateway-55d9978c85-bhs9n/istio-validation)
+DENIED ADM-NOT-DIGEST          docker.io/istio/proxyv2:1.31.1@sha256:d86cba0dd1eb15c00b6901c69ce5ae3d2d5f8427a47751098cf8c3ab2a4a62e9  (Pod/ztd-guard-595f4d499c-582vk/istio-proxy)
+DENIED ADM-NOT-DIGEST          docker.io/istio/proxyv2:1.31.1@sha256:d86cba0dd1eb15c00b6901c69ce5ae3d2d5f8427a47751098cf8c3ab2a4a62e9  (Pod/ztd-guard-595f4d499c-582vk/istio-validation)
+DENIED ADM-NOT-DIGEST          docker.io/istio/proxyv2:1.31.1@sha256:d86cba0dd1eb15c00b6901c69ce5ae3d2d5f8427a47751098cf8c3ab2a4a62e9  (Pod/ztd-policy-evaluator-9cfd75b4d-cmq48/istio-proxy)
+DENIED ADM-NOT-DIGEST          docker.io/istio/proxyv2:1.31.1@sha256:d86cba0dd1eb15c00b6901c69ce5ae3d2d5f8427a47751098cf8c3ab2a4a62e9  (Pod/ztd-policy-evaluator-9cfd75b4d-cmq48/istio-validation)
+trusted-repository             ghcr.io/fune5tiatlas/facis-zero-trust-demonstrator/envoy-runtime@sha256:0cd70a69172bb144ba70ed7cad61f3f5172f971c5e130ef48116e60e5fa815c1  (Deployment/ztd-guard/envoy)
+trusted-repository             ghcr.io/fune5tiatlas/facis-zero-trust-demonstrator/envoy-runtime@sha256:0cd70a69172bb144ba70ed7cad61f3f5172f971c5e130ef48116e60e5fa815c1  (Pod/ztd-guard-595f4d499c-582vk/envoy)
+trusted-repository             ghcr.io/fune5tiatlas/facis-zero-trust-demonstrator/envoy-runtime@sha256:0cd70a69172bb144ba70ed7cad61f3f5172f971c5e130ef48116e60e5fa815c1  (ReplicaSet/ztd-guard-595f4d499c/envoy)
+trusted-repository             ghcr.io/fune5tiatlas/facis-zero-trust-demonstrator/envoy-runtime@sha256:0cd70a69172bb144ba70ed7cad61f3f5172f971c5e130ef48116e60e5fa815c1  (ReplicaSet/ztd-guard-766687dd6d/envoy)
+trusted-repository             ghcr.io/fune5tiatlas/facis-zero-trust-demonstrator/guard@sha256:97f74a9cd2bc3bd1da0449dfbe2169fea66c1de87e030a0c9d67aa92140c488f  (ReplicaSet/ztd-guard-766687dd6d/guard)
+trusted-repository             ghcr.io/fune5tiatlas/facis-zero-trust-demonstrator/guard@sha256:a885b46565ff082d50c4dadc887496aaaa2d941a06d8038171c67af6f58c809a  (Deployment/ztd-guard/guard)
+trusted-repository             ghcr.io/fune5tiatlas/facis-zero-trust-demonstrator/guard@sha256:a885b46565ff082d50c4dadc887496aaaa2d941a06d8038171c67af6f58c809a  (Pod/ztd-guard-595f4d499c-582vk/guard)
+trusted-repository             ghcr.io/fune5tiatlas/facis-zero-trust-demonstrator/guard@sha256:a885b46565ff082d50c4dadc887496aaaa2d941a06d8038171c67af6f58c809a  (ReplicaSet/ztd-guard-595f4d499c/guard)
+trusted-repository             ghcr.io/fune5tiatlas/facis-zero-trust-demonstrator/policy-evaluator@sha256:5958fd74fdef9467f413422cf81a21a677ccd4296aaf9c293564a997b186ed28  (ReplicaSet/ztd-policy-evaluator-7b64896984/policy-evaluator)
+trusted-repository             ghcr.io/fune5tiatlas/facis-zero-trust-demonstrator/policy-evaluator@sha256:5f77bbe83e9a74fe6818a03fefe28c59578f36b47f7b811786407e8501088e98  (Deployment/ztd-policy-evaluator/policy-evaluator)
+trusted-repository             ghcr.io/fune5tiatlas/facis-zero-trust-demonstrator/policy-evaluator@sha256:5f77bbe83e9a74fe6818a03fefe28c59578f36b47f7b811786407e8501088e98  (Pod/ztd-policy-evaluator-9cfd75b4d-cmq48/policy-evaluator)
+trusted-repository             ghcr.io/fune5tiatlas/facis-zero-trust-demonstrator/policy-evaluator@sha256:5f77bbe83e9a74fe6818a03fefe28c59578f36b47f7b811786407e8501088e98  (ReplicaSet/ztd-policy-evaluator-9cfd75b4d/policy-evaluator)
+21 image use(s) in ztd-data, 9 would be denied
+exit 1

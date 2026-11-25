@@ -13,17 +13,17 @@ reported is described in [BDD acceptance](bdd.md).
   This page is built from the repository, not from a run: each cluster run publishes its own
   copy of the catalogue with the basis filled in.
 
-94 rows: 8 implemented, 86 pending.
+94 rows: 33 implemented, 61 pending.
 
 | Row | Requirement | Gate | Status | Runner |
 |---|---|---|---|---|
-| [ZT-01](#zt-01) | Secure Service Mesh | G3 | pending | godog |
+| [ZT-01](#zt-01) | Secure Service Mesh | G3 | implemented | godog |
 | [ZT-02](#zt-02) | Secure Execution Environment | G2 | pending | godog |
 | [ZT-03](#zt-03) | Trust Zone | G2 | pending | godog |
 | [ZT-04](#zt-04) | Secure Connection | G4 | pending | godog |
 | [ZT-05](#zt-05) | Communication Visualization | G5 | pending | Cucumber.js |
-| [ZT-06](#zt-06) | Attribute/Credential Based Access Control | G3 | pending | godog |
-| [ZT-07](#zt-07) | API Dock | G3 | pending | godog |
+| [ZT-06](#zt-06) | Attribute/Credential Based Access Control | G3 | implemented | godog |
+| [ZT-07](#zt-07) | API Dock | G3 | implemented | godog |
 | [ZT-08](#zt-08) | Visualization | G5 | pending | Cucumber.js |
 | [ZT-09](#zt-09) | User Journey | G5 | pending | Cucumber.js |
 | [ZT-10](#zt-10) | Image Signing and Attestation | G2 | pending | godog |
@@ -34,16 +34,16 @@ reported is described in [BDD acceptance](bdd.md).
 | [ZT-15](#zt-15) | IONOS Cloud Environment | G2 | pending | godog |
 | [ZT-16](#zt-16) | Cloud Environments | G2 | pending | Cucumber.js |
 | [ZT-17](#zt-17) | Demonstrator Usage | G2 | pending | Cucumber.js |
-| [ZT-18](#zt-18) | TRAIN Allow List | G3 | pending | godog |
-| [ZT-19](#zt-19) | Upstream / Downstream Proxy Functionality | G3 | pending | godog |
-| [ZT-20](#zt-20) | Guarding Functionality | G3 | pending | godog |
-| [ZT-21](#zt-21) | OAuth2 Server | G3 | pending | godog |
-| [ZT-22](#zt-22) | Token Storage | G3 | pending | godog |
-| [ZT-23](#zt-23) | Service Mesh Implementation | G3 | pending | godog |
-| [ZT-24](#zt-24) | SPIFFE/SPIRE Deployment | G3 | pending | godog |
-| [ZT-25](#zt-25) | Routing Policies | G3 | pending | godog |
-| [ZT-26](#zt-26) | Ingress and Egress | G3 | pending | godog |
-| [ZT-27](#zt-27) | Observability | G3 | pending | godog |
+| [ZT-18](#zt-18) | TRAIN Allow List | G3 | implemented | godog |
+| [ZT-19](#zt-19) | Upstream / Downstream Proxy Functionality | G3 | implemented | godog |
+| [ZT-20](#zt-20) | Guarding Functionality | G3 | implemented | godog |
+| [ZT-21](#zt-21) | OAuth2 Server | G3 | implemented | godog |
+| [ZT-22](#zt-22) | Token Storage | G3 | implemented | godog |
+| [ZT-23](#zt-23) | Service Mesh Implementation | G3 | implemented | godog |
+| [ZT-24](#zt-24) | SPIFFE/SPIRE Deployment | G3 | implemented | godog |
+| [ZT-25](#zt-25) | Routing Policies | G3 | implemented | godog |
+| [ZT-26](#zt-26) | Ingress and Egress | G3 | implemented | godog |
+| [ZT-27](#zt-27) | Observability | G3 | implemented | godog |
 | [ZT-28](#zt-28) | Attested TLS | G4 | pending | godog |
 | [ZT-29](#zt-29) | Attestation Request | G4 | pending | godog |
 | [ZT-30](#zt-30) | Attestation Response | G4 | pending | godog |
@@ -71,14 +71,14 @@ reported is described in [BDD acceptance](bdd.md).
 | [ZT-52](#zt-52) | Fail-Secure (Fail-Closed) Behavior | G6 | pending | godog |
 | [ZT-53](#zt-53) | Multi-Tenancy and Tenant Isolation | G6 | pending | godog |
 | [ZT-54](#zt-54) | Software Bill of Materials (SBOM) | G6 | pending | godog |
-| [ZT-55](#zt-55) | Management Plane / Data Plane Separation | G6 | pending | godog |
+| [ZT-55](#zt-55) | Management Plane / Data Plane Separation | G6 | implemented | godog |
 | [ZT-56](#zt-56) | CI/CD Pipeline Security (Zero Trust for the Pipeline) | G6 | pending | godog |
-| [ZT-57](#zt-57) | SPIFFE/SPIRE Setup | G3 | pending | godog |
-| [ZT-58](#zt-58) | Service Mesh Setup | G3 | pending | godog |
-| [ZT-59](#zt-59) | Successful Identification | G3 | pending | godog |
-| [ZT-60](#zt-60) | Unsuccessful Identification | G3 | pending | godog |
-| [ZT-61](#zt-61) | Traffic routed via Service Mesh | G3 | pending | godog |
-| [ZT-62](#zt-62) | Limited Communication within Mesh | G3 | pending | godog |
+| [ZT-57](#zt-57) | SPIFFE/SPIRE Setup | G3 | implemented | godog |
+| [ZT-58](#zt-58) | Service Mesh Setup | G3 | implemented | godog |
+| [ZT-59](#zt-59) | Successful Identification | G3 | implemented | godog |
+| [ZT-60](#zt-60) | Unsuccessful Identification | G3 | implemented | godog |
+| [ZT-61](#zt-61) | Traffic routed via Service Mesh | G3 | implemented | godog |
+| [ZT-62](#zt-62) | Limited Communication within Mesh | G3 | implemented | godog |
 | [ZT-63](#zt-63) | TEE Mock Setup | G4 | pending | godog |
 | [ZT-64](#zt-64) | Expected Measurement Retrieval | G4 | pending | godog |
 | [ZT-65](#zt-65) | Connection Start | G4 | pending | godog |
@@ -89,10 +89,10 @@ reported is described in [BDD acceptance](bdd.md).
 | [ZT-70](#zt-70) | Refused Connection | G4 | pending | godog |
 | [ZT-71](#zt-71) | Image Signing and mock Attestation | G2 | pending | godog |
 | [ZT-72](#zt-72) | Secure Pod Startup | G2 | implemented | godog |
-| [ZT-73](#zt-73) | Authorized Upstreaming over the Zero Trust Connector | G3 | pending | godog |
-| [ZT-74](#zt-74) | Participant Backend Mock | G3 | pending | godog |
-| [ZT-75](#zt-75) | Protected Resource Mock | G3 | pending | godog |
-| [ZT-76](#zt-76) | Credential Based Access | G3 | pending | godog |
+| [ZT-73](#zt-73) | Authorized Upstreaming over the Zero Trust Connector | G3 | implemented | godog |
+| [ZT-74](#zt-74) | Participant Backend Mock | G3 | implemented | godog |
+| [ZT-75](#zt-75) | Protected Resource Mock | G3 | implemented | godog |
+| [ZT-76](#zt-76) | Credential Based Access | G3 | implemented | godog |
 | [ZT-77](#zt-77) | Mock Replaceable | G3 | pending | godog |
 | [ZT-78](#zt-78) | Visualization UI | G5 | pending | Cucumber.js |
 | [ZT-79](#zt-79) | Visualization Concept | G2 | pending | Cucumber.js |
@@ -102,7 +102,7 @@ reported is described in [BDD acceptance](bdd.md).
 | [TDR-BDD-02](#tdr-bdd-02) | Invalid deployment parameters | G6 | implemented | Cucumber.js |
 | [TDR-BDD-03](#tdr-bdd-03) | Idempotent redeployment | G6 | implemented | Cucumber.js |
 | [TDR-BDD-04](#tdr-bdd-04) | Uninstall | G6 | implemented | Cucumber.js |
-| [TDR-BDD-05](#tdr-bdd-05) | Keycloak / policy / token integration | G3 | pending | godog |
+| [TDR-BDD-05](#tdr-bdd-05) | Keycloak / policy / token integration | G3 | implemented | godog |
 | [TDR-BDD-06](#tdr-bdd-06) | Structured logging and ORCE errors | G5 | implemented | Cucumber.js |
 | [TDR-BDD-07](#tdr-bdd-07) | TLS 1.3 runtime validation | G4 | pending | godog |
 | [TDR-BDD-08](#tdr-bdd-08) | Secrets and log masking | G2 | implemented | godog |
@@ -123,8 +123,8 @@ reported is described in [BDD acceptance](bdd.md).
 | Test type | BDD / integration |
 | Gate | G3 - Protected-service vertical slice |
 | Evidence | `evidence/bdd-zt-001/` |
-| Automation status | pending |
-| Evidence basis | none (pending) |
+| Automation status | implemented, runs on a cluster |
+| Evidence basis | recorded per run |
 | Runner | godog |
 | Scenario file | `features/go/mesh.feature` |
 
@@ -233,8 +233,8 @@ Then the demonstrator visibly presents connection and trust state, the decisions
 | Test type | BDD / integration |
 | Gate | G3 - Protected-service vertical slice |
 | Evidence | `evidence/bdd-zt-006/` |
-| Automation status | pending |
-| Evidence basis | none (pending) |
+| Automation status | implemented, runs on a cluster |
+| Evidence basis | recorded per run |
 | Runner | godog |
 | Scenario file | `features/go/policy.feature` |
 
@@ -255,8 +255,8 @@ Then the authorized request is permitted according to credential/policy evaluati
 | Test type | BDD / integration |
 | Gate | G3 - Protected-service vertical slice |
 | Evidence | `evidence/bdd-zt-007/` |
-| Automation status | pending |
-| Evidence basis | none (pending) |
+| Automation status | implemented, runs on a cluster |
+| Evidence basis | recorded per run |
 | Runner | godog |
 | Scenario file | `features/go/authorization.feature` |
 
@@ -497,8 +497,8 @@ Then the documented setup/usage can be reproduced step by step and the documenta
 | Test type | BDD / integration |
 | Gate | G3 - Protected-service vertical slice |
 | Evidence | `evidence/bdd-zt-018/` |
-| Automation status | pending |
-| Evidence basis | none (pending) |
+| Automation status | implemented, runs on a cluster |
+| Evidence basis | recorded per run |
 | Runner | godog |
 | Scenario file | `features/go/trust-lists.feature` |
 
@@ -519,8 +519,8 @@ Then the listed peer is admitted on the basis of the retrieved trust list AND th
 | Test type | BDD / integration |
 | Gate | G3 - Protected-service vertical slice |
 | Evidence | `evidence/bdd-zt-019/` |
-| Automation status | pending |
-| Evidence basis | none (pending) |
+| Automation status | implemented, runs on a cluster |
+| Evidence basis | recorded per run |
 | Runner | godog |
 | Scenario file | `features/go/attested-channel.feature` |
 
@@ -541,8 +541,8 @@ Then the request reaches the counter side over that protected channel with requi
 | Test type | BDD / integration |
 | Gate | G3 - Protected-service vertical slice |
 | Evidence | `evidence/bdd-zt-020/` |
-| Automation status | pending |
-| Evidence basis | none (pending) |
+| Automation status | implemented, runs on a cluster |
+| Evidence basis | recorded per run |
 | Runner | godog |
 | Scenario file | `features/go/authorization.feature` |
 
@@ -563,8 +563,8 @@ Then the authorized request passes the PEP/PDP policy chain AND the unauthorized
 | Test type | BDD / integration |
 | Gate | G3 - Protected-service vertical slice |
 | Evidence | `evidence/bdd-zt-021/` |
-| Automation status | pending |
-| Evidence basis | none (pending) |
+| Automation status | implemented, runs on a cluster |
+| Evidence basis | recorded per run |
 | Runner | godog |
 | Scenario file | `features/go/authorization.feature` |
 
@@ -585,8 +585,8 @@ Then it issues the appropriate DPoP-bound access tokens AND an invalid presentat
 | Test type | BDD / integration |
 | Gate | G3 - Protected-service vertical slice |
 | Evidence | `evidence/bdd-zt-022/` |
-| Automation status | pending |
-| Evidence basis | none (pending) |
+| Automation status | implemented, runs on a cluster |
+| Evidence basis | recorded per run |
 | Runner | godog |
 | Scenario file | `features/go/authorization.feature` |
 
@@ -607,8 +607,8 @@ Then the backend token and DPoP proof are validated and the correct counter-side
 | Test type | BDD / integration |
 | Gate | G3 - Protected-service vertical slice |
 | Evidence | `evidence/bdd-zt-023/` |
-| Automation status | pending |
-| Evidence basis | none (pending) |
+| Automation status | implemented, runs on a cluster |
+| Evidence basis | recorded per run |
 | Runner | godog |
 | Scenario file | `features/go/mesh.feature` |
 
@@ -629,8 +629,8 @@ Then the mesh is present in every cluster and service traffic is routed through 
 | Test type | BDD / integration |
 | Gate | G3 - Protected-service vertical slice |
 | Evidence | `evidence/bdd-zt-024/` |
-| Automation status | pending |
-| Evidence basis | none (pending) |
+| Automation status | implemented, runs on a cluster |
+| Evidence basis | recorded per run |
 | Runner | godog |
 | Scenario file | `features/go/workload-identity.feature` |
 
@@ -651,8 +651,8 @@ Then SPIRE is deployed in every cluster, all mesh services obtain SPIRE-backed i
 | Test type | BDD / integration |
 | Gate | G3 - Protected-service vertical slice |
 | Evidence | `evidence/bdd-zt-025/` |
-| Automation status | pending |
-| Evidence basis | none (pending) |
+| Automation status | implemented, runs on a cluster |
+| Evidence basis | recorded per run |
 | Runner | godog |
 | Scenario file | `features/go/mesh.feature` |
 
@@ -673,8 +673,8 @@ Then policy-related workloads communicate according to configured trust policy A
 | Test type | BDD / integration |
 | Gate | G3 - Protected-service vertical slice |
 | Evidence | `evidence/bdd-zt-026/` |
-| Automation status | pending |
-| Evidence basis | none (pending) |
+| Automation status | implemented, runs on a cluster |
+| Evidence basis | recorded per run |
 | Runner | godog |
 | Scenario file | `features/go/mesh.feature` |
 
@@ -695,8 +695,8 @@ Then protected inter-cluster application traffic is routed through the ZT Connec
 | Test type | BDD / integration |
 | Gate | G3 - Protected-service vertical slice |
 | Evidence | `evidence/bdd-zt-027/` |
-| Automation status | pending |
-| Evidence basis | none (pending) |
+| Automation status | implemented, runs on a cluster |
+| Evidence basis | recorded per run |
 | Runner | godog |
 | Scenario file | `features/go/mesh.feature` |
 
@@ -1311,8 +1311,8 @@ Then an SBOM in CycloneDX or SPDX format is generated automatically, signed with
 | Test type | Technical BDD / inspection |
 | Gate | G6 - Quality readiness |
 | Evidence | `evidence/bdd-zt-055/` |
-| Automation status | pending |
-| Evidence basis | none (pending) |
+| Automation status | implemented, runs on a cluster |
+| Evidence basis | recorded per run |
 | Runner | godog |
 | Scenario file | `features/go/plane-separation.feature` |
 
@@ -1355,8 +1355,8 @@ Then all third-party actions are pinned to commit SHAs, the run holds only the m
 | Test type | BDD / integration |
 | Gate | G3 - Protected-service vertical slice |
 | Evidence | `evidence/bdd-zt-057/` |
-| Automation status | pending |
-| Evidence basis | none (pending) |
+| Automation status | implemented, runs on a cluster |
+| Evidence basis | recorded per run |
 | Runner | godog |
 | Scenario file | `features/go/workload-identity.feature` |
 
@@ -1377,8 +1377,8 @@ Then each relevant microservice has access to a SPIRE Agent on its node and can 
 | Test type | BDD / integration |
 | Gate | G3 - Protected-service vertical slice |
 | Evidence | `evidence/bdd-zt-058/` |
-| Automation status | pending |
-| Evidence basis | none (pending) |
+| Automation status | implemented, runs on a cluster |
+| Evidence basis | recorded per run |
 | Runner | godog |
 | Scenario file | `features/go/mesh.feature` |
 
@@ -1399,8 +1399,8 @@ Then service traffic is captured on each node and protected with workload-certif
 | Test type | BDD / integration |
 | Gate | G3 - Protected-service vertical slice |
 | Evidence | `evidence/bdd-zt-059/` |
-| Automation status | pending |
-| Evidence basis | none (pending) |
+| Automation status | implemented, runs on a cluster |
+| Evidence basis | recorded per run |
 | Runner | godog |
 | Scenario file | `features/go/workload-identity.feature` |
 
@@ -1421,8 +1421,8 @@ Then SPIRE attests the workload successfully and issues the expected identity, w
 | Test type | Negative-path BDD |
 | Gate | G3 - Protected-service vertical slice |
 | Evidence | `evidence/bdd-zt-060/` |
-| Automation status | pending |
-| Evidence basis | none (pending) |
+| Automation status | implemented, runs on a cluster |
+| Evidence basis | recorded per run |
 | Runner | godog |
 | Scenario file | `features/go/workload-identity.feature` |
 
@@ -1443,8 +1443,8 @@ Then no identity is issued and all service communication is denied.
 | Test type | BDD / integration |
 | Gate | G3 - Protected-service vertical slice |
 | Evidence | `evidence/bdd-zt-061/` |
-| Automation status | pending |
-| Evidence basis | none (pending) |
+| Automation status | implemented, runs on a cluster |
+| Evidence basis | recorded per run |
 | Runner | godog |
 | Scenario file | `features/go/mesh.feature` |
 
@@ -1465,8 +1465,8 @@ Then its service communication traverses the service-mesh data path and is subje
 | Test type | BDD / integration |
 | Gate | G3 - Protected-service vertical slice |
 | Evidence | `evidence/bdd-zt-062/` |
-| Automation status | pending |
-| Evidence basis | none (pending) |
+| Automation status | implemented, runs on a cluster |
+| Evidence basis | recorded per run |
 | Runner | godog |
 | Scenario file | `features/go/mesh.feature` |
 
@@ -1707,8 +1707,8 @@ Then the signed compliant pod may start AND the unsigned/non-compliant pod is de
 | Test type | BDD / integration |
 | Gate | G3 - Protected-service vertical slice |
 | Evidence | `evidence/bdd-zt-073/` |
-| Automation status | pending |
-| Evidence basis | none (pending) |
+| Automation status | implemented, runs on a cluster |
+| Evidence basis | recorded per run |
 | Runner | godog |
 | Scenario file | `features/go/authorization.feature` |
 
@@ -1729,8 +1729,8 @@ Then the request is authorized, traverses the trusted channel and receives the p
 | Test type | BDD / integration |
 | Gate | G3 - Protected-service vertical slice |
 | Evidence | `evidence/bdd-zt-074/` |
-| Automation status | pending |
-| Evidence basis | none (pending) |
+| Automation status | implemented, runs on a cluster |
+| Evidence basis | recorded per run |
 | Runner | godog |
 | Scenario file | `features/go/authorization.feature` |
 
@@ -1751,8 +1751,8 @@ Then the mock behaves as a participant backend using the trusted channel and pub
 | Test type | BDD / integration |
 | Gate | G3 - Protected-service vertical slice |
 | Evidence | `evidence/bdd-zt-075/` |
-| Automation status | pending |
-| Evidence basis | none (pending) |
+| Automation status | implemented, runs on a cluster |
+| Evidence basis | recorded per run |
 | Runner | godog |
 | Scenario file | `features/go/policy.feature` |
 
@@ -1773,8 +1773,8 @@ Then role-appropriate responses are returned and visualized AND unauthorized rol
 | Test type | BDD / integration |
 | Gate | G3 - Protected-service vertical slice |
 | Evidence | `evidence/bdd-zt-076/` |
-| Automation status | pending |
-| Evidence basis | none (pending) |
+| Automation status | implemented, runs on a cluster |
+| Evidence basis | recorded per run |
 | Runner | godog |
 | Scenario file | `features/go/authorization.feature` |
 
@@ -1997,8 +1997,8 @@ Then the release is removed without manual intervention and the expected project
 | Test type | Integration BDD |
 | Gate | G3 - Protected-service vertical slice |
 | Evidence | `evidence/bdd-tdr-005/` |
-| Automation status | pending |
-| Evidence basis | none (pending) |
+| Automation status | implemented, runs on a cluster |
+| Evidence basis | recorded per run |
 | Runner | godog |
 | Scenario file | `features/go/authorization.feature` |
 

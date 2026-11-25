@@ -49,14 +49,19 @@ func newEventSink(w io.Writer, zone string) *eventSink {
 
 // tokenEvent emits one token_event for the request ctx belongs to.
 func (s *eventSink) tokenEvent(ctx context.Context, p eventPayload) {
+	id, _ := ctx.Value(correlationKey{}).(string)
+	s.emit("token_event", id, p)
+}
+
+// emit writes one event of kind under the correlation id.
+func (s *eventSink) emit(kind, id string, p eventPayload) {
 	if len(p.Detail) > maxEventDetail {
 		p.Detail = p.Detail[:maxEventDetail]
 	}
-	id, _ := ctx.Value(correlationKey{}).(string)
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	ev := if01Event{RunID: s.runID, Seq: s.seq, TS: s.now().UTC().Format(time.RFC3339Nano),
-		Source: s.source, Kind: "token_event", CorrelationID: id, Payload: p}
+		Source: s.source, Kind: kind, CorrelationID: id, Payload: p}
 	line, err := json.Marshal(ev)
 	if err != nil {
 		return

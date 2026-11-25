@@ -5,7 +5,11 @@ metadata:
   name: ztd-guard-config
   namespace: {{ .Release.Namespace }}
 data:
-  config.json: {{ toJson (mergeOverwrite (deepCopy .Values.config) (dict "allowed_callers" (list (printf "spiffe://%s/ns/%s/sa/%s" .Values.trustDomain .Release.Namespace .Values.participantServiceAccount)))) | quote }}
+{{- $callers := include "guard.callers" . | fromJsonArray }}
+{{- $guard := mergeOverwrite (deepCopy .Values.config) (dict "allowed_callers" $callers "event_source" (printf "guard-%s" .Values.zone)) }}
+{{- $guard = mergeOverwrite $guard (include "guard.grpcConfig" . | fromJson) }}
+{{- if .Values.tenant.enabled }}{{- $_ := set $guard "target_tenant" .Release.Namespace }}{{- end }}
+  config.json: {{ toJson $guard | quote }}
   envoy.yaml: |
     admin:
       address:
@@ -35,6 +39,14 @@ data:
                                 cluster: resource
                                 timeout: 15s
                                 host_rewrite_literal: {{ printf "%s.%s.svc.cluster.local" .Values.resourceName .Release.Namespace | quote }}
+                            {{- range .Values.grpc.methods }}
+                            # A gRPC method: the exact path, and only with a gRPC content type.
+                            - match: {path: {{ . | quote }}, grpc: {}}
+                              route:
+                                cluster: resource-grpc
+                                timeout: 15s
+                                host_rewrite_literal: {{ printf "%s.%s.svc.cluster.local" $.Values.resourceName $.Release.Namespace | quote }}
+                            {{- end }}
                     http_filters:
                       - name: envoy.filters.http.ext_authz
                         typed_config:
@@ -60,6 +72,23 @@ data:
                   - endpoint:
                       address:
                         socket_address: {address: {{ .Values.resourceName }}, port_value: {{ .Values.resourcePort }}}
+        {{- if .Values.grpc.methods }}
+        - name: resource-grpc
+          type: STRICT_DNS
+          connect_timeout: 1s
+          typed_extension_protocol_options:
+            envoy.extensions.upstreams.http.v3.HttpProtocolOptions:
+              "@type": type.googleapis.com/envoy.extensions.upstreams.http.v3.HttpProtocolOptions
+              explicit_http_config:
+                http2_protocol_options: {}
+          load_assignment:
+            cluster_name: resource-grpc
+            endpoints:
+              - lb_endpoints:
+                  - endpoint:
+                      address:
+                        socket_address: {address: {{ .Values.resourceName }}, port_value: {{ .Values.grpc.resourcePort }}}
+        {{- end }}
         - name: hook
           type: STATIC
           connect_timeout: 1s
@@ -82,4 +111,10 @@ metadata:
   name: ztd-policy-config
   namespace: {{ .Release.Namespace }}
 data:
-  config.json: {{ toJson (dict "revision" .Values.policyRevision "audience" .Values.config.inbound_audience "host" (urlParse .Values.config.published_base_url).host "guard_callers" (list (printf "spiffe://%s/ns/%s/sa/ztd-guard" .Values.trustDomain .Release.Namespace)) "participant_callers" (list (printf "spiffe://%s/ns/%s/sa/%s" .Values.trustDomain .Release.Namespace .Values.participantServiceAccount)) "scope_tenants" .Values.config.scope_tenants) | quote }}
+{{- $policy := dict "revision" .Values.policyRevision "audience" .Values.config.inbound_audience "host" (urlParse .Values.config.published_base_url).host "guard_callers" (list (printf "spiffe://%s/ns/%s/sa/ztd-guard" .Values.trustDomain .Release.Namespace)) "participant_callers" $callers "scope_tenants" .Values.config.scope_tenants "event_source" (printf "policy-%s" .Values.zone) }}
+{{- if .Values.tenant.enabled }}{{- $_ := set $policy "tenant_members" (dict .Release.Namespace (list (first $callers))) }}{{- end }}
+{{- with .Values.policyRules.blockedClients }}{{- $_ := set $policy "blocked_clients" . }}{{- end }}
+{{- if .Values.policyRules.presentation.scopes }}{{- $_ := set $policy "presentation" (dict "scopes" .Values.policyRules.presentation.scopes "oid4vp_link" .Values.policyRules.presentation.oid4vpLink) }}{{- end }}
+{{- if .Values.tsa.evaluationURL }}{{- $_ := set $policy "tsa" (dict "evaluation_url" .Values.tsa.evaluationURL "timeout_ms" (int .Values.tsa.timeoutMS)) }}{{- end }}
+{{- $policy = mergeOverwrite $policy (include "guard.grpcConfig" . | fromJson) }}
+  config.json: {{ toJson $policy | quote }}

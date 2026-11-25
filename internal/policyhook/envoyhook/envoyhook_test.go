@@ -117,7 +117,7 @@ func TestCheckAllowAndDeny(t *testing.T) {
 	var body hook.Refusal
 	if int(denied.GetStatus().GetCode()) != http.StatusUnauthorized || headers["content-type"] != hook.ContentTypeJSON ||
 		headers[hook.HeaderReasonCode] != hook.ReasonPresentationRequired ||
-		json.Unmarshal([]byte(denied.GetBody()), &body) != nil || body.OID4VPLink == "" {
+		json.Unmarshal([]byte(denied.GetBody()), &body) != nil || body.OID4VPLink == "" || headers[hook.HeaderOID4VPLink] != body.OID4VPLink {
 		t.Errorf("denied response %v", denied)
 	}
 

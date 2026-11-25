@@ -1,0 +1,9 @@
+# job tspa-republish-manual-1: start 2026-11-24T10:01:43Z, completed 2026-11-24T10:01:54Z, succeeded 1
+VC 2026-11-24T10:59:30+01:00 .. 2026-12-24T10:59:30+01:00
+PATCH entry 7d3c1e2a-5b6f-4c8d-9e0f-facis0000zt35: HTTP 200
+VC 2026-11-24T11:01:51+01:00 .. 2026-12-24T11:01:51+01:00
+# job tspa-republish-manual-2: start 2026-11-24T10:09:16Z, completed 2026-11-24T10:09:24Z, succeeded 1
+VC 2026-11-24T11:01:51+01:00 .. 2026-12-24T11:01:51+01:00
+PATCH entry 7d3c1e2a-5b6f-4c8d-9e0f-facis0000zt35: HTTP 200
+VC 2026-11-24T11:09:20+01:00 .. 2026-12-24T11:09:20+01:00
+cronjob tspa-republish: schedule 17 3 * * 1 Etc/UTC, suspend false, image docker.io/library/python@sha256:e5fa639e49b85986c4481e28faa2564b45aa8021413f31026c3856e5911618b1

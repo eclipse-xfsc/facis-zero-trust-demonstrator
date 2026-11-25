@@ -1,0 +1,26 @@
+PASS  kind with Istio 1.31.1 (istiod CA, trust domain cluster.local), XFCC sanitized mesh-wide, namespace ztd-m3 STRICT
+PASS  the shared schema is applied to the connector's and the store's databases
+PASS  the connector is ready
+PASS  five clients registered: the store's route (upstream audience) and four participants (inbound audience)
+PASS  keys ensure created and registered the store's signing key
+PASS  the token store is ready in runtime mode, the guard its only replay and substitution caller
+PASS  the protected resource is ready in token mode
+PASS  the guard and the policy evaluator are ready from the chart with values only
+PASS  four participant tokens for the guard's audience, each bound to its own key
+PASS  allowed: 200 through the guard; correlation id e29234a01b9060c7f07bf213fc41c1a0 in the guard's and the policy's decision events and the resource's record
+PASS  no-token: 401 TOK-MISSING, guard event under f974b7643bd977c07c46ee75a3367625
+PASS  missing-proof: 401 TOK-PROOF-INVALID, guard event under 1721f2a15be4af4f3da726d792698b31
+PASS  wrong-proof-key: 401 TOK-JKT-MISMATCH, guard event under a8d78af3f83842ca5350b8ca88dd25a6
+PASS  insufficient-scope: 403 POL-RULE-DENY (m3-scope-required), guard event and policy event under a45f9d8cba33862f817585cb92ec14be
+PASS  policy-only-denial: 403 POL-RULE-DENY (m3-client-blocked), guard event and policy event under 8a491dce3ac2e0245924f43ee41afbfa
+PASS  presentation-required: 401 POL-PRESENTATION-REQUIRED (m3-presentation-required), guard event and policy event under 5cf73f4bcbeb7f9187877797186e2081
+PASS  presentation-required: the body carries the OID4VP link from the deployed evaluator
+PASS  replayed-proof: 401 TOK-REPLAY, guard event under 55c54e4a8c93a04a98972d669c0b6016
+PASS  wrong-audience: the participant cannot even obtain a challenge for the resource's audience (400)
+PASS  wrong mesh caller: 403 RBAC: access denied from the guard's sidecar, before the hook
+PASS  pdp-down: 503 POL-PDP-UNAVAILABLE, guard event under 625a1b0a3117e1eed7edced8af71538d
+PASS  store-down: 503 TOK-STORE-UNAVAILABLE, guard event under bd330426795384ceb06b339f9476f201
+PASS  latency recorded: guarded_401_samples=100 guarded_p50_ms=7.0 guarded_p99_ms=38.2 baseline_200_samples=100 baseline_p50_ms=2.2 baseline_p99_ms=14.0 
+PASS  expired-token: 401 TOK-EXPIRED, guard event under 3b9ee1f10a91513d675bddb873ff0132
+PASS  the feed bridge serves the allowed request's guard and policy events under e29234a01b9060c7f07bf213fc41c1a0
+verdict: PASS

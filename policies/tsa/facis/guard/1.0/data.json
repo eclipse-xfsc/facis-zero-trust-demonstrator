@@ -1,0 +1,9 @@
+{
+  "config": {
+    "audience": "https://guard.facis.invalid",
+    "host": "ztd-guard:8080",
+    "participant_callers": ["spiffe://zone-b.trust.invalid/ns/ztd-guard/sa/ztd-participant"],
+    "scope_tenants": {"report:read": "report-read", "report:summary": "report-summary"},
+    "withdrawn_scopes": []
+  }
+}

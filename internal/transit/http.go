@@ -29,6 +29,21 @@ const (
 // errCAS marks a KV write refused by check-and-set; Create maps it to ErrExists.
 var errCAS = errors.New("check-and-set refused")
 
+// StatusError is an answer outside 2xx: the operation and the status, nothing of the body. A 404
+// also matches ErrNotFound, so callers that only care whether a thing exists keep errors.Is; a
+// caller that must tell a refusal (4xx, permanent) from an outage (5xx, transient) uses errors.As.
+type StatusError struct {
+	Op     string
+	Status int
+}
+
+func (e *StatusError) Error() string { return fmt.Sprintf("transit: %s: status %d", e.Op, e.Status) }
+
+// Is makes a 404 match ErrNotFound.
+func (e *StatusError) Is(target error) bool {
+	return target == ErrNotFound && e.Status == http.StatusNotFound
+}
+
 // safeHTTPClient mirrors services/token-store/internal/openbao.NewClient, which this package cannot
 // import: a 3xx is an answer, never a new destination for the token. It returns a copy of c that never follows a redirect, whatever c was configured with,
 // and, when c has no transport of its own, a standard one without a proxy from the environment. A
@@ -56,10 +71,10 @@ func (c *Client) do(ctx context.Context, op, method, path string, body, out any)
 			return 0, fmt.Errorf("transit: %s: %w", op, ctx.Err())
 		}
 		// The token source's error is not wrapped: it may carry what an authentication returned.
-		return 0, fmt.Errorf("transit: %s: token source failed", op)
+		return 0, fmt.Errorf("transit: %s: %w", op, ErrTokenSource)
 	}
 	if token == "" {
-		return 0, fmt.Errorf("transit: %s: token source returned no token", op)
+		return 0, fmt.Errorf("transit: %s: %w: no token", op, ErrTokenSource)
 	}
 	var rd io.Reader
 	if body != nil {
@@ -95,12 +110,10 @@ func (c *Client) do(ctx context.Context, op, method, path string, body, out any)
 		return resp.StatusCode, fmt.Errorf("transit: %s: status %d: answer too large", op, resp.StatusCode)
 	}
 	switch s := resp.StatusCode; {
-	case s == http.StatusNotFound:
-		return s, fmt.Errorf("transit: %s: %w", op, ErrNotFound)
 	case s == http.StatusBadRequest && casRefused(raw):
 		return s, fmt.Errorf("transit: %s: status %d: %w", op, s, errCAS)
 	case s < 200 || s > 299:
-		return s, fmt.Errorf("transit: %s: status %d", op, s)
+		return s, &StatusError{Op: op, Status: s}
 	}
 	if out != nil && len(raw) > 0 {
 		if err := json.Unmarshal(raw, out); err != nil {
@@ -130,7 +143,17 @@ type keyInfo struct {
 	Exportable           bool                       `json:"exportable"`
 	AllowPlaintextBackup bool                       `json:"allow_plaintext_backup"`
 	LatestVersion        int                        `json:"latest_version"`
+	MinEncryptionVersion int                        `json:"min_encryption_version"`
 	Keys                 map[string]json.RawMessage `json:"keys"`
+}
+
+// accept admits an existing key only if it is what this package would have created: ecdsa-p256,
+// not exportable, no plaintext backup, at least one version.
+func (info keyInfo) accept(op string) error {
+	if info.Type != keyType || info.Exportable || info.AllowPlaintextBackup || info.LatestVersion < 1 {
+		return fmt.Errorf("transit: %s: %w", op, ErrUnsupportedKey)
+	}
+	return nil
 }
 
 func (c *Client) readKey(ctx context.Context, op, name string) (keyInfo, error) {

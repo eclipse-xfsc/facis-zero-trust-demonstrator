@@ -263,3 +263,63 @@ func TestADatabaseAheadOfTheBuild(t *testing.T) {
 		t.Errorf("down beyond the embedded migrations: %v; want a refusal", err)
 	}
 }
+
+// Migration 5 meets a database the earlier store wrote: two active versions of one key (transit
+// was rotated and the store followed its latest version without retiring the previous row). Only
+// the highest version stays active; a malformed legacy reference and another key are left alone.
+func TestMigrationFiveKeepsOnlyTheHighestActiveVersion(t *testing.T) {
+	db := newTestDatabase(t)
+	c := db.conn()
+	ctx := context.Background()
+	r, err := NewRunner(c)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := r.Up(ctx, 4); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := c.Exec(ctx, `INSERT INTO signing_key (key_ref, jkt, alg, state) VALUES
+		('transit:k:v1', 'j1', 'ES256', 'active'), ('transit:k:v2', 'j2', 'ES256', 'active'), ('transit:k:v10', 'j10', 'ES256', 'active'),
+		('transit:other:v1', 'jo', 'ES256', 'active'), ('transit/legacy', 'jl', 'ES256', 'active')`); err != nil {
+		t.Fatal(err)
+	}
+	// Live tokens bound to the versions the migration retires go with them; one bound to the
+	// version that stays active stays live.
+	if _, err := c.Exec(ctx, `INSERT INTO verified_outcome (outcome_id, issuer, client_id, challenge, audience, status, claims, verified_at, expires_at) VALUES
+		('11111111-1111-4111-8111-111111111111', 'i', 'c', 'ch1', 'a', 'verified', '{}', now(), now() + interval '1 hour'),
+		('22222222-2222-4222-8222-222222222222', 'i', 'c', 'ch2', 'b', 'verified', '{}', now(), now() + interval '1 hour');
+		INSERT INTO upstream_token (token_id, peer_zone, audience, tenant, outcome_id, token_ref, key_ref, state, issued_at, expires_at, renew_after) VALUES
+		('aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa', 'zb', 'a', '', '11111111-1111-4111-8111-111111111111', 'kv/a', 'transit:k:v1', 'active', now(), now() + interval '1 hour', now()),
+		('bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb', 'zb', 'b', '', '22222222-2222-4222-8222-222222222222', 'kv/b', 'transit:k:v10', 'active', now(), now() + interval '1 hour', now())`); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := r.Up(ctx, 0); err != nil {
+		t.Fatalf("migration 5 on a database with two active versions: %v", err)
+	}
+	var tokenStates string
+	if err := c.QueryRow(ctx, `SELECT string_agg(key_ref || '=' || state, ',' ORDER BY key_ref) FROM upstream_token`).Scan(&tokenStates); err != nil || tokenStates != "transit:k:v1=retired,transit:k:v10=active" {
+		t.Fatalf("tokens after migration 5: %q %v", tokenStates, err)
+	}
+	rows, err := c.Query(ctx, `SELECT key_ref, state, retired_at IS NOT NULL FROM signing_key ORDER BY key_ref`)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer rows.Close()
+	got := map[string]string{}
+	for rows.Next() {
+		var ref, state string
+		var retiredAt bool
+		if err := rows.Scan(&ref, &state, &retiredAt); err != nil {
+			t.Fatal(err)
+		}
+		if (state == "retired") != retiredAt {
+			t.Errorf("%s: state %s with retired_at set %v", ref, state, retiredAt)
+		}
+		got[ref] = state
+	}
+	want := map[string]string{"transit:k:v1": "retired", "transit:k:v2": "retired", "transit:k:v10": "active",
+		"transit:other:v1": "active", "transit/legacy": "active"}
+	if !reflect.DeepEqual(got, want) {
+		t.Fatalf("after migration 5: %v, want %v", got, want)
+	}
+}

@@ -1,0 +1,210 @@
+{{- if not .Values.trustDomain }}{{ fail "trustDomain is required" }}{{ end }}
+{{- if not .Values.members }}{{ fail "members must name at least one account of the tenant" }}{{ end }}
+{{- if not (regexMatch "^sha256:[a-f0-9]{64}$" .Values.data.image.digest) }}{{ fail "data.image.digest must be a sha256 digest" }}{{ end }}
+{{- range .Values.guardNamespaces }}
+{{- if or (eq . $.Release.Namespace) (not (regexMatch "^[a-z0-9]([-a-z0-9]{0,61}[a-z0-9])?$" .)) }}{{ fail (printf "guardNamespaces: %s is not another tenant's namespace" .) }}{{ end }}
+{{- end }}
+{{- $ns := .Release.Namespace }}
+{{- $labels := dict "app.kubernetes.io/part-of" "facis-zero-trust-demonstrator" "ztd.facis.io/tenant" $ns }}
+# The tenant's identities: its Participant (the caller of its guard), its data service, and its
+# administrator, the one identity that may read or change the tenant's credentials and policy.
+{{- range $sa := list "ztd-participant" "tenant-data" "tenant-admin" }}
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: {{ $sa }}
+  namespace: {{ $ns }}
+  labels: {{ toJson $labels }}
+automountServiceAccountToken: false
+{{- end }}
+---
+# The tenant's credential material, generated at install and kept on upgrade; never rendered twice.
+apiVersion: v1
+kind: Secret
+metadata:
+  name: tenant-credentials
+  namespace: {{ $ns }}
+  labels: {{ toJson $labels }}
+type: Opaque
+data:
+  {{- $existing := lookup "v1" "Secret" $ns "tenant-credentials" }}
+  client-secret: {{ if $existing }}{{ index $existing.data "client-secret" }}{{ else }}{{ randAlphaNum 48 | b64enc }}{{ end }}
+---
+# Policy ownership: the tenant's guard and policy configuration (deployment/helm/guard in tenant
+# mode) and its credentials, readable and changeable by the tenant's administrator only. No other
+# tenant's identity is bound to anything here.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: tenant-owner
+  namespace: {{ $ns }}
+  labels: {{ toJson $labels }}
+rules:
+  - apiGroups: [""]
+    resources: [configmaps]
+    resourceNames: [ztd-policy-config, ztd-guard-config]
+    verbs: [get, update, patch]
+  - apiGroups: [""]
+    resources: [secrets]
+    resourceNames: [tenant-credentials]
+    verbs: [get, update, patch]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: tenant-owner
+  namespace: {{ $ns }}
+  labels: {{ toJson $labels }}
+roleRef: {apiGroup: rbac.authorization.k8s.io, kind: Role, name: tenant-owner}
+subjects:
+  - {kind: ServiceAccount, name: tenant-admin, namespace: {{ $ns }}}
+---
+# The data service answers this tenant's members only (values members), over mutual TLS (the mesh layer); the
+# network layer is the umbrella's baseline: default deny with the intra-namespace lane.
+apiVersion: security.istio.io/v1
+kind: PeerAuthentication
+metadata:
+  name: tenant-data-mtls
+  namespace: {{ $ns }}
+  labels: {{ toJson $labels }}
+spec:
+  selector:
+    matchLabels: {app.kubernetes.io/name: tenant-data}
+  mtls: {mode: STRICT}
+---
+apiVersion: security.istio.io/v1
+kind: AuthorizationPolicy
+metadata:
+  name: tenant-data-members
+  namespace: {{ $ns }}
+  labels: {{ toJson $labels }}
+spec:
+  selector:
+    matchLabels: {app.kubernetes.io/name: tenant-data}
+  action: ALLOW
+  rules:
+    - from:
+        - source:
+            principals: [{{ range $i, $m := .Values.members }}{{ if $i }}, {{ end }}{{ printf "%s/ns/%s/sa/%s" $.Values.trustDomain $ns $m | quote }}{{ end }}]
+      to:
+        - operation: {ports: ["8080"]}
+{{- if .Values.guardNamespaces }}
+---
+# The one opening towards another tenant: this tenant's Participant to the guards of
+# guardNamespaces, where that tenant's policy decides (and denies) the request.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: participant-to-tenant-guards
+  namespace: {{ $ns }}
+  labels: {{ toJson $labels }}
+spec:
+  podSelector:
+    matchLabels: {app.kubernetes.io/name: ztd-participant}
+  policyTypes: [Egress]
+  egress:
+    {{- range .Values.guardNamespaces }}
+    - to:
+        - namespaceSelector:
+            matchLabels: {kubernetes.io/metadata.name: {{ . }}}
+          podSelector:
+            matchLabels: {app.kubernetes.io/name: ztd-guard}
+      ports: [{protocol: TCP, port: 8080}]
+    {{- end }}
+{{- end }}
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: tenant-data
+  namespace: {{ $ns }}
+  labels: {{ toJson $labels }}
+data:
+  envoy.yaml: |
+    static_resources:
+      listeners:
+        - name: data
+          address:
+            socket_address: {address: 0.0.0.0, port_value: 8080}
+          filter_chains:
+            - filters:
+                - name: envoy.filters.network.http_connection_manager
+                  typed_config:
+                    "@type": type.googleapis.com/envoy.extensions.filters.network.http_connection_manager.v3.HttpConnectionManager
+                    stat_prefix: data
+                    route_config:
+                      virtual_hosts:
+                        - name: data
+                          domains: ["*"]
+                          routes:
+                            - match: {prefix: /}
+                              direct_response:
+                                status: 200
+                                body: {inline_string: {{ printf "{\"tenant\":%q}\n" $ns | quote }}}
+                              response_headers_to_add:
+                                - header: {key: content-type, value: application/json}
+                    http_filters:
+                      - name: envoy.filters.http.router
+                        typed_config:
+                          "@type": type.googleapis.com/envoy.extensions.filters.http.router.v3.Router
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: tenant-data
+  namespace: {{ $ns }}
+  labels: {{ toJson $labels }}
+spec:
+  replicas: 1
+  selector:
+    matchLabels: {app.kubernetes.io/name: tenant-data}
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: tenant-data
+        app.kubernetes.io/part-of: facis-zero-trust-demonstrator
+        ztd.facis.io/tenant: {{ $ns }}
+        spiffe.io/spire-managed-identity: "true"
+      {{- with .Values.podAnnotations }}
+      annotations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+    spec:
+      serviceAccountName: tenant-data
+      automountServiceAccountToken: false
+      enableServiceLinks: false
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 65532
+        runAsGroup: 65532
+        seccompProfile: {type: RuntimeDefault}
+      containers:
+        - name: envoy
+          image: "{{ .Values.data.image.repository }}@{{ .Values.data.image.digest }}"
+          args: ["-c", "/etc/tenant/envoy.yaml", "--log-level", "warning", "--concurrency", "1"]
+          ports: [{name: http, containerPort: 8080}]
+          readinessProbe:
+            tcpSocket: {port: http}
+          volumeMounts: [{name: config, mountPath: /etc/tenant, readOnly: true}, {name: tmp, mountPath: /tmp}]
+          resources:
+            {{- toYaml .Values.data.resources | nindent 12 }}
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities: {drop: [ALL]}
+      volumes:
+        - name: config
+          configMap: {name: tenant-data}
+        - name: tmp
+          emptyDir: {sizeLimit: 16Mi}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: tenant-data
+  namespace: {{ $ns }}
+  labels: {{ toJson $labels }}
+spec:
+  selector: {app.kubernetes.io/name: tenant-data}
+  ports: [{name: http, port: 8080, targetPort: 8080}]

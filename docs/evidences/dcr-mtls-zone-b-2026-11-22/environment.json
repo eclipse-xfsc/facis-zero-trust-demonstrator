@@ -1,0 +1,14 @@
+{
+  "read_at": "2026-11-22T02:31:00Z/2026-11-22T02:40:00Z",
+  "context": "zerotrust-b",
+  "kube_system_uid": "a39ae8ea-ac02-4aec-9c13-cda127b17e2d",
+  "namespace": "ztd-m3-b",
+  "mode": "read only: kubectl get, kubectl logs, kubectl exec of pilot-agent admin reads and psql SELECTs; nothing created, changed or deleted",
+  "repository_commit": "b24fbd12",
+  "connector_pod": "ztd-connector-fd564b8df-9m42j",
+  "connector_image": "ghcr.io/fune5tiatlas/facis-zero-trust-demonstrator/connector@sha256:45b0a68f977486292bff1c6b2f01fd41fd831065a190264a7f9222fe91b63a48",
+  "proxy_image": "ghcr.io/fune5tiatlas/facis-zero-trust-demonstrator/proxy-runtime@sha256:3b8fe2fb3c11b1d5a24f8f9a56d409e6828fc21e84c47e5d245c226c92faaf98",
+  "istiod_image": "docker.io/istio/pilot:1.31.1@sha256:212ca088ada22f48be1576e6b688972b8aa7495710abb7c5f1febca856a15577",
+  "spire_server_image": "ghcr.io/spiffe/spire-server:1.15.3@sha256:4082f30d3e0ddc4000a171392c4ea174345ee44d161ee917c70b97b2ecfba141",
+  "trust_domain": "zone-b.trust.invalid"
+}

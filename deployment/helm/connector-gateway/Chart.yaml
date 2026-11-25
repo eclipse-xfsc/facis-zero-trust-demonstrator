@@ -1,0 +1,8 @@
+apiVersion: v2
+name: connector-gateway
+description: The Zero Trust Connector's zone gateway - the Envoy that forwards application traffic across the zone boundary.
+type: application
+version: 0.1.0
+appVersion: "0.1.0"
+sources:
+  - https://github.com/eclipse-xfsc/facis-zero-trust-demonstrator

@@ -1,0 +1,7 @@
+context: zerotrust-b
+namespace: ztd-m3-b
+uid: ef71dd81-5629-4f9e-9b10-6adeb3e8298a
+resource pod: ztd-protected-resource-546b564b6b-rjp7m
+probe run: 04fa9ff5
+started: 2026-11-22T00:51:02Z
+finished: 2026-11-22T00:55:16Z

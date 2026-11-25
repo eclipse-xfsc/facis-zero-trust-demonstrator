@@ -1,0 +1,100 @@
+{{- include "verification-service.validate" . -}}
+# The service. Readiness is 200 only while PostgreSQL answers and at least one credential issuer is
+# both keyed and listed by the trust source.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "verification-service.name" . }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "verification-service.labels" . | nindent 4 }}
+spec:
+  replicas: {{ .Values.replicas }}
+  selector:
+    matchLabels:
+      {{- include "verification-service.selector" . | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "verification-service.labels" . | nindent 8 }}
+        spiffe.io/spire-managed-identity: "true"
+      {{- with .Values.podAnnotations }}
+      annotations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+    spec:
+      serviceAccountName: {{ .Values.serviceAccount.name | quote }}
+      automountServiceAccountToken: false
+      enableServiceLinks: false
+      {{- with .Values.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      terminationGracePeriodSeconds: 15
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 65532
+        runAsGroup: 65532
+        fsGroup: 65532
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: server
+          image: "{{ .Values.image.repository }}@{{ .Values.image.digest }}"
+          args: [serve]
+          env:
+            - name: VERIFICATION_SERVICE_DATABASE_URL
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.database.existingSecret | quote }}
+                  key: {{ .Values.database.secretKey | quote }}
+            - {name: VERIFICATION_SERVICE_PUBLIC_URL, value: {{ printf "http://%s.%s.svc:8080" (include "verification-service.name" .) .Release.Namespace | quote }}}
+            - {name: VERIFICATION_SERVICE_OPENBAO_URL, value: {{ .Values.openbao.address | quote }}}
+            - {name: VERIFICATION_SERVICE_OPENBAO_TOKEN_FILE, value: {{ printf "/var/run/verification-service/credentials/%s" .Values.openbao.tokenKey | quote }}}
+            - {name: VERIFICATION_SERVICE_SIGNING_KEY, value: {{ .Values.openbao.signingKey | quote }}}
+            - {name: VERIFICATION_SERVICE_ISSUER, value: {{ .Values.issuer | quote }}}
+            - {name: VERIFICATION_SERVICE_CALLERS, value: {{ join "," .Values.callers | quote }}}
+            - {name: VERIFICATION_SERVICE_ISSUER_KEYS_FILE, value: {{ printf "/etc/verification-service/%s" .Values.trust.issuerKeysKey | quote }}}
+            {{- if .Values.trust.tcr.url }}
+            - {name: VERIFICATION_SERVICE_TCR_URL, value: {{ .Values.trust.tcr.url | quote }}}
+            - {name: VERIFICATION_SERVICE_TRUST_SCHEME_POINTERS, value: {{ join "," .Values.trust.tcr.trustSchemePointers | quote }}}
+            {{- else }}
+            - {name: VERIFICATION_SERVICE_TRUST_LIST_FILE, value: {{ printf "/etc/verification-service/%s" .Values.trust.fixtureTrustListKey | quote }}}
+            {{- end }}
+            - {name: VERIFICATION_SERVICE_TRUST_REFRESH, value: {{ .Values.trust.refresh | quote }}}
+            - {name: VERIFICATION_SERVICE_ACCEPTED_VCT, value: {{ join "," .Values.acceptedVCT | quote }}}
+            - {name: VERIFICATION_SERVICE_STATUS_PREFIXES, value: {{ join "," .Values.statusPrefixes | quote }}}
+          volumeMounts:
+            - {name: trust, mountPath: /etc/verification-service, readOnly: true}
+            - {name: credentials, mountPath: /var/run/verification-service/credentials, readOnly: true}
+          ports:
+            - name: http
+              containerPort: 8080
+            - name: ops
+              containerPort: 9090
+          readinessProbe:
+            httpGet:
+              path: /readyz
+              port: ops
+            periodSeconds: 5
+            timeoutSeconds: 3
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: ops
+            periodSeconds: 10
+          resources:
+            {{- toYaml .Values.resources | nindent 12 }}
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: [ALL]
+      volumes:
+        - name: trust
+          configMap:
+            name: {{ .Values.trust.existingConfigMap | quote }}
+        - name: credentials
+          secret:
+            secretName: {{ .Values.openbao.existingSecret | quote }}
+            defaultMode: 0440

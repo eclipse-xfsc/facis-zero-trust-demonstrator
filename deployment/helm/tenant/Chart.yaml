@@ -1,0 +1,6 @@
+apiVersion: v2
+name: tenant
+description: One tenant's namespace content - identities, credentials, policy ownership and mesh isolation (ZT-53).
+type: application
+version: 0.1.0
+appVersion: 0.1.0

@@ -1,0 +1,5 @@
+# The connector logging in to OpenBao with Kubernetes auth (openbao.auth), layered on values.yaml.
+openbao:
+  auth:
+    method: kubernetes
+    role: ztd-connector

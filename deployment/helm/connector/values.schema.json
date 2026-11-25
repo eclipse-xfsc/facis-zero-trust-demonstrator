@@ -44,6 +44,49 @@
       ],
       "additionalProperties": false
     },
+    "schema": {
+      "type": "object",
+      "properties": {
+        "enabled": {
+          "type": "boolean"
+        },
+        "image": {
+          "type": "object",
+          "properties": {
+            "repository": {
+              "type": "string",
+              "minLength": 1
+            },
+            "digest": {
+              "type": "string",
+              "pattern": "^(sha256:[a-f0-9]{64})?$"
+            }
+          },
+          "required": [
+            "repository",
+            "digest"
+          ],
+          "additionalProperties": false
+        },
+        "serviceAccountName": {
+          "type": "string",
+          "minLength": 1
+        },
+        "egress": {
+          "type": "array",
+          "items": {
+            "type": "object"
+          }
+        }
+      },
+      "required": [
+        "enabled",
+        "image",
+        "serviceAccountName",
+        "egress"
+      ],
+      "additionalProperties": false
+    },
     "credentials": {
       "type": "object",
       "properties": {
@@ -89,6 +132,18 @@
     "openbao": {
       "type": "object",
       "properties": {
+        "auth": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["method", "role", "mount", "audience", "expirationSeconds"],
+          "properties": {
+            "method": { "type": "string", "enum": ["token", "kubernetes"] },
+            "role": { "type": "string", "pattern": "^([A-Za-z0-9._-]+)?$" },
+            "mount": { "type": "string", "pattern": "^[A-Za-z0-9._-]+(/[A-Za-z0-9._-]+)*$" },
+            "audience": { "type": "string", "pattern": "^[A-Za-z0-9._:/-]+$" },
+            "expirationSeconds": { "type": "integer", "minimum": 600 }
+          }
+        },
         "address": {
           "type": "string",
           "minLength": 1
@@ -105,7 +160,8 @@
       "required": [
         "address",
         "signingKey",
-        "signingKeyVersion"
+        "signingKeyVersion",
+        "auth"
       ],
       "additionalProperties": false
     },
@@ -248,6 +304,40 @@
       ],
       "additionalProperties": false
     },
+    "trustDomain": {
+      "type": "string"
+    },
+    "callers": {
+      "type": "object",
+      "properties": {
+        "oauth": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "namespace": {"type": "string", "pattern": "^[a-z0-9]([-a-z0-9]*[a-z0-9])?$"},
+              "name": {"type": "string", "pattern": "^[a-z0-9]([-a-z0-9.]*[a-z0-9])?$"}
+            },
+            "required": ["namespace", "name"],
+            "additionalProperties": false
+          }
+        },
+        "keySet": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "namespace": {"type": "string", "pattern": "^[a-z0-9]([-a-z0-9]*[a-z0-9])?$"},
+              "name": {"type": "string", "pattern": "^[a-z0-9]([-a-z0-9.]*[a-z0-9])?$"}
+            },
+            "required": ["namespace", "name"],
+            "additionalProperties": false
+          }
+        }
+      },
+      "required": ["oauth", "keySet"],
+      "additionalProperties": false
+    },
     "podAnnotations": {
       "type": "object",
       "additionalProperties": {
@@ -322,6 +412,7 @@
     "zone",
     "image",
     "database",
+    "schema",
     "credentials",
     "openbao",
     "oauth",
@@ -330,6 +421,8 @@
     "replicas",
     "serviceAccount",
     "identity",
+    "trustDomain",
+    "callers",
     "podAnnotations",
     "nodeSelector",
     "server",

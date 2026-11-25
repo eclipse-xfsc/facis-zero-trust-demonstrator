@@ -1,7 +1,8 @@
 'use strict';
 const OidcSearchParams = nodeUrl.URLSearchParams; const OidcURL = nodeUrl.URL;
-const ISSUER = 'https://keycloak.85.215.131.155.sslip.io/realms/facis-ztd';
-const ORIGIN = 'https://orce.85-215-131-155.sslip.io';
+const setting = name => typeof env !== 'undefined' ? env.get(name) : '';
+const ISSUER = setting('FACIS_OIDC_ISSUER') || 'https://keycloak.85.215.131.155.sslip.io/realms/facis-ztd';
+const ORIGIN = setting('FACIS_UI_ORIGIN') || 'https://orce.85-215-131-155.sslip.io';
 const ROLE_OPERATOR = 'ztd-operator', ROLE_OBSERVER = 'ztd-observer';
 const SESSION_COOKIE = '__Secure-facis-ui', TX_COOKIE = '__Secure-facis-oidc';
 const err = code => Object.assign(new Error(code), { code });
@@ -32,6 +33,8 @@ function validateConfigChange(d) {
 class UIAuth {
   constructor(options = {}) {
     this.issuer = options.issuer || ISSUER; this.origin = options.origin || ORIGIN; this.clientId = 'ztd-ui'; this.loginMode = options.loginMode === 'password' ? 'password' : 'pkce'; this.passwordPending = 0; this.loginAttempts = new Map(); this.fetch = options.fetch || null; this.now = options.now || Date.now;
+    for (const value of [this.issuer, this.origin]) { const url = new OidcURL(value); if (url.protocol !== 'https:' || url.username || url.password || url.search || url.hash || value.endsWith('/')) throw err('INVALID_IDENTITY_CONFIG'); }
+    if (new OidcURL(this.origin).origin !== this.origin || !this.issuer.endsWith('/realms/facis-ztd')) throw err('INVALID_IDENTITY_CONFIG');
     this.callback = this.origin + '/dev/ztd/oidc/callback'; this.ui = this.origin + '/dev/facis-demo/'; this.postLogout = this.origin + '/dev/facis-demo/';
     this.protocol = this.issuer + '/protocol/openid-connect'; this.sessions = new Map(); this.ended = new Map(); this.transactions = new Map(); this.replays = new Map(); this.keys = null; this.keyAt = 0; this.keyFetch = null; this.refreshes = new Map(); this.limit = 500; this.generation = 0;
   }
@@ -109,17 +112,25 @@ class UIAuth {
   }
   async status(req, res) { try { const s = await this.session(req); safeHeaders(res); res.json({ mode: 'oidc', state: s.role ? 'authenticated' : 'denied', username: s.claims.preferred_username, role: s.role, canOperate: s.role === ROLE_OPERATOR, csrf: s.csrf }); } catch (e) { reply(res, e.code === 'IDENTITY_PROVIDER_UNAVAILABLE' ? 503 : 401, e.code || 'IDENTITY_UNAVAILABLE', e.code === 'EXPIRED' ? 'expired' : 'logged out'); } }
   csrf(req, s) { return req.headers.origin === this.origin && same(req.headers['x-facis-csrf'], s.csrf); }
+  decision(state, reasonCode, action) {
+    // Generate the id here: caller-controlled headers and token material never enter the log.
+    const correlationId = crypto.randomUUID();
+    node.warn(JSON.stringify({ event: 'ui.authorization', correlation_id: correlationId, state, reason_code: reasonCode, action }));
+    return correlationId;
+  }
   async command(req, res, emit) {
-    let s; try { s = await this.session(req); } catch (e) { return reply(res, 401, e.code || 'IDENTITY_UNAVAILABLE', e.code === 'EXPIRED' ? 'expired' : 'logged out'); }
-    const p = req.body; if (!p || typeof p !== 'object' || Array.isArray(p) || !['status', 'start', 'next', 'reset', 'config-preview'].includes(p.type)) return reply(res, 400, 'INVALID_COMMAND');
-    if (!this.csrf(req, s)) return reply(res, 403, 'CSRF_DENIED', 'denied');
-    if (!s.role || (p.type !== 'status' && s.role !== ROLE_OPERATOR)) return reply(res, 403, p.type === 'config-preview' ? 'CFG-NOT-AUTHORISED' : 'UI-NOT-AUTHORISED', 'denied');
+    const action = ['status', 'start', 'next', 'reset', 'config-preview'].includes(req.body?.type) ? req.body.type : 'invalid';
+    const refuse = (status, code, state) => { const id = this.decision('denied', code, action); res.set('X-Request-ID', id); return reply(res, status, code, state); };
+    let s; try { s = await this.session(req); } catch (e) { return refuse(401, e.code || 'IDENTITY_UNAVAILABLE', e.code === 'EXPIRED' ? 'expired' : 'logged out'); }
+    const p = req.body; if (!p || typeof p !== 'object' || Array.isArray(p) || !['status', 'start', 'next', 'reset', 'config-preview'].includes(p.type)) return refuse(400, 'INVALID_COMMAND');
+    if (!this.csrf(req, s)) return refuse(403, 'CSRF_DENIED', 'denied');
+    if (!s.role || (p.type !== 'status' && s.role !== ROLE_OPERATOR)) return refuse(403, p.type === 'config-preview' ? 'CFG-NOT-AUTHORISED' : 'UI-NOT-AUTHORISED', 'denied');
     if (p.type === 'config-preview') {
-      let preview; try { preview = validateConfigChange(p.data); } catch (e) { return reply(res, 400, e.code || 'CFG-SCHEMA-INVALID'); }
-      safeHeaders(res); return res.json({ ok: true, data: { preview, requested_by: s.claims.preferred_username, applied: false } });
+      let preview; try { preview = validateConfigChange(p.data); } catch (e) { return refuse(400, e.code || 'CFG-SCHEMA-INVALID'); }
+      res.set('X-Request-ID', this.decision('allowed', 'UI-AUTHORISED', action)); safeHeaders(res); return res.json({ ok: true, data: { preview, requested_by: s.claims.preferred_username, applied: false } });
     }
-    const data = {}; for (const k of ['commandId', 'runId', 'scenario', 'serviceScenario', 'profile', 'variant', 'credentialToRevoke']) if (p.data?.[k] !== undefined) { if (typeof p.data[k] !== 'string' || p.data[k].length > 120) return reply(res, 400, 'INVALID_COMMAND'); data[k] = p.data[k]; }
-    safeHeaders(res); req.facis = { userId: 'oidc-shared-review', subject: s.claims.sub, username: s.claims.preferred_username, role: s.role, scope: 'oidc-review' }; emit({ type: p.type, data, req, res, _facisAuthResponse: true });
+    const data = {}; for (const k of ['commandId', 'runId', 'scenario', 'serviceScenario', 'profile', 'variant', 'credentialToRevoke']) if (p.data?.[k] !== undefined) { if (typeof p.data[k] !== 'string' || p.data[k].length > 120) return refuse(400, 'INVALID_COMMAND'); data[k] = p.data[k]; }
+    res.set('X-Request-ID', this.decision('allowed', 'UI-AUTHORISED', action)); safeHeaders(res); req.facis = { userId: 'oidc-shared-review', subject: s.claims.sub, username: s.claims.preferred_username, role: s.role, scope: 'oidc-review' }; emit({ type: p.type, data, req, res, _facisAuthResponse: true });
   }
   async logout(req, res) {
     let s; try { s = await this.session(req); } catch { cookie(res, SESSION_COOKIE, '', 0); return reply(res, 401, 'LOGGED_OUT', 'logged out'); } if (req.headers.origin !== this.origin || !same(req.headers['x-facis-csrf'] || req.body?.csrf, s.csrf)) return reply(res, 403, 'CSRF_DENIED'); this.sessions.delete(cookies(req)[SESSION_COOKIE]); cookie(res, SESSION_COOKIE, '', 0); safeHeaders(res);

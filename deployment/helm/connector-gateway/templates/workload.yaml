@@ -1,0 +1,128 @@
+{{- $v := .Values }}
+{{- $port := ternary $v.egress.port $v.ingress.port $v.egress.enabled }}
+{{- $portName := ternary "http" "https" $v.egress.enabled }}
+{{- $a := $v.ingress.peerAllowList }}
+{{- $allowList := and $v.ingress.enabled $a.enabled }}
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: {{ $v.name }}
+  namespace: {{ .Release.Namespace }}
+automountServiceAccountToken: false
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ $v.name }}
+  namespace: {{ .Release.Namespace }}
+spec:
+  replicas: 1
+  selector:
+    matchLabels: {app.kubernetes.io/name: {{ $v.name }}}
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: {{ $v.name }}
+        app.kubernetes.io/component: connector-gateway
+        app.kubernetes.io/part-of: facis-zero-trust-demonstrator
+        spiffe.io/spire-managed-identity: "true"
+      annotations:
+        # Envoy reads its configuration at start: a route change rolls the pod.
+        ztd.facis.io/config-sha256: {{ include (print $.Template.BasePath "/config.yaml") . | sha256sum }}
+        sidecar.istio.io/nativeSidecar: "true"
+        {{- with $v.podAnnotations }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+    spec:
+      serviceAccountName: {{ $v.name }}
+      automountServiceAccountToken: false
+      enableServiceLinks: false
+      {{- with $v.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 65532
+        runAsGroup: 65532
+        fsGroup: 65532
+        seccompProfile: {type: RuntimeDefault}
+      containers:
+        - name: envoy
+          image: "{{ $v.image.repository }}@{{ $v.image.digest }}"
+          args: ["-c", "/etc/gateway/envoy.yaml", "--log-level", "warning", "--concurrency", "2"]
+          ports: [{name: {{ $portName }}, containerPort: {{ $port }}}]
+          readinessProbe:
+            tcpSocket: {port: {{ $portName }}}
+          # A replaced pod keeps serving while the network drops its endpoint, so a rollout loses no call.
+          lifecycle:
+            preStop: {sleep: {seconds: 5}}
+          volumeMounts:
+            - {name: config, mountPath: /etc/gateway, readOnly: true}
+            - {name: tmp, mountPath: /tmp}
+            {{- if $v.ingress.enabled }}
+            - {name: tls, mountPath: /etc/tls, readOnly: true}
+            {{- else if $v.egress.peer.clientTlsSecret }}
+            - {name: client-tls, mountPath: /etc/client-tls, readOnly: true}
+            {{- end }}
+          resources:
+            {{- toYaml $v.resources | nindent 12 }}
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities: {drop: [ALL]}
+        {{- if $allowList }}
+        # The TRAIN allow list (ZT-18): answers the entry's ext_authz check on the loopback.
+        - name: admit-peers
+          image: "{{ $a.image.repository }}@{{ $a.image.digest }}"
+          args:
+            - admit-peers
+            - --zone={{ $a.zone }}
+            - --tspa-url={{ $a.tspaUrl }}
+            - --trust-framework={{ $a.framework }}
+            - --trust-list-issuer={{ $a.issuerDid }}
+            - --refresh={{ $a.refresh }}
+            {{- if $a.caCert }}
+            - --trust-ca-file=/etc/gateway/trust-ca.crt
+            {{- end }}
+          volumeMounts:
+            - {name: config, mountPath: /etc/gateway, readOnly: true}
+          resources:
+            {{- toYaml $v.resources | nindent 12 }}
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities: {drop: [ALL]}
+        {{- end }}
+      volumes:
+        - name: config
+          configMap: {name: {{ $v.name }}}
+        - name: tmp
+          emptyDir: {}
+        {{- if $v.ingress.enabled }}
+        - name: tls
+          secret: {secretName: {{ $v.ingress.tlsSecret }}, defaultMode: 0440}
+        {{- else if $v.egress.peer.clientTlsSecret }}
+        - name: client-tls
+          secret: {secretName: {{ $v.egress.peer.clientTlsSecret }}, defaultMode: 0440}
+        {{- end }}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ $v.name }}
+  namespace: {{ .Release.Namespace }}
+  {{- if $v.ingress.enabled }}
+  # The zone's entry address belongs to this Service: an uninstall leaves it in place.
+  annotations: {helm.sh/resource-policy: keep}
+  {{- end }}
+spec:
+  {{- if $v.ingress.enabled }}
+  type: {{ $v.ingress.service.type }}
+  {{- end }}
+  selector: {app.kubernetes.io/name: {{ $v.name }}}
+  ports:
+    - name: {{ $portName }}
+      port: {{ ternary $v.egress.port $v.ingress.service.port $v.egress.enabled }}
+      targetPort: {{ $port }}
+      protocol: TCP

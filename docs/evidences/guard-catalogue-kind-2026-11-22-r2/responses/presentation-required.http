@@ -1,0 +1,10 @@
+HTTP/1.1 401 Unauthorized
+content-type: application/json
+x-facis-reason-code: POL-PRESENTATION-REQUIRED
+x-request-id: 213655263e3031b6489e3a842dc3a7c7
+content-length: 249
+date: Sun, 22 Nov 2026 01:44:54 GMT
+server: envoy
+x-envoy-upstream-service-time: 18
+
+{"error":"presentation_required","reason_code":"POL-PRESENTATION-REQUIRED","rule_id":"m3-presentation-required","oid4vp_link":"openid4vp://authorize?client_id=verifier.verify.invalid\u0026request_uri=https%3A%2F%2Fverifier.verify.invalid%2Frequest"}

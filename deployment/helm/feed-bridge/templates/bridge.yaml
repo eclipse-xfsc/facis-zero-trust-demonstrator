@@ -1,0 +1,137 @@
+{{- if not (regexMatch "^sha256:[a-f0-9]{64}$" .Values.image.digest) }}{{ fail "image.digest must be a sha256 digest" }}{{ end }}
+{{- if or (not .Values.trustDomain) (not .Values.ui.namespace) (not .Values.ui.serviceAccount) }}{{ fail "trustDomain and the UI's namespace and service account are required: the feed admits that identity only" }}{{ end }}
+{{- if hasKey .Values.podAnnotations "proxy.istio.io/config" }}{{ fail "podAnnotations: proxy.istio.io/config is refused at admission in a plane namespace" }}{{ end }}
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: ztd-feed-bridge
+  namespace: {{ .Release.Namespace }}
+automountServiceAccountToken: false
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: ztd-feed-bridge
+  namespace: {{ .Release.Namespace }}
+spec:
+  replicas: 1
+  selector:
+    matchLabels: {app.kubernetes.io/name: ztd-feed-bridge}
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: ztd-feed-bridge
+        app.kubernetes.io/part-of: facis-zero-trust-demonstrator
+        spiffe.io/spire-managed-identity: "true"
+      {{- with .Values.podAnnotations }}
+      annotations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+    spec:
+      serviceAccountName: ztd-feed-bridge
+      automountServiceAccountToken: false
+      enableServiceLinks: false
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 65532
+        runAsGroup: 65532
+        seccompProfile: {type: RuntimeDefault}
+      containers:
+        - name: feed-bridge
+          image: "{{ .Values.image.repository }}@{{ .Values.image.digest }}"
+          args: ["--budget-bytes={{ int .Values.budgetBytes }}"]
+          ports: [{name: http, containerPort: 8090}]
+          readinessProbe: {httpGet: {path: /healthz, port: http}}
+          livenessProbe: {httpGet: {path: /healthz, port: http}}
+          resources:
+            {{- toYaml .Values.resources | nindent 12 }}
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities: {drop: [ALL]}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: ztd-feed-bridge
+  namespace: {{ .Release.Namespace }}
+spec:
+  selector: {app.kubernetes.io/name: ztd-feed-bridge}
+  ports: [{name: http, port: 8090, targetPort: 8090}]
+---
+apiVersion: security.istio.io/v1
+kind: PeerAuthentication
+metadata:
+  name: ztd-feed-bridge-strict
+  namespace: {{ .Release.Namespace }}
+spec:
+  selector:
+    matchLabels: {app.kubernetes.io/name: ztd-feed-bridge}
+  mtls: {mode: STRICT}
+---
+# The feed for the UI's identity only, the ingest for the producers only; nothing else is allowed.
+apiVersion: security.istio.io/v1
+kind: AuthorizationPolicy
+metadata:
+  name: ztd-feed-bridge-callers
+  namespace: {{ .Release.Namespace }}
+spec:
+  selector:
+    matchLabels: {app.kubernetes.io/name: ztd-feed-bridge}
+  action: ALLOW
+  rules:
+    - from:
+        - source:
+            principals: [{{ printf "%s/ns/%s/sa/%s" .Values.trustDomain .Values.ui.namespace .Values.ui.serviceAccount | quote }}]
+      to:
+        - operation:
+            ports: ["8090"]
+            methods: ["GET"]
+            paths: ["/snapshot", "/events", "/v2/snapshot", "/v2/events"]
+    {{- if .Values.producers }}
+    - from:
+        - source:
+            principals:
+              {{- range .Values.producers }}
+              - {{ printf "%s/ns/%s/sa/%s" $.Values.trustDomain .namespace .serviceAccount | quote }}
+              {{- end }}
+      to:
+        - operation:
+            ports: ["8090"]
+            methods: ["POST"]
+            paths: ["/ingest"]
+    {{- end }}
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: ztd-feed-bridge
+  namespace: {{ .Release.Namespace }}
+spec:
+  podSelector:
+    matchLabels: {app.kubernetes.io/name: ztd-feed-bridge}
+  policyTypes: [Ingress, Egress]
+  ingress:
+    - from:
+        - namespaceSelector:
+            matchLabels: {kubernetes.io/metadata.name: {{ .Values.ui.namespace }}}
+        {{- range .Values.producers }}
+        - namespaceSelector:
+            matchLabels: {kubernetes.io/metadata.name: {{ .namespace }}}
+        {{- end }}
+      ports: [{protocol: TCP, port: 8090}]
+  egress:
+    - to:
+        - namespaceSelector:
+            matchLabels: {kubernetes.io/metadata.name: kube-system}
+          podSelector:
+            matchLabels: {k8s-app: kube-dns}
+      ports: [{protocol: UDP, port: 53}, {protocol: TCP, port: 53}, {protocol: UDP, port: 8053}, {protocol: TCP, port: 8053}]
+    {{- if .Values.networkPolicy.istiod.enabled }}
+    - to:
+        - namespaceSelector:
+            matchLabels: {kubernetes.io/metadata.name: {{ .Values.networkPolicy.istiod.namespace }}}
+          podSelector:
+            matchLabels: {app: istiod}
+      ports: [{protocol: TCP, port: 15012}]
+    {{- end }}

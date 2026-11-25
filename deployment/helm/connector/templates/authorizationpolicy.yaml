@@ -1,0 +1,33 @@
+{{- if or .Values.callers.oauth .Values.callers.keySet }}
+{{- if not .Values.trustDomain }}{{ fail "trustDomain is required with callers" }}{{ end }}
+apiVersion: security.istio.io/v1
+kind: AuthorizationPolicy
+metadata:
+  name: ztd-connector-callers
+  namespace: {{ .Release.Namespace }}
+spec:
+  selector:
+    matchLabels:
+      {{- include "connector.selector" . | nindent 6 }}
+  action: ALLOW
+  rules:
+    {{- with .Values.callers.oauth }}
+    - from:
+        - source:
+            principals: [{{ range $i, $c := . }}{{ if $i }}, {{ end }}{{ printf "%s/ns/%s/sa/%s" $.Values.trustDomain $c.namespace $c.name | quote }}{{ end }}]
+      to:
+        - operation:
+            ports: ["8080"]
+            paths: ["/oauth2/*", "/.well-known/jwks.json"]
+    {{- end }}
+    {{- with .Values.callers.keySet }}
+    - from:
+        - source:
+            principals: [{{ range $i, $c := . }}{{ if $i }}, {{ end }}{{ printf "%s/ns/%s/sa/%s" $.Values.trustDomain $c.namespace $c.name | quote }}{{ end }}]
+      to:
+        - operation:
+            ports: ["8080"]
+            methods: ["GET"]
+            paths: ["/.well-known/jwks.json"]
+    {{- end }}
+{{- end }}

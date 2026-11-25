@@ -1,0 +1,90 @@
+zone:
+  name: kind
+  kubernetesVersion: v1.35.8
+  storageClass: standard
+  loadBalancer:
+    type: none
+  trustDomain: kind.facis-ztd.local
+mesh:
+  mode: sidecar
+cni:
+  cilium:
+    enabled: true
+    version: 1.20.2
+planes:
+  extra:
+  - name: spire-system
+    plane: management
+    mesh: false
+  - name: istio-system
+    plane: management
+    mesh: false
+  - name: ztd-otel-node
+    plane: management
+    mesh: false
+  - name: tenant-a
+    plane: data
+    tenant: true
+  - name: tenant-b
+    plane: data
+    tenant: true
+networkPolicy:
+  kubeApi:
+    enabled: true
+    cidrs:
+    - 172.18.0.0/16
+    ports:
+    - 6443
+  meshControlPlane:
+    enabled: true
+  controlPlaneWebhooks:
+    enabled: true
+  identityServer:
+    enabled: true
+  observabilityScrape:
+    enabled: true
+telemetryExport:
+  entry:
+    port: 4317
+    transport: in-cluster
+    inCluster:
+      namespace: ztd-observability
+      podSelector:
+        app.kubernetes.io/name: otel-entry
+      host: otel-entry.ztd-observability.svc.cluster.local
+  revocationStatusListUrl: http://status-list.ztd-mgmt.svc.cluster.local:8080/status/1
+tenants:
+  install: true
+  names:
+  - tenant-a
+  - tenant-b
+  values:
+    data:
+      image: &id001
+        repository: docker.io/envoyproxy/envoy
+        digest: sha256:3a76238cdf52c7a3e33951f44c02d694108e6481feffe6663bf9319f55ec1394
+    podAnnotations: &id002
+      sidecar.istio.io/nativeSidecar: 'true'
+  guard:
+    install: true
+    values:
+      zone: a
+      images:
+        guard:
+          repository: kind-registry-tenants:5000/guard
+          digest: sha256:5652e8911ae09c2cc27ee421f03133adcff647adcc7f3b613b3e431216d49aca
+        policy:
+          repository: kind-registry-tenants:5000/policy-evaluator
+          digest: sha256:287bd4a3bc5d06ebe24941c3aaaf5c291a711310da40e71973de837830b9428a
+        envoy: *id001
+      config:
+        issuer: https://issuer.tenants.invalid
+        jwks_url: http://ztd-connector:8080/.well-known/jwks.json
+        inbound_audience: https://guard.facis.invalid
+        upstream_audience: https://resource.facis.invalid
+        peer_zone: zone-b
+      policyRevision: tenants-kind-1
+      networkPolicy:
+        istiod:
+          enabled: true
+      podAnnotations: *id002

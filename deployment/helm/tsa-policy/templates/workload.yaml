@@ -1,0 +1,145 @@
+{{- include "tsa.validate" . -}}
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: tsa-policy-engine
+  namespace: {{ .Release.Namespace }}
+automountServiceAccountToken: false
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: tsa-policy-engine
+  namespace: {{ .Release.Namespace }}
+spec:
+  # The TSA's in-memory storage is per instance; one replica keeps one active revision.
+  replicas: 1
+  selector:
+    matchLabels: {app.kubernetes.io/name: tsa-policy-engine}
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: tsa-policy-engine
+        app.kubernetes.io/part-of: facis-zero-trust-demonstrator
+        spiffe.io/spire-managed-identity: "true"
+      annotations:
+        checksum/config: {{ include (print $.Template.BasePath "/config.yaml") . | sha256sum }}
+        {{- with .Values.podAnnotations }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+    spec:
+      serviceAccountName: tsa-policy-engine
+      automountServiceAccountToken: false
+      enableServiceLinks: false
+      {{- with .Values.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 65532
+        runAsGroup: 65532
+        fsGroup: 65532
+        seccompProfile: {type: RuntimeDefault}
+      # Native sidecars, started in order before the TSA: its change-event client connects to NATS and
+      # its storage clones a Git repository at start-up. Both listen on loopback only.
+      initContainers:
+        - name: nats
+          image: "{{ .Values.images.nats.repository }}@{{ .Values.images.nats.digest }}"
+          restartPolicy: Always
+          args: ["-a", "127.0.0.1", "-p", "4222"]
+          resources:
+            {{- toYaml .Values.resources | nindent 12 }}
+          securityContext:
+            {{- include "tsa.securityContext" . | nindent 12 }}
+        - name: git
+          image: "{{ .Values.images.git.repository }}@{{ .Values.images.git.digest }}"
+          restartPolicy: Always
+          # An empty bootstrap repository: the TSA starts with no policy, so every evaluation fails
+          # closed until the sidecar imports a verified bundle.
+          command:
+            - sh
+            - -ec
+            - |
+              mkdir -p /srv/git/bootstrap && cd /srv/git/bootstrap
+              [ -d .git ] || { git init -q -b main && echo 'No policy is active until a verified bundle is imported.' > README &&
+                git add README && git -c user.name=bootstrap -c user.email=bootstrap@invalid commit -qm bootstrap; }
+              exec git daemon --export-all --base-path=/srv/git --listen=127.0.0.1 --port=9418 --reuseaddr /srv/git
+          env: [{name: HOME, value: /srv}]
+          startupProbe:
+            exec: {command: [git, ls-remote, -q, "git://127.0.0.1/bootstrap"]}
+            periodSeconds: 1
+            failureThreshold: 60
+          volumeMounts: [{name: git, mountPath: /srv}]
+          resources:
+            {{- toYaml .Values.resources | nindent 12 }}
+          securityContext:
+            {{- include "tsa.securityContext" . | nindent 12 }}
+      containers:
+        - name: tsa
+          image: "{{ .Values.images.tsa.repository }}@{{ .Values.images.tsa.digest }}"
+          # The TSA clones into ./temp and removes it again, so its working directory is a writable
+          # emptyDir rather than the image's /opt.
+          command: ["/opt/policy"]
+          workingDir: /work
+          # Loopback only: import, lock, export and admin are never reachable from outside the pod.
+          env:
+            - {name: HTTP_HOST, value: "127.0.0.1"}
+            - {name: HTTP_PORT, value: "8081"}
+            - {name: METRICS_ADDR, value: "127.0.0.1:2112"}
+            - {name: NATS_URL, value: "nats://127.0.0.1:4222"}
+            - {name: POLICY_REPOSITORY_CLONE_URL, value: "git://127.0.0.1/bootstrap"}
+            # Required by the TSA; the guard policy calls no OCM function, and nothing listens here.
+            - {name: OCM_ADDR, value: "http://127.0.0.1:9"}
+            - {name: LOG_LEVEL, value: "info"}
+          volumeMounts:
+            - {name: work, mountPath: /work}
+            - {name: tmp, mountPath: /tmp}
+          resources:
+            {{- toYaml .Values.tsaResources | nindent 12 }}
+          securityContext:
+            {{- include "tsa.securityContext" . | nindent 12 }}
+        - name: bundle
+          image: "{{ .Values.images.bundle.repository }}@{{ .Values.images.bundle.digest }}"
+          args: ["serve", "-config", "/etc/tsa-bundle/config.json"]
+          ports: [{name: http, containerPort: 8080}]
+          # Ready once the TSA evaluates a verified revision.
+          readinessProbe:
+            httpGet: {path: /readyz, port: http}
+            periodSeconds: 2
+            timeoutSeconds: 5
+          livenessProbe:
+            httpGet: {path: /healthz, port: http}
+            timeoutSeconds: 5
+          volumeMounts:
+            - {name: config, mountPath: /etc/tsa-bundle, readOnly: true}
+            - {name: desired, mountPath: /etc/tsa-desired, readOnly: true}
+            # The ledger of imported revisions: survives a restart of this container, not of the pod
+            # (which restarts the TSA empty too).
+            - {name: state, mountPath: /var/lib/tsa-bundle}
+          resources:
+            {{- toYaml .Values.resources | nindent 12 }}
+          securityContext:
+            {{- include "tsa.securityContext" . | nindent 12 }}
+      volumes:
+        - name: config
+          configMap: {name: tsa-policy-config}
+        - name: desired
+          configMap: {name: tsa-policy-bundle}
+        - name: git
+          emptyDir: {sizeLimit: 8Mi}
+        - name: work
+          emptyDir: {sizeLimit: 8Mi}
+        - name: state
+          emptyDir: {sizeLimit: 16Mi}
+        - name: tmp
+          emptyDir: {sizeLimit: 32Mi}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: tsa-policy-engine
+  namespace: {{ .Release.Namespace }}
+spec:
+  selector: {app.kubernetes.io/name: tsa-policy-engine}
+  ports: [{name: http, port: 8080, targetPort: http}]

@@ -1,0 +1,7 @@
+zone-b ztd-m3-b: what the guard serves, read 2026-11-24T10:46:45Z
+releases of the namespace: ztd-connector (connector-0.1.0, revision 5), ztd-edge (connector-gateway-0.1.0, revision 3), ztd-guard (guard-0.1.0, revision 2), ztd-participant (application-service-0.2.0, revision 5), ztd-resource (application-service-0.2.0, revision 5), ztd-token-store (token-store-0.3.0, revision 7)
+releases on the zone named for the TSA policy service or the feed bridge: 0
+guard pod created: 2026-11-02T19:31:50Z; guard image: guard@sha256:038c3d47ae055bf765a360ef93a11c6ec2f3d3aa1908d7dc0259a52459906360
+ztd-guard-config envoy.yaml, route matches: - match: {path: /demo}
+ztd-guard-config config.json keys: allowed_callers, inbound_audience, issuer, jwks_url, peer_zone, policy_url, published_base_url, scope_tenants, store_url, upstream_audience
+ztd-policy-config config.json keys: audience, guard_callers, host, participant_callers, revision, scope_tenants

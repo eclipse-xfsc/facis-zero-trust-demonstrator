@@ -1,0 +1,63 @@
+{{- if .Values.schema.enabled }}
+{{- include "connector.validate" . -}}
+# Applies the issuer schema before the release's resources are created or updated. The migrations
+# are embedded in the token-store image, the only binary that carries them, so schema.image must be
+# a build whose migrations reach the version this connector expects; a run on a database that is
+# already current changes nothing. `helm rollback` runs no hook, and a schema ahead of an older
+# connector is current for it.
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: ztd-connector-migrate
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "connector.schemaLabels" . | nindent 4 }}
+  annotations:
+    helm.sh/hook: pre-install,pre-upgrade
+    helm.sh/hook-weight: "41"
+    helm.sh/hook-delete-policy: before-hook-creation,hook-succeeded
+spec:
+  backoffLimit: 2
+  template:
+    metadata:
+      labels:
+        {{- include "connector.schemaLabels" . | nindent 8 }}
+        {{- if .Values.identity.spireManagedIdentity }}
+        spiffe.io/spire-managed-identity: "true"
+        {{- end }}
+      annotations:
+        {{- /* In a meshed namespace a Job completes only when its proxy is a native sidecar. */}}
+        {{- toYaml (merge (dict "sidecar.istio.io/nativeSidecar" "true") .Values.podAnnotations) | nindent 8 }}
+    spec:
+      {{- with .Values.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      restartPolicy: Never
+      serviceAccountName: {{ .Values.schema.serviceAccountName | quote }}
+      automountServiceAccountToken: false
+      enableServiceLinks: false
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 65532
+        runAsGroup: 65532
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: migrate
+          image: "{{ .Values.schema.image.repository }}@{{ .Values.schema.image.digest }}"
+          args: [migrate, up, --timeout=2m]
+          env:
+            - name: TOKEN_STORE_DATABASE_URL
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.database.existingSecret | quote }}
+                  key: {{ .Values.database.secretKey | quote }}
+          resources:
+            {{- toYaml .Values.resources | nindent 12 }}
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: [ALL]
+{{- end }}

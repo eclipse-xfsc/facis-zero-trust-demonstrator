@@ -109,8 +109,10 @@ func (g *chartGate) lintAndDryRunPassBeforePromotion() error {
 	}
 	// Each negative chart must be refused, and refused by the check it targets.
 	want := map[string]func(chartResult) bool{
-		"lint-fails":    func(r chartResult) bool { return r.Lint == "failed" },
-		"dry-run-fails": func(r chartResult) bool { return r.Lint == "passed" && r.Template == "passed" && r.ServerDryRun == "failed" },
+		"lint-fails": func(r chartResult) bool { return r.Lint == "failed" },
+		"dry-run-fails": func(r chartResult) bool {
+			return r.Lint == "passed" && r.Template == "passed" && r.ServerDryRun == "failed"
+		},
 	}
 	for _, name := range negativeCharts {
 		results, err := g.results(name)

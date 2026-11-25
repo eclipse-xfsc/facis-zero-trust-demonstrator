@@ -1,10 +1,11 @@
 name: Admission fixtures
 
 # The admission test images for a real cluster (the IONOS proof): a runnable image signed and attested
-# with the interim key, and one image per refusal case - unsigned, signed by an untrusted key, missing
-# the SBOM, missing the mock attestation, non-Linux, an image index - published under
-# ghcr.io/<owner>/<repository>/fixtures/ and each checked against its expected verdict with the
-# admission provider's own code. Started by hand or by pushing a branch named fixtures/<anything>.
+# with the selected key (SIGNING_KEY_SOURCE, interim by default), and one image per refusal case -
+# unsigned, signed by an untrusted key, missing the SBOM, missing the mock attestation, non-Linux, an
+# image index - published under ghcr.io/<owner>/<repository>/fixtures/ (or under the Harbor project the
+# HARBOR_* variables name) and each checked against its expected verdict with the admission provider's
+# own code. Started by hand or by pushing a branch named fixtures/<anything>.
 on:
   workflow_dispatch:
   push:
@@ -18,10 +19,28 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
+  # The runner the job that holds the signing key runs on: the repository variable SIGNING_RUNNER, a
+  # JSON array of labels, checked here; GitHub's hosted runner while it is unset (docs/ci-cd.md).
+  signing-runner:
+    name: Signing runner
+    runs-on: ubuntu-latest
+    outputs:
+      labels: ${{ steps.labels.outputs.labels }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Check the runner labels
+        id: labels
+        env:
+          SIGNING_RUNNER: ${{ vars.SIGNING_RUNNER }}
+        run: echo "labels=$(scripts/supplychain/runner-labels.sh)" >> "$GITHUB_OUTPUT"
+
   fixtures:
     name: Publish the admission fixtures
-    runs-on: ubuntu-latest
-    # The interim signing key lives only in this protected environment's secrets.
+    needs: [signing-runner]
+    runs-on: ${{ fromJSON(needs.signing-runner.outputs.labels) }}
+    # The signing key, or the token that reaches it, lives only in this protected environment's secrets.
     environment: release
     permissions:
       contents: read
@@ -40,35 +59,64 @@ jobs:
           scripts/tools/install.sh "$RUNNER_TEMP/bin" cosign syft grype
           echo "$RUNNER_TEMP/bin" >> "$GITHUB_PATH"
 
+      # The key source (SIGNING_KEY_SOURCE) and its public key: references and paths only, into the job's env.
+      - name: Select the signing key
+        env:
+          SIGNING_KEY_SOURCE: ${{ vars.SIGNING_KEY_SOURCE }}
+          SIGNING_TRANSIT_KEY: ${{ vars.SIGNING_TRANSIT_KEY }}
+          SIGNING_TRANSIT_PATH: ${{ vars.SIGNING_TRANSIT_PATH }}
+          SIGNING_VAULT_ADDR: ${{ vars.SIGNING_VAULT_ADDR }}
+        run: scripts/supplychain/key-source.sh >> "$GITHUB_ENV"
+
       - name: Check the signing key
         env:
-          COSIGN_INTERIM_KEY: ${{ secrets.COSIGN_INTERIM_KEY }}
-          COSIGN_PASSWORD: ${{ secrets.COSIGN_INTERIM_PASSWORD }}
+          COSIGN_INTERIM_KEY: ${{ (vars.SIGNING_KEY_SOURCE || 'interim') == 'interim' && secrets.COSIGN_INTERIM_KEY || '' }}
+          COSIGN_CLIENT_KEY: ${{ vars.SIGNING_KEY_SOURCE == 'client' && secrets.COSIGN_CLIENT_KEY || '' }}
+          COSIGN_PASSWORD: ${{ (vars.SIGNING_KEY_SOURCE || 'interim') == 'interim' && secrets.COSIGN_INTERIM_PASSWORD || (vars.SIGNING_KEY_SOURCE == 'client' && secrets.COSIGN_CLIENT_PASSWORD || '') }}
+          VAULT_TOKEN: ${{ vars.SIGNING_KEY_SOURCE == 'openbao-transit' && secrets.SIGNING_VAULT_TOKEN || '' }}
         run: scripts/supplychain/check-key.sh
 
-      - name: Log in to GHCR
-        env:
-          GITHUB_TOKEN: ${{ github.token }}
-        run: echo "$GITHUB_TOKEN" | docker login ghcr.io -u "$GITHUB_ACTOR" --password-stdin
-
-      - name: Image repository
+      # GHCR by default; the Harbor project HARBOR_HOST/HARBOR_PROJECT once those variables are set.
+      - name: Image registry
         id: repo
-        run: echo "path=ghcr.io/${GITHUB_REPOSITORY,,}" >> "$GITHUB_OUTPUT"
+        env:
+          HARBOR_HOST: ${{ vars.HARBOR_HOST }}
+          HARBOR_PROJECT: ${{ vars.HARBOR_PROJECT }}
+        run: scripts/supplychain/registry.sh >> "$GITHUB_OUTPUT"
+
+      # Push credentials: the job token for GHCR, the Harbor robot account allowed to push otherwise.
+      - name: Log in to the registry
+        env:
+          REGISTRY_KIND: ${{ steps.repo.outputs.kind }}
+          REGISTRY_HOST: ${{ steps.repo.outputs.host }}
+          REGISTRY_USER: ${{ vars.HARBOR_HOST == '' && github.actor || secrets.HARBOR_PUSH_USER }}
+          REGISTRY_PASSWORD: ${{ vars.HARBOR_HOST == '' && github.token || secrets.HARBOR_PUSH_PASSWORD }}
+        run: scripts/supplychain/registry-login.sh
+
+      # The fixture checks read with the read credentials; for Harbor they must exist before any is sent.
+      - name: Log in to the registry for verification
+        env:
+          REGISTRY_KIND: ${{ steps.repo.outputs.kind }}
+          REGISTRY_HOST: ${{ steps.repo.outputs.host }}
+          REGISTRY_USER: ${{ vars.HARBOR_HOST == '' && github.actor || secrets.HARBOR_READ_USER }}
+          REGISTRY_PASSWORD: ${{ vars.HARBOR_HOST == '' && github.token || secrets.HARBOR_READ_PASSWORD }}
+        run: scripts/supplychain/registry-login.sh "$RUNNER_TEMP/verify-docker"
 
       - name: Publish, sign and check every fixture
         env:
-          COSIGN_KEY: env://COSIGN_INTERIM_KEY
-          COSIGN_INTERIM_KEY: ${{ secrets.COSIGN_INTERIM_KEY }}
-          COSIGN_PASSWORD: ${{ secrets.COSIGN_INTERIM_PASSWORD }}
-          IMAGEVERIFY_FLAGS: -registry-username ${{ github.actor }}
-          IMAGEVERIFY_PASSWORD: ${{ github.token }}
+          COSIGN_INTERIM_KEY: ${{ (vars.SIGNING_KEY_SOURCE || 'interim') == 'interim' && secrets.COSIGN_INTERIM_KEY || '' }}
+          COSIGN_CLIENT_KEY: ${{ vars.SIGNING_KEY_SOURCE == 'client' && secrets.COSIGN_CLIENT_KEY || '' }}
+          COSIGN_PASSWORD: ${{ (vars.SIGNING_KEY_SOURCE || 'interim') == 'interim' && secrets.COSIGN_INTERIM_PASSWORD || (vars.SIGNING_KEY_SOURCE == 'client' && secrets.COSIGN_CLIENT_PASSWORD || '') }}
+          VAULT_TOKEN: ${{ vars.SIGNING_KEY_SOURCE == 'openbao-transit' && secrets.SIGNING_VAULT_TOKEN || '' }}
+          IMAGEVERIFY_FLAGS: -registry-username ${{ vars.HARBOR_HOST == '' && github.actor || secrets.HARBOR_READ_USER }}
+          IMAGEVERIFY_PASSWORD: ${{ vars.HARBOR_HOST == '' && github.token || secrets.HARBOR_READ_PASSWORD }}
         run: scripts/admission/publish-fixtures.sh "${{ steps.repo.outputs.path }}" fixtures.txt
 
       - name: Summary
         if: always()
         run: |
           {
-            echo "### Admission fixtures (interim key - not the client trust chain)"
+            echo "### Admission fixtures (signing key: $SIGNING_KEY_SOURCE, $SIGNING_PUBLIC_KEY)"
             [ -f fixtures.txt ] && sed 's/^\([^ ]*\) \(.*\)$/- \1: `\2`/' fixtures.txt
           } >> "$GITHUB_STEP_SUMMARY"
 
@@ -78,3 +126,30 @@ jobs:
         with:
           name: admission-fixtures
           path: fixtures.txt
+
+  # ZT-10: the fixtures job.
+  # Once the signing jobs have completed, successful or not, their published logs must hold no private-key
+  # material (scripts/secrets/log_audit.py signing-audit); the record is counts and verdicts only.
+  signing-log-audit:
+    name: Signing log audit
+    needs: [fixtures]
+    if: always()
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      actions: read # downloads the signing jobs' published logs
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Audit the signing jobs' logs
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: python3 scripts/secrets/log_audit.py signing-audit --job "Publish the admission fixtures" --out bundles/signing
+
+      - name: Keep the audit record
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: signing-log-audit
+          path: bundles/signing

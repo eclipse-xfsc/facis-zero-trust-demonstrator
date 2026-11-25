@@ -1,0 +1,11 @@
+zone-b after the runs, read 2026-11-24T10:46:37Z
+Helm releases whose revision, status or chart differs from the list taken before the runs:
+12c12
+< {"name":"tspa-republish","namespace":"ztd-train","revision":"1","status":"deployed","chart":"tspa-republish-0.1.0"}
+---
+> {"name":"tspa-republish","namespace":"ztd-train","revision":"2","status":"deployed","chart":"tspa-republish-0.1.0"}
+(end of differences; 21 releases)
+ValidatingAdmissionPolicy proxy-takes-spire-socket: generation 19 before, 23 now; managers now: helm, validatingadmissionpolicy-status; spec equal to the one before: yes
+objects labelled app.kubernetes.io/part-of=verify-plane-separation: 0
+probe Jobs or Pods (ztd.facis.io/probe=true): 0
+telemetry: releases named otel-*: 0; workloads in ztd-otel-node: 0; workloads named for a collector, Prometheus or a tracing backend outside kube-system: 0

@@ -1,0 +1,17 @@
+zone-b istiod: the release's values (left) against the values of this commit's render (right), read 2026-11-24T10:46:36Z
+release: revision 2, deployed, chart istiod-1.31.1
+5c5
+<     image: docker.io/istio/proxyv2:1.31.1@sha256:d86cba0dd1eb15c00b6901c69ce5ae3d2d5f8427a47751098cf8c3ab2a4a62e9
+---
+>     image: docker.io/istio/proxyv2@sha256:d86cba0dd1eb15c00b6901c69ce5ae3d2d5f8427a47751098cf8c3ab2a4a62e9
+7c7
+<     image: docker.io/istio/proxyv2:1.31.1@sha256:d86cba0dd1eb15c00b6901c69ce5ae3d2d5f8427a47751098cf8c3ab2a4a62e9
+---
+>     image: docker.io/istio/proxyv2@sha256:d86cba0dd1eb15c00b6901c69ce5ae3d2d5f8427a47751098cf8c3ab2a4a62e9
+12a13
+>           address: '%DOWNSTREAM_REMOTE_ADDRESS_WITHOUT_PORT%'
+22a24,27
+>   - name: ztd-otel-gateway
+>     opentelemetry:
+>       port: 4317
+>       service: otel-gateway.ztd-mgmt.svc.cluster.local

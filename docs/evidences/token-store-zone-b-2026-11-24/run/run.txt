@@ -1,0 +1,8 @@
+context: zerotrust-b
+namespace: ztd-m3-b
+store pod: ztd-token-store-6f9b757648-t6rdb
+probe run: 25c70a7d
+probe image: ghcr.io/fune5tiatlas/facis-zero-trust-demonstrator/postgres-runtime@sha256:ac62b37e275fb5b2975b9ba4ddabb2e7636b99c817464071b9879d7ff33a4a9e
+commit: 243478b10fe5a03b912062417c6811b22c86bfb7
+started: 2026-11-24T10:22:55Z
+finished: 2026-11-24T10:23:18Z

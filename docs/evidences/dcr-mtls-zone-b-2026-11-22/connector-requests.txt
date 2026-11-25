@@ -1,0 +1,8 @@
+# ztd-connector application request records in the running pod (kubectl logs), aggregated; first 2026-11-22T00:00:01.517966543Z last 2026-11-22T02:32:11.517437188Z
+# method path status count
+GET /.well-known/jwks.json 200 34
+GET /healthz 200 913
+POST /oauth2/challenge 200 125
+POST /oauth2/token 200 125
+POST /oauth2/token 400 125
+GET /readyz 200 914

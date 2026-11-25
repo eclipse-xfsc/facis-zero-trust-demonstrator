@@ -1,0 +1,86 @@
+# Read from zone B (context zerotrust-b) with kubectl get; status, uid and managedFields bodies dropped,
+# managedBy lists the field managers.
+apiVersion: security.istio.io/v1
+kind: AuthorizationPolicy
+metadata:
+  name: default-deny
+  namespace: istio-system
+  resourceVersion: '13525860'
+  creationTimestamp: '2026-10-30T08:48:49Z'
+  annotations:
+    meta.helm.sh/release-name: zone-policy
+    meta.helm.sh/release-namespace: istio-system
+  managedBy: []
+spec: {}
+---
+apiVersion: security.istio.io/v1
+kind: PeerAuthentication
+metadata:
+  name: default
+  namespace: istio-system
+  resourceVersion: '13525866'
+  creationTimestamp: '2026-10-30T08:48:49Z'
+  annotations:
+    meta.helm.sh/release-name: zone-policy
+    meta.helm.sh/release-namespace: istio-system
+  managedBy: []
+spec:
+  mtls:
+    mode: STRICT
+---
+apiVersion: security.istio.io/v1
+kind: PeerAuthentication
+metadata:
+  name: ztd-namespace-strict
+  namespace: ztd-m3-b
+  resourceVersion: '15737980'
+  creationTimestamp: '2026-11-02T19:50:43Z'
+  managedBy: []
+spec:
+  mtls:
+    mode: STRICT
+---
+apiVersion: security.istio.io/v1
+kind: PeerAuthentication
+metadata:
+  name: ztd-connector
+  namespace: ztd-m3-b
+  resourceVersion: '15731646'
+  creationTimestamp: '2026-11-02T19:36:34Z'
+  managedBy: []
+spec:
+  mtls:
+    mode: STRICT
+  selector:
+    matchLabels:
+      app.kubernetes.io/instance: ztd-connector
+      app.kubernetes.io/name: ztd-connector
+---
+apiVersion: security.istio.io/v1
+kind: AuthorizationPolicy
+metadata:
+  name: ztd-connector-identities
+  namespace: ztd-m3-b
+  resourceVersion: '15737985'
+  creationTimestamp: '2026-11-02T19:50:43Z'
+  managedBy: []
+spec:
+  action: ALLOW
+  rules:
+  - from:
+    - source:
+        principals:
+        - zone-b.trust.invalid/ns/ztd-m3-b/sa/ztd-participant
+        - zone-b.trust.invalid/ns/ztd-m3-b/sa/ztd-token-store
+        - zone-b.trust.invalid/ns/ztd-m3-b/sa/ztd-guard
+        - zone-b.trust.invalid/ns/ztd-m3-b/sa/ztd-protected-resource
+    to:
+    - operation:
+        paths:
+        - /oauth2/*
+        - /.well-known/jwks.json
+        ports:
+        - '8080'
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: ztd-connector

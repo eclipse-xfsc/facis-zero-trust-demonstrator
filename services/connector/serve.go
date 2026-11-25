@@ -26,16 +26,18 @@ const minSecret = 32
 // config is the service's configuration surface. Secrets are not in it: only the paths of the
 // files that hold them.
 type config struct {
-	addr, opsAddr          string
-	databaseURL            string // a credential; never logged
-	openBaoURL             string
-	openBaoTokenFile       string
-	issuer                 string
-	signingKey             string
-	signingKeyVersion      int
-	registrationEndpoint   string
-	tokenSecretFile        string
-	registrationSecretFile string
+	addr, opsAddr    string
+	databaseURL      string // a credential; never logged
+	openBaoURL       string
+	openBaoTokenFile string
+	// Kubernetes auth instead of the token file: set by the role (exclusive with the file).
+	openBaoAuthRole, openBaoAuthMount, openBaoJWTFile string
+	issuer                                            string
+	signingKey                                        string
+	signingKeyVersion                                 int
+	registrationEndpoint                              string
+	tokenSecretFile                                   string
+	registrationSecretFile                            string
 	// The registrar (D12): the client allowed to register others, seeded at start.
 	registrarID            string
 	registrarSecretFile    string
@@ -81,6 +83,9 @@ func parseServe(args []string, env func(string) string, stderr io.Writer) (serve
 		{"database-url", "CONNECTOR_DATABASE_URL", "", "PostgreSQL connection URL", &c.databaseURL},
 		{"openbao-url", "CONNECTOR_OPENBAO_URL", "", "OpenBao URL, http(s)://host[:port]", &c.openBaoURL},
 		{"openbao-token-file", "CONNECTOR_OPENBAO_TOKEN_FILE", "", "file holding the OpenBao token", &c.openBaoTokenFile},
+		{"openbao-auth-role", "CONNECTOR_OPENBAO_AUTH_ROLE", "", "OpenBao Kubernetes auth role; log in with the projected service-account token instead of a token file", &c.openBaoAuthRole},
+		{"openbao-auth-mount", "CONNECTOR_OPENBAO_AUTH_MOUNT", "kubernetes", "OpenBao Kubernetes auth mount", &c.openBaoAuthMount},
+		{"openbao-jwt-file", "CONNECTOR_OPENBAO_JWT_FILE", "/var/run/secrets/openbao/token", "projected service-account token for the Kubernetes auth login, reread at every login", &c.openBaoJWTFile},
 		{"issuer", "CONNECTOR_ISSUER", "", "iss of the access tokens, https://...", &c.issuer},
 		{"signing-key", "CONNECTOR_SIGNING_KEY", "", "transit key that signs the access tokens", &c.signingKey},
 		{"registration-endpoint", "CONNECTOR_REGISTRATION_ENDPOINT", "", "absolute URL of the registration endpoint", &c.registrationEndpoint},
@@ -205,7 +210,6 @@ func (c config) validate() error {
 		{c.addr, "--addr"}, {c.opsAddr, "--ops-addr"},
 		{c.databaseURL, "--database-url or CONNECTOR_DATABASE_URL"},
 		{c.openBaoURL, "--openbao-url or CONNECTOR_OPENBAO_URL"},
-		{c.openBaoTokenFile, "--openbao-token-file or CONNECTOR_OPENBAO_TOKEN_FILE"},
 		{c.issuer, "--issuer or CONNECTOR_ISSUER"},
 		{c.signingKey, "--signing-key or CONNECTOR_SIGNING_KEY"},
 		{c.registrationEndpoint, "--registration-endpoint or CONNECTOR_REGISTRATION_ENDPOINT"},
@@ -218,6 +222,9 @@ func (c config) validate() error {
 		if r.value == "" {
 			return fmt.Errorf("missing: set %s", r.name)
 		}
+	}
+	if (c.openBaoTokenFile == "") == (c.openBaoAuthRole == "") {
+		return errors.New("set exactly one of --openbao-token-file (CONNECTOR_OPENBAO_TOKEN_FILE) and --openbao-auth-role (CONNECTOR_OPENBAO_AUTH_ROLE)")
 	}
 	if c.signingKeyVersion < 1 {
 		return errors.New("missing: set --signing-key-version or CONNECTOR_SIGNING_KEY_VERSION to the pinned version, 1 or more")

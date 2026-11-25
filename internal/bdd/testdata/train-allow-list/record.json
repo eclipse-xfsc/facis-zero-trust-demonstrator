@@ -1,0 +1,105 @@
+[
+  {
+    "case": "listed peer",
+    "peer": "listed",
+    "status": 200,
+    "reason_code": "",
+    "body": "upstream reached",
+    "upstream_requests": 1,
+    "event": {
+      "run_id": "connector-b-b1c26319",
+      "seq": 2,
+      "ts": "2026-11-23T14:02:10.187519717Z",
+      "source": "connector-b",
+      "kind": "decision",
+      "correlation_id": "9da997a7-48f7-48e1-9f40-44b8d97b6498",
+      "payload": {
+        "state": "allowed",
+        "detail": "peer=did:web:connector-a.facis-ztd.local listed active in the trust list of facis-ztd.local, issuer did:web:tspa.local.test, valid until 2026-12-23T14:01:57Z"
+      }
+    }
+  },
+  {
+    "case": "unlisted peer",
+    "peer": "unlisted",
+    "status": 403,
+    "reason_code": "CHAN-ZONE-UNKNOWN",
+    "body": "{\"error\":\"peer_not_listed\",\"reason_code\":\"CHAN-ZONE-UNKNOWN\"}",
+    "upstream_requests": 0,
+    "event": {
+      "run_id": "connector-b-b1c26319",
+      "seq": 3,
+      "ts": "2026-11-23T14:02:12.70676751Z",
+      "source": "connector-b",
+      "kind": "decision",
+      "correlation_id": "d67c86fd-9626-42d3-9e6b-fed4f77dec24",
+      "payload": {
+        "state": "denied",
+        "reason_code": "CHAN-ZONE-UNKNOWN",
+        "detail": "peer=did:web:connector-x.facis-ztd.local not an active service of the trust list of facis-ztd.local"
+      }
+    }
+  },
+  {
+    "case": "withdrawn peer",
+    "peer": "listed",
+    "status": 403,
+    "reason_code": "CHAN-ZONE-UNKNOWN",
+    "body": "{\"error\":\"peer_not_listed\",\"reason_code\":\"CHAN-ZONE-UNKNOWN\"}",
+    "upstream_requests": 0,
+    "event": {
+      "run_id": "connector-b-b1c26319",
+      "seq": 4,
+      "ts": "2026-11-23T14:02:23.646998542Z",
+      "source": "connector-b",
+      "kind": "decision",
+      "correlation_id": "a9c6906d-e1aa-442f-8d27-cc3c5a49f8e3",
+      "payload": {
+        "state": "denied",
+        "reason_code": "CHAN-ZONE-UNKNOWN",
+        "detail": "peer=did:web:connector-a.facis-ztd.local not an active service of the trust list of facis-ztd.local"
+      }
+    }
+  },
+  {
+    "case": "peer listed again",
+    "peer": "listed",
+    "status": 200,
+    "reason_code": "",
+    "body": "upstream reached",
+    "upstream_requests": 1,
+    "event": {
+      "run_id": "connector-b-b1c26319",
+      "seq": 5,
+      "ts": "2026-11-23T14:02:32.023897838Z",
+      "source": "connector-b",
+      "kind": "decision",
+      "correlation_id": "f5279a1e-872d-4587-b55d-186c0be988d6",
+      "payload": {
+        "state": "allowed",
+        "detail": "peer=did:web:connector-a.facis-ztd.local listed active in the trust list of facis-ztd.local, issuer did:web:tspa.local.test, valid until 2026-12-23T14:02:27Z"
+      }
+    }
+  },
+  {
+    "case": "trust list unavailable",
+    "peer": "listed",
+    "status": 503,
+    "reason_code": "CHAN-TRUST-UNREACHABLE",
+    "body": "{\"error\":\"trust_list_unavailable\",\"reason_code\":\"CHAN-TRUST-UNREACHABLE\"}",
+    "upstream_requests": 0,
+    "event": {
+      "run_id": "connector-b-b1c26319",
+      "seq": 6,
+      "ts": "2026-11-23T14:02:37.336023965Z",
+      "source": "connector-b",
+      "kind": "decision",
+      "correlation_id": "a45b73d6-5deb-4178-921a-a3e1cecbd835",
+      "payload": {
+        "state": "denied",
+        "reason_code": "CHAN-TRUST-UNREACHABLE",
+        "detail": "framework=facis-ztd.local: trust-list VC: unreachable"
+      }
+    }
+  }
+]

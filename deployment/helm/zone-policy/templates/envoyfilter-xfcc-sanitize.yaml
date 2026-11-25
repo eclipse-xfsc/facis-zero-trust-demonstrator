@@ -1,0 +1,35 @@
+{{- /*
+Caller identity over X-Forwarded-Client-Cert, mesh-wide: every inbound sidecar replaces any XFCC a
+client sent with the one it builds from the client certificate it verified (SANITIZE_SET), so the
+header names only the caller the proxy authenticated. The guard and the token store take their
+caller from it (internal/meshcaller); Istio's default (APPEND_FORWARD) would keep a client's forged
+element next to the real one. Set here, by the platform, in the mesh root namespace and not per pod:
+the proxy rule (validatingadmissionpolicy-proxy-spire-socket.yaml) refuses proxy.istio.io/config and
+any PROXY_CONFIG but {}, and meshConfig.defaultConfig.proxyHeaders would be written into every pod's
+PROXY_CONFIG by the injector. scripts/verify-mesh-identity/verify.sh sends a forged header and checks
+that the receiver sees only the caller's own identity.
+*/ -}}
+apiVersion: networking.istio.io/v1alpha3
+kind: EnvoyFilter
+metadata:
+  name: xfcc-sanitize-set
+  namespace: {{ .Values.mesh.namespace }}
+  labels:
+    {{- include "zone-policy.labels" . | nindent 4 }}
+spec:
+  configPatches:
+    - applyTo: NETWORK_FILTER
+      match:
+        context: SIDECAR_INBOUND
+        listener:
+          filterChain:
+            filter:
+              name: envoy.filters.network.http_connection_manager
+      patch:
+        operation: MERGE
+        value:
+          typed_config:
+            "@type": type.googleapis.com/envoy.extensions.filters.network.http_connection_manager.v3.HttpConnectionManager
+            forward_client_cert_details: SANITIZE_SET
+            set_current_client_cert_details:
+              uri: true

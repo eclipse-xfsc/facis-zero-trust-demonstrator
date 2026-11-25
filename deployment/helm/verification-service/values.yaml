@@ -1,0 +1,81 @@
+# The service's image, by digest only - the chart refuses a tag.
+image:
+  repository: ghcr.io/eclipse-xfsc/facis-zero-trust-demonstrator/verification-service
+  digest: ""
+
+# iss of the outcomes it signs; the consumers' trusted-issuers files name it with the key that
+# `verification-service trust-set` prints.
+issuer: ""
+
+# The SPIFFE IDs allowed to call it: the token store's
+# (spiffe://<trust domain>/ns/<namespace>/sa/ztd-token-store). The service refuses every other
+# forwarded identity; the mesh's own allow rule for the same pair is the zone's
+# (intraPlanePairs or allowMatrix of the umbrella chart).
+callers: []
+
+# The PostgreSQL holding the requests (each answered once, each challenge accepted once). The
+# connection URL lives in a Secret of the release namespace, created before the install; the role
+# needs CREATE on its schema, since the service creates its one table at start.
+database:
+  existingSecret: ""
+  secretKey: url
+
+# OpenBao: the outcome key lives in transit and never leaves it. The token is read from the
+# credentials Secret at every call.
+openbao:
+  address: http://ztd-openbao.ztd-mgmt.svc:8200
+  existingSecret: ""
+  tokenKey: openbao-token
+  signingKey: verification-service-outcome
+
+# Trust in credential issuers: the issuers and their keys (if03 trust-set format) from a
+# ConfigMap, kept only while the trust source lists them. The trust source is TRAIN's TCR
+# (tcr.url and tcr.trustSchemePointers). fixtureTrustListKey instead reads a pinned trust list
+# from the same ConfigMap, a FIXTURE: neither its signature nor its hash is checked. Set exactly
+# one of the two.
+trust:
+  existingConfigMap: ""
+  issuerKeysKey: issuer-keys.json
+  tcr:
+    url: ""
+    trustSchemePointers: []
+  fixtureTrustListKey: ""
+  refresh: 5m
+# Credential types accepted, and where their status lists may be fetched from (absolute
+# http(s) URL prefixes ending in /).
+acceptedVCT: []
+statusPrefixes: []
+
+replicas: 1
+
+# Its identity in the mesh: the ServiceAccount is the last segment of its SPIFFE ID, the pod
+# label the SPIRE registration selects. No pod mounts the account's token.
+serviceAccount:
+  create: true
+  name: verification-service
+identity:
+  spireManagedIdentity: true
+
+# Mutual TLS both ways. The PeerAuthentication makes the API port refuse anything but the mesh's
+# mutual TLS, so the forwarded client certificate the service reads is the sidecar's (the
+# zone-wide SANITIZE_SET of zone-policy replaces any a client sent). The DestinationRule makes
+# every caller's proxy verify that the server certificate is this service's SPIFFE ID, so a caller
+# that reaches another workload under this name refuses it.
+mesh:
+  trustDomain: ""
+
+networkPolicy:
+  enabled: false
+  # Peers allowed to the API port (NetworkPolicy `from` entries).
+  ingressFrom: []
+  # Egress beyond DNS: PostgreSQL, OpenBao, the TCR, the status-list hosts.
+  egress: []
+
+podAnnotations: {}
+nodeSelector: {}
+resources:
+  requests:
+    cpu: 50m
+    memory: 64Mi
+  limits:
+    memory: 128Mi

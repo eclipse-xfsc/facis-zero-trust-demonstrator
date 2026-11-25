@@ -1,0 +1,10 @@
+HTTP/1.1 503 Service Unavailable
+content-type: application/json
+x-facis-reason-code: POL-PDP-UNAVAILABLE
+x-request-id: d93c09ea3b52ccc83667805821ed3365
+content-length: 66
+date: Sun, 22 Nov 2026 01:45:01 GMT
+server: envoy
+x-envoy-upstream-service-time: 23
+
+{"error":"policy_unavailable","reason_code":"POL-PDP-UNAVAILABLE"}

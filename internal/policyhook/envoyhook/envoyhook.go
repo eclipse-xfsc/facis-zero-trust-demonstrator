@@ -58,7 +58,7 @@ func AuthzRequest(req *authv3.CheckRequest) hook.Request {
 	attrs := req.GetAttributes()
 	h := attrs.GetRequest().GetHttp()
 	out := hook.Request{Method: h.GetMethod(), Scheme: h.GetScheme(), Host: h.GetHost(), Path: h.GetPath(),
-		Headers: http.Header{}, PeerID: attrs.GetSource().GetPrincipal()}
+		Headers: http.Header{}, PeerID: attrs.GetSource().GetPrincipal(), PeerCertificate: attrs.GetSource().GetCertificate()}
 	for k, v := range h.GetHeaders() {
 		if !strings.HasPrefix(k, ":") {
 			out.Headers.Add(k, v)

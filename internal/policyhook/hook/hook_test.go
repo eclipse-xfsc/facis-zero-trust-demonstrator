@@ -319,6 +319,31 @@ func TestDecisionEventsValidateAgainstTheContract(t *testing.T) {
 	}
 }
 
+// TestV2DecisionEventsValidateAgainstTheContract: the v2 sink writes every decision field,
+// not_evaluated where the request never reached it, and the v1 sink drops them.
+func TestV2DecisionEventsValidateAgainstTheContract(t *testing.T) {
+	sch := compile(t, "if01-event.v2.schema.json")
+	var buf bytes.Buffer
+	sink := hook.NewLogSinkV2(&buf, "guard-b", "verification")
+	sink.Emit("corr-1", hook.EventPayload{State: "allowed", CallerSPIFFEID: "spiffe://zone-b.test/ns/m3/sa/participant", TokenSubject: "sub", Resource: "POST https://guard.test/demo", RuleID: "m3-report-read", BundleRevision: "r1"})
+	sink.Emit("corr-2", hook.EventPayload{State: "denied", ReasonCode: "TOK-MISSING", Resource: "POST https://guard.test/demo", CallerSPIFFEID: "spiffe://zone-b.test/ns/m3/sa/participant"})
+	sink.Emit("corr-3", hook.EventPayload{State: "denied", ReasonCode: hook.ReasonPDPUnavailable, Resource: "POST https://guard.test/demo", Detail: "engine unreachable"})
+	for i, line := range strings.Split(strings.TrimSpace(buf.String()), "\n") {
+		if err := validate(t, sch, []byte(line)); err != nil {
+			t.Errorf("line %d does not validate: %v\n%s", i, err, line)
+		}
+	}
+	e, err := hook.ReadEvent(strings.NewReader(buf.String()), "corr-2")
+	if err != nil || e == nil || e.Version != 2 || e.Payload.TokenSubject != hook.NotEvaluated || e.Payload.BundleRevision != hook.NotEvaluated || e.Payload.RuleID != hook.NotEvaluated {
+		t.Errorf("v2 not-evaluated fields: %+v (%v)", e, err)
+	}
+	buf.Reset()
+	hook.NewLogSink(&buf, "guard-b", "verification").Emit("corr-4", hook.EventPayload{State: "allowed", CallerSPIFFEID: "spiffe://x/y", Resource: "POST https://guard.test/demo"})
+	if err := validate(t, compile(t, "if01-event.v1.schema.json"), bytes.TrimSpace(buf.Bytes())); err != nil {
+		t.Errorf("v1 sink wrote v2 members: %v", err)
+	}
+}
+
 // TestDecisionFixturesValidate checks Decision.Validate against every decision fixture, and
 // that what the hook re-serialises still validates against the schema.
 func TestDecisionFixturesValidate(t *testing.T) {
@@ -474,5 +499,29 @@ func TestFixtureCasesReproduceTheContractFixtures(t *testing.T) {
 	}
 	if _, err := hookfixture.LoadFixtures(t.TempDir()); err == nil {
 		t.Error("an empty directory was accepted")
+	}
+}
+
+// TestSubstitutionRefusalKeepsTheEvaluatedRule: a refusal after policy allowed the request records
+// the rule and bundle that allowed it, not an empty rule.
+func TestSubstitutionRefusalKeepsTheEvaluatedRule(t *testing.T) {
+	allowed := allowSubst
+	allowed.RuleID = "data.guard.allow_read"
+	for name, err := range map[string]error{
+		"store refusal":     &hook.RefusalError{ReasonCode: hook.ReasonTokenNoUpstream},
+		"store unavailable": errors.New("connection refused"),
+	} {
+		t.Run(name, func(t *testing.T) {
+			f := newFixture(allowed, presentToken)
+			f.subst.err = err
+			out := f.guard.Evaluate(context.Background(), callerRequest())
+			if out.Allowed || len(f.sink.payloads) != 1 {
+				t.Fatalf("outcome %+v, events %d", out, len(f.sink.payloads))
+			}
+			p := f.sink.payloads[0]
+			if p.State != "denied" || p.RuleID != "data.guard.allow_read" || p.BundleRevision != "v1" {
+				t.Fatalf("event %+v lost the evaluated rule or bundle", p)
+			}
+		})
 	}
 }

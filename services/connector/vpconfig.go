@@ -1,11 +1,9 @@
 package main
 
 import (
-	"crypto/ecdsa"
 	"encoding/json"
 	"errors"
 	"fmt"
-	"net/url"
 	"os"
 	"slices"
 	"strings"
@@ -53,50 +51,15 @@ func readConfigFile(path string) ([]byte, error) {
 	return b, nil
 }
 
-// loadIssuers parses {"<issuer URI>": {"keys": [<public P-256 JWK with kid>, ...]}}: a strict JSON
-// object (no duplicate member at any depth), no other member, at least one issuer and one key each,
-// every kid unique across all issuers.
+// loadIssuers reads the trusted-issuers file in the trust-set format the connector and the
+// verification service share (if03.ParseIssuers):
+// {"<issuer URI>": {"keys": [<public P-256 JWK with kid>, ...]}}.
 func loadIssuers(path string) (if03.Issuers, error) {
 	b, err := readConfigFile(path)
 	if err != nil {
 		return nil, err
 	}
-	top, err := jose.ParseObject(b)
-	if err != nil || len(top) == 0 {
-		return nil, errors.New("not a JSON object of one or more issuers")
-	}
-	issuers := if03.Issuers{}
-	kids := map[string]bool{}
-	for iss, raw := range top {
-		if u, err := url.Parse(iss); err != nil || u.Scheme == "" {
-			return nil, errors.New("an issuer is not an absolute URI")
-		}
-		entry, err := jose.ParseObject(raw)
-		if err != nil || len(entry) != 1 || entry["keys"] == nil {
-			return nil, errors.New(`an issuer is not an object with exactly the member "keys"`)
-		}
-		var jwks []json.RawMessage
-		if err := json.Unmarshal(entry["keys"], &jwks); err != nil || len(jwks) == 0 {
-			return nil, errors.New(`an issuer's "keys" is not a non-empty array`)
-		}
-		keys := map[string]*ecdsa.PublicKey{}
-		for _, rawKey := range jwks {
-			jwk, err := jose.ParseJWK(rawKey)
-			if err != nil {
-				return nil, errors.New("a key is not a public EC P-256 JWK (kty, crv, x, y, kid and nothing else)")
-			}
-			if jwk.Kid == "" {
-				return nil, errors.New("a key has no kid")
-			}
-			if kids[jwk.Kid] {
-				return nil, errors.New("a kid appears more than once")
-			}
-			kids[jwk.Kid] = true
-			keys[jwk.Kid], _ = jwk.PublicKey() // ParseJWK already checked the point
-		}
-		issuers[iss] = keys
-	}
-	return issuers, nil
+	return if03.ParseIssuers(b)
 }
 
 // loadScopeMap parses [{"role": R, "entitlement": E (optional), "scopes": [S, ...]}, ...], the JSON

@@ -1,0 +1,319 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/eclipse-xfsc/facis-zero-trust-demonstrator/docs/contracts/if01-event.v2.schema.json",
+  "title": "IF-01 security-state event (contracts v2)",
+  "description": "One event on the security-state feed, version 2: the v1 event with \"version\": 2 and, on a decision, the caller's SPIFFE ID, the token subject, the resource, the policy bundle revision and the rule id, each always present. A value that was never evaluated because the request was refused before that stage (for example before authentication or before policy) is the literal \"not_evaluated\", never omitted and never guessed. v1 stays valid; the feed bridge serves both. Components write it as a JSON log line. Ordering holds per (run_id, source); a producer names one run per process. Events carry no secrets or tokens.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "version",
+    "run_id",
+    "seq",
+    "ts",
+    "source",
+    "kind",
+    "payload"
+  ],
+  "properties": {
+    "version": {
+      "const": 2
+    },
+    "run_id": {
+      "$ref": "#/$defs/runId"
+    },
+    "seq": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "ts": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "source": {
+      "$ref": "#/$defs/source"
+    },
+    "kind": {
+      "enum": [
+        "decision",
+        "admission",
+        "channel_state",
+        "token_event",
+        "credential_event",
+        "step",
+        "gap"
+      ]
+    },
+    "correlation_id": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 128
+    },
+    "payload": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "state"
+      ],
+      "properties": {
+        "state": {
+          "type": "string",
+          "pattern": "^[a-z][a-z_]{0,31}$"
+        },
+        "reason_code": {
+          "$ref": "#/$defs/reasonCode"
+        },
+        "rule_id": {
+          "anyOf": [
+            {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 256,
+              "not": {
+                "const": "not_evaluated"
+              }
+            },
+            {
+              "const": "not_evaluated"
+            }
+          ]
+        },
+        "detail": {
+          "type": "string",
+          "maxLength": 512
+        },
+        "caller_spiffe_id": {
+          "anyOf": [
+            {
+              "type": "string",
+              "pattern": "^spiffe://[a-z0-9._-]+(/[A-Za-z0-9._~%!$&'()*+,;=:@-]+)+$",
+              "maxLength": 2048
+            },
+            {
+              "const": "not_evaluated"
+            }
+          ]
+        },
+        "token_subject": {
+          "anyOf": [
+            {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 256,
+              "not": {
+                "const": "not_evaluated"
+              }
+            },
+            {
+              "const": "not_evaluated"
+            }
+          ]
+        },
+        "resource": {
+          "type": "string",
+          "pattern": "^[A-Z]{3,7} [^\\s]{1,512}$"
+        },
+        "bundle_revision": {
+          "anyOf": [
+            {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 128,
+              "not": {
+                "const": "not_evaluated"
+              }
+            },
+            {
+              "const": "not_evaluated"
+            }
+          ]
+        },
+        "tenant": {
+          "type": "string",
+          "pattern": "^[a-z0-9]([-a-z0-9]{0,61}[a-z0-9])?$",
+          "description": "On a decision of a tenant guard or its policy: the target tenant of the decision, from the guard's route configuration. Absent elsewhere."
+        }
+      }
+    }
+  },
+  "allOf": [
+    {
+      "if": {
+        "properties": {
+          "kind": {
+            "enum": [
+              "decision",
+              "admission"
+            ]
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "payload": {
+            "properties": {
+              "state": {
+                "enum": [
+                  "allowed",
+                  "denied"
+                ]
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "payload": {
+            "properties": {
+              "state": {
+                "const": "denied"
+              }
+            }
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "payload": {
+            "required": [
+              "reason_code"
+            ]
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "kind": {
+            "const": "gap"
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "source": {
+            "const": "feed-bridge"
+          },
+          "payload": {
+            "required": [
+              "reason_code"
+            ],
+            "properties": {
+              "reason_code": {
+                "const": "VIS-STALE"
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "kind": {
+            "const": "channel_state"
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "payload": {
+            "properties": {
+              "state": {
+                "enum": [
+                  "connecting",
+                  "handshake",
+                  "attested",
+                  "draining",
+                  "closed",
+                  "refused",
+                  "lost"
+                ]
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "kind": {
+            "const": "channel_state"
+          },
+          "payload": {
+            "properties": {
+              "state": {
+                "const": "refused"
+              }
+            }
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "payload": {
+            "required": [
+              "reason_code"
+            ],
+            "properties": {
+              "reason_code": {
+                "pattern": "^CHAN(-[A-Z0-9]+)+$"
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "kind": {
+            "const": "decision"
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "payload": {
+            "required": [
+              "caller_spiffe_id",
+              "token_subject",
+              "resource",
+              "bundle_revision",
+              "rule_id"
+            ]
+          }
+        }
+      }
+    }
+  ],
+  "$defs": {
+    "runId": {
+      "type": "string",
+      "pattern": "^[A-Za-z0-9._-]{1,64}$"
+    },
+    "source": {
+      "anyOf": [
+        {
+          "type": "string",
+          "pattern": "^(guard|gateway|connector|token-store|policy|participant|protected-resource)-(a|b)$"
+        },
+        {
+          "enum": [
+            "verification",
+            "admission",
+            "feed-bridge"
+          ]
+        }
+      ]
+    },
+    "reasonCode": {
+      "type": "string",
+      "pattern": "^[A-Z]{2,5}(-[A-Z0-9]+)+$"
+    }
+  }
+}

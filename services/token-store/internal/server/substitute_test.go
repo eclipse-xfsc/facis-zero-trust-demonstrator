@@ -182,14 +182,19 @@ func (e *subEnv) server() (*Server, string) {
 	return e.serverWith(false)
 }
 
-func (e *subEnv) serverWith(renewal bool) (*Server, string) {
-	e.t.Helper()
+// config is a store's configuration on zone A's database with this environment's acquisition.
+func (e *subEnv) config() Config {
 	cfg := localConfig(e.dsnA, fakeOpenBao(e.t).URL)
 	cfg.Callers = headerCaller{}
 	cfg.ReplayCallers = []string{connectorID}
 	cfg.Acquisition = &e.loaded
 	cfg.OpenBao = e.bao
-	s, err := New(context.Background(), cfg, testLogger(e.logs))
+	return cfg
+}
+
+func (e *subEnv) serverWith(renewal bool) (*Server, string) {
+	e.t.Helper()
+	s, err := New(context.Background(), e.config(), testLogger(e.logs))
 	if err != nil {
 		e.t.Fatal(err)
 	}
@@ -704,15 +709,13 @@ func TestReadyz_ResolvesActiveSigningKeys(t *testing.T) {
 		}
 		return rep.Checks.SigningKey
 	}
-	if w := signing(); w != checkOK {
-		t.Fatalf("no active reference: %q", w)
+	// Startup registered the configured key's active row; the checks below edit that row.
+	var ref, jkt string
+	if err := e.poolA.QueryRow(ctx, `SELECT key_ref, jkt FROM signing_key WHERE state = 'active'`).Scan(&ref, &jkt); err != nil {
+		t.Fatalf("the row startup registered: %v", err)
 	}
-	kv, jkt, err := keys.Keys{Signer: e.bao, Name: e.loaded.SigningKey}.Ensure(ctx)
+	kv, err := transit.ParseRef(ref)
 	if err != nil {
-		t.Fatal(err)
-	}
-	if _, err := e.poolA.Exec(ctx, `INSERT INTO signing_key (key_ref, jkt, alg, state) VALUES ($1, $2, 'ES256', 'active')`,
-		kv.Ref(), jkt); err != nil {
 		t.Fatal(err)
 	}
 	if w := signing(); w != checkOK {
@@ -740,9 +743,20 @@ func TestReadyz_ResolvesActiveSigningKeys(t *testing.T) {
 	if w := signing(); w != checkUnconfigured {
 		t.Errorf("no transit key configured: %q, want %q", w, checkUnconfigured)
 	}
+	s.cfg.Acquisition = &e.loaded
 	set(`UPDATE signing_key SET state = 'retired', retired_at = now()`)
+	if w := signing(); w != checkRetired {
+		t.Errorf("only a retired reference of the configured key: %q, want %q", w, checkRetired)
+	}
+	s.cfg.Acquisition = nil
 	if w := signing(); w != checkOK {
-		t.Errorf("only a retired reference: %q", w)
+		t.Errorf("only a retired reference and no configured key: %q", w)
+	}
+	// No row at all while transit has the key: the next acquisition registers it, so ready.
+	s.cfg.Acquisition = &e.loaded
+	set(`DELETE FROM signing_key`)
+	if w := signing(); w != checkOK {
+		t.Errorf("no row and the key in transit: %q", w)
 	}
 }
 
@@ -790,6 +804,8 @@ func TestReadyz_RefusesSharedConnectorKeyMaterial(t *testing.T) {
 	if state := s.checkSigningKey(t.Context()); state != checkOK {
 		t.Fatalf("distinct keys: %s", state)
 	}
+	// The rest of this test points the configuration at the Connector's key; the row startup
+	// registered for the store's own key stays and resolves against the key it names.
 	e.loaded.SigningKey = e.b.SigningKey
 	if state := s.checkSigningKey(t.Context()); state != checkSharedIssuerKey {
 		t.Fatalf("shared key: %s", state)

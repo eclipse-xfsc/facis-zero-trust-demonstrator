@@ -3,3 +3,13 @@ oauth:
   exclusiveAudiences: [https://guard.facis.invalid, https://resource.facis.invalid]
   allowAudienceMigration: false
   registrarAudiences: [http://ztd-connector:8080/oauth2/register, https://guard.facis.invalid]
+# The zone B callers of the connector in one namespace (the participant's, token store's, guard's and
+# resource's accounts); the guard and the resource reach the key set only.
+trustDomain: zone-b.trust.invalid
+callers:
+  oauth:
+    - {namespace: ztd-m3-b, name: ztd-participant}
+    - {namespace: ztd-m3-b, name: ztd-token-store}
+  keySet:
+    - {namespace: ztd-m3-b, name: ztd-guard}
+    - {namespace: ztd-m3-b, name: ztd-protected-resource}

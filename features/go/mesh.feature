@@ -2,49 +2,49 @@
 Feature: Mesh enrolment and segmentation
   Annex A rows for Mesh enrolment and segmentation, worded exactly as in the Annex.
 
-  @ZT-01 @BDD-ZT-001 @pending
+  @ZT-01 @BDD-ZT-001 @cluster
   Scenario: Secure Service Mesh
     Given the service mesh is deployed in each target cluster with workload identities issued
     When two in-mesh services communicate and a workload outside the mesh attempts the same call
     Then the in-mesh call is carried over the mesh under mutual TLS AND the out-of-mesh call is blocked and logged.
 
-  @ZT-23 @BDD-ZT-023 @pending
+  @ZT-23 @BDD-ZT-023 @cluster
   Scenario: Service Mesh Implementation
     Given each target Kubernetes cluster with the selected Istio- or Cilium-based service mesh installed
     When services communicate within a cluster
     Then the mesh is present in every cluster and service traffic is routed through it AND traffic attempting to bypass the mesh data path is not delivered.
 
-  @ZT-25 @BDD-ZT-025 @pending
+  @ZT-25 @BDD-ZT-025 @cluster
   Scenario: Routing Policies
     Given related and unrelated workloads in the service mesh
     When east-west communication is attempted
     Then policy-related workloads communicate according to configured trust policy AND unaffiliated workloads are blocked by the default-deny network policy without relying on IP-address identity.
 
-  @ZT-26 @BDD-ZT-026 @pending
+  @ZT-26 @BDD-ZT-026 @cluster
   Scenario: Ingress and Egress
     Given application traffic, DNS traffic and an observability/admin endpoint
     When each traffic type leaves or enters a cluster
     Then protected inter-cluster application traffic is routed through the ZT Connector AND explicitly exempt infrastructure/admin traffic uses its separately controlled ingress/egress path.
 
-  @ZT-27 @BDD-ZT-027 @pending
+  @ZT-27 @BDD-ZT-027 @cluster
   Scenario: Observability
     Given the OpenTelemetry Collector, Prometheus and the OTel-compatible tracing backend are deployed
     When demonstrator traffic and security decisions occur
     Then traces and metrics are exported from the cluster through the Collector, metrics are retained in Prometheus and traces are queryable in the tracing backend AND a component emitting no telemetry is visible as a gap in the correlated trace.
 
-  @ZT-58 @BDD-ZT-058 @pending
+  @ZT-58 @BDD-ZT-058 @cluster
   Scenario: Service Mesh Setup
     Given SPIRE-backed identities and the target clusters
     When the service mesh/control plane and traffic-capture layer are enabled
     Then service traffic is captured on each node and protected with workload-certificate-based mutual TLS.
 
-  @ZT-61 @BDD-ZT-061 @pending
+  @ZT-61 @BDD-ZT-061 @cluster
   Scenario: Traffic routed via Service Mesh
     Given a microservice participating in the configured mesh
     When it communicates with another service
     Then its service communication traverses the service-mesh data path and is subject to the configured identity and policy controls.
 
-  @ZT-62 @BDD-ZT-062 @pending
+  @ZT-62 @BDD-ZT-062 @cluster
   Scenario: Limited Communication within Mesh
     Given one identity explicitly permitted to communicate with a target service and one identity not permitted
     When both attempt the connection

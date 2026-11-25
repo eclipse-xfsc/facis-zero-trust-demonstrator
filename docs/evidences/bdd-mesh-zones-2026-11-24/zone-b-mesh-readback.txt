@@ -1,0 +1,17 @@
+zone-b, context zerotrust-b, read 2026-11-24T10:27:43Z
+nodes: 3 (3 Ready)
+istio-system/istio-cni-node: desired 3, ready 3
+spire-system/spire-agent: desired 3, ready 3
+mesh mTLS mode: istio-system/default=STRICT ztd-m3-b/ztd-connector=STRICT ztd-m3-b/ztd-edge-tls=STRICT ztd-m3-b/ztd-guard-strict=STRICT ztd-m3-b/ztd-namespace-strict=STRICT ztd-m3-b/ztd-policy-evaluator-strict=STRICT ztd-m3-b/ztd-protected-resource-strict=STRICT ztd-m3-b/ztd-token-store=STRICT ztd-partner/ztd-namespace-strict=STRICT
+SPIRE bundle: subject=C=ARPA, O=FACIS ZTD, CN=zone-b.trust.invalid, serialNumber=200017186997961185694813866368402999875
+namespace/pod | node | native sidecar | certificate SPIFFE ID | expected | verifies against the SPIRE bundle
+ztd-m3-b/ztd-connector-6dd78f7c67-2sxbf | rspf6 | yes | spiffe://zone-b.trust.invalid/ns/ztd-m3-b/sa/ztd-connector | same | yes
+ztd-m3-b/ztd-edge-779c79d6b8-nszxj | rspf6 | yes | spiffe://zone-b.trust.invalid/ns/ztd-m3-b/sa/ztd-edge | same | yes
+ztd-m3-b/ztd-guard-59757bdbc7-m746m | rspf6 | yes | spiffe://zone-b.trust.invalid/ns/ztd-m3-b/sa/ztd-guard | same | yes
+ztd-m3-b/ztd-participant-56785bf4d5-qjfbz | rspf6 | yes | spiffe://zone-b.trust.invalid/ns/ztd-m3-b/sa/ztd-participant | same | yes
+ztd-m3-b/ztd-policy-evaluator-7bff47b69b-jm45c | rspf6 | yes | spiffe://zone-b.trust.invalid/ns/ztd-m3-b/sa/ztd-policy-evaluator | same | yes
+ztd-m3-b/ztd-postgres-755f98cdcb-ctgrs | rspf6 | yes | spiffe://zone-b.trust.invalid/ns/ztd-m3-b/sa/ztd-postgres | same | yes
+ztd-m3-b/ztd-protected-resource-546b564b6b-rjp7m | rspf6 | yes | spiffe://zone-b.trust.invalid/ns/ztd-m3-b/sa/ztd-protected-resource | same | yes
+ztd-m3-b/ztd-token-store-6f9b757648-t6rdb | rspf6 | yes | spiffe://zone-b.trust.invalid/ns/ztd-m3-b/sa/ztd-token-store | same | yes
+ztd-mgmt/ztd-openbao-0 | 9vdlz | yes | spiffe://zone-b.trust.invalid/ns/ztd-mgmt/sa/ztd-openbao | same | yes
+meshed pods read: 9; own SPIFFE ID and verified: 9; native sidecar: 9; nodes with such a pod: 2

@@ -1,0 +1,69 @@
+{{- if not (regexMatch "^sha256:[a-f0-9]{64}$" .Values.image.digest) }}{{ fail "image.digest must be a sha256 digest" }}{{ end }}
+{{- if or (not .Values.framework) (not .Values.tspaUrl) (not .Values.tokenUrl) (not .Values.client.id) (not .Values.client.secretName) }}{{ fail "framework, tspaUrl, tokenUrl, client.id and client.secretName are required" }}{{ end }}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: tspa-republish
+  namespace: {{ .Release.Namespace }}
+data:
+  republish.py: |
+    {{- .Files.Get "files/republish.py" | nindent 4 }}
+---
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: tspa-republish
+  namespace: {{ .Release.Namespace }}
+spec:
+  schedule: {{ .Values.schedule | quote }}
+  timeZone: Etc/UTC
+  concurrencyPolicy: Forbid
+  successfulJobsHistoryLimit: 3
+  failedJobsHistoryLimit: 3
+  jobTemplate:
+    spec:
+      backoffLimit: 3
+      activeDeadlineSeconds: 900
+      template:
+        metadata:
+          labels:
+            app.kubernetes.io/name: tspa-republish
+            app.kubernetes.io/part-of: facis-zero-trust-demonstrator
+          annotations:
+            checksum/script: {{ .Files.Get "files/republish.py" | sha256sum }}
+        spec:
+          restartPolicy: OnFailure
+          automountServiceAccountToken: false
+          enableServiceLinks: false
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: 65534
+            runAsGroup: 65534
+            fsGroup: 65534
+            seccompProfile: {type: RuntimeDefault}
+          containers:
+            - name: republish
+              image: "{{ .Values.image.repository }}@{{ .Values.image.digest }}"
+              command: [python3, -I, /etc/republish/republish.py]
+              env:
+                - {name: FRAMEWORK, value: {{ .Values.framework | quote }}}
+                - {name: TSPA_URL, value: {{ .Values.tspaUrl | quote }}}
+                - {name: TOKEN_URL, value: {{ .Values.tokenUrl | quote }}}
+                - {name: CLIENT_ID, value: {{ .Values.client.id | quote }}}
+              securityContext:
+                allowPrivilegeEscalation: false
+                readOnlyRootFilesystem: true
+                capabilities: {drop: [ALL]}
+              resources:
+                {{- toYaml .Values.resources | nindent 16 }}
+              volumeMounts:
+                - {name: script, mountPath: /etc/republish, readOnly: true}
+                - {name: client, mountPath: /var/run/client, readOnly: true}
+          volumes:
+            - name: script
+              configMap: {name: tspa-republish}
+            - name: client
+              secret:
+                secretName: {{ .Values.client.secretName }}
+                items: [{key: {{ .Values.client.secretKey }}, path: secret}]
+                defaultMode: 0440

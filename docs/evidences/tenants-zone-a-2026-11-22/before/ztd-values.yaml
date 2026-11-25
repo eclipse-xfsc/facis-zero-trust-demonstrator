@@ -1,0 +1,41 @@
+cni:
+  cilium:
+    enabled: true
+mesh:
+  mode: sidecar
+networkPolicy:
+  controlPlaneWebhooks:
+    enabled: true
+    fromEndpoints:
+    - app: vpn-shoot
+      k8s:io.kubernetes.pod.namespace: kube-system
+      type: tunnel
+  dns:
+    ports:
+    - 8053
+  identityServer:
+    enabled: true
+  kubeApi:
+    cidrs: []
+    enabled: true
+    ports:
+    - 443
+  meshControlPlane:
+    enabled: true
+planes:
+  extra:
+  - mesh: false
+    name: spire-system
+    plane: management
+  - mesh: false
+    name: istio-system
+    plane: management
+  namespaceLabels:
+    apiserver-proxy.networking.gardener.cloud/inject: disable
+zone:
+  kubernetesVersion: v1.34.7
+  loadBalancer:
+    type: cloud
+  name: zone-a
+  storageClass: default
+  trustDomain: zone-a.trust.invalid

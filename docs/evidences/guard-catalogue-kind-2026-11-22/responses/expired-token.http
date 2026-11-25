@@ -1,0 +1,10 @@
+HTTP/1.1 401 Unauthorized
+content-type: application/json
+x-facis-reason-code: TOK-EXPIRED
+x-request-id: 3b9ee1f10a91513d675bddb873ff0132
+content-length: 55
+date: Sun, 22 Nov 2026 00:42:12 GMT
+server: envoy
+x-envoy-upstream-service-time: 3
+
+{"error":"request_refused","reason_code":"TOK-EXPIRED"}

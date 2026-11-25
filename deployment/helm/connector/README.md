@@ -6,8 +6,9 @@ private ClusterIP API on port 8080: `POST /oauth2/register`, `POST /oauth2/chall
 and is not published by the Service. The application also has API health routes; do not expose
 this Service publicly to serve the Participant demo.
 
-Before installation, provision the issuer PostgreSQL schema using the token-store migration image,
-and provide the database URL as an existing Secret. Connector stores OAuth clients, challenges,
+Provide the database URL as an existing Secret. The issuer PostgreSQL schema is applied by the
+chart when `schema.enabled` is set ([Schema](#schema)), and otherwise by the token-store chart where
+the two share a database. Connector stores OAuth clients, challenges,
 nonces and replay records in PostgreSQL directly; it has no token-store HTTP address flag.
 The guard calls the token store, whose acquisition routes point to this Connector. Do not introduce
 an unused Connector-to-store chart value or conflate the issuer and requester ledgers.
@@ -17,6 +18,10 @@ version, issuer and registration URLs, registrar audience ceiling, and the publi
 ConfigMap. The credential Secret has OpenBao token, access-token HMAC, registration HMAC and
 registrar-secret keys; the three HMAC/client secrets must be at least 32 bytes. Values carry names
 only. The mounted Secret volume can rotate the OpenBao token; keys are not exported from transit.
+With `openbao.auth.method: kubernetes` and `openbao.auth.role` the Connector holds no OpenBao token:
+it logs in with a projected service-account token for `openbao.auth.audience` and logs in again
+before each OpenBao token expires, and the Secret's OpenBao token key is not mounted
+([Secrets: Kubernetes auth](../../../docs/secrets.md#kubernetes-auth)).
 Public IF-03 JWKs and scope mapping JSON use the format read by `services/connector/vpconfig.go`.
 The fixture verifier's private key belongs to the caller, not this ConfigMap or chart.
 
@@ -26,6 +31,12 @@ NetworkPolicies are additive; inspect the namespace's full policy set. A meshed 
 the platform's injection/registration labels, STRICT mTLS and reachable Istiod/SPIRE. `podAnnotations`
 supports per-pod image overrides; every injected image must satisfy the existing admission policy.
 The chart does not install the mesh, admission policy, database, OpenBao, TLS edge or namespace.
+
+The mesh callers are declared with `trustDomain` and `callers`, by namespace and service account:
+`callers.oauth` may use `/oauth2/*` and the key set (the Participant, the token store),
+`callers.keySet` only `GET /.well-known/jwks.json` (the guard, the protected resource, which only
+verify tokens). They render the AuthorizationPolicy `ztd-connector-callers` on port 8080; with both
+lists empty none renders and the mesh default deny refuses every caller.
 
 The chart is standalone because token-store and application-service are standalone. Do not upgrade
 the zone's umbrella to deploy it. `ci/values.yaml` contains render-only references and a zero digest;
@@ -43,6 +54,30 @@ For a reviewed live values file and explicit cluster context, uninstall the stan
 `helm uninstall ztd-connector -n <namespace> --kubeconfig "$KUBECONFIG"`. It retains externally provided
 Secrets, ConfigMap, database and transit key. The complete slice's teardown additionally removes
 only resources owned by its deployment inventory.
+
+## Schema
+
+The connector's database carries the token store's schema ([Token store: one database, two
+owners](../../../docs/token-store.md#one-database-two-owners)), whose migrations are embedded in the
+token-store image and in no other. With `schema.enabled: true` the chart applies them itself: a
+`pre-install,pre-upgrade` hook Job, `ztd-connector-migrate`, runs `token-store migrate up` from
+`schema.image` (by digest only) against the database Secret, before the connector is created or
+updated, so a new connector never meets a database behind the version it expects (`/readyz`:
+`postgres: schema_behind`). A database that is current is left as it is. Set `schema.image.digest`
+to a token-store build whose migrations reach that version: the build released with the connector.
+
+The Job runs as its own ServiceAccount, `schema.serviceAccountName` (created as a hook with
+`serviceAccount.create`; it replaces an account of that name made by hand), under its own
+egress-only NetworkPolicy `ztd-connector-schema`: DNS and `schema.egress`, which must carry the
+database lane, and istiod's where the namespace is meshed. Its pods are named
+`app.kubernetes.io/name: ztd-connector-schema`, so no selector of the connector takes them, and are
+marked as native-sidecar pods so that a meshed Job completes. A meshed database must admit that
+account (the token-store chart's `database.mesh.callers`, or the zone's own rule), and SPIRE must
+register it as it registers the connector's.
+
+`helm rollback` runs no hook and reverts no migration: a database ahead of an older connector is
+current for it. The chart never drops the schema; the database outlives the release. Leave
+`schema.enabled` off where the token-store chart migrates the same database.
 
 ## Guarded client provisioning
 

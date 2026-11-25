@@ -1,3 +1,5 @@
+{{- /* Release ztd only; the admission release renders admission-policy.yaml and the admission subcharts. */ -}}
+{{- if not .Values.gatekeeper.enabled }}
 {{- /*
 Network-layer baseline per plane namespace: default deny in both directions, the DNS bypass, the
 intra-plane lane, (management plane only, when configured) egress to the Kubernetes API, and the
@@ -51,6 +53,8 @@ metadata:
   annotations:
     ztd.facis.io/allow-matrix: workloads-to-dns
     ztd.facis.io/enforced-by: networkPolicy
+    {{- /* Plaintext DNS to the cluster resolver, outside the mesh: nothing takes an L7 decision on it. */}}
+    ztd.facis.io/l7-owner: "none"
 spec:
   podSelector: {}
   policyTypes:
@@ -178,4 +182,5 @@ spec:
       ports:
         - port: {{ $mcp.port }}
           protocol: TCP
+{{- end }}
 {{- end }}

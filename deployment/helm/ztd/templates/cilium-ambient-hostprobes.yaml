@@ -1,3 +1,5 @@
+{{- /* Release ztd only; the admission release renders admission-policy.yaml and the admission subcharts. */ -}}
+{{- if not .Values.gatekeeper.enabled }}
 {{- /*
 Istio ambient over Cilium: kubelet health probes reach ambient pods SNAT-ed to 169.254.7.127, an
 address Cilium does not exempt from policy, so the default-deny above would fail every probe.
@@ -22,4 +24,5 @@ spec:
   ingress:
     - fromCIDR:
         - "169.254.7.127/32"
+{{- end }}
 {{- end }}

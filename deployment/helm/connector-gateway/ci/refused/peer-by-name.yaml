@@ -1,0 +1,3 @@
+# The egress lane names the peer entry's IPv4 address, never a name the cluster would resolve.
+# expect: egress.peer.address must be the peer entry's IPv4 address
+egress: {peer: {address: zone-b.example}}

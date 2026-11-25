@@ -5,7 +5,8 @@ The image-verification provider for Gatekeeper external data
 image a constrained workload uses; it answers, per image, `verified` or the admission reason code
 (`ADM-*`, [reason-codes.json](../../../docs/contracts/reason-codes.json)) of the first check that
 failed: digest reference, allowed repository, cosign signature by a trusted key, SBOM attestation,
-mock attestation.
+mock attestation. An image whose reference equals an entry of `trust.allowedDigests` is answered
+`verified` without those checks (see "Digest allow-list").
 
 Install order: Gatekeeper, then this chart (the `Provider` kind comes from Gatekeeper's CRDs), then
 the constraints. The chart installs into Gatekeeper's namespace and refuses any other.
@@ -35,7 +36,7 @@ kubectl -n gatekeeper-system get deploy gatekeeper-controller-manager \
 |---|---|
 | `Deployment`/`Service` `ztd-admission-provider` | the provider: HTTPS on 8443 (TLS 1.3 only, client certificate required), metrics and health on 9090 |
 | `Secret` `ztd-admission-provider-tls` | the provider's own CA and server certificate, generated on first install and kept on upgrade |
-| `ConfigMap` `ztd-admission-provider-trust` | the trust policy, one `policy.json`: allowed repository prefixes and trusted cosign public keys, read together so an update is never half applied |
+| `ConfigMap` `ztd-admission-provider-trust` | the trust policy, one `policy.json`: allowed repository prefixes, trusted cosign public keys and the optional digest allow-list, read together so an update is never half applied |
 | `Provider` `ztd-image-verifier` | Gatekeeper's pointer to the provider, with the provider CA as `caBundle` |
 
 The provider trusts only client certificates that chain to the CA of Gatekeeper's webhook
@@ -59,11 +60,42 @@ It runs as a non-root user with a read-only root filesystem and no service accou
 | `requestTimeout` | `1s` | the provider's own deadline; an image not verified by then is answered `ADM-PROVIDER-DOWN` |
 | `trust.repositories` | — (required) | allowed repository prefixes, `host/path` |
 | `trust.publicKeys` | — (required) | trusted cosign public keys, PEM (ECDSA P-256) |
+| `trust.allowedDigests` | `[]` | third-party images admitted by exact reference, `host/repository@sha256:<64 hex>`, no tag; rendered into `policy.json` only when non-empty |
 | `tls.validityDays` | `825` | validity of the generated CA and server certificate; delete the Secret and upgrade to rotate |
 | `insecurePlainHTTPRegistry` | `""` | a plain-http test registry (`host:port`); empty in any real deployment |
+| `registryAuth.secretName` | `""` | a `kubernetes.io/dockerconfigjson` Secret in the release namespace with read credentials (a Harbor read-only robot account) for private registries; empty reads every registry anonymously. Mounted with mode `0440` and the pod's `fsGroup` set to `65532` (only when this is set), so the provider's user reads it and other users cannot. Read at start: restart the provider after rotating it |
+
+## Digest allow-list
+
+Third-party platform images that are not built and signed by the project, such as the Istio proxy
+that the injector adds to every meshed pod (`docker.io/istio/proxyv2@sha256:...`,
+[istiod.yaml](../values/istiod.yaml)), are admitted by an explicit list of exact digest references
+rather than re-signed:
+
+```yaml
+trust:
+  allowedDigests:
+    - docker.io/istio/proxyv2@sha256:d86cba0dd1eb15c00b6901c69ce5ae3d2d5f8427a47751098cf8c3ab2a4a62e9
+```
+
+- An image is admitted only when its reference is identical to an entry: same registry host,
+  repository and digest. Another digest of the same repository, or a repository that only starts
+  with a listed one, goes through the normal checks.
+- Entries are checked when the policy is loaded; a tag (`:1.31.1`), a missing registry host, a
+  malformed digest or whitespace makes the whole policy invalid (system error, admission denied),
+  like any other invalid edit.
+- An allow-listed image skips the signature, attestation and platform checks: listing a digest is a
+  trust decision about that image and is reviewed as one.
+- Each such admission is logged (`"image admitted by the digest allow-list"`) and counted as
+  `ztd_admission_verdicts_total{code="allow-listed"}`.
+- The Gatekeeper constraint `ztd-allowed-repositories` must list the same references in its
+  `allowedDigests` parameter, or it denies them with `ADM-REGISTRY-DENIED`;
+  [scripts/admission/install.sh](../../../scripts/admission/install.sh) feeds both from
+  `ALLOWED_DIGESTS`.
 
 ## Metrics
 
-`/metrics` on port 9090: `ztd_admission_verdicts_total{code}`, `ztd_admission_cache_hits_total`,
+`/metrics` on port 9090: `ztd_admission_verdicts_total{code}` (`allowed`, `allow-listed` or the
+reason code), `ztd_admission_cache_hits_total`,
 `ztd_admission_cache_misses_total`, `ztd_admission_system_errors_total` and the histogram
 `ztd_admission_request_duration_seconds`.

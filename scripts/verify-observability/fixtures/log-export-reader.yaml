@@ -1,0 +1,35 @@
+# A pod on the demonstrator side that mounts the receiving collector's log volume (otel-entry-logs)
+# read-only, as the collector's user, so that the proof can read the exported files of every zone
+# (pod-logs-collected, if01-fields-kept, logs-exported). It has no network role. On a single-node
+# cluster or with a volume bound to one node, it runs where the volume is. Placeholders:
+# ${NS_BACKENDS}, ${CLIENT_IMAGE}.
+apiVersion: v1
+kind: Pod
+metadata:
+  name: log-export-reader
+  namespace: ${NS_BACKENDS}
+  labels:
+    app.kubernetes.io/name: log-export-reader
+    app.kubernetes.io/part-of: verify-observability
+spec:
+  automountServiceAccountToken: false
+  securityContext:
+    runAsNonRoot: true
+    runAsUser: 10001
+    runAsGroup: 10001
+    seccompProfile: { type: RuntimeDefault }
+  containers:
+    - name: reader
+      image: ${CLIENT_IMAGE}
+      command: ["sleep", "86400"]
+      securityContext:
+        allowPrivilegeEscalation: false
+        readOnlyRootFilesystem: true
+        capabilities: { drop: ["ALL"] }
+      volumeMounts:
+        - { name: log-export, mountPath: /var/lib/ztd-logs, readOnly: true }
+  volumes:
+    - name: log-export
+      persistentVolumeClaim:
+        claimName: otel-entry-logs
+        readOnly: true

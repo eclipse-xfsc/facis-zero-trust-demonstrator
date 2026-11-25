@@ -404,10 +404,12 @@ func (h *harness) burst(ctx context.Context, mode string, strike func()) burstRe
 	}
 	go func() {
 		time.Sleep(window / 4)
+		strike()
+		// Stamped once the strike has returned: a request sent while it was still landing may be
+		// answered by the live hook, and counts as before the strike.
 		mu.Lock()
 		struckAt = time.Now()
 		mu.Unlock()
-		strike()
 	}()
 	go func() { wg.Wait(); close(completed) }()
 	select {

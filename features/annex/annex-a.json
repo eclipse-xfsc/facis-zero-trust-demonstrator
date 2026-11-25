@@ -17,8 +17,8 @@
       "then": "the in-mesh call is carried over the mesh under mutual TLS AND the out-of-mesh call is blocked and logged.",
       "family": "mesh",
       "runner": "go",
-      "status": "pending",
-      "cluster": false
+      "status": "implemented",
+      "cluster": true
     },
     {
       "id": "ZT-02",
@@ -107,8 +107,8 @@
       "then": "the authorized request is permitted according to credential/policy evaluation AND the request without matching attributes/authorization is denied and evidenced.",
       "family": "policy",
       "runner": "go",
-      "status": "pending",
-      "cluster": false
+      "status": "implemented",
+      "cluster": true
     },
     {
       "id": "ZT-07",
@@ -125,8 +125,8 @@
       "then": "it serves the demonstrator flow with no change to Connector, policy or trust configuration AND an API that does not satisfy the documented interface is rejected at configuration time.",
       "family": "authorization",
       "runner": "go",
-      "status": "pending",
-      "cluster": false
+      "status": "implemented",
+      "cluster": true
     },
     {
       "id": "ZT-08",
@@ -323,8 +323,8 @@
       "then": "the listed peer is admitted on the basis of the retrieved trust list AND the unlisted peer is refused.",
       "family": "trust-lists",
       "runner": "go",
-      "status": "pending",
-      "cluster": false
+      "status": "implemented",
+      "cluster": true
     },
     {
       "id": "ZT-19",
@@ -341,8 +341,8 @@
       "then": "the request reaches the counter side over that protected channel with required call information preserved AND no unprotected inter-connector path is used.",
       "family": "attested-channel",
       "runner": "go",
-      "status": "pending",
-      "cluster": false
+      "status": "implemented",
+      "cluster": true
     },
     {
       "id": "ZT-20",
@@ -359,8 +359,8 @@
       "then": "the authorized request passes the PEP/PDP policy chain AND the unauthorized request is denied before the protected resource returns data.",
       "family": "authorization",
       "runner": "go",
-      "status": "pending",
-      "cluster": false
+      "status": "implemented",
+      "cluster": true
     },
     {
       "id": "ZT-21",
@@ -377,8 +377,8 @@
       "then": "it issues the appropriate DPoP-bound access tokens AND an invalid presentation or unregistered/unauthorized client does not receive a usable access token.",
       "family": "authorization",
       "runner": "go",
-      "status": "pending",
-      "cluster": false
+      "status": "implemented",
+      "cluster": true
     },
     {
       "id": "ZT-22",
@@ -395,8 +395,8 @@
       "then": "the backend token and DPoP proof are validated and the correct counter-side token is used upstream AND an invalid DPoP proof or expired/unrenewable token causes the request to be denied.",
       "family": "authorization",
       "runner": "go",
-      "status": "pending",
-      "cluster": false
+      "status": "implemented",
+      "cluster": true
     },
     {
       "id": "ZT-23",
@@ -413,8 +413,8 @@
       "then": "the mesh is present in every cluster and service traffic is routed through it AND traffic attempting to bypass the mesh data path is not delivered.",
       "family": "mesh",
       "runner": "go",
-      "status": "pending",
-      "cluster": false
+      "status": "implemented",
+      "cluster": true
     },
     {
       "id": "ZT-24",
@@ -431,8 +431,8 @@
       "then": "SPIRE is deployed in every cluster, all mesh services obtain SPIRE-backed identities and the service mesh uses those identities AND a workload that cannot attest does not receive an identity.",
       "family": "workload-identity",
       "runner": "go",
-      "status": "pending",
-      "cluster": false
+      "status": "implemented",
+      "cluster": true
     },
     {
       "id": "ZT-25",
@@ -449,8 +449,8 @@
       "then": "policy-related workloads communicate according to configured trust policy AND unaffiliated workloads are blocked by the default-deny network policy without relying on IP-address identity.",
       "family": "mesh",
       "runner": "go",
-      "status": "pending",
-      "cluster": false
+      "status": "implemented",
+      "cluster": true
     },
     {
       "id": "ZT-26",
@@ -467,8 +467,8 @@
       "then": "protected inter-cluster application traffic is routed through the ZT Connector AND explicitly exempt infrastructure/admin traffic uses its separately controlled ingress/egress path.",
       "family": "mesh",
       "runner": "go",
-      "status": "pending",
-      "cluster": false
+      "status": "implemented",
+      "cluster": true
     },
     {
       "id": "ZT-27",
@@ -485,8 +485,8 @@
       "then": "traces and metrics are exported from the cluster through the Collector, metrics are retained in Prometheus and traces are queryable in the tracing backend AND a component emitting no telemetry is visible as a gap in the correlated trace.",
       "family": "mesh",
       "runner": "go",
-      "status": "pending",
-      "cluster": false
+      "status": "implemented",
+      "cluster": true
     },
     {
       "id": "ZT-28",
@@ -995,8 +995,8 @@
       "then": "management services are reachable only through dedicated control channels and are separated by network-policy and service-mesh controls AND data-plane compromise/reachability does not provide access to management-plane endpoints.",
       "family": "plane-separation",
       "runner": "go",
-      "status": "pending",
-      "cluster": false
+      "status": "implemented",
+      "cluster": true
     },
     {
       "id": "ZT-56",
@@ -1031,8 +1031,8 @@
       "then": "each relevant microservice has access to a SPIRE Agent on its node and can request workload identity.",
       "family": "workload-identity",
       "runner": "go",
-      "status": "pending",
-      "cluster": false
+      "status": "implemented",
+      "cluster": true
     },
     {
       "id": "ZT-58",
@@ -1049,8 +1049,8 @@
       "then": "service traffic is captured on each node and protected with workload-certificate-based mutual TLS.",
       "family": "mesh",
       "runner": "go",
-      "status": "pending",
-      "cluster": false
+      "status": "implemented",
+      "cluster": true
     },
     {
       "id": "ZT-59",
@@ -1067,8 +1067,8 @@
       "then": "SPIRE attests the workload successfully and issues the expected identity, which is then usable by the mesh.",
       "family": "workload-identity",
       "runner": "go",
-      "status": "pending",
-      "cluster": false
+      "status": "implemented",
+      "cluster": true
     },
     {
       "id": "ZT-60",
@@ -1085,8 +1085,8 @@
       "then": "no identity is issued and all service communication is denied.",
       "family": "workload-identity",
       "runner": "go",
-      "status": "pending",
-      "cluster": false
+      "status": "implemented",
+      "cluster": true
     },
     {
       "id": "ZT-61",
@@ -1103,8 +1103,8 @@
       "then": "its service communication traverses the service-mesh data path and is subject to the configured identity and policy controls.",
       "family": "mesh",
       "runner": "go",
-      "status": "pending",
-      "cluster": false
+      "status": "implemented",
+      "cluster": true
     },
     {
       "id": "ZT-62",
@@ -1121,8 +1121,8 @@
       "then": "the permitted identity communicates successfully AND the non-permitted identity is blocked by mesh policy.",
       "family": "mesh",
       "runner": "go",
-      "status": "pending",
-      "cluster": false
+      "status": "implemented",
+      "cluster": true
     },
     {
       "id": "ZT-63",
@@ -1319,8 +1319,8 @@
       "then": "the request is authorized, traverses the trusted channel and receives the policy-permitted protected-resource response AND an unauthorized request does not return protected data.",
       "family": "authorization",
       "runner": "go",
-      "status": "pending",
-      "cluster": false
+      "status": "implemented",
+      "cluster": true
     },
     {
       "id": "ZT-74",
@@ -1337,8 +1337,8 @@
       "then": "the mock behaves as a participant backend using the trusted channel and publishes its registration/request/status events to the visualization.",
       "family": "authorization",
       "runner": "go",
-      "status": "pending",
-      "cluster": false
+      "status": "implemented",
+      "cluster": true
     },
     {
       "id": "ZT-75",
@@ -1355,8 +1355,8 @@
       "then": "role-appropriate responses are returned and visualized AND unauthorized roles do not receive protected content.",
       "family": "policy",
       "runner": "go",
-      "status": "pending",
-      "cluster": false
+      "status": "implemented",
+      "cluster": true
     },
     {
       "id": "ZT-76",
@@ -1373,8 +1373,8 @@
       "then": "valid credentials are mapped into the intended JWT/role authorization and return the permitted response AND invalid/revoked credentials do not grant protected access.",
       "family": "authorization",
       "runner": "go",
-      "status": "pending",
-      "cluster": false
+      "status": "implemented",
+      "cluster": true
     },
     {
       "id": "ZT-77",
@@ -1559,8 +1559,8 @@
       "then": "the valid flow is authorized and the invalid flow is denied with traceable evidence.",
       "family": "authorization",
       "runner": "go",
-      "status": "pending",
-      "cluster": false
+      "status": "implemented",
+      "cluster": true
     },
     {
       "id": "TDR-BDD-06",

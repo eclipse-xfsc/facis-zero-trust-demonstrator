@@ -70,7 +70,9 @@ Token mode only; each is required there except the entitlement, and none is read
 | `PROTECTED_RESOURCE_REQUEST_TIMEOUT` | `5s` | Positive duration bounding each resource request. |
 | `PROTECTED_RESOURCE_SLOW_DELAY` | `2s` | Positive simulated delay; must be shorter than the Resource request timeout. |
 | `PROTECTED_RESOURCE_MODE` | `sample` | `sample`, or `token` for [token mode](#token-mode). |
+| `PROTECTED_RESOURCE_GRPC_ADDRESS` | unset | Token mode only: a second listener (cleartext HTTP/2) serving the gRPC sample method `/grpc.health.v1.Health/Check` behind the same token and proof verification as `/demo`; the proof names the public base URL plus the method path. |
 | `PROTECTED_RESOURCE_ADAPTER_MODE` | `sample` | `sample` or `sample-alternative`; both are deterministic sample data. |
+| `PROTECTED_RESOURCE_ADAPTER_MODE` | `sample` | `sample` or `sample-alternative`; both are deterministic sample data. `cloud-api` docks a real read-only API in their place, see [API dock](api-dock.md). |
 | `PROTECTED_RESOURCE_LOG_LEVEL` | `info` | `debug`, `info`, `warn` or `error`. |
 
 Token mode only, all required there:
@@ -97,10 +99,10 @@ Each service has two modes. The package derives the mode from `Config` (a verifi
 
 ### Token mode
 
-**Participant.** `ConnectorBootstrap` (`services/participant/connector.go`) is the `Bootstrapper` (design D12). Its DPoP key is a P-256 key generated in the process when it starts: a Participant is a workload, not the token store, so it has no transit key, and the key never leaves the process or survives a restart. The client is provisioned (its credentials come from the mounted file), so the `registering` step is skipped and a run starts at `presenting`:
+**Participant.** `ConnectorBootstrap` (`services/participant/connector.go`) is the `Bootstrapper` (design D12). Its DPoP key is a P-256 key generated in the process when it starts: a Participant is a workload, not the token store, so it has no transit key, and the key never leaves the process or survives a restart. The client is provisioned (its credentials come from the mounted file), and a run confirms that registration through the authenticated challenge:
 
-1. `presenting` / `step_started`; read the credentials file.
-2. `POST /oauth2/challenge` with `client_secret_basic` and the audience.
+1. `registering` / `step_started`; read the credentials file.
+2. `POST /oauth2/challenge` with `client_secret_basic` and the audience; on success emit `registered` / `step_completed`, then `presenting` / `step_started`. This confirms the provisioned registration; it does not create another client.
 3. The fixture `OutcomeSource` (`internal/if03/if03fixture`) signs an IF-03 outcome for that challenge.
 4. `acquiring_token` / `step_started`; the grant with a proof of the Participant's key, retried once with the Connector's nonce (`internal/connectorclient`, shared with the token store).
 5. The token must be `token_type` DPoP, `cnf.jkt` the Participant key's thumbprint, `aud` the audience, `exp` in the future; then `ready` / `step_completed`.
@@ -280,3 +282,38 @@ It covers sample mode only. It checks both health endpoints, all five standard s
 Deploy the two services in the shared OSC `zero-trust` namespace per [Application workloads](environments/application-workloads.md), as separate releases outside the platform umbrella. Images target `linux/amd64`, are published by the release workflow and selected by digest; the application-service chart (`deployment/helm/application-service`) installs each one. Network policy must allow the approved caller to Participant, Participant to Resource and required DNS; Resource needs no outbound application route. Observe namespace quotas and minimum requests. No cluster-scoped resources are needed by these applications.
 
 Return the source revision, image digests, effective non-secret environment settings, both health results, scenario results and correlated JSON logs from both processes. The current deployment and its results are recorded in [Application service verification](application-services-verification.md). The UI/ORCE bridge is outside these services. Shared-OSC deployment and sample HTTP results establish application integration only, not final two-zone security acceptance.
+
+## Application events on IF-01
+
+The executables always wire an IF-01 v2 sink to stdout, independently of the application log level.
+`IF01_SOURCE` selects `participant-a/b` or `protected-resource-a/b`; defaults are `participant-a`
+and `protected-resource-b`. The Helm `eventSource` value sets it explicitly. Each process has a
+random run ID and serialized sequence numbers starting at zero. These are `step` events, not policy
+`decision` events. Existing v1 feeds omit these v2-only sources; use `/v2/events` and `/v2/snapshot`.
+
+The participant publishes registration transitions (including rejected provisioned credentials),
+lifecycle/status transitions, and one outcome for every `/demo` request, including
+validation errors and dependency failures. Request events reuse the response's correlation ID;
+token requests carry it in both the body and headers so pre-handler authentication refusals can
+retain it. Startup events use the producer's run ID as their correlation ID. A `/state` read
+publishes nothing, so polling cannot push events out of the feed's per-run buffer.
+
+The resource publishes one event per `/demo` access, including requests refused by the token
+verifier before the resource handler runs. `payload.detail` is `access role=reader`, `viewer`,
+`reader_and_viewer`, or `unauthorized`, derived only from verified `report:read` / `report:summary`
+scopes. Before authentication it is `not_evaluated`; unauthenticated sample mode is `sample`.
+`payload.state` carries the outcome and `reason_code` uses the registered `APP-` family, with the
+application reason converted from underscores to hyphens. No raw scopes, credentials, proofs or
+protected content enter the events. The participant reports a resource 403 as `APP-TOKEN-FORBIDDEN`;
+the resource's correlated event records `APP-RESOURCE-SCOPE-INSUFFICIENT`.
+
+As with the guard, the node collector reads the JSON container log lines (no new application egress).
+The feed bridge accepts the same lines through `/ingest`; the authorized collector/forwarder owns
+that hop. This change does not install a new continuous forwarder. The integration proof posts the
+producer lines to the real bridge and checks its SSE output and both snapshot contracts.
+
+Run `PATH=/opt/homebrew/bin:$PATH scripts/verify-application-feed/verify.sh` on a workstation with Docker.
+It creates isolated local Docker PostgreSQL and OpenBao containers, runs only ZT-75 in BDD cluster
+mode, saves the SSE events and cucumber report under `bundles/bdd/`, and removes its containers.
+It does not deploy to Kubernetes. It proves the DPoP-protected application path and feed behavior;
+mesh/attested-channel transport and a browser rendering require their existing deployment proofs.

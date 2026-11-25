@@ -1,0 +1,5 @@
+# Render-only.
+framework: trust.example.org
+tspaUrl: http://tspa-service:16003/tspa-service/tspa/v1
+tokenUrl: http://keycloak:8080/realms/train/protocol/openid-connect/token
+client: {id: trustlist-publisher, secretName: tspa-republish-client}

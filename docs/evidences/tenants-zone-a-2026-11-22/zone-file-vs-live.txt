@@ -1,0 +1,14 @@
+# Live ztd revision 5 against the umbrella rendered from deployment/helm/ztd/zones/zone-a.yaml
+# (2026-11-22T02:41:46Z, hooks excluded); nothing removed or changed, only additions:
+ADD CiliumNetworkPolicy ztd-otel-node allow-kube-api-egress
+ADD Namespace  ztd-otel-node
+ADD NetworkPolicy spire-system allow-observability-scrape-ingress
+ADD NetworkPolicy ztd-data allow-connector-to-openbao-egress
+ADD NetworkPolicy ztd-data allow-token-store-to-openbao-egress
+ADD NetworkPolicy ztd-mgmt allow-connector-to-openbao-ingress
+ADD NetworkPolicy ztd-mgmt allow-observability-scrape-egress
+ADD NetworkPolicy ztd-mgmt allow-token-store-to-openbao-ingress
+ADD NetworkPolicy ztd-otel-node allow-dns-egress
+ADD NetworkPolicy ztd-otel-node allow-intra-plane
+ADD NetworkPolicy ztd-otel-node default-deny
+ADD Service spire-system spire-server-metrics

@@ -1,0 +1,191 @@
+openapi: 3.1.0
+info:
+  title: FACIS ZTD verification service, presentation API
+  version: 1.0.0
+  description: >-
+    What the presentation hook of a token store calls to turn one connector challenge into one
+    signed IF-03 outcome, without a person. The caller creates a verification request for the
+    challenge, a holder presents a credential for it (OpenID for Verifiable Presentations,
+    response mode direct_post, one SD-JWT VC), and the service answers the presentation with the
+    outcome. A request is answered once. The outcome is returned whatever the verification
+    found: verified, failed and revoked are all signed outcomes, and refusing one that is not
+    verified is the consumer's. The API carries no credential of its own and does not
+    authenticate either side: that the caller reaches the real service, over a protected transport,
+    and that only the intended workloads may call it, is the deployment's to ensure (the zone's
+    mesh and, between zones, the attested channel). A caller that is misdirected discloses the
+    credential it presents; it cannot be given a token, because only an outcome signed by an issuer
+    the consumer trusts is accepted.
+  license:
+    name: Apache-2.0
+    identifier: Apache-2.0
+paths:
+  /v1/requests:
+    post:
+      summary: Create the verification request for one connector challenge
+      operationId: createVerificationRequest
+      description: >-
+        The request binds the presentation to the challenge: its nonce is the challenge value and
+        its client_id is the audience the token is for, so a conformant holder's key binding
+        carries both. One request may be open per challenge.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              required: [challenge, client_id, audience, expires_at]
+              properties:
+                challenge:
+                  type: string
+                  pattern: '^[A-Za-z0-9_-]{16,256}$'
+                  description: The value the connector issued at /oauth2/challenge.
+                client_id:
+                  type: string
+                  minLength: 1
+                  maxLength: 256
+                  description: The client the challenge was issued to; the outcome's client_id.
+                audience:
+                  type: string
+                  format: uri
+                  description: The audience the grant is for; the outcome's audience.
+                expires_at:
+                  type: string
+                  format: date-time
+                  description: >-
+                    When the challenge expires; in the future, at most 150 s ahead (the connector's
+                    challenge lifetime of 120 s and 30 s of clock skew).
+      responses:
+        '201':
+          description: The OID4VP request a holder answers.
+          headers:
+            Cache-Control:
+              schema:
+                const: no-store
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [request_id, nonce, client_id, response_uri, response_mode, dcql_query, expires_at]
+                properties:
+                  request_id:
+                    type: string
+                    pattern: '^[A-Za-z0-9_-]{16,128}$'
+                  nonce:
+                    type: string
+                    description: The challenge value, unchanged.
+                  client_id:
+                    type: string
+                    format: uri
+                    description: The audience, unchanged; the aud of the holder's key binding.
+                  response_uri:
+                    type: string
+                    format: uri
+                    description: >-
+                      The service's own view of where the response goes; it ends with
+                      /v1/responses/{request_id}. A caller posts the presentation to that path
+                      under the base URL it is configured with and does not use this value, so an
+                      answer cannot direct a credential to another address.
+                  response_mode:
+                    const: direct_post
+                  dcql_query:
+                    type: object
+                    description: A DCQL query for one dc+sd-jwt credential of an accepted type (meta.vct_values).
+                  expires_at:
+                    type: string
+                    format: date-time
+        '400':
+          description: >-
+            CRED-REQUEST-INVALID - the body is malformed, the challenge is not acceptable, or a
+            request for this challenge is already open.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/refusal'
+        '503':
+          description: The service is not ready or is draining. No request was created.
+  /v1/responses/{request_id}:
+    post:
+      summary: Present a credential for a request and receive the signed outcome
+      operationId: respondToVerificationRequest
+      description: >-
+        An OID4VP direct_post response. The request is consumed before the presentation is judged,
+        so a second post for the same request is refused, whatever the first one carried. The
+        answer is synchronous: the outcome is in the response body.
+      parameters:
+        - name: request_id
+          in: path
+          required: true
+          schema:
+            type: string
+            pattern: '^[A-Za-z0-9_-]{16,128}$'
+      requestBody:
+        required: true
+        content:
+          application/x-www-form-urlencoded:
+            schema:
+              type: object
+              required: [vp_token]
+              properties:
+                vp_token:
+                  type: string
+                  maxLength: 65536
+                  description: >-
+                    Exactly once. One SD-JWT VC presentation with its key-binding JWT, as a string,
+                    a one-element array or a DCQL result object with one credential query.
+                state:
+                  type: string
+                  description: Accepted and ignored.
+      responses:
+        '200':
+          description: >-
+            The presentation was judged and the outcome signed. status repeats the outcome's
+            status for the caller's records; the signed outcome is the only thing a consumer acts on.
+          headers:
+            Cache-Control:
+              schema:
+                const: no-store
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [outcome, status]
+                properties:
+                  outcome:
+                    type: string
+                    pattern: '^[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+$'
+                    description: >-
+                      The IF-03 outcome as a compact JWS (if03-jws-header.v1.schema.json,
+                      if03-verification-outcome.v1.schema.json): client_id, challenge and audience
+                      are the request's, outcome_id is new, the validity is 60 to 120 s.
+                  status:
+                    enum: [verified, failed, revoked]
+                  reason_code:
+                    enum: [CRED-INVALID, CRED-ISSUER-UNTRUSTED, CRED-REVOKED, CRED-STATUS-UNAVAILABLE]
+                    description: Present exactly when status is not verified.
+        '400':
+          description: CRED-REQUEST-INVALID - the form is malformed. The request is consumed all the same.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/refusal'
+        '404':
+          description: CRED-REQUEST-UNKNOWN - the request is unknown, expired or already answered.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/refusal'
+        '500':
+          description: The outcome could not be signed. No outcome exists for the request.
+        '503':
+          description: The service is not ready or is draining. The request is not consumed.
+components:
+  schemas:
+    refusal:
+      type: object
+      required: [reason_code]
+      properties:
+        error:
+          type: string
+        reason_code:
+          enum: [CRED-REQUEST-INVALID, CRED-REQUEST-UNKNOWN]

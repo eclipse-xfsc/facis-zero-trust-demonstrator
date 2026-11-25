@@ -1,0 +1,15 @@
+apiVersion: v2
+name: verification-service
+description: >-
+  The zone's verification service (services/verification-service): the presentation API the token
+  store's presentation hook calls, judging SD-JWT VC presentations and signing IF-03 outcomes with
+  a key held in OpenBao transit, with its mesh identity declared both ways.
+type: application
+version: 0.1.0
+appVersion: "0.1.0"
+keywords:
+  - facis
+  - zero-trust
+  - verification
+sources:
+  - https://github.com/eclipse-xfsc/facis-zero-trust-demonstrator

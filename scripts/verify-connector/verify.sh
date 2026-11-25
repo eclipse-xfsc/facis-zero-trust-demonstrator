@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
-# The connector chart and the registration path on a throwaway kind cluster: the token-store chart
-# prepares the schema, the connector installs and comes up ready against PostgreSQL and OpenBao
-# with its signing key; a client registers through the registrar with `connector register` from the
+# The connector chart and the registration path on a throwaway kind cluster: the chart's own hook
+# applies the schema with the token-store image, the connector installs and comes up ready against
+# PostgreSQL and OpenBao with its signing key; a database one migration behind makes it not ready and
+# an upgrade applies the migration; a client registers through the registrar with `connector register` from the
 # connector's own image and gets its credentials file; a registration the policy refuses is refused
 # with the specific error; both decisions are in the audit trail and on the security-state feed; the
 # pod runs as its own ServiceAccount with the identity label and never restarts; no secret reaches
@@ -96,7 +97,6 @@ leaks() {
 }
 
 psql() { kubectl -n "$ns" exec deploy/postgres -- psql -U postgres -d tokenstore -Atc "$1"; }
-tables() { psql "SELECT count(*) FROM information_schema.tables WHERE table_schema = 'public'"; }
 connector_pod() { kubectl -n "$ns" get pod -l "$connector_sel" -o jsonpath='{.items[0].metadata.name}'; }
 start_proxy() {
   kubectl proxy --port=0 --address=127.0.0.1 >"$work/proxy.log" 2>&1 &
@@ -248,13 +248,6 @@ if [ -n "${GITHUB_ACTIONS:-}" ]; then host_kind=ci; fi
   echo "}"
 } > "$out/environment.json"
 
-step "The schema, by the token-store chart"
-helm install token-store deployment/helm/token-store -n "$ns" --set "image.repository=$reg/token-store" --set "image.digest=$store_digest" \
-  --set database.existingSecret=token-store-database --set openbao.address=http://openbao:8200 --set schema.dropOnUninstall=true \
-  --wait --wait-for-jobs --timeout 3m >/dev/null
-version=$(psql "SELECT coalesce(max(version), 0) FROM schema_migrations")
-if [ "$version" -ge 4 ]; then pass "the token-store chart applied the schema to version $version"; else fail "schema at version $version, the connector needs 4"; fi
-
 step "The Istio CRDs the chart's PeerAuthentication needs"
 crds="${BIN:-.tools/bin}/istio-crds"
 if [ ! -d "$crds" ]; then scripts/tools/install.sh "$work/tools" istio-crds >/dev/null; crds="$work/tools/istio-crds"; fi
@@ -264,8 +257,17 @@ kubectl wait --for condition=established --timeout=60s -f "$crds/" >/dev/null
 step "The connector: installed and ready"
 endpoint="http://ztd-connector.$ns.svc:8080/oauth2/register"
 # The chart's NetworkPolicy admits no caller and no dependency until the deployment names its lanes,
-# and kind enforces it: the registration pods in, PostgreSQL and OpenBao out.
+# and kind enforces it: the registration pods in, PostgreSQL and OpenBao out; the migration Job has
+# its own lane to PostgreSQL.
 cat > "$work/connector-network.yaml" <<EOF
+schema:
+  enabled: true
+  image: {repository: "$reg/token-store", digest: "$store_digest"}
+  egress:
+    - to:
+        - podSelector:
+            matchLabels: {app: postgres}
+      ports: [{port: 5432, protocol: TCP}]
 networkPolicy:
   ingressFrom:
     - podSelector:
@@ -280,6 +282,8 @@ networkPolicy:
             matchLabels: {app: openbao}
       ports: [{port: 8200, protocol: TCP}]
 EOF
+# A schema account made by hand, as a zone that migrated with its own Job has: the hook replaces it.
+kubectl -n "$ns" create serviceaccount ztd-connector-schema >/dev/null
 helm install connector deployment/helm/connector -n "$ns" -f "$work/connector-network.yaml" \
   --set "image.repository=$reg/connector" --set "image.digest=$connector_digest" \
   --set zone=b --set database.existingSecret=token-store-database --set credentials.existingSecret=connector-credentials \
@@ -288,6 +292,15 @@ helm install connector deployment/helm/connector -n "$ns" -f "$work/connector-ne
   --set 'oauth.registrarScopes={connector:client_registration,resource.read}' --set "oauth.registrarAudiences={$endpoint,$resource}" \
   --set verifiedPresentation.enabled=false \
   --wait --timeout 3m >/dev/null
+latest=$(find services/token-store/internal/schema/migrations -name '*.up.sql' | sort | tail -1)
+want=$((10#$(basename "$latest" | cut -d_ -f1)))
+schema_version() { psql "SELECT coalesce(max(version), 0) FROM schema_migrations"; }
+if [ "$(schema_version)" = "$want" ]; then pass "the chart's hook applied the schema to version $want on an empty database"; else fail "schema at version $(schema_version), not $want"; fi
+if [ "$(kubectl -n "$ns" get serviceaccount ztd-connector-schema -o jsonpath='{.metadata.labels.app\.kubernetes\.io/managed-by}')" = Helm ]; then
+  pass "the hook replaced the schema account made by hand with the chart's"
+else
+  fail "the schema account is not the chart's"
+fi
 start_proxy
 rid="verify-ready-$(hex 4)"
 code=$(probe 9090 /readyz "$out/readyz.json" -D "$out/readyz-headers.txt" -H "x-request-id: $rid")
@@ -302,6 +315,22 @@ code=$(probe 9090 /healthz "$out/healthz.txt")
 if [ "$code" = 200 ]; then pass "/healthz answers 200"; else fail "/healthz answered $code"; fi
 code=$(probe 8080 /.well-known/jwks.json "$out/jwks.json")
 if [ "$code" = 200 ] && grep -q '"alg":"ES256"' "$out/jwks.json"; then pass "the API port publishes the ES256 signing key"; else fail "jwks: $code"; fi
+
+step "A database one migration behind: not ready, and the upgrade applies it"
+psql "$(cat "${latest%.up.sql}.down.sql") DELETE FROM schema_migrations WHERE version = $want" >/dev/null
+code=$(probe 9090 /readyz "$work/readyz-behind.json")
+if [ "$code" = 503 ] && [ "$(word "$work/readyz-behind.json" postgres)" = schema_behind ]; then
+  pass "with migration $want reverted /readyz answers 503 with postgres schema_behind"
+else
+  fail "/readyz behind: $code $(cat "$work/readyz-behind.json" 2>/dev/null)"
+fi
+helm upgrade connector deployment/helm/connector -n "$ns" --reuse-values --wait --timeout 3m >/dev/null
+code=$(probe 9090 /readyz "$work/readyz-current.json")
+if [ "$(schema_version)" = "$want" ] && [ "$code" = 200 ]; then
+  pass "the upgrade's hook applied migration $want and /readyz answers 200"
+else
+  fail "after the upgrade: schema $(schema_version), /readyz $code"
+fi
 
 step "A participant registers through the registrar, with connector register from the connector image"
 ok_rid="verify-ok-$(hex 4)"
@@ -451,8 +480,7 @@ kubectl -n "$ns" wait --for=delete "pod/$pod" --timeout=90s >/dev/null 2>&1 || t
 wait "$logs_pid" 2>/dev/null || true
 if grep -q '"msg":"draining"' "$out/drain.txt" && grep -q '"msg":"connector stopped"' "$out/drain.txt"; then pass "the connector drained and stopped on its own"; else fail "no drain records: $(tail -2 "$out/drain.txt")"; fi
 helm uninstall connector -n "$ns" --wait --timeout 3m >/dev/null
-helm uninstall token-store -n "$ns" --wait --timeout 3m >/dev/null
-if [ "$(tables)" = 0 ]; then pass "the uninstalls left an empty schema"; else fail "$(tables) tables left"; fi
+if [ "$(schema_version)" = "$want" ]; then pass "the uninstall left the schema in place, at version $want"; else fail "schema at version $(schema_version) after the uninstall"; fi
 
 step "Verdict"
 if [ "$failures" = 0 ]; then verdict=PASS; else verdict=FAIL; fi

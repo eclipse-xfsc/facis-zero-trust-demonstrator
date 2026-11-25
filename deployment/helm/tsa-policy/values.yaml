@@ -1,0 +1,57 @@
+# Digests only. tsa and nats are upstream digests, mirrored unchanged under ghcr.io/eclipse-xfsc/...
+# for admission (pins in scripts/tools/pins.env, checked by the chart gate); git and bundle are built
+# from deployment/docker/ by the release workflow.
+images:
+  # eclipse-xfsc/custom-policy-agent v1.1.4 (commit 6c2ed667), published as
+  # node-654e3bca7fbeeed18f81d7c7.ps-xaas.io/tsa/policy:1.1.4; multi-arch index digest.
+  tsa: {repository: ghcr.io/eclipse-xfsc/facis-zero-trust-demonstrator/tsa-policy, digest: "sha256:0275b144e1bb03ded111cdd12e185930fc53d4e8a4f65168feb56a6cc8c25862"}
+  # docker.io/library/nats:2.15.3; the TSA's change-event client needs a NATS server at start-up.
+  nats: {repository: ghcr.io/eclipse-xfsc/facis-zero-trust-demonstrator/nats, digest: "sha256:4b83414183aa5fb87cd164962c47eaffd214e84668dc4fa4f1d4c44a3e765ee8"}
+  git: {repository: ghcr.io/eclipse-xfsc/facis-zero-trust-demonstrator/tsa-git, digest: ""}
+  bundle: {repository: ghcr.io/eclipse-xfsc/facis-zero-trust-demonstrator/tsa-bundle, digest: ""}
+
+# The active bundle, declared by pull request: a digest reference published by
+# scripts/supplychain/publish-tsa-bundle.sh and the revision it carries. Changing it changes only the
+# tsa-policy-bundle ConfigMap; the sidecar verifies and imports it without restarting anything.
+# Rollback is the pull request that declares the previous reference again.
+bundle:
+  ref: ""
+  revision: ""
+  # Only bundles under this repository are accepted.
+  repository: ghcr.io/eclipse-xfsc/facis-zero-trust-demonstrator/tsa-policy-bundles
+  # Registry hosts spoken to over http: a local test registry only.
+  plainHTTPRegistries: []
+  pollSeconds: 10
+
+# The trust root: the one key a bundle and its OCI artefact must be signed with. The default is the
+# repository's interim signing key (docs/contracts/keys/interim-cosign.pub), replaced with the rest
+# of the signing chain.
+trustRoot: |
+  -----BEGIN PUBLIC KEY-----
+  MFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAE0lFmUtbg0hz8DzhKG9mz6lKqU1Zf
+  ZGTwuAuoCwoIlaVI5RbLNt9Hiwe4/39DPyX+2qZonfl9p16mexhlc+vltw==
+  -----END PUBLIC KEY-----
+
+# The policy the guard evaluates: /policy/{repository}/{group}/{name}/{version}/evaluation.
+policy: {repository: policies, group: facis, name: guard, version: "1.0"}
+
+# Who may evaluate: the IF-05 adapters (the guard chart's ztd-policy-evaluator), by namespace and
+# service account; the service account name is also the pods' app.kubernetes.io/name.
+trustDomain: zone-b.trust.invalid
+callers: []
+# - {namespace: ztd-guard, name: ztd-policy-evaluator}
+
+networkPolicy:
+  istiod: {enabled: false, namespace: istio-system}
+  # Must reach the bundle registry; without it no bundle is fetched and every evaluation fails closed.
+  egress: []
+
+nodeSelector: {}
+podAnnotations: {}
+resources:
+  requests: {cpu: 50m, memory: 64Mi}
+  limits: {memory: 256Mi}
+# The TSA compiles the policy on every evaluation; it gets its own, larger share.
+tsaResources:
+  requests: {cpu: 250m, memory: 128Mi}
+  limits: {memory: 512Mi}

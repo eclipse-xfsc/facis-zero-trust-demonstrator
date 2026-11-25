@@ -1,0 +1,5 @@
+# expect: schema.egress must include the database lane
+schema:
+  enabled: true
+  image:
+    digest: sha256:0000000000000000000000000000000000000000000000000000000000000000

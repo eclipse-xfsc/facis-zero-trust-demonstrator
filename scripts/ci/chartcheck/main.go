@@ -3,7 +3,6 @@ package main
 
 import (
 	"bytes"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
@@ -36,10 +35,12 @@ func need(ok bool, message string) error {
 	}
 	return nil
 }
-func render(chart string, runtime bool) ([]object, error) {
+
+// render renders the chart with ci/values.yaml and, when variant is set, ci/<variant>-values.yaml.
+func render(chart, variant string) ([]object, error) {
 	args := []string{"template", "check", chart, "-n", "chart-check", "-f", filepath.Join(chart, "ci/values.yaml")}
-	if runtime {
-		args = append(args, "-f", filepath.Join(chart, "ci/runtime-values.yaml"))
+	if variant != "" {
+		args = append(args, "-f", filepath.Join(chart, "ci/"+variant+"-values.yaml"))
 	}
 	out, err := exec.Command("helm", args...).Output()
 	if err != nil {
@@ -75,6 +76,9 @@ func check(root, chart string) error {
 	if name == "application-service" {
 		return checkGuarded(root)
 	}
+	if name == "tsa-policy" {
+		return checkTSA(root, chart)
+	}
 	if name != "guard" && name != "token-store" && name != "connector" {
 		return nil
 	}
@@ -84,7 +88,8 @@ func check(root, chart string) error {
 			return nil
 		}
 	}
-	docs, err := render(chart, runtime)
+	variant := map[string]string{"token-store": "runtime", "connector": "schema"}[name]
+	docs, err := render(chart, variant)
 	if err != nil {
 		return err
 	}
@@ -117,7 +122,14 @@ func check(root, chart string) error {
 		return err
 	}
 	if !runtime {
-		return nil
+		// The connector's selector has no component label, so its migration Job's pods must differ in
+		// one of the selector's own labels or the Service and the policies take them for the service.
+		labels := at(find(docs, "Job", "ztd-connector-migrate"), "spec", "template", "metadata", "labels")
+		apart := false
+		for key, value := range selector.(map[string]any) {
+			apart = apart || at(labels, key) != value
+		}
+		return need(labels != nil && apart, "the connector's selector must not select the schema Job's pods")
 	}
 	refused, renderErr := exec.Command("helm", "template", "check", chart, "-f", filepath.Join(chart, "ci/values.yaml"), "-f", filepath.Join(chart, "ci/runtime-values.yaml"), "--set-json", "networkPolicy.schemaEgress=[]").CombinedOutput()
 	if renderErr == nil || !strings.Contains(string(refused), "networkPolicy.schemaEgress must include the database lane") {
@@ -172,10 +184,46 @@ func check(root, chart string) error {
 	if err := need(ports[53] && ports[5432] && ports[15012], "schema policy must include DNS, configured database and istiod"); err != nil {
 		return err
 	}
-	// Ensure public runtime annotations remain JSON accepted by the proxy.
-	var proxy object
-	raw, _ := at(deployment, "spec", "template", "metadata", "annotations", "proxy.istio.io/config").(string)
-	return need(json.Unmarshal([]byte(raw), &proxy) == nil && at(proxy, "proxyHeaders", "forwardedClientCert") == "SANITIZE_SET", "runtime proxy must sanitize caller identity")
+	// The caller's identity comes from the sidecar's XFCC, sound only if the sidecar replaces a client's:
+	// SANITIZE_SET is mesh-wide (zone-policy's EnvoyFilter), as zone-policy refuses a per-pod proxy configuration.
+	for _, d := range append([]object{deployment}, docs...) {
+		if d["kind"] == "Deployment" || d["kind"] == "Job" {
+			if err := need(at(d, "spec", "template", "metadata", "annotations", "proxy.istio.io/config") == nil, "runtime pods may not set proxy.istio.io/config (refused by zone-policy)"); err != nil {
+				return err
+			}
+		}
+	}
+	mesh, err := render(filepath.Join(root, "deployment/helm/zone-policy"), "")
+	if err != nil {
+		return err
+	}
+	patches := list(at(find(mesh, "EnvoyFilter", "xfcc-sanitize-set"), "spec", "configPatches"))
+	sanitized := len(patches) == 1 && at(patches[0], "match", "context") == "SIDECAR_INBOUND" &&
+		at(patches[0], "patch", "value", "typed_config", "forward_client_cert_details") == "SANITIZE_SET"
+	if err := need(sanitized, "the mesh must sanitize caller identity on every inbound sidecar (zone-policy EnvoyFilter xfcc-sanitize-set)"); err != nil {
+		return err
+	}
+	return checkDenialLog(mesh)
+}
+
+// checkDenialLog holds the mesh-wide Telemetry to the refusals it must log: the authorization's (HTTP and
+// TCP) and the STRICT listener's, which closes a connection without mutual TLS (filter_chain_not_found).
+func checkDenialLog(mesh []object) error {
+	logging := list(at(find(mesh, "Telemetry", "mesh-default"), "spec", "accessLogging"))
+	filter := ""
+	if len(logging) == 1 {
+		filter, _ = at(logging[0], "filter", "expression").(string)
+	}
+	for _, clause := range []string{
+		`response.code_details.startsWith("rbac_access_denied")`,
+		`connection.termination_details.startsWith("rbac_access_denied")`,
+		`response.code_details == "filter_chain_not_found"`,
+	} {
+		if !strings.Contains(filter, clause) {
+			return errors.New("the mesh must log refusals only, and every kind of them (zone-policy Telemetry mesh-default): its filter lacks " + clause)
+		}
+	}
+	return need(len(strings.Split(filter, "||")) == 3, "the mesh denial log must hold refusals only (zone-policy Telemetry mesh-default): its filter has another clause")
 }
 func main() {
 	if len(os.Args) != 3 {
@@ -244,6 +292,80 @@ func checkGuarded(root string) error {
 	if at(gv, "config", "inbound_audience") != inbound || at(gv, "config", "upstream_audience") != upstream {
 		return errors.New("guard audiences must match Participant and Resource examples")
 	}
-	_, err = render(guard, false)
+	_, err = render(guard, "")
 	return err
+}
+
+// checkTSA holds the TSA chart to its pins and trust root, and proves that declaring another bundle
+// changes only the bundle ConfigMap: the pod template, and so the running pod, stays as it is.
+func checkTSA(root, chart string) error {
+	data, err := os.ReadFile(filepath.Join(chart, "values.yaml"))
+	if err != nil {
+		return err
+	}
+	var values object
+	if yaml.Unmarshal(data, &values) != nil {
+		return errors.New("invalid tsa-policy values")
+	}
+	pins, err := os.ReadFile(filepath.Join(root, "scripts/tools/pins.env"))
+	if err != nil {
+		return err
+	}
+	for image, pin := range map[string]string{"tsa": "TSA_POLICY_IMAGE=", "nats": "NATS_IMAGE="} {
+		digest := ""
+		for _, line := range strings.Split(string(pins), "\n") {
+			if strings.HasPrefix(line, pin) {
+				_, digest, _ = strings.Cut(line, "@")
+			}
+		}
+		repository, _ := at(values, "images", image, "repository").(string)
+		if err := need(digest != "" && at(values, "images", image, "digest") == digest && strings.HasPrefix(repository, "ghcr.io/eclipse-xfsc/"), image+" default must be the mirrored repository at the pinned digest"); err != nil {
+			return err
+		}
+	}
+	key, err := os.ReadFile(filepath.Join(root, "docs/contracts/keys/interim-cosign.pub"))
+	if err != nil {
+		return err
+	}
+	if err := need(strings.TrimSpace(fmt.Sprint(at(values, "trustRoot"))) == strings.TrimSpace(string(key)), "trustRoot default must be the repository signing key"); err != nil {
+		return err
+	}
+	template := func(ref, revision string) (object, object, error) {
+		out, err := exec.Command("helm", "template", "check", chart, "-n", "chart-check", "-f", filepath.Join(chart, "ci/values.yaml"),
+			"--set", "bundle.ref="+ref, "--set", "bundle.revision="+revision).Output()
+		if err != nil {
+			return nil, nil, errors.New("tsa-policy render failed")
+		}
+		var docs []object
+		dec := yaml.NewDecoder(bytes.NewReader(out))
+		for {
+			var d object
+			if err := dec.Decode(&d); err == io.EOF {
+				break
+			} else if err != nil {
+				return nil, nil, err
+			}
+			docs = append(docs, d)
+		}
+		pod, _ := at(find(docs, "Deployment", "tsa-policy-engine"), "spec", "template").(object)
+		return pod, find(docs, "ConfigMap", "tsa-policy-bundle"), nil
+	}
+	repo := at(values, "bundle", "repository").(string)
+	refA, refB := repo+"@sha256:"+strings.Repeat("a", 64), repo+"@sha256:"+strings.Repeat("b", 64)
+	basePod, baseBundle, err := template(refA, "r1")
+	if err != nil {
+		return err
+	}
+	// The reference alone, the revision alone, and both: each is a new declaration.
+	for _, change := range [][2]string{{refB, "r1"}, {refA, "r2"}, {refB, "r2"}} {
+		pod, bundle, err := template(change[0], change[1])
+		if err != nil {
+			return err
+		}
+		if err := need(basePod != nil && reflect.DeepEqual(basePod, pod) && !reflect.DeepEqual(baseBundle, bundle),
+			"a bundle change must change the bundle ConfigMap and nothing in the pod template"); err != nil {
+			return err
+		}
+	}
+	return nil
 }

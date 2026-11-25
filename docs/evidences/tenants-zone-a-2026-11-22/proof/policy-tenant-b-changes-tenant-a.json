@@ -1,0 +1,7 @@
+{
+  "kind": "Status",
+  "status": "Failure",
+  "reason": "Forbidden",
+  "code": 403,
+  "message": "configmaps \"ztd-policy-config\" is forbidden: User \"system:serviceaccount:tenant-b:tenant-admin\" cannot patch resource \"configmaps\" in API group \"\" in the namespace \"tenant-a\""
+}

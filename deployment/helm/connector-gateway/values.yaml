@@ -1,0 +1,65 @@
+# The Zero Trust Connector's zone gateway (ZT-26; docs/architecture.md, "Zero Trust Connector
+# routing"). One release has one role: `egress` (in-zone callers -> the peer zone's entry) or
+# `ingress` (the zone's entry: TLS from outside -> one in-zone upstream). Exactly one is enabled.
+name: ztd-connector-gateway
+# Pinned Envoy, by digest only (the mirror of scripts/tools/pins.env ENVOY_IMAGE, as the guard chart).
+image: {repository: ghcr.io/eclipse-xfsc/facis-zero-trust-demonstrator/envoy, digest: "sha256:3a76238cdf52c7a3e33951f44c02d694108e6481feffe6663bf9319f55ec1394"}
+# The zone's SPIFFE trust domain: the callers' principals (egress role).
+trustDomain: ""
+nodeSelector: {}
+# Per-pod annotations (the injected images' overrides an admission-labelled namespace needs).
+podAnnotations: {}
+resources:
+  requests: {cpu: 50m, memory: 64Mi}
+  limits: {memory: 256Mi}
+
+# Egress role: plain HTTP from the admitted callers over mesh mTLS on `port`, forwarded to the peer
+# zone's entry over TLS that the gateway originates and verifies (CA and subject alternative name).
+# The gateway is the one pod of the namespace with an egress lane out of the cluster: to the peer
+# entry's address and port, nothing else.
+egress:
+  enabled: false
+  port: 8080
+  # Each caller: its pods' labels (the network lane) and its service account (the mesh rule).
+  callers: []
+  # - { serviceAccount: backend, podSelector: { app.kubernetes.io/name: backend } }
+  peer:
+    name: ""         # the peer zone, e.g. zone-b
+    address: ""      # the peer entry's IPv4 address, a zone fact
+    port: 443
+    serverName: ""   # the subject alternative name the entry's certificate must carry; default: address
+    caCert: ""       # PEM of the CA that issued the entry's certificate (public)
+    # The gateway's own TLS client certificate (a kubernetes.io/tls Secret), presented to the entry:
+    # its subject alternative name is the identity an entry with ingress.peerAllowList looks up.
+    clientTlsSecret: ""
+
+# Ingress role: the zone's entry. TLS terminated with `tlsSecret`, every request routed to one
+# upstream Service of the namespace (whose own policies must admit this gateway).
+ingress:
+  enabled: false
+  port: 8443
+  tlsSecret: ""
+  # Where the entry accepts connections from (the Service's network lane), required.
+  sourceRanges: []
+  service: {type: LoadBalancer, port: 443}
+  upstream: {name: "", port: 8080}
+  # The TRAIN allow list (ZT-18), off by default. Enabled, the entry demands a client certificate
+  # issued by clientCaCert and asks `connector admit-peers` (a container of this pod, the connector
+  # image) before forwarding each request: the peer is admitted only when a URI or DNS subject
+  # alternative name of its certificate is the ServiceTypeIdentifier of an active service in the
+  # framework's trust list, retrieved from the TSPA and verified under issuerDid (its
+  # JsonWebSignature2020 proof, validity window and hash). Refused otherwise: 403 CHAN-ZONE-UNKNOWN,
+  # or 503 CHAN-TRUST-UNREACHABLE while the list cannot be retrieved or verified.
+  peerAllowList:
+    enabled: false
+    image: {repository: ghcr.io/eclipse-xfsc/facis-zero-trust-demonstrator/connector, digest: ""}
+    zone: ""           # a | b: the source of the decision events (connector-<zone>)
+    tspaUrl: ""        # the TSPA's REST base, http(s)://host[:port]/tspa-service/tspa/v1
+    framework: ""      # the trust framework whose list names the counter-connectors
+    issuerDid: ""      # did:web of the trust list's issuer; its DID document is fetched over HTTPS
+    caCert: ""         # PEM CA for those HTTPS fetches; empty: the image's public roots
+    clientCaCert: ""   # PEM of the CA that issued the counter-connectors' client certificates
+    refresh: 5m        # how long a verified list is kept, never past its VC's expiry
+    # NetworkPolicy egress rules of the lane to the TSPA and the DID document's host (selectors, no
+    # addresses: ZT-25).
+    egress: []

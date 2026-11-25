@@ -1,0 +1,15 @@
+Zone file: deployment/helm/ztd/zones/zone-a.yaml   role: participant   context: zerotrust-a
+  1/11  ztd               into ztd-system        chart deployment/helm/ztd values the zone file
+  2/11  spire-crds        into spire-system      chart spire-crds 0.6.1 values deployment/helm/values/spire-crds.yaml
+  3/11  spire             into spire-system      chart spire 0.30.2 values deployment/helm/values/spire.yaml + zone facts global.spire.trustDomain=zone.trustDomain global.spire.clusterName=zone.name global.spire.persistence.storageClass=zone.storageClass global.spire.caSubject.commonName=zone.trustDomain
+  4/11  istio-base        into istio-system      chart base 1.31.1  values deployment/helm/values/istio-base.yaml
+  5/11  istiod            into istio-system      chart istiod 1.31.1 values deployment/helm/values/istiod.yaml + zone facts meshConfig.trustDomain=zone.trustDomain
+  6/11  istio-cni         into istio-system      chart cni 1.31.1   values deployment/helm/values/istio-cni.yaml
+  7/11  zone-policy       into istio-system      chart deployment/helm/zone-policy values chart defaults + zone facts trustDomain=zone.trustDomain planes.management.namespace=planes.management.namespace planes.data.namespace=planes.data.namespace pairs=allowMatrix+intraPlanePairs (wait-for-jobs)
+  8/11  ztd-openbao       into ztd-mgmt          chart deployment/helm/ztd-openbao values chart defaults + zone facts managementNamespace=planes.management.namespace openbao.global.namespace=planes.management.namespace openbao.server.dataStorage.storageClass=zone.storageClass cilium.enabled=cni.cilium.enabled trustDomain=zone.trustDomain mesh.mode=mesh.mode (wait-for-jobs)
+  9/11  otel-node         into ztd-otel-node     chart opentelemetry-collector 0.176.1 values deployment/helm/values/otel-node.yaml
+  10/11  otel-gateway      into ztd-mgmt          chart opentelemetry-collector 0.176.1 values deployment/helm/values/otel-gateway.yaml
+  11/11  ztd-guard         into ztd-data          chart deployment/helm/guard values guard + zone facts trustDomain=zone.trustDomain
+step 11/11: ztd-guard into ztd-data ...
+step 11/11: ztd-guard deployed, revision 1
+installed: ztd-guard

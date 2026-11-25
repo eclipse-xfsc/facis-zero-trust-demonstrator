@@ -1,0 +1,148 @@
+{{- /* One policy per hop and direction, each annotated with its hop (ztd.facis.io/connector-hop) and the
+single L7 owner of that hop (ztd.facis.io/l7-owner), which scripts/ci/check-policy-l7-owner.sh holds to:
+caller-to-gateway sidecar, gateway-to-peer none, outside-to-entry none, entry-to-upstream sidecar. */ -}}
+{{- $v := .Values }}
+{{- $sel := dict "app.kubernetes.io/name" $v.name }}
+{{- if $v.egress.enabled }}
+{{- $p := $v.egress.peer }}
+{{- $route := printf "egress:%s" $p.name }}
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: {{ $v.name }}-callers
+  namespace: {{ .Release.Namespace }}
+  annotations:
+    ztd.facis.io/connector-route: {{ $route | quote }}
+    ztd.facis.io/connector-hop: caller-to-gateway
+    ztd.facis.io/l7-owner: sidecar
+spec:
+  podSelector: {matchLabels: {{ toJson $sel }}}
+  policyTypes: [Ingress]
+  ingress:
+    - from:
+        {{- range $v.egress.callers }}
+        - podSelector: {matchLabels: {{ toJson .podSelector }}}
+        {{- end }}
+      ports: [{protocol: TCP, port: {{ $v.egress.port }}}]
+---
+# The lane out of the cluster is bound to the gateway's service account, not to a label any pod of the
+# namespace can carry. The peer entry has no identity in this mesh, so the lane names its address, the
+# one external destination of the namespace (docs/architecture.md).
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: {{ $v.name }}-peer
+  namespace: {{ .Release.Namespace }}
+  annotations:
+    ztd.facis.io/connector-route: {{ $route | quote }}
+    ztd.facis.io/connector-hop: gateway-to-peer
+    ztd.facis.io/l7-owner: none
+spec:
+  endpointSelector:
+    matchLabels: {io.cilium.k8s.policy.serviceaccount: {{ $v.name }}}
+  egress:
+    - toCIDR: [{{ printf "%s/32" $p.address | quote }}]
+      toPorts: [{ports: [{port: {{ $p.port | quote }}, protocol: TCP}]}]
+---
+apiVersion: security.istio.io/v1
+kind: AuthorizationPolicy
+metadata:
+  name: {{ $v.name }}-callers
+  namespace: {{ .Release.Namespace }}
+  annotations:
+    ztd.facis.io/connector-route: {{ $route | quote }}
+    ztd.facis.io/connector-hop: caller-to-gateway
+    ztd.facis.io/l7-owner: sidecar
+spec:
+  selector: {matchLabels: {{ toJson $sel }}}
+  action: ALLOW
+  rules:
+    - from:
+        - source:
+            principals:
+              {{- range $v.egress.callers }}
+              - {{ printf "%s/ns/%s/sa/%s" $v.trustDomain $.Release.Namespace .serviceAccount | quote }}
+              {{- end }}
+      to:
+        - operation: {ports: [{{ $v.egress.port | quote }}]}
+{{- else }}
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: {{ $v.name }}-entry
+  namespace: {{ .Release.Namespace }}
+  annotations:
+    ztd.facis.io/connector-route: ingress
+    ztd.facis.io/connector-hop: outside-to-entry
+    ztd.facis.io/l7-owner: none
+spec:
+  podSelector: {matchLabels: {{ toJson $sel }}}
+  policyTypes: [Ingress]
+  ingress:
+    - from:
+        {{- range $v.ingress.sourceRanges }}
+        - ipBlock: {cidr: {{ . | quote }}}
+        {{- end }}
+      ports: [{protocol: TCP, port: {{ $v.ingress.port }}}]
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: {{ $v.name }}-upstream
+  namespace: {{ .Release.Namespace }}
+  annotations:
+    ztd.facis.io/connector-route: ingress
+    ztd.facis.io/connector-hop: entry-to-upstream
+    ztd.facis.io/l7-owner: sidecar
+spec:
+  podSelector: {matchLabels: {{ toJson $sel }}}
+  policyTypes: [Egress]
+  egress:
+    - to: [{podSelector: {matchLabels: {app.kubernetes.io/name: {{ $v.ingress.upstream.name }}}}}]
+      ports: [{protocol: TCP, port: {{ $v.ingress.upstream.port }}}]
+{{- with $v.ingress.peerAllowList }}
+{{- if .enabled }}
+---
+# The TRAIN allow list's lane (ZT-18): the entry's pod to the TSPA and the trust list issuer's DID
+# document, nothing else. Not a Connector route: no application traffic takes it.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: {{ $v.name }}-trust-list
+  namespace: {{ $.Release.Namespace }}
+spec:
+  podSelector: {matchLabels: {{ toJson $sel }}}
+  policyTypes: [Egress]
+  egress:
+    {{- toYaml .egress | nindent 4 }}
+{{- end }}
+{{- end }}
+---
+# The entry takes TLS from outside the mesh on its port: mutual TLS is off there and only there.
+apiVersion: security.istio.io/v1
+kind: PeerAuthentication
+metadata:
+  name: {{ $v.name }}-tls
+  namespace: {{ .Release.Namespace }}
+spec:
+  selector: {matchLabels: {{ toJson $sel }}}
+  mtls: {mode: STRICT}
+  portLevelMtls:
+    {{ $v.ingress.port }}: {mode: DISABLE}
+---
+apiVersion: security.istio.io/v1
+kind: AuthorizationPolicy
+metadata:
+  name: {{ $v.name }}-public
+  namespace: {{ .Release.Namespace }}
+  annotations:
+    ztd.facis.io/connector-route: ingress
+    ztd.facis.io/connector-hop: outside-to-entry
+    ztd.facis.io/l7-owner: none
+spec:
+  selector: {matchLabels: {{ toJson $sel }}}
+  action: ALLOW
+  rules:
+    - to:
+        - operation: {ports: [{{ $v.ingress.port | quote }}]}
+{{- end }}

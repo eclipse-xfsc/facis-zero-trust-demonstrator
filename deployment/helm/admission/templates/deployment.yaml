@@ -20,6 +20,10 @@ spec:
         runAsNonRoot: true
         runAsUser: 65532
         runAsGroup: 65532
+        {{- if .Values.registryAuth.secretName }}
+        # The registry credential is mounted 0440: owned by root, readable through this group only.
+        fsGroup: 65532
+        {{- end }}
         seccompProfile:
           type: RuntimeDefault
       containers:
@@ -29,6 +33,9 @@ spec:
             - --request-timeout={{ .Values.requestTimeout }}
             {{- with .Values.insecurePlainHTTPRegistry }}
             - --insecure-plain-http-registry={{ . }}
+            {{- end }}
+            {{- if .Values.registryAuth.secretName }}
+            - --registry-auth=/etc/admission-provider/registry/config.json
             {{- end }}
           ports:
             - name: https
@@ -62,6 +69,11 @@ spec:
             - name: trust
               mountPath: /etc/admission-provider/trust
               readOnly: true
+            {{- if .Values.registryAuth.secretName }}
+            - name: registry-auth
+              mountPath: /etc/admission-provider/registry
+              readOnly: true
+            {{- end }}
       volumes:
         - name: tls
           secret:
@@ -81,3 +93,12 @@ spec:
         - name: trust
           configMap:
             name: {{ include "admission.name" . }}-trust
+        {{- with .Values.registryAuth.secretName }}
+        - name: registry-auth
+          secret:
+            secretName: {{ . }}
+            defaultMode: 0440
+            items:
+              - key: .dockerconfigjson
+                path: config.json
+        {{- end }}

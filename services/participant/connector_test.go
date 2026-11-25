@@ -143,7 +143,7 @@ func TestConnectorBootstrapAuthorizesAndRenewsOnce(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if strings.Join(r.got, " ") != "presenting/step_started acquiring_token/step_started" {
+	if strings.Join(r.got, " ") != "registering/step_started registered/step_completed presenting/step_started acquiring_token/step_started" {
 		t.Fatalf("reports %v", r.got)
 	}
 

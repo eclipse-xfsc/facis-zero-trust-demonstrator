@@ -3,11 +3,12 @@
 # tester identity (a signed image starts; unsigned, untrusted-key, mutable-tag, missing-SBOM and
 # missing-mock-attestation images are refused with their reason codes), then the fault cases
 # (fault-injection.sh). Both always run; the pack and an index land in bundles/admission/<target>/.
-# Run by the cluster administrator after install.sh, with the inputs fault-injection.sh takes.
+# Run by the cluster administrator after install.sh or the zone installer's admission release, with
+# the inputs fault-injection.sh takes (BIN in the standalone layout; the provider's settings are read
+# from the cluster in both layouts). TRUST_KEY, when given, only labels the key in the index.
 #
-#   ADMIN_KUBECONFIG=... FIXTURES=<case ref list> BIN=... PROVIDER_IMAGE=... TRUST_REPOSITORY=... \
-#   TRUST_KEY=... [OUTSIDE_NAMESPACES="ns ..."] [CLUSTER_KIND=target|non-target] \
-#   scripts/admission/evidence-pack.sh <target>
+#   ADMIN_KUBECONFIG=... FIXTURES=<case ref list> [BIN=...] [TRUST_KEY=<key file, for the index>] \
+#   [OUTSIDE_NAMESPACES="ns ..."] [CLUSTER_KIND=target|non-target] scripts/admission/evidence-pack.sh <target>
 set -euo pipefail
 
 root="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
@@ -17,7 +18,11 @@ target="$1"
 [[ "$target" =~ ^[a-z0-9][a-z0-9-]*$ ]] || { echo "target must be a name like zone-a" >&2; exit 2; }
 kind="${CLUSTER_KIND:-non-target}"
 case "$kind" in target | non-target) ;; *) echo "CLUSTER_KIND must be target or non-target" >&2; exit 2 ;; esac
-: "${ADMIN_KUBECONFIG:?}" "${FIXTURES:?}" "${BIN:?}" "${PROVIDER_IMAGE:?}" "${TRUST_REPOSITORY:?}" "${TRUST_KEY:?}"
+: "${ADMIN_KUBECONFIG:?}" "${FIXTURES:?}"
+# shellcheck source=scripts/admission/checks.sh
+. scripts/admission/checks.sh
+layout=$(KUBECONFIG="$ADMIN_KUBECONFIG" admission_layout)
+[ "$layout" != standalone ] || : "${BIN:?set BIN, the directory with the pinned Gatekeeper chart}"
 FIXTURES="$(cd "$(dirname "$FIXTURES")" && pwd)/$(basename "$FIXTURES")"
 run="${BDD_RUN_ID:-$(date -u +%Y%m%dT%H%M%SZ)}"
 out="bundles/admission/$target"
@@ -56,6 +61,9 @@ if TESTER_KUBECONFIG="$tester" CLUSTER_KIND="$kind" EVIDENCE="$out/faults" scrip
   faults=PASS
 fi
 
+provider_image=$(admin -n gatekeeper-system get deploy ztd-admission-provider -o jsonpath='{.spec.template.spec.containers[0].image}')
+trusted_key="\`${TRUST_KEY:-}\`"
+[ -n "${TRUST_KEY:-}" ] || trusted_key="the provider's installed trust.publicKeys"
 {
   echo "# Admission evidence pack: $target"
   echo
@@ -63,10 +71,13 @@ fi
   echo "|---|---|"
   echo "| Run | \`$run\` |"
   echo "| Commit | \`$(git rev-parse HEAD)\` |"
+  [ -z "${EVIDENCE_RUN_URL:-}" ] || echo "| Pipeline run | $EVIDENCE_RUN_URL |"
+  [ -z "${FIXTURES_RUN_URL:-}" ] || echo "| Fixture run | $FIXTURES_RUN_URL |"
   echo "| Cluster (\`kube-system\` UID) | \`$cluster_uid\` |"
   echo "| Cluster kind | $kind |"
-  echo "| Provider image | \`$PROVIDER_IMAGE\` |"
-  echo "| Trusted key | \`$TRUST_KEY\` (interim key, not the client trust chain) |"
+  echo "| Admission layout | $layout |"
+  echo "| Provider image | \`$provider_image\` |"
+  echo "| Trusted key | $trusted_key (interim key, not the client trust chain) |"
   echo
   echo "| Part | Result | Record |"
   echo "|---|---|---|"

@@ -1,0 +1,11 @@
+# Render-only references, never deploy these placeholder digests.
+images:
+  git: {digest: "sha256:0000000000000000000000000000000000000000000000000000000000000000"}
+  bundle: {digest: "sha256:0000000000000000000000000000000000000000000000000000000000000000"}
+bundle:
+  ref: ghcr.io/eclipse-xfsc/facis-zero-trust-demonstrator/tsa-policy-bundles@sha256:0000000000000000000000000000000000000000000000000000000000000000
+  revision: ci-render
+callers:
+  - {namespace: ztd-guard, name: ztd-policy-evaluator}
+networkPolicy:
+  istiod: {enabled: true}

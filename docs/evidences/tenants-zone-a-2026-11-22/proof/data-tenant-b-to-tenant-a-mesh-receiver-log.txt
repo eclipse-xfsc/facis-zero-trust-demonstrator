@@ -1,0 +1,1 @@
+{"authority":"tenant-data.tenant-a:8080","code":403,"destination":"spiffe://zone-a.trust.invalid/ns/tenant-a/sa/tenant-data","detail":"rbac_access_denied_matched_policy[none]","flags":"-","source":"spiffe://zone-a.trust.invalid/ns/tenant-b/sa/ztd-participant","termination":null,"time":"2026-11-22T02:24:02.612Z"}

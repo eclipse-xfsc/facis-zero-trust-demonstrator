@@ -1,0 +1,15 @@
+{
+  "commit": "54473773356301f5ad5ce75aadf73bf43e7a041e",
+  "tree": "clean",
+  "host_kind": "local",
+  "date": "2026-11-22T00:07:33Z",
+  "helm": "v4.3.0+gbec5b06",
+  "kind": "v0.33.0",
+  "kind_node_image": "kindest/node:v1.35.8@sha256:07b2536e30b803ed61d1677a79df6115f798ce64c80f9e22f6ed45afd09323c0",
+  "postgres_image": "postgres:16.10-alpine@sha256:029660641a0cfc575b14f336ba448fb8a75fd595d42e1fa316b9fb4378742297",
+  "openbao_image": "openbao/openbao:2.7.0@sha256:71156a1c6623a5fa3f5e61b0c6a8ead0faf0df29a778339188443551995d1315",
+  "registry_image": "registry:2.8.3@sha256:a3d8aaa63ed8681a604f1dea0aa03f100d5895b6a58ace528858a7b332415373",
+  "token_store_image": "t6-kind-registry:5000/token-store@sha256:210ea555ceee261bef4cd97dbcd687b34da90e7c08d04ed4d19f73a51069ff5d",
+  "istio_crds_version": "1.31.1",
+  "embedded_schema_version": 5
+}

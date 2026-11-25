@@ -10,6 +10,7 @@ identity:
   spireManagedIdentity: true
 ingress:
   enabled: false
+eventSource: participant-a
 env:
   PARTICIPANT_ADAPTER_MODE: token
   PARTICIPANT_RESOURCE_URL: http://ztd-guard:8080
@@ -26,3 +27,7 @@ secretMounts:
   - name: client
     secretName: ztd-participant-client
     mountPath: /var/run/client
+# The Participant's entry (the connector gateway's ingress role, ztd-edge) is its one mesh caller.
+trustDomain: zone-b.trust.invalid
+callers:
+  - {namespace: ztd-m3-b, name: ztd-edge}

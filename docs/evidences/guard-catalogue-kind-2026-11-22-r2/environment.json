@@ -1,0 +1,12 @@
+{
+  "commit": "2f775ff2656bfe8db65708ab7f3b983d5fce9ebd",
+  "tree": "clean",
+  "date": "2026-11-22T01:48:52Z",
+  "host": "Darwin arm64",
+  "kind_node_image": "kindest/node:v1.35.8@sha256:07b2536e30b803ed61d1677a79df6115f798ce64c80f9e22f6ed45afd09323c0",
+  "istio": "1.31.1 (istiod CA, trust domain cluster.local)",
+  "envoy_image": "docker.io/envoyproxy/envoy:v1.36.10@sha256:3a76238cdf52c7a3e33951f44c02d694108e6481feffe6663bf9319f55ec1394",
+  "postgres_image": "postgres:16.10-alpine@sha256:029660641a0cfc575b14f336ba448fb8a75fd595d42e1fa316b9fb4378742297",
+  "openbao_image": "openbao/openbao:2.7.0@sha256:71156a1c6623a5fa3f5e61b0c6a8ead0faf0df29a778339188443551995d1315",
+  "access_token_lifespan_seconds": 90
+}

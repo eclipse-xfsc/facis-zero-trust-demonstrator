@@ -9,6 +9,7 @@ import (
 	"io"
 	"log/slog"
 	"net/http"
+	"slices"
 	"strings"
 	"time"
 
@@ -146,6 +147,14 @@ func (s *Server) accessLog(next http.Handler) http.Handler {
 		if mark.reached {
 			return
 		}
+		correlationID := cleanIdentifier(r.Header.Get("X-Correlation-ID"))
+		if correlationID == "" {
+			correlationID = cleanIdentifier(r.Header.Get("X-Request-ID"))
+		}
+		if correlationID == "" {
+			correlationID = s.newID()
+		}
+		s.config.Events.Emit(correlationID, "denied", strings.ToUpper(reason), "access role=not_evaluated")
 		s.logger.LogAttrs(r.Context(), slog.LevelWarn, "protected resource request refused",
 			slog.String("requestId", cleanIdentifier(r.Header.Get("X-Request-ID"))),
 			slog.String("correlationId", cleanIdentifier(r.Header.Get("X-Correlation-ID"))),
@@ -163,6 +172,13 @@ type statusRecorder struct {
 func (r *statusRecorder) WriteHeader(status int) {
 	r.status = status
 	r.ResponseWriter.WriteHeader(status)
+}
+
+// Flush passes on to the wrapped writer: the gRPC method's handler needs an http.Flusher.
+func (r *statusRecorder) Flush() {
+	if f, ok := r.ResponseWriter.(http.Flusher); ok {
+		f.Flush()
+	}
 }
 
 func (s *Server) handleDemo(w http.ResponseWriter, r *http.Request) {
@@ -292,6 +308,22 @@ func (s *Server) writeScoped(ctx context.Context, w http.ResponseWriter, request
 		return
 	}
 	result := scopedResult(identity.Scopes)
+	if s.config.AdapterMode == cloudMode && result.Outcome == OutcomeSuccess {
+		// The summary scope never acquires full inventory privileges.
+		if result.ReasonCode != ReasonReportReturned {
+			result = ResourceResult{Outcome: OutcomeDenied, ReasonCode: ReasonScopeInsufficient,
+				Explanation: "The cloud inventory is returned for the report:read scope only.", SafeData: emptySafeData()}
+		} else {
+			adapterCtx, cancel := context.WithTimeout(ctx, s.config.RequestTimeout)
+			defer cancel()
+			var err error
+			result, err = s.adapter.Request(adapterCtx, ResourceRequest{RequestID: requestID, CorrelationID: correlationID, Resource: resource, Action: action})
+			if err != nil {
+				s.writeAdapterError(ctx, w, requestID, correlationID, err)
+				return
+			}
+		}
+	}
 	s.writeDemoResult(ctx, w, statusForOutcome(result.Outcome), requestID, correlationID, result)
 }
 
@@ -323,12 +355,30 @@ func (s *Server) writeInvalidRequest(ctx context.Context, w http.ResponseWriter,
 }
 
 func (s *Server) writeDemoResult(ctx context.Context, w http.ResponseWriter, status int, requestID, correlationID string, result ResourceResult) {
+	role := "sample"
+	if s.config.Verifier != nil {
+		role = "not_evaluated"
+		if identity, ok := tokenverify.FromContext(ctx); ok {
+			role = "unauthorized"
+			read, summary := slices.Contains(identity.Scopes, ScopeReportRead), slices.Contains(identity.Scopes, ScopeReportSummary)
+			switch {
+			case read && summary:
+				role = "reader_and_viewer"
+			case read:
+				role = "reader"
+			case summary:
+				role = "viewer"
+			}
+		}
+	}
+	s.config.Events.Emit(correlationID, string(result.Outcome), result.ReasonCode, "access role="+role)
 	if result.SafeData == nil {
 		result.SafeData = emptySafeData()
 	}
 	attrs := append([]slog.Attr{
 		slog.String("requestId", requestID), slog.String("correlationId", correlationID),
 		slog.String("outcome", string(result.Outcome)), slog.String("reasonCode", result.ReasonCode),
+		slog.String("adapter", s.config.AdapterMode),
 	}, identityAttrs(ctx)...)
 	s.logger.LogAttrs(context.Background(), logLevelForOutcome(result.Outcome), "protected resource request completed", attrs...)
 	writeJSON(w, status, demoResponse{

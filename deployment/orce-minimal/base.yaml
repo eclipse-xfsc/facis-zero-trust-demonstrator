@@ -1,5 +1,5 @@
 # The management namespace ORCE runs in, its identities, and the observer's read access to
-# ORCE's log. Interim until the ORCE chart; see README.md.
+# ORCE's log. ORCE itself is the chart deployment/helm/orce; see README.md.
 apiVersion: v1
 kind: Namespace
 metadata:

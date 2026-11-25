@@ -1,0 +1,7 @@
+# expect: schema.image.digest must be the sha256 digest
+schema:
+  enabled: true
+  egress:
+    - to:
+        - podSelector: {matchLabels: {app: postgres}}
+      ports: [{port: 5432, protocol: TCP}]

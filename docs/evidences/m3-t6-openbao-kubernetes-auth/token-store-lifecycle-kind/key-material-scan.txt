@@ -1,0 +1,28 @@
+control  root-token     1
+control  admin-token    1
+control  service-token  1
+control  pem-point      1
+control  'BEGIN '       1
+control  'PRIVATE KEY'  1
+control  '-----'        1
+database  root-token     0
+database  admin-token    0
+database  service-token  0
+database  pem-point      0
+database  'BEGIN '       0
+database  'PRIVATE KEY'  0
+database  '-----'        0
+kubeauth-records  root-token     0
+kubeauth-records  admin-token    0
+kubeauth-records  service-token  0
+kubeauth-records  pem-point      0
+kubeauth-records  'BEGIN '       0
+kubeauth-records  'PRIVATE KEY'  0
+kubeauth-records  '-----'        0
+records  root-token     0
+records  admin-token    0
+records  service-token  0
+records  pem-point      0
+records  'BEGIN '       0
+records  'PRIVATE KEY'  0
+records  '-----'        0

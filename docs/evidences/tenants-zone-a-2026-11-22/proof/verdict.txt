@@ -1,0 +1,22 @@
+PASS  probes ready: tenant-probe-433b547d in tenant-a tenant-b, each meshed under its tenant's ztd-participant
+PASS  data, control: tenant-a's Participant reads tenant-a's data service (200, tenant tenant-a)
+PASS  data-tenant-b-to-tenant-a: network layer drops it (no answer; Cilium DROPPED flow from the tenant-b probe to 100.64.1.143, data-tenant-b-to-tenant-a-network-flows.txt)
+PASS  data-tenant-b-to-tenant-a: behind a probe-scoped opening the receiver's sidecar refuses it (status 403, rbac.denied 0 -> 1)
+PASS  secret-store-tenant-a: network layer drops it (no answer; Cilium DROPPED flow from the tenant-a probe to 100.64.0.136, secret-store-tenant-a-network-flows.txt)
+PASS  secret-store-tenant-a: behind a probe-scoped opening the receiver's sidecar refuses it (status 403, rbac.denied 12 -> 13)
+PASS  credentials, control: tenant-a's administrator reads tenant-a's secrets/tenant-credentials (200)
+PASS  credentials: tenant-b's administrator can neither read nor change tenant-a's secrets/tenant-credentials (403 Forbidden from the API server, both)
+PASS  policy, control: tenant-a's administrator reads tenant-a's configmaps/ztd-policy-config (404)
+PASS  policy: tenant-b's administrator can neither read nor change tenant-a's configmaps/ztd-policy-config (403 Forbidden from the API server, both)
+PASS  data, control: tenant-b's Participant reads tenant-b's data service (200, tenant tenant-b)
+PASS  data-tenant-a-to-tenant-b: network layer drops it (no answer; Cilium DROPPED flow from the tenant-a probe to 100.64.1.127, data-tenant-a-to-tenant-b-network-flows.txt)
+PASS  data-tenant-a-to-tenant-b: behind a probe-scoped opening the receiver's sidecar refuses it (status 403, rbac.denied 0 -> 1)
+PASS  secret-store-tenant-b: network layer drops it (no answer; Cilium DROPPED flow from the tenant-b probe to 100.64.0.136, secret-store-tenant-b-network-flows.txt)
+PASS  secret-store-tenant-b: behind a probe-scoped opening the receiver's sidecar refuses it (status 403, rbac.denied 13 -> 14)
+PASS  credentials, control: tenant-b's administrator reads tenant-b's secrets/tenant-credentials (200)
+PASS  credentials: tenant-a's administrator can neither read nor change tenant-b's secrets/tenant-credentials (403 Forbidden from the API server, both)
+PASS  policy, control: tenant-b's administrator reads tenant-b's configmaps/ztd-policy-config (404)
+PASS  policy: tenant-a's administrator can neither read nor change tenant-b's configmaps/ztd-policy-config (403 Forbidden from the API server, both)
+PASS  cleanup: no probe pod or network policy of run 433b547d remains
+PASS  no object of tenant-a tenant-b or ztd-mgmt changed (resourceVersions equal before and after)
+verdict: PASS

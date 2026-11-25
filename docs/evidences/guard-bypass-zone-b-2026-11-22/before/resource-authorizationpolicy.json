@@ -1,0 +1,38 @@
+{
+  "spec": {
+    "action": "ALLOW",
+    "rules": [
+      {
+        "from": [
+          {
+            "source": {
+              "principals": [
+                "zone-b.trust.invalid/ns/ztd-m3-b/sa/ztd-guard"
+              ]
+            }
+          }
+        ],
+        "to": [
+          {
+            "operation": {
+              "methods": [
+                "POST"
+              ],
+              "paths": [
+                "/demo"
+              ],
+              "ports": [
+                "8080"
+              ]
+            }
+          }
+        ]
+      }
+    ],
+    "selector": {
+      "matchLabels": {
+        "app.kubernetes.io/name": "ztd-protected-resource"
+      }
+    }
+  }
+}

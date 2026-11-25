@@ -1,0 +1,71 @@
+Subject: [PATCH] Read the signing key from tspa.signing-key-file, never from
+ the classpath
+
+---
+ .../xfsc/train/tspa/signer/VcSignHandler.java | 27 +++++++++++++------
+ 1 file changed, 19 insertions(+), 8 deletions(-)
+
+diff --git a/src/main/java/eu/xfsc/train/tspa/signer/VcSignHandler.java b/src/main/java/eu/xfsc/train/tspa/signer/VcSignHandler.java
+index 52da4cf..ff76106 100644
+--- a/src/main/java/eu/xfsc/train/tspa/signer/VcSignHandler.java
++++ b/src/main/java/eu/xfsc/train/tspa/signer/VcSignHandler.java
+@@ -58,10 +58,10 @@ public class VcSignHandler {
+ 	public static final String SET_SIGNER_INTERNAL = "INTERNAL";
+ 	public static final String SET_SIGNER_TSA = "TSA";
+ 	
+-	@Value("classpath:Vault/PrivateKey/WkJWKPrivateKey")
+-	private Resource jwkForWK;
+-	@Value("classpath:Vault/PrivateKey/WkJWKPrivateKey")
+-	private Resource jwkForVC;
++	// The signing key, a private JWK, from a file the deployment mounts (a Kubernetes Secret). The key
++	// shipped under classpath:Vault/PrivateKey is public in the upstream source and is never used.
++	@Value("${tspa.signing-key-file:}")
++	private String signingKeyFile;
+ 	@Value("${well-known.proof.signaturesuit}")
+ 	private String wk_SignatureSuit;
+ 	@Value("${well-known.signature.algo}")
+@@ -197,17 +197,28 @@ public class VcSignHandler {
+ 	 * @throws IOException
+ 	 * @throws PropertiesAccessException
+ 	 */
++	private String signingKey() throws IOException, PropertiesAccessException {
++		if (signingKeyFile == null || signingKeyFile.isBlank()) {
++			throw new PropertiesAccessException("tspa.signing-key-file is not set; refusing to sign");
++		}
++		String key = new String(java.nio.file.Files.readAllBytes(java.nio.file.Path.of(signingKeyFile)), java.nio.charset.StandardCharsets.UTF_8).trim();
++		if (key.isEmpty()) {
++			throw new PropertiesAccessException("tspa.signing-key-file is empty; refusing to sign");
++		}
++		return key;
++	}
++
+ 	private Parameter setParameterProof(String purpose) throws IOException, PropertiesAccessException {
+ 		String jwkKey = null;
+ 		String signatureSuitString = null;
+ 		String algo = null;
+ 		if (purpose != null)
+ 			if (purpose.compareTo(CONST_WK_STRING) == 0) {
+-				jwkKey = VCUtil.resource_to_String(jwkForWK);
++				jwkKey = signingKey();
+ 				algo = wk_SignAlgo;
+ 				signatureSuitString = wk_SignatureSuit;			
+ 			} else if (purpose.compareTo(CONST_VC_STRING) == 0) {
+-				jwkKey = VCUtil.resource_to_String(jwkForVC);
++				jwkKey = signingKey();
+ 				algo = vc_SignAlgo;
+ 				signatureSuitString = vc_SignatureSuit;
+ 			}
+@@ -226,11 +237,11 @@ public class VcSignHandler {
+ 		String kid = null;
+ 		if (purpose != null)
+ 			if (purpose.compareTo(CONST_WK_STRING) == 0) {
+-				jwkKey = VCUtil.resource_to_String(jwkForWK);
++				jwkKey = signingKey();
+ 				algo = wk_SignAlgo;
+ 				kid=wk_KID;
+ 			} else if (purpose.compareTo(CONST_VC_STRING) == 0) {
+-				jwkKey = VCUtil.resource_to_String(jwkForVC);
++				jwkKey = signingKey();
+ 				algo = vc_SignAlgo;
+ 				kid = vc_KID;
+ 			}

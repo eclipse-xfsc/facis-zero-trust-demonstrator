@@ -1,0 +1,6 @@
+guarded_401_samples	100
+guarded_p50_ms	5.8
+guarded_p99_ms	22.3
+baseline_200_samples	100
+baseline_p50_ms	1.9
+baseline_p99_ms	7.2

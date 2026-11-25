@@ -1,0 +1,125 @@
+{{- include "orce.validate" . -}}
+# ORCE itself: one replica, non-root, all capabilities dropped, RuntimeDefault seccomp.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: orce
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "orce.labels" . | nindent 4 }}
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      {{- include "orce.selector" . | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "orce.labels" . | nindent 8 }}
+    spec:
+      serviceAccountName: {{ .Values.serviceAccountName | quote }}
+      {{- with .Values.imagePullSecrets }}
+      imagePullSecrets:
+        {{- range . }}
+        - name: {{ . | quote }}
+        {{- end }}
+      {{- end }}
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+        runAsGroup: 1000
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: orce
+          image: "{{ .Values.image.repository }}@{{ .Values.image.digest }}"
+          envFrom:
+            - secretRef:
+                name: {{ .Values.credentialsSecret | quote }}
+          env:
+            - name: LIFECYCLE_TIMEOUT
+              value: {{ .Values.lifecycleTimeout | quote }}
+          ports:
+            - name: http
+              containerPort: 1880
+          readinessProbe:
+            tcpSocket:
+              port: http
+            periodSeconds: 5
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: [ALL]
+          resources:
+            {{- toYaml .Values.resources | nindent 12 }}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: orce
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "orce.labels" . | nindent 4 }}
+spec:
+  selector:
+    {{- include "orce.selector" . | nindent 4 }}
+  ports:
+    - name: http
+      port: 1880
+      targetPort: http
+---
+# Only ORCE's own namespace and the ingress controller may reach ORCE; the data plane cannot.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: orce-ingress
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "orce.labels" . | nindent 4 }}
+spec:
+  podSelector:
+    matchLabels:
+      {{- include "orce.selector" . | nindent 6 }}
+  policyTypes: [Ingress]
+  ingress:
+    - from:
+        - podSelector: {}
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: {{ .Values.ingressController.namespace | quote }}
+          podSelector:
+            matchLabels:
+              {{- toYaml .Values.ingressController.podLabels | nindent 14 }}
+      ports:
+        - port: 1880
+          protocol: TCP
+---
+# HTTPS only: the certificate comes from cert-manager's ingress shim, the TLS 1.3 minimum from the
+# controller's default TLSOption, which applies because this Ingress names none.
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: orce
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "orce.labels" . | nindent 4 }}
+  annotations:
+    cert-manager.io/cluster-issuer: {{ .Values.ingress.clusterIssuer | quote }}
+    traefik.ingress.kubernetes.io/router.entrypoints: websecure
+    traefik.ingress.kubernetes.io/router.tls: "true"
+spec:
+  ingressClassName: {{ .Values.ingress.className | quote }}
+  tls:
+    - hosts: [{{ .Values.ingress.host | quote }}]
+      secretName: {{ .Values.ingress.tlsSecretName | quote }}
+  rules:
+    - host: {{ .Values.ingress.host | quote }}
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: orce
+                port:
+                  name: http

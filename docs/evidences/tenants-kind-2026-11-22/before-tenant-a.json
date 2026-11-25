@@ -1,0 +1,227 @@
+[
+  {
+    "kind": "AuthorizationPolicy",
+    "name": "tenant-data-caller",
+    "resourceVersion": "2360"
+  },
+  {
+    "kind": "AuthorizationPolicy",
+    "name": "tenant-data-members",
+    "resourceVersion": "2199"
+  },
+  {
+    "kind": "AuthorizationPolicy",
+    "name": "tenants-stand-in",
+    "resourceVersion": "2711"
+  },
+  {
+    "kind": "AuthorizationPolicy",
+    "name": "ztd-guard-caller",
+    "resourceVersion": "2363"
+  },
+  {
+    "kind": "AuthorizationPolicy",
+    "name": "ztd-policy-evaluator-caller",
+    "resourceVersion": "2356"
+  },
+  {
+    "kind": "ConfigMap",
+    "name": "istio-ca-crl",
+    "resourceVersion": "1578"
+  },
+  {
+    "kind": "ConfigMap",
+    "name": "istio-ca-root-cert",
+    "resourceVersion": "1577"
+  },
+  {
+    "kind": "ConfigMap",
+    "name": "kube-root-ca.crt",
+    "resourceVersion": "845"
+  },
+  {
+    "kind": "ConfigMap",
+    "name": "tenant-data",
+    "resourceVersion": "2190"
+  },
+  {
+    "kind": "ConfigMap",
+    "name": "tenants-stand-in",
+    "resourceVersion": "2681"
+  },
+  {
+    "kind": "ConfigMap",
+    "name": "ztd-guard-config",
+    "resourceVersion": "2342"
+  },
+  {
+    "kind": "ConfigMap",
+    "name": "ztd-policy-config",
+    "resourceVersion": "2343"
+  },
+  {
+    "kind": "Deployment",
+    "name": "tenant-data",
+    "resourceVersion": "2318"
+  },
+  {
+    "kind": "Deployment",
+    "name": "tenants-stand-in",
+    "resourceVersion": "2749"
+  },
+  {
+    "kind": "Deployment",
+    "name": "ztd-guard",
+    "resourceVersion": "2452"
+  },
+  {
+    "kind": "Deployment",
+    "name": "ztd-policy-evaluator",
+    "resourceVersion": "2458"
+  },
+  {
+    "kind": "NetworkPolicy",
+    "name": "allow-dns-egress",
+    "resourceVersion": "800"
+  },
+  {
+    "kind": "NetworkPolicy",
+    "name": "allow-intra-plane",
+    "resourceVersion": "826"
+  },
+  {
+    "kind": "NetworkPolicy",
+    "name": "allow-mesh-control-plane-egress",
+    "resourceVersion": "795"
+  },
+  {
+    "kind": "NetworkPolicy",
+    "name": "default-deny",
+    "resourceVersion": "828"
+  },
+  {
+    "kind": "NetworkPolicy",
+    "name": "participant-to-tenant-guards",
+    "resourceVersion": "2185"
+  },
+  {
+    "kind": "NetworkPolicy",
+    "name": "tenant-data-guard-path",
+    "resourceVersion": "2338"
+  },
+  {
+    "kind": "NetworkPolicy",
+    "name": "ztd-guard-guard-path",
+    "resourceVersion": "2337"
+  },
+  {
+    "kind": "NetworkPolicy",
+    "name": "ztd-policy-evaluator-guard-path",
+    "resourceVersion": "2339"
+  },
+  {
+    "kind": "PeerAuthentication",
+    "name": "tenant-data-mtls",
+    "resourceVersion": "2202"
+  },
+  {
+    "kind": "PeerAuthentication",
+    "name": "tenant-data-strict",
+    "resourceVersion": "2365"
+  },
+  {
+    "kind": "PeerAuthentication",
+    "name": "ztd-guard-strict",
+    "resourceVersion": "2366"
+  },
+  {
+    "kind": "PeerAuthentication",
+    "name": "ztd-policy-evaluator-strict",
+    "resourceVersion": "2370"
+  },
+  {
+    "kind": "Role",
+    "name": "tenant-owner",
+    "resourceVersion": "2191"
+  },
+  {
+    "kind": "RoleBinding",
+    "name": "tenant-owner",
+    "resourceVersion": "2192"
+  },
+  {
+    "kind": "Secret",
+    "name": "sh.helm.release.v1.ztd-guard-tenant-a.v1",
+    "resourceVersion": "2460"
+  },
+  {
+    "kind": "Secret",
+    "name": "sh.helm.release.v1.ztd-tenant-tenant-a.v1",
+    "resourceVersion": "2319"
+  },
+  {
+    "kind": "Secret",
+    "name": "tenant-credentials",
+    "resourceVersion": "2189"
+  },
+  {
+    "kind": "Service",
+    "name": "tenant-data",
+    "resourceVersion": "2194"
+  },
+  {
+    "kind": "Service",
+    "name": "ztd-connector",
+    "resourceVersion": "2708"
+  },
+  {
+    "kind": "Service",
+    "name": "ztd-guard",
+    "resourceVersion": "2349"
+  },
+  {
+    "kind": "Service",
+    "name": "ztd-policy-evaluator",
+    "resourceVersion": "2345"
+  },
+  {
+    "kind": "Service",
+    "name": "ztd-token-store",
+    "resourceVersion": "2699"
+  },
+  {
+    "kind": "ServiceAccount",
+    "name": "default",
+    "resourceVersion": "846"
+  },
+  {
+    "kind": "ServiceAccount",
+    "name": "tenant-admin",
+    "resourceVersion": "2186"
+  },
+  {
+    "kind": "ServiceAccount",
+    "name": "tenant-data",
+    "resourceVersion": "2187"
+  },
+  {
+    "kind": "ServiceAccount",
+    "name": "ztd-guard",
+    "resourceVersion": "2340"
+  },
+  {
+    "kind": "ServiceAccount",
+    "name": "ztd-participant",
+    "resourceVersion": "2188"
+  },
+  {
+    "kind": "ServiceAccount",
+    "name": "ztd-policy-evaluator",
+    "resourceVersion": "2341"
+  },
+  {
+    "kind": "ServiceAccount",
+    "name": "ztd-token-store",
+    "resourceVersion": "2687"
+  }
+]

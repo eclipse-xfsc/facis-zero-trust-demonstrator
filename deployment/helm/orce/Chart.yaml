@@ -1,0 +1,15 @@
+apiVersion: v2
+name: orce
+description: >-
+  ORCE on the IONOS visualization cluster: the first-party image by digest, its credentials from an
+  existing Secret, the public HTTPS endpoint through the cluster's ingress with a cert-manager
+  certificate, and the network policy that admits only its own namespace and the ingress controller.
+type: application
+version: 0.1.0
+appVersion: "0.1.0"
+keywords:
+  - facis
+  - zero-trust
+  - orce
+sources:
+  - https://github.com/eclipse-xfsc/facis-zero-trust-demonstrator

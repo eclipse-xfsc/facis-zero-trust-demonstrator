@@ -1,0 +1,1 @@
+DROP INDEX signing_key_one_active_per_key;

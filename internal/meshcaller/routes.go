@@ -60,6 +60,21 @@ func (rs Routes) Admits(c Caller) bool {
 	return c.SPIFFEID != "" && slices.Contains(rs.Callers(), c.SPIFFEID)
 }
 
+// Covers reports whether some route that lists c has a target prefix covering uri (origin and whole
+// path segments, as Authorize matches a target).
+func (rs Routes) Covers(c Caller, uri string) bool {
+	origin, path, err := Target(uri)
+	if err != nil {
+		return false
+	}
+	for _, r := range rs {
+		if pOrigin, pPath, _ := Target(r.TargetPrefix); slices.Contains(r.Callers, c.SPIFFEID) && origin == pOrigin && underPrefix(path, pPath) {
+			return true
+		}
+	}
+	return false
+}
+
 // Authorize returns the first route that lists c and matches req. ErrCallerDenied when no route
 // lists c, ErrRouteDenied when none that lists c matches.
 func (rs Routes) Authorize(c Caller, req Request) (Route, error) {

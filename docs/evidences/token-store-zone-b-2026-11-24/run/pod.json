@@ -1,0 +1,41 @@
+{
+  "name": "ztd-token-store-6f9b757648-t6rdb",
+  "node": "shoot--eco--zerotrust-b-worker-fxsxd-z1-bd5c7-rspf6",
+  "started": "2026-11-23T16:35:28Z",
+  "serviceAccount": "ztd-token-store",
+  "ready": "True",
+  "openbaoAuth": {
+    "TOKEN_STORE_OPENBAO_AUTH_ROLE": "ztd-m3-token-store",
+    "TOKEN_STORE_OPENBAO_AUTH_MOUNT": "kubernetes"
+  },
+  "containers": [
+    {
+      "name": "istio-validation",
+      "ready": true,
+      "restartCount": 0,
+      "image": "ghcr.io/fune5tiatlas/facis-zero-trust-demonstrator/proxy-runtime@sha256:3b8fe2fb3c11b1d5a24f8f9a56d409e6828fc21e84c47e5d245c226c92faaf98"
+    },
+    {
+      "name": "istio-proxy",
+      "ready": true,
+      "restartCount": 0,
+      "image": "ghcr.io/fune5tiatlas/facis-zero-trust-demonstrator/proxy-runtime@sha256:3b8fe2fb3c11b1d5a24f8f9a56d409e6828fc21e84c47e5d245c226c92faaf98"
+    },
+    {
+      "name": "server",
+      "ready": true,
+      "restartCount": 0,
+      "image": "ghcr.io/fune5tiatlas/facis-zero-trust-demonstrator/token-store@sha256:123343bb085b4b7b16988ace59ea7c340a8a31d780a6758bf7b82d5363508fab"
+    }
+  ],
+  "readiness": {
+    "path": "/app-health/server/readyz",
+    "port": 15020,
+    "scheme": "HTTP"
+  },
+  "liveness": {
+    "path": "/app-health/server/livez",
+    "port": 15020,
+    "scheme": "HTTP"
+  }
+}

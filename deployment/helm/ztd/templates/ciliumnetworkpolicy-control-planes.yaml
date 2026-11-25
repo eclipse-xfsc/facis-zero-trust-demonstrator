@@ -1,3 +1,5 @@
+{{- /* Release ztd only; the admission release renders admission-policy.yaml and the admission subcharts. */ -}}
+{{- if not .Values.gatekeeper.enabled }}
 {{- /*
 Declared openings whose source a Kubernetes NetworkPolicy cannot name (docs/architecture.md,
 section 6; docs/workload-identity.md): the API server reaching the admission webhooks of the two
@@ -26,7 +28,7 @@ under the default deny, and another CNI needs a declared derogation.
 {{- if and (ne .Values.mesh.mode "none") (not .Values.cni.cilium.enabled) }}
 {{- fail (printf "mesh.mode %s needs Cilium (cni.cilium.enabled): the control-plane openings (controlPlaneWebhooks, identityServer and the kubeApi lane) have the API server and the host-networked SPIRE agents as sources, which only a Cilium policy can name. A zone on another CNI needs a declared derogation of the preferred stack before it is installed (docs/workload-identity.md)." .Values.mesh.mode) }}
 {{- end }}
-{{- if .Values.cni.cilium.enabled }}
+{{- if and .Values.cni.cilium.enabled (ne (include "ztd.role" .) "demonstrator") }}
 {{- /* namespace -> list of ingress rules */ -}}
 {{- $byNs := dict }}
 {{- if $np.controlPlaneWebhooks.enabled }}
@@ -125,6 +127,7 @@ spec:
             - port: {{ . | quote }}
               protocol: TCP
             {{- end }}
+{{- end }}
 {{- end }}
 {{- end }}
 {{- end }}

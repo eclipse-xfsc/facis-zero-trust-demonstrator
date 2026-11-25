@@ -8,7 +8,7 @@ Feature: Expected measurements and trust lists
     When the configured trust relationship between them is exercised
     Then each zone resolves the other as an explicitly configured participant AND a zone outside the configured relationship is not resolvable as a participant.
 
-  @ZT-18 @BDD-ZT-018 @pending
+  @ZT-18 @BDD-ZT-018 @cluster
   Scenario: TRAIN Allow List
     Given a TRAIN trust list naming the permitted counter-connector
     When connections are attempted from a listed and from an unlisted counter-connector

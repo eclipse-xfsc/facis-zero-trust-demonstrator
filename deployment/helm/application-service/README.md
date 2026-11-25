@@ -10,10 +10,12 @@ route. It creates no cluster-scoped objects.
 | `name` | Deployment and Service name; reached in the namespace as `<name>.<namespace>.svc` |
 | `image.repository`, `image.digest` | The image, deployed by `sha256` digest only |
 | `port`, `healthPath` | Container and Service port; HTTP path of both probes |
+| `eventSource` | Optional IF-01 source: `participant-a/b` or `protected-resource-a/b`; sets `IF01_SOURCE`. Must not also be set through `env` or `secretEnv`. Events use stdout and the existing node collector, requiring no new egress rule. |
 | `env` | The process environment as `NAME: value`; never secret values |
 | `resources` | Defaults fit the OSC shared namespace's LimitRange |
 | `networkPolicy.ingressFrom` | Peers allowed to reach `port`; empty denies all inbound traffic |
 | `networkPolicy.egress` | Egress rules besides DNS; empty denies all other egress |
+| `trustDomain`, `callers` | Mesh callers admitted on `port` by the AuthorizationPolicy `<name>-callers`, each `{namespace, name}` of a service account; empty renders none |
 | `ingress.enabled`, `ingress.host`, `ingress.className` | Route through the ingress controller |
 | `ingress.tlsSecret` | `kubernetes.io/tls` Secret for the host; empty serves the controller's default certificate |
 | `ingress.basicAuthSecret` | Secret with an htpasswd `auth` key; the route then requires HTTP basic authentication |

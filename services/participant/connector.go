@@ -19,8 +19,8 @@ import (
 const renewRetry = 5 * time.Second
 
 // ConnectorBootstrap is the token-mode Bootstrapper (design D12). The client is provisioned: its id
-// and secret come from a mounted file, so the registering step is skipped and a run starts at
-// presenting. A run asks the Connector for a challenge, has the OutcomeSource sign an IF-03 outcome
+// and secret come from a mounted file. The registering step validates them with an authenticated
+// challenge. A run asks the Connector for a challenge, has the OutcomeSource sign an IF-03 outcome
 // for it, sends the verified-presentation grant with a DPoP proof of the Participant's own key and
 // checks the token: DPoP-bound to that key, for the audience, not expired.
 //
@@ -69,10 +69,10 @@ func NewConnectorBootstrap(connectorURL, credentialsFile, audience string, outco
 // errBootstrap is all a failed run returns; the state and reason carry the detail.
 var errBootstrap = errors.New("participant: token bootstrap failed")
 
-// Run reports presenting, then acquiring_token, and returns a session holding the token; on failure it
-// reports the failed_* state named by the step and the answer, and returns errBootstrap.
+// Run reports registering, registered, presenting and acquiring_token, then returns a token session.
+// On failure it reports the failed_* state named by the step and answer and returns errBootstrap.
 func (b *ConnectorBootstrap) Run(ctx context.Context, report func(State, string)) (TokenSession, error) {
-	report(StatePresenting, TransitionStepStarted)
+	report(StateRegistering, TransitionStepStarted)
 	id, secret, err := readCredentials(b.credentials)
 	if err != nil {
 		report(StateFailedRegister, TransitionBootstrapError)
@@ -200,6 +200,9 @@ func (s *connectorSession) acquire(ctx context.Context, report func(State, strin
 		report(failure(err))
 		return err
 	}
+	// A successful authenticated challenge confirms the provisioned registration.
+	report(StateRegistered, TransitionStepCompleted)
+	report(StatePresenting, TransitionStepStarted)
 	outcome, err := b.outcomes.Outcome(ctx, ch)
 	if err != nil {
 		report(StateFailedPresent, TransitionUpstreamError)

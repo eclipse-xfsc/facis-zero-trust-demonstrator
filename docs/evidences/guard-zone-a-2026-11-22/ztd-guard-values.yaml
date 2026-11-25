@@ -1,0 +1,25 @@
+config:
+  inbound_audience: https://guard.facis.invalid
+  issuer: https://connector.zone-a.invalid
+  jwks_url: http://ztd-connector:8080/.well-known/jwks.json
+  peer_zone: zone-a
+  published_base_url: http://ztd-guard:8080
+  upstream_audience: https://resource.facis.invalid
+images:
+  envoy:
+    digest: sha256:0cd70a69172bb144ba70ed7cad61f3f5172f971c5e130ef48116e60e5fa815c1
+    repository: ghcr.io/fune5tiatlas/facis-zero-trust-demonstrator/envoy-runtime
+  guard:
+    digest: sha256:97f74a9cd2bc3bd1da0449dfbe2169fea66c1de87e030a0c9d67aa92140c488f
+    repository: ghcr.io/fune5tiatlas/facis-zero-trust-demonstrator/guard
+  policy:
+    digest: sha256:5958fd74fdef9467f413422cf81a21a677ccd4296aaf9c293564a997b186ed28
+    repository: ghcr.io/fune5tiatlas/facis-zero-trust-demonstrator/policy-evaluator
+networkPolicy:
+  istiod:
+    enabled: true
+podAnnotations:
+  sidecar.istio.io/nativeSidecar: "true"
+policyRevision: zone-a-m3-v1
+trustDomain: zone-a.trust.invalid
+zone: a

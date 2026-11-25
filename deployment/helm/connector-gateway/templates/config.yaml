@@ -1,0 +1,154 @@
+{{- include "gateway.validate" . -}}
+{{- $v := .Values }}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ $v.name }}
+  namespace: {{ .Release.Namespace }}
+data:
+  {{- if $v.egress.enabled }}
+  {{- $p := $v.egress.peer }}
+  {{- $name := include "gateway.peerName" . }}
+  peer-ca.crt: |
+    {{- $p.caCert | trim | nindent 4 }}
+  envoy.yaml: |
+    static_resources:
+      listeners:
+        - name: egress
+          address: {socket_address: {address: 0.0.0.0, port_value: {{ $v.egress.port }}}}
+          filter_chains:
+            - filters:
+                - name: envoy.filters.network.http_connection_manager
+                  typed_config:
+                    "@type": type.googleapis.com/envoy.extensions.filters.network.http_connection_manager.v3.HttpConnectionManager
+                    stat_prefix: egress
+                    {{- include "gateway.accessLog" (printf "egress:%s" $p.name) | nindent 20 }}
+                    route_config:
+                      virtual_hosts:
+                        - name: {{ $p.name | quote }}
+                          domains: ["*"]
+                          routes:
+                            - match: {prefix: "/"}
+                              route: {cluster: peer, timeout: 30s, host_rewrite_literal: {{ $name | quote }}}
+                    http_filters:
+                      - name: envoy.filters.http.router
+                        typed_config:
+                          "@type": type.googleapis.com/envoy.extensions.filters.http.router.v3.Router
+                          suppress_envoy_headers: true
+      clusters:
+        - name: peer
+          type: STATIC
+          connect_timeout: 5s
+          load_assignment:
+            cluster_name: peer
+            endpoints:
+              - lb_endpoints:
+                  - endpoint: {address: {socket_address: {address: {{ $p.address | quote }}, port_value: {{ $p.port }}}}}
+          transport_socket:
+            name: envoy.transport_sockets.tls
+            typed_config:
+              "@type": type.googleapis.com/envoy.extensions.transport_sockets.tls.v3.UpstreamTlsContext
+              {{- if not (regexMatch "^[0-9.]+$" $name) }}
+              sni: {{ $name | quote }}
+              {{- end }}
+              common_tls_context:
+                tls_params: {tls_minimum_protocol_version: TLSv1_2}
+                {{- if $p.clientTlsSecret }}
+                tls_certificates:
+                  - certificate_chain: {filename: /etc/client-tls/tls.crt}
+                    private_key: {filename: /etc/client-tls/tls.key}
+                {{- end }}
+                validation_context:
+                  trusted_ca: {filename: /etc/gateway/peer-ca.crt}
+                  match_typed_subject_alt_names:
+                    - san_type: {{ if regexMatch "^[0-9.]+$" $name }}IP_ADDRESS{{ else }}DNS{{ end }}
+                      matcher: {exact: {{ $name | quote }}}
+  {{- else }}
+  {{- $a := $v.ingress.peerAllowList }}
+  {{- if $a.enabled }}
+  peers-ca.crt: |
+    {{- $a.clientCaCert | trim | nindent 4 }}
+  {{- with $a.caCert }}
+  trust-ca.crt: |
+    {{- . | trim | nindent 4 }}
+  {{- end }}
+  {{- end }}
+  envoy.yaml: |
+    static_resources:
+      listeners:
+        - name: ingress
+          address: {socket_address: {address: 0.0.0.0, port_value: {{ $v.ingress.port }}}}
+          filter_chains:
+            - transport_socket:
+                name: envoy.transport_sockets.tls
+                typed_config:
+                  "@type": type.googleapis.com/envoy.extensions.transport_sockets.tls.v3.DownstreamTlsContext
+                  {{- if $a.enabled }}
+                  require_client_certificate: true
+                  {{- end }}
+                  common_tls_context:
+                    tls_params: {tls_minimum_protocol_version: TLSv1_2}
+                    tls_certificates:
+                      - certificate_chain: {filename: /etc/tls/tls.crt}
+                        private_key: {filename: /etc/tls/tls.key}
+                    {{- if $a.enabled }}
+                    validation_context:
+                      trusted_ca: {filename: /etc/gateway/peers-ca.crt}
+                    {{- end }}
+              filters:
+                - name: envoy.filters.network.http_connection_manager
+                  typed_config:
+                    "@type": type.googleapis.com/envoy.extensions.filters.network.http_connection_manager.v3.HttpConnectionManager
+                    stat_prefix: ingress
+                    use_remote_address: true
+                    {{- include "gateway.accessLog" "ingress" | nindent 20 }}
+                    route_config:
+                      virtual_hosts:
+                        - name: upstream
+                          domains: ["*"]
+                          routes:
+                            - match: {prefix: "/"}
+                              route: {cluster: upstream, timeout: 30s, host_rewrite_literal: {{ printf "%s.%s.svc.cluster.local" $v.ingress.upstream.name .Release.Namespace | quote }}}
+                    http_filters:
+                      {{- if $a.enabled }}
+                      # The TRAIN allow list: no answer, or any answer but OK, refuses the request.
+                      - name: envoy.filters.http.ext_authz
+                        typed_config:
+                          "@type": type.googleapis.com/envoy.extensions.filters.http.ext_authz.v3.ExtAuthz
+                          transport_api_version: V3
+                          failure_mode_allow: false
+                          status_on_error: {code: ServiceUnavailable}
+                          include_peer_certificate: true
+                          grpc_service:
+                            envoy_grpc: {cluster_name: admit-peers}
+                            timeout: 10s
+                      {{- end }}
+                      - name: envoy.filters.http.router
+                        typed_config:
+                          "@type": type.googleapis.com/envoy.extensions.filters.http.router.v3.Router
+                          suppress_envoy_headers: true
+      clusters:
+        - name: upstream
+          type: STRICT_DNS
+          connect_timeout: 2s
+          load_assignment:
+            cluster_name: upstream
+            endpoints:
+              - lb_endpoints:
+                  - endpoint: {address: {socket_address: {address: {{ $v.ingress.upstream.name | quote }}, port_value: {{ $v.ingress.upstream.port }}}}}
+        {{- if $a.enabled }}
+        - name: admit-peers
+          type: STATIC
+          connect_timeout: 1s
+          typed_extension_protocol_options:
+            envoy.extensions.upstreams.http.v3.HttpProtocolOptions:
+              "@type": type.googleapis.com/envoy.extensions.upstreams.http.v3.HttpProtocolOptions
+              explicit_http_config:
+                http2_protocol_options: {}
+          load_assignment:
+            cluster_name: admit-peers
+            endpoints:
+              - lb_endpoints:
+                  - endpoint: {address: {socket_address: {address: 127.0.0.1, port_value: 50051}}}
+        {{- end }}
+  {{- end }}

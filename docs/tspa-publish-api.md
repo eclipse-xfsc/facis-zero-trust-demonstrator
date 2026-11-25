@@ -323,3 +323,42 @@ and switching the issuer to a self-contained `did:key` makes the TCR's `resolveD
 `getServices()` for documents without a `service` section (HTTP 500). An exploratory run with a locally patched
 TCR exists outside this verification's scope and is recorded in `scripts/verify-tspa-api/tcr-findings/tcr-findings.md`; it is not evidence for the
 "done when" criteria, which are all on the write side.
+
+## 11. Our TSPA image (2026-11-21)
+
+Two defects of the upstream image make its trust-list VCs unusable to a verifier that checks them
+itself, as the verification service does ([Verification service](verification-service.md)):
+
+- **The signing key is public.** The `INTERNAL` signer reads `classpath:Vault/PrivateKey/WkJWKPrivateKey`
+  (for both the well-known and the trust-list VC), an Ed25519 private JWK committed to the upstream
+  repository since its first commit. Anyone can sign a trust list in the name of a TSPA that uses it.
+  **Every trust list published by the upstream image, ours on zone B included, was signed with that
+  key and must not be trusted.**
+- **The VC never expires correctly.** `VCServiceImpl` sets `issuanceDate` at signing and copies
+  `expirationDate` from the template: always 2025-06-15 (§8).
+- And JSON-LD drops the subject's `trustlisttype`, `trustlistURI` and `hash` from the signed data:
+  no context defines them, so the proof does not cover which list the VC vouches for.
+
+`deployment/docker/tspa` builds upstream `ecd5fdc` with `train-shared` `6a0abe4` (both by checksum,
+base images by digest) and three patches, kept as files so they can be offered upstream:
+
+| Patch | Change | Configuration |
+|---|---|---|
+| `0001-trust-list-vc-validity.patch` | `expirationDate` = issuance + a configured period; without the period no VC is issued | `trustlist.vc.validity`, an ISO-8601 duration (`P30D`) |
+| `0002-signing-key-file.patch` | the signing key is read from a file, the classpath key never; without the file nothing is signed | `tspa.signing-key-file` (a mounted Secret) |
+| `0003-sign-trust-list-subject.patch` | the VC template defines the subject's terms (under `https://tspa.facis.cloud/ns/trustlist#`) | — |
+
+The verification method is `<trustlist.vc.issuer>#<trustlist.vc.signer.key>`; the issuer's DID
+document must list that key's public half under `assertionMethod`.
+
+**Renewal.** A publication (`PUT` or `PATCH` of an entry, `PUT /init/...`) signs a new VC with a new
+window, and nothing else does. With `P30D` the list must be re-published at least every 30 days, or
+verifiers refuse it. The cadence to deploy with the image is weekly, a CronJob that `PATCH`es the
+framework's entry unchanged, so a missed run leaves three weeks of margin: the chart
+`deployment/helm/tspa-republish`, deployed on zone B (`ztd-train`) since 24 Nov 2026 with our image
+([record](evidences/trust-list-zone-b-2026-11-24/README.md)).
+
+`scripts/verify-tspa-vc/run.sh` runs the image on Docker with a fresh key and Keycloak's test realm,
+creates and publishes a list, checks the window and its renewal, checks that the private key reaches
+no stored file and no log, and writes the VC, the list and the DID document that the verification
+service's tests use.

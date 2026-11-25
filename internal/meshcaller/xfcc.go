@@ -12,7 +12,7 @@ const headerXFCC = "X-Forwarded-Client-Cert"
 
 // XFCC authenticates the caller by the client certificate the store's own sidecar verified and
 // forwarded. It is sound only where that sidecar replaces any X-Forwarded-Client-Cert the client sent
-// (SANITIZE_SET, set on the store's pod) and the API port is reachable only through it; the
+// (SANITIZE_SET, mesh-wide: zone-policy's EnvoyFilter) and the API port is reachable only through it; the
 // deployment owes both. As a second line it accepts exactly one element across every header field:
 // a client-supplied value next to the sidecar's, what APPEND_FORWARD would produce, is refused.
 type XFCC struct {

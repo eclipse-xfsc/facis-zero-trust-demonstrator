@@ -1,0 +1,20 @@
+zone: b
+trustDomain: cluster.local
+resourcePort: 8080
+images:
+  guard: {repository: kind-registry-guard-catalogue:5000/guard, digest: "sha256:aedbcb12e39ae4c927182d3045d7793f27142688203ecb3341cbe4ed5a3dfa7c"}
+  policy: {repository: kind-registry-guard-catalogue:5000/policy-evaluator, digest: "sha256:daa8d084b7f2053bd785ed2eb9c6a150670365254b9caafc50b9cd69eca486a8"}
+  envoy: {repository: docker.io/envoyproxy/envoy, digest: "sha256:3a76238cdf52c7a3e33951f44c02d694108e6481feffe6663bf9319f55ec1394"}
+config:
+  issuer: https://connector.verify.invalid
+  jwks_url: http://ztd-connector:8080/.well-known/jwks.json
+  inbound_audience: https://guard.facis.invalid
+  upstream_audience: https://resource.facis.invalid
+  published_base_url: http://ztd-guard:8080
+  peer_zone: zone-b
+policyRevision: kind-catalogue-1
+policyRules:
+  blockedClients: ["3doP8DVc0AnDcUAiG1QpG3grLbm40iVrcSulvGv8C92lRd678rXWwNdOeDqDqR0t"]
+  presentation: {scopes: ["report:full"], oid4vpLink: "openid4vp://authorize?client_id=verifier.verify.invalid&request_uri=https%3A%2F%2Fverifier.verify.invalid%2Frequest"}
+networkPolicy: {istiod: {enabled: true}}
+podAnnotations: {sidecar.istio.io/nativeSidecar: "true"}

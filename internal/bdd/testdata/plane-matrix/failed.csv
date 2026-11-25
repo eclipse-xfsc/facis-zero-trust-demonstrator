@@ -1,0 +1,5 @@
+row,role,namespace,probe,caller,destination,port,expected,outcome,layer,evidence,kind,verdict
+"tspa","TRAIN (publication)","ztd-data","TCP, proxy-less","probe-0","ztd-mgmt/tspa (tspa)","8080","denied","denied(28)","network","ev","stand-in","pass"
+"tspa","TRAIN (publication)","ztd-data","behind a probe-scoped opening","mesh-prober-0","ztd-mgmt/tspa","8080","refused","200 ok","mesh","no denial line naming the prober","stand-in","fail"
+"tspa","TRAIN (publication)","ztd-data","TCP, proxy-less","probe-1","ztd-mgmt/tspa (tspa)","8080","denied","denied(28)","network","ev","stand-in","pass"
+"catch-all","any","ztd-data","TCP to istiod's xDS port","probe-0","istio-system/istiod (istiod-1)","15012","open, declared","connected","network","ev","real","declared"

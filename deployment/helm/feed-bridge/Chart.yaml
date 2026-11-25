@@ -1,0 +1,6 @@
+apiVersion: v2
+name: feed-bridge
+description: The IF-01 feed bridge in the mesh, reachable by the UI's identity only.
+type: application
+version: 0.1.0
+appVersion: 0.1.0

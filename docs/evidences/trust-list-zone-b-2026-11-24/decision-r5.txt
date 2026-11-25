@@ -1,0 +1,7 @@
+ZT-26 on zone-b, run trustlist-b-20261124-r5
+entry: 25 check(s)
+direct-path: 6 check(s)
+exemptions: 2 check(s)
+Hubble policy drops cited: 6
+role ingress, record: bundles/bdd/evidence/bdd-zt-026/zone-b/trustlist-b-20261124-r5/connector-routing
+PASS

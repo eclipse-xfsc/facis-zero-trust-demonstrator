@@ -1,0 +1,4 @@
+http.inbound_0.0.0.0_8080;.rbac.allowed: 43
+http.inbound_0.0.0.0_8080;.rbac.denied: 1
+http.inbound_0.0.0.0_8080;.rbac.istio_dry_run_allow_.shadow_allowed: 0
+http.inbound_0.0.0.0_8080;.rbac.istio_dry_run_allow_.shadow_denied: 0

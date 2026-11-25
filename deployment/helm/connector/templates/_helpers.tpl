@@ -7,6 +7,15 @@ app.kubernetes.io/managed-by: {{ .Release.Service }}
 app.kubernetes.io/name: ztd-connector
 app.kubernetes.io/instance: {{ .Release.Name }}
 {{- end -}}
+{{/*
+The migration Job's pods: another name than the connector's, whose selector (name and instance) is
+the Deployment's, the Service's and the policies', so none of them takes a Job pod for the service.
+*/}}
+{{- define "connector.schemaLabels" -}}
+app.kubernetes.io/name: ztd-connector-schema
+app.kubernetes.io/instance: {{ .Release.Name }}
+app.kubernetes.io/managed-by: {{ .Release.Service }}
+{{- end -}}
 {{- define "connector.validate" -}}
 {{- if not .Values.image.repository -}}{{ fail "image.repository is required" }}{{- end -}}
 {{- if not (regexMatch "^sha256:[a-f0-9]{64}$" .Values.image.digest) -}}
@@ -39,9 +48,21 @@ app.kubernetes.io/instance: {{ .Release.Name }}
 {{- if not (regexMatch "^https?://[A-Za-z0-9.-]+(:[0-9]+)?/?$" .Values.openbao.address) -}}
 {{- fail "openbao.address must be a base URL without credentials" -}}
 {{- end -}}
+{{- if and (eq .Values.openbao.auth.method "kubernetes") (not .Values.openbao.auth.role) -}}
+{{- fail "openbao.auth.method kubernetes needs openbao.auth.role" -}}
+{{- end -}}
 {{- if not (regexMatch "^[A-Za-z0-9_-]+$" .Values.openbao.signingKey) -}}{{ fail "openbao.signingKey is required" }}{{- end -}}
 {{- if lt (int .Values.openbao.signingKeyVersion) 1 -}}{{ fail "openbao.signingKeyVersion must be positive" }}{{- end -}}
 {{- if not .Values.serviceAccount.name -}}{{ fail "serviceAccount.name is required" }}{{- end -}}
+{{- if .Values.schema.enabled -}}
+{{- if not (regexMatch "^sha256:[a-f0-9]{64}$" (.Values.schema.image.digest | toString)) -}}
+{{- fail "schema.image.digest must be the sha256 digest of the token-store image that carries the migrations" -}}
+{{- end -}}
+{{- if eq .Values.schema.serviceAccountName .Values.serviceAccount.name -}}
+{{- fail "schema.serviceAccountName must differ from serviceAccount.name: the hook replaces the schema account on every upgrade" -}}
+{{- end -}}
+{{- if not .Values.schema.egress -}}{{ fail "schema.egress must include the database lane when schema.enabled is true" }}{{- end -}}
+{{- end -}}
 {{- if not .Values.oauth.registrarID -}}{{ fail "oauth.registrarID is required" }}{{- end -}}
 {{- if lt (int .Values.replicas) 1 -}}{{ fail "replicas must be positive" }}{{- end -}}
 {{- if not .Values.dpop.enforce -}}{{ fail "the protected-service Connector requires dpop.enforce" }}{{- end -}}

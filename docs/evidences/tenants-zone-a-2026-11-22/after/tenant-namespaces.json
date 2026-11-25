@@ -1,0 +1,30 @@
+[
+  {
+    "name": "tenant-a",
+    "labels": {
+      "apiserver-proxy.networking.gardener.cloud/inject": "disable",
+      "app.kubernetes.io/instance": "ztd",
+      "app.kubernetes.io/managed-by": "Helm",
+      "app.kubernetes.io/name": "ztd",
+      "helm.sh/chart": "ztd-0.4.0",
+      "istio-injection": "enabled",
+      "kubernetes.io/metadata.name": "tenant-a",
+      "ztd.facis.io/plane": "data",
+      "ztd.facis.io/zone": "zone-a"
+    }
+  },
+  {
+    "name": "tenant-b",
+    "labels": {
+      "apiserver-proxy.networking.gardener.cloud/inject": "disable",
+      "app.kubernetes.io/instance": "ztd",
+      "app.kubernetes.io/managed-by": "Helm",
+      "app.kubernetes.io/name": "ztd",
+      "helm.sh/chart": "ztd-0.4.0",
+      "istio-injection": "enabled",
+      "kubernetes.io/metadata.name": "tenant-b",
+      "ztd.facis.io/plane": "data",
+      "ztd.facis.io/zone": "zone-a"
+    }
+  }
+]

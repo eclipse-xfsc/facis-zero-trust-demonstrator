@@ -23,13 +23,21 @@ zone:
 # Istio in sidecar mode, the mesh decision of ADR-0009.
 mesh:
   mode: sidecar
+  # ztd-m3-b's workloads run the project's proxy runtime (built from this repository, signed), not
+  # istiod's proxyv2; zone-policy admits it in that namespace only (live since the M3 guard path).
+  namespaceProxyImages:
+    ztd-m3-b: ghcr.io/fune5tiatlas/facis-zero-trust-demonstrator/proxy-runtime@sha256:3b8fe2fb3c11b1d5a24f8f9a56d409e6828fc21e84c47e5d245c226c92faaf98
 
-# kubectl -n kube-system get ds cilium: Cilium 1.18.8, installed and upgraded by the provider, with
-# cni-exclusive=false already set (kubectl -n kube-system get cm cilium-config). Verified, never
-# installed or reconfigured by the zone.
+# kubectl -n kube-system get ds cilium: Cilium 1.19.6, installed and upgraded by the provider, with
+# cni-exclusive=false already set and tunnel routing over VXLAN (kubectl -n kube-system get cm
+# cilium-config: routing-mode, tunnel-protocol). Verified, never installed or reconfigured by the zone.
+# The version is the tag of the DaemonSet's image (kubectl -n kube-system get ds cilium -o
+# jsonpath='{.spec.template.spec.containers[0].image}', read 2026-10-25), without the leading v; the
+# mesh identity proof fails when the running Cilium differs, and the chain is then checked again.
 cni:
   cilium:
     enabled: true
+    version: 1.19.6
 
 # The control planes of the identity path and of the mesh: management-plane namespaces under the
 # default deny, without the mesh label (no sidecar for SPIRE or istiod).
@@ -37,6 +45,7 @@ planes:
   extra:
     - { name: spire-system, plane: management, mesh: false }
     - { name: istio-system, plane: management, mesh: false }
+    - { name: ztd-otel-node, plane: management, mesh: false }   # the node collectors: host network, no sidecar
   # The provider's webhook kubernetes-service-host.resources.gardener.cloud (kubectl get
   # mutatingwebhookconfiguration gardener-resource-manager-shoot) sets KUBERNETES_SERVICE_HOST in
   # every new pod to the API server's public name, which Cilium sees as world, not as the
@@ -75,3 +84,46 @@ networkPolicy:
         type: tunnel
   identityServer:
     enabled: true
+  observabilityScrape:
+    enabled: true
+
+# Admission (deployment/admission). Recorded 2026-11-21 from the live releases that
+# scripts/admission/install.sh installed (helm get values gatekeeper|admission -n gatekeeper-system).
+# install stays false until the migration in docs/umbrella-chart.md ("Admission in the umbrella")
+# moves the stack into the umbrella's admission release; the values below are what that release
+# then installs. The key is docs/contracts/keys/interim-cosign.pub (interim, not the client's).
+admission:
+  install: false
+  # The policy objects (constraint templates, constraints, exemptions) are kept by the Argo CD on
+  # this cluster (Applications admission-templates, admission-constraints, admission-exemptions,
+  # under ztd-admission); the admission release installs Gatekeeper, the provider and the pool only.
+  policy:
+    managedBy: argocd
+gatekeeper:
+  replicas: 2
+admissionProvider:
+  replicas: 2
+  image:
+    repository: ghcr.io/fune5tiatlas/facis-zero-trust-demonstrator/admission-provider
+    digest: sha256:e54967a2433a57330947cb4821b99a8355daf27e226a8119ad7f8851b3fcb4f0
+  trust:
+    repositories:
+      - ghcr.io/fune5tiatlas/facis-zero-trust-demonstrator
+    publicKeys: |
+      -----BEGIN PUBLIC KEY-----
+      MFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAE0lFmUtbg0hz8DzhKG9mz6lKqU1Zf
+      ZGTwuAuoCwoIlaVI5RbLNt9Hiwe4/39DPyX+2qZonfl9p16mexhlc+vltw==
+      -----END PUBLIC KEY-----
+
+# The telemetry export to the demonstrator cluster (docs/adr/0017-central-observability-backends.md).
+# This zone's listener on the entry is 4417. The entry's address (the public address of its
+# LoadBalancer during the contingency period, the CUG address after the move) and the revocation
+# status-list URL are recorded once the demonstrator role is installed; until then the installer
+# refuses to render or install this zone's telemetry releases (otel-node, otel-gateway), and the
+# other releases are unaffected.
+telemetryExport:
+  entry:
+    address: ""
+    port: 4417
+    transport: contingency-public-transit
+  revocationStatusListUrl: ""

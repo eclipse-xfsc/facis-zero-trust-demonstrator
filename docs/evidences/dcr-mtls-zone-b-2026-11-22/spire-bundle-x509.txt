@@ -1,0 +1,36 @@
+serial=A5AF1E34424B56680C1050DCE7EA7885
+subject=C=ARPA, O=FACIS ZTD, CN=zone-b.trust.invalid, serialNumber=220231883867424362283507340902711064709
+notBefore=Nov 20 08:47:08 2026 GMT
+notAfter=Nov 21 08:47:18 2026 GMT
+X509v3 Subject Key Identifier: 
+    4A:9F:4C:E2:9C:23:1F:72:68:F7:52:59:24:38:F0:6A:0F:C0:49:30
+X509v3 Subject Alternative Name: 
+    URI:spiffe://zone-b.trust.invalid
+
+serial=392AA99DC7456BC9E562E40B82462B75
+subject=C=ARPA, O=FACIS ZTD, CN=zone-b.trust.invalid, serialNumber=75987512455514641241257260831102872437
+notBefore=Nov 20 20:47:08 2026 GMT
+notAfter=Nov 21 20:47:18 2026 GMT
+X509v3 Subject Key Identifier: 
+    DB:C4:09:43:8F:11:A7:BF:AC:30:DF:24:CE:BD:52:67:C5:6A:41:80
+X509v3 Subject Alternative Name: 
+    URI:spiffe://zone-b.trust.invalid
+
+serial=7F5E0237FDA8667E5AEA2AC1A4AE4A80
+subject=C=ARPA, O=FACIS ZTD, CN=zone-b.trust.invalid, serialNumber=169300076370258026278462440549049584256
+notBefore=Nov 21 08:47:08 2026 GMT
+notAfter=Nov 22 08:47:18 2026 GMT
+X509v3 Subject Key Identifier: 
+    36:B4:E2:8B:35:1E:0C:FF:22:08:6F:2E:A9:72:D8:48:CF:D6:FF:97
+X509v3 Subject Alternative Name: 
+    URI:spiffe://zone-b.trust.invalid
+
+serial=9B0871292BEAA81754D697B0DEC75574
+subject=C=ARPA, O=FACIS ZTD, CN=zone-b.trust.invalid, serialNumber=206074172895761652496779222996656543092
+notBefore=Nov 21 20:47:08 2026 GMT
+notAfter=Nov 22 20:47:18 2026 GMT
+X509v3 Subject Key Identifier: 
+    00:1E:7E:44:47:3D:F5:FD:B6:0A:B8:EE:87:F6:E5:08:81:B2:09:25
+X509v3 Subject Alternative Name: 
+    URI:spiffe://zone-b.trust.invalid
+

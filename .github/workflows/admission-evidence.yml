@@ -1,0 +1,143 @@
+name: Admission evidence
+
+# The admission evidence pack of one cluster (scripts/admission/evidence-pack.sh), run from the pipeline
+# so the pack names the run that produced it and the "Admission fixtures" run whose images it used.
+# The fault cases take the provider and Gatekeeper down and remove the webhook for a short time, then
+# restore them, so the job starts only by hand, one cluster at a time, from the protected environment
+# `admission-evidence` (required reviewers; the administrator kubeconfigs are its secrets). Until that
+# environment and its secrets exist the job stops with a notice. docs/ci-cd.md, "Admission evidence".
+on:
+  workflow_dispatch:
+    inputs:
+      target:
+        description: Cluster to run the pack on
+        required: true
+        type: choice
+        options: [zone-a, zone-b, ionos]
+      fixtures_run_id:
+        description: Run ID of the "Admission fixtures" run whose fixture list the pack uses
+        required: true
+        type: string
+      cluster_kind:
+        description: target (an acceptance cluster) or non-target (mechanism evidence only)
+        required: true
+        type: choice
+        options: [target, non-target]
+        default: target
+
+permissions:
+  contents: read
+  actions: read # downloads the fixture list from the fixtures run
+
+concurrency:
+  group: admission-evidence-${{ inputs.target }}
+  cancel-in-progress: false
+
+jobs:
+  pack:
+    name: Evidence pack on ${{ inputs.target }}
+    runs-on: ubuntu-latest
+    environment: admission-evidence
+    timeout-minutes: 60
+    env:
+      TARGET: ${{ inputs.target }}
+      ADMIN_KUBECONFIG_CONTENT: ${{ inputs.target == 'zone-a' && secrets.ADMISSION_ZONE_A_ADMIN_KUBECONFIG || inputs.target == 'zone-b' && secrets.ADMISSION_ZONE_B_ADMIN_KUBECONFIG || secrets.ADMISSION_IONOS_ADMIN_KUBECONFIG }}
+    steps:
+      - name: Check the inputs exist
+        id: ready
+        run: |
+          missing=()
+          [ -n "$ADMIN_KUBECONFIG_CONTENT" ] || missing+=("administrator kubeconfig secret for $TARGET")
+          if [ "${#missing[@]}" -gt 0 ]; then
+            echo "::notice::Admission evidence not run: missing ${missing[*]}."
+            echo "ready=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          echo "ready=true" >> "$GITHUB_OUTPUT"
+
+      - name: Checkout repository
+        if: steps.ready.outputs.ready == 'true'
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Set up Go
+        if: steps.ready.outputs.ready == 'true'
+        uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version-file: go.mod
+
+      - name: Set up Helm
+        if: steps.ready.outputs.ready == 'true'
+        uses: azure/setup-helm@1a275c3b69536ee54be43f2070a358922e12c8d4 # v4
+        with:
+          # The pipeline's pinned Helm; the pack's restore step reinstalls with it.
+          version: v4.3.0
+
+      - name: Install the pinned tools
+        if: steps.ready.outputs.ready == 'true'
+        run: |
+          scripts/tools/install.sh "$RUNNER_TEMP/bin" kubectl gatekeeper-chart
+          echo "$RUNNER_TEMP/bin" >> "$GITHUB_PATH"
+
+      # The umbrella layout's restore upgrades release gatekeeper from deployment/helm/ztd, whose
+      # dependencies are not in Git: they are built from Chart.lock, as scripts/ci/check-charts.sh
+      # builds them, and the Gatekeeper chart among them is checked against its pinned digest. The
+      # fault script also refuses to inject anything until a dry run of its restore has passed.
+      - name: Build the umbrella chart's dependencies
+        if: steps.ready.outputs.ready == 'true'
+        run: |
+          sed -n 's/^ *repository: *"\{0,1\}\(https:[^"]*\)"\{0,1\}$/\1/p' deployment/helm/ztd/Chart.yaml | sort -u | while read -r url; do
+            helm repo add "dep-$(printf '%s' "$url" | sha256sum | cut -c1-8)" "$url" >/dev/null
+          done
+          helm dependency build deployment/helm/ztd
+          . scripts/tools/pins.env
+          echo "$GATEKEEPER_CHART_SHA256  deployment/helm/ztd/charts/gatekeeper-$GATEKEEPER_CHART_VERSION.tgz" | sha256sum -c -
+
+      # The key the fixtures were signed with: the same selected key source as "Admission fixtures";
+      # it only labels the pack - every restore puts back the key the provider had installed.
+      - name: Select the signing key
+        if: steps.ready.outputs.ready == 'true'
+        env:
+          SIGNING_KEY_SOURCE: ${{ vars.SIGNING_KEY_SOURCE }}
+          SIGNING_TRANSIT_KEY: ${{ vars.SIGNING_TRANSIT_KEY }}
+          SIGNING_TRANSIT_PATH: ${{ vars.SIGNING_TRANSIT_PATH }}
+          SIGNING_VAULT_ADDR: ${{ vars.SIGNING_VAULT_ADDR }}
+        run: scripts/supplychain/key-source.sh >> "$GITHUB_ENV"
+
+      - name: Fetch the fixture list
+        if: steps.ready.outputs.ready == 'true'
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        with:
+          name: admission-fixtures
+          path: ${{ runner.temp }}/fixtures
+          run-id: ${{ inputs.fixtures_run_id }}
+          github-token: ${{ github.token }}
+
+      - name: Run the evidence pack
+        if: steps.ready.outputs.ready == 'true'
+        env:
+          CLUSTER_KIND: ${{ inputs.cluster_kind }}
+          BDD_RUN_ID: ci-${{ github.run_id }}-${{ github.run_attempt }}
+          EVIDENCE_RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+          FIXTURES_RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ inputs.fixtures_run_id }}
+        run: |
+          umask 077
+          printf '%s' "$ADMIN_KUBECONFIG_CONTENT" > "$RUNNER_TEMP/admin.kubeconfig"
+          export ADMIN_KUBECONFIG="$RUNNER_TEMP/admin.kubeconfig" KUBECONFIG="$RUNNER_TEMP/admin.kubeconfig"
+          export FIXTURES="$RUNNER_TEMP/fixtures/fixtures.txt" BIN="$RUNNER_TEMP/bin"
+          export TRUST_KEY="$SIGNING_PUBLIC_KEY"
+          # The zones' management and data planes; the fault script leaves out any of them that
+          # carries the admission label (an enforced data plane). IONOS uses the script's default set.
+          if [ "$TARGET" != ionos ]; then export OUTSIDE_NAMESPACES="kube-system ztd-mgmt ztd-data"; fi
+          scripts/admission/evidence-pack.sh "$TARGET"
+
+      - name: Remove the kubeconfig
+        if: always()
+        run: rm -f "$RUNNER_TEMP/admin.kubeconfig"
+
+      - name: Keep the evidence pack
+        if: always() && steps.ready.outputs.ready == 'true'
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: admission-evidence-${{ inputs.target }}
+          path: bundles/admission/${{ inputs.target }}
+          if-no-files-found: warn

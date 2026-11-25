@@ -1,11 +1,13 @@
 package protectedresource
 
 import (
+	"crypto/x509"
 	"fmt"
 	"os"
 	"strings"
 	"time"
 
+	"github.com/eclipse-xfsc/facis-zero-trust-demonstrator/internal/appevents"
 	"github.com/eclipse-xfsc/facis-zero-trust-demonstrator/internal/replay"
 	"github.com/eclipse-xfsc/facis-zero-trust-demonstrator/internal/tokenverify"
 )
@@ -22,12 +24,21 @@ const (
 )
 
 type Config struct {
+	// Events is the IF-01 log sink; the executable always wires it to stdout.
+	Events         *appevents.Sink
 	Address        string
 	RequestTimeout time.Duration
 	SlowDelay      time.Duration
 	Mode           string
 	AdapterMode    string
 	LogLevel       string
+	// GRPCAddress, when set, also serves the gRPC sample method (GRPCMethod) there over cleartext
+	// HTTP/2, behind the same Verifier. Token mode only.
+	GRPCAddress string
+	// The cloud-api adapter's settings (cloudSettingsFromEnv); CloudRootCAs nil means the system roots.
+	CloudTokenFile string
+	CloudAPIURL    string
+	CloudRootCAs   *x509.CertPool
 	// Verifier, when set, selects token mode. LoadConfig sets it, to a tokenverify.Verifier, only for
 	// PROTECTED_RESOURCE_MODE=token.
 	Verifier tokenverify.RequestVerifier
@@ -57,6 +68,7 @@ func LoadConfig() (Config, error) {
 		Mode:           strings.ToLower(envOrDefault("PROTECTED_RESOURCE_MODE", "sample")),
 		AdapterMode:    strings.ToLower(envOrDefault("PROTECTED_RESOURCE_ADAPTER_MODE", "sample")),
 		LogLevel:       strings.ToLower(envOrDefault("PROTECTED_RESOURCE_LOG_LEVEL", "info")),
+		GRPCAddress:    strings.TrimSpace(os.Getenv("PROTECTED_RESOURCE_GRPC_ADDRESS")),
 	}
 
 	var err error
@@ -78,10 +90,17 @@ func LoadConfig() (Config, error) {
 	default:
 		return Config{}, fmt.Errorf("PROTECTED_RESOURCE_MODE %q is unavailable; supported modes are sample and token", cfg.Mode)
 	}
+	if cfg.GRPCAddress != "" && cfg.Mode != ModeToken {
+		return Config{}, fmt.Errorf("PROTECTED_RESOURCE_GRPC_ADDRESS needs PROTECTED_RESOURCE_MODE=token: the gRPC method is served to verified callers only")
+	}
 	switch cfg.AdapterMode {
+	case cloudMode:
+		if err := cloudSettingsFromEnv(&cfg); err != nil {
+			return Config{}, err
+		}
 	case "sample", "sample-alternative":
 	default:
-		return Config{}, fmt.Errorf("PROTECTED_RESOURCE_ADAPTER_MODE %q is unavailable; supported modes are sample and sample-alternative", cfg.AdapterMode)
+		return Config{}, fmt.Errorf("PROTECTED_RESOURCE_ADAPTER_MODE %q is unavailable; supported modes are sample, sample-alternative and cloud-api", cfg.AdapterMode)
 	}
 	switch cfg.LogLevel {
 	case "debug", "info", "warn", "error":
