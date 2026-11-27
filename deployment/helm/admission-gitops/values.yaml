@@ -7,6 +7,15 @@ git:
   repoURL: https://github.com/eclipse-xfsc/facis-zero-trust-demonstrator.git
   targetRevision: main
 
+# The policy package in the registry (ZT-12), when the zone reads it instead of Git: the repository
+# ("host/path", as policy-publish.yml pushes it) and the digest the puller verified. The installer
+# sets the repository; only the puller (deployment/helm/policy-puller) writes the digest, after it
+# verified the signature. With both set the children read the package by digest, at the catalogue's
+# paths inside it; with either empty they read Git.
+package:
+  repository: ""
+  digest: ""
+
 # Argo CD's own namespace: where the Applications and the project live.
 argocd:
   namespace: argocd

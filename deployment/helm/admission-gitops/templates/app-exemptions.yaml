@@ -16,9 +16,7 @@ metadata:
 spec:
   project: ztd-admission
   source:
-    repoURL: {{ .Values.git.repoURL | quote }}
-    targetRevision: {{ .Values.git.targetRevision | quote }}
-    path: deployment/admission
+    {{- include "admgitops.source" (dict "ctx" . "path" "") | nindent 4 }}
     directory:
       recurse: false
       include: exemptions.yaml

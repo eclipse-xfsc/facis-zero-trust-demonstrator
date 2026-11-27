@@ -67,7 +67,7 @@ fi
 
 echo "== The published artefact ($REGISTRY)"
 repository="$REGISTRY/policy-package-test/admission"
-export COSIGN_PASSWORD= PLAIN_HTTP=true ORAS="$oras" COSIGN="$cosign" CREATED=2020-02-02T02:02:02Z
+export COSIGN_PASSWORD= PLAIN_HTTP=true ORAS="$oras" COSIGN="$cosign" CREATED=2020-02-02T02:02:02Z CHANNEL=main
 export REGISTRY_USER=policy-package-test REGISTRY_PASSWORD=not-checked-by-this-registry
 mkdir -p "$work/key" "$work/other-key"
 for dir in key other-key; do
@@ -84,6 +84,7 @@ if ! ref="$(publish "$work/a.tar.gz" "$work/key")"; then
 fi
 check "the package is published, signed and verified" grep -qE "^$repository@sha256:[0-9a-f]{64}$" <<<"$ref"
 digest="${ref#*@}"
+check "the channel tag names the signed digest" [ "$("$oras" resolve --plain-http "$repository:main")" = "$digest" ]
 
 "$oras" manifest fetch --plain-http "$ref" > "$work/manifest.json"
 layers="$(jq -r '[.layers[].mediaType] | join(",")' "$work/manifest.json")"
@@ -109,6 +110,8 @@ sed -i 's/\^ztd-/^any-/' "$work/tampered/constraints/naming.yaml"
 tampered="$(publish "$work/t.tar.gz" "$work/other-key" || echo "failed")"
 check "the tampered package is published to the same tag" grep -qE "^$repository@sha256:[0-9a-f]{64}$" <<<"$tampered"
 check "the tampered publish moved the tag to another digest" [ "$tampered" != "$ref" ]
+# The channel tag moved too: what a zone's puller sees, and refuses for its missing signature.
+check "the tampered publish moved the channel tag to that digest" [ "$("$oras" resolve --plain-http "$repository:main")" = "${tampered#*@}" ]
 refused "the tag's new digest has no signature by the trusted key" "no matching signatures" \
   "$cosign" verify --key "$work/key/cosign.pub" --insecure-ignore-tlog=true --allow-http-registry "$tampered"
 check "the signed digest still verifies" \
