@@ -51,6 +51,7 @@ for tool in docker kind kubectl helm cilium jq openssl go python3; do
   command -v "$tool" >/dev/null || { echo "refused: $tool is required" >&2; exit 125; }
 done
 python3 -c 'import yaml' 2>/dev/null || { echo "refused: python3 with PyYAML is required" >&2; exit 125; }
+case "$(helm version --short 2>/dev/null)" in v4.*) ;; *) echo "refused: scripts/install-zone needs Helm 4 (found $(helm version --short 2>/dev/null))" >&2; exit 125 ;; esac
 
 zones=(a b)
 cluster_of() { echo "ztd-atls-$1"; }
