@@ -15,3 +15,9 @@ only the exact upstream Go module pseudo-version for release 1.31.4, not all Ist
 image directory. The source revision matches the upstream release tag and `pilot-agent version`.
 Each statement links the upstream fixed-version advisory. CI displays suppressed findings; other
 HIGH/CRITICAL findings still fail. These are packaging-project statements, not upstream signatures.
+
+`train-zone-manager/` is the one context that is not a service in `services/`: the upstream TRAIN DNS
+zone manager, built from a pinned commit of `eclipse-xfsc/train-dns-trust-zone-manager` with the
+patches in its `patches/` directory applied on top, because the image as shipped neither starts nor
+serves its zone after a restart. Its cases, positive and negative, run in
+`scripts/train-zone-manager/image_test.sh`.

@@ -1,0 +1,10 @@
+apiVersion: v2
+name: train-zone-manager
+description: >-
+  The TRAIN DNS trust zone manager for one trust framework zone: the authoritative name server
+  behind a public address on UDP and TCP 53, the API the trust-framework manager writes through,
+  the keeper that re-signs the zone daily and backs its state up, and the record of the zone's DS.
+  Installed into the management-plane namespace of a zone laid down by the ztd umbrella chart.
+type: application
+version: 0.1.0
+appVersion: a431f14

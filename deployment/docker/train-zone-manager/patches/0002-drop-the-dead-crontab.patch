@@ -1,0 +1,18 @@
+diff --git a/script.sh b/script.sh
+index 66465db..49b46f5 100644
+--- a/script.sh
++++ b/script.sh
+@@ -121,11 +121,8 @@ if [ ! -f "${VAR_PATH}zones.db" ]; then
+       --apex "$TF_DOMAIN_NAME" \
+         "$SECONDARY_SERVER_2_NSD" A "$SECONDARY_SERVER_2_IP"
+ 
+-  echo
+-  echo "[INFO] Adding cron job for resigning..."
+-
+-  # Install the DNSSEC resigning cronjob:
+-  crontab -u zonemgr "$ZM_PATH"etc/crontab
++  # The upstream crontab points at a file the image does not contain and no cron daemon runs
++  # (upstream issue #41); the deployment schedules `resign` itself, so nothing is installed here.
+ 
+ else
+   echo "A zone DB file was found. Zone manager reload"

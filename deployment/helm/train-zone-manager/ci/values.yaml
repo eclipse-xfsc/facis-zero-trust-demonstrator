@@ -1,0 +1,12 @@
+# Renders the chart in CI: a placeholder digest and placeholder zone values, never deployed. The
+# chart tests (scripts/train-zone-manager/chart_test.sh) fill the real ones from the kind cluster.
+image:
+  digest: sha256:0000000000000000000000000000000000000000000000000000000000000000
+zone:
+  name: trust.example.test
+  address: 192.0.2.53
+api:
+  issuerUrl: https://issuer.example.test/realms/trust
+  clientId: trust-framework-manager
+storage:
+  className: standard
