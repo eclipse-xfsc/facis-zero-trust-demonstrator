@@ -89,3 +89,19 @@ the schema empty. Records and the verdict go to `--out` (default the git-ignored
 for the chart's PeerAuthentication (`BIN=`'s `istio-crds/`, or fetched); `BIN=` as above. The
 `Connector` workflow runs it on every change to the connector, its image, either chart, the proof
 or the pinned images. Design: [Connector service](../docs/connector.md).
+
+## Token-store failure catalogue (`verify-token-store-failures/`)
+
+`verify.sh` proves the token store's failure matrix on a throwaway kind cluster: the store from the
+chart in runtime mode on PostgreSQL and OpenBao from the pinned images, the real connector from the
+working tree as the peer zone's issuer with one route registered through dynamic client
+registration, and the script as the guard, substituting and replay-checking with the forwarded
+client certificate the sidecar would set. One failure at a time: a caller and a target the routes
+refuse, a replay storm, PostgreSQL unreachable and PostgreSQL crash-recovered, OpenBao unreachable,
+the issuer down through a renewal, every token expired, a renewer that died holding its claim. Each
+row is recorded with the status, the reason code, the readiness words and the audit rows the
+design documents for it; recovery is the dependency coming back, and every statement the script
+ran against the database is listed. Records, `matrix.tsv` and the verdict go to `--out` (default
+the git-ignored `.dev/token-store-failures/`); the matrix is in its
+[README](verify-token-store-failures/README.md). Needs docker, helm, kind, kubectl, curl, jq and
+openssl. The `Token store` workflow runs it as its own job.
