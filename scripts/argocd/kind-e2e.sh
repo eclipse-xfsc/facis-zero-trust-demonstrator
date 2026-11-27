@@ -59,12 +59,37 @@ helm upgrade --install gatekeeper "$bin/gatekeeper-$GATEKEEPER_CHART_VERSION.tgz
   --set postInstall.probeWebhook.enabled=false --post-renderer ztd-webhook-scope --wait --timeout 8m >/dev/null
 echo "gatekeeper deployed"
 
+step "Argo CD's images, pulled into the node"
+# The images by their pinned references (tag and digest), pulled by the node's containerd before the
+# install, with retries: a registry that throttles an anonymous pull (the redis image's public ECR,
+# shared by every CI runner's address) otherwise leaves the pod in kubelet's image back-off past the
+# install's timeout. The charts pull IfNotPresent, so the install uses these.
+for image in "$ARGOCD_IMAGE" "$ARGOCD_REDIS_IMAGE"; do
+  for attempt in 1 2 3 4 5; do
+    if docker exec "$cluster-control-plane" crictl pull "$image" >/dev/null 2>"$work/pull.err"; then
+      echo "pulled $image"; break
+    fi
+    if [ "$attempt" = 5 ]; then cat "$work/pull.err" >&2; echo "could not pull $image after $attempt attempts" >&2; exit 1; fi
+    echo "pull of $image failed (attempt $attempt), retrying: $(tail -1 "$work/pull.err")"
+    sleep $((attempt * 10))
+  done
+done
+
 step "Argo CD and the admission policy of $REVISION"
 # kind's CNI enforces NetworkPolicy and selects the API server by address: the lane goes to the
 # endpoint of the kubernetes Service (the node, port 6443) and to the Service address.
 api_cidrs=$(kubectl get endpointslices -n default -l kubernetes.io/service-name=kubernetes -o jsonpath='{.items[*].endpoints[*].addresses[*]}' | tr ' ' '\n' | sed 's|$|/32|' | paste -sd,)
 api_cidrs="$api_cidrs,$(kubectl get service kubernetes -o jsonpath='{.spec.clusterIP}')/32"
-BIN="$bin" TRUST_REPOSITORY="$trust_repository" REPO_URL="$REPO_URL" REVISION="$REVISION" KUBE_API_CIDRS="$api_cidrs" scripts/argocd/install.sh
+if ! BIN="$bin" TRUST_REPOSITORY="$trust_repository" REPO_URL="$REPO_URL" REVISION="$REVISION" KUBE_API_CIDRS="$api_cidrs" scripts/argocd/install.sh; then
+  # The install failed: the pods of the namespace, their events and their containers' last lines, so
+  # the job's log names the cause.
+  kubectl -n argocd get pods -o wide || true
+  kubectl -n argocd get events --sort-by=.lastTimestamp | tail -40 || true
+  for pod in $(kubectl -n argocd get pods -o name 2>/dev/null); do
+    echo "--- $pod"; kubectl -n argocd logs "$pod" --all-containers --tail=20 2>&1 || true
+  done
+  exit 1
+fi
 
 step "The catalogue in the cluster is the checkout"
 # The spec of every object in a file, as the server would store it (a server dry-run applies the
