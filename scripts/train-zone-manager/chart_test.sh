@@ -108,8 +108,11 @@ sed -n 's/^ *repository: *"\{0,1\}\(https:[^"]*\)"\{0,1\}$/\1/p' "$umbrella/Char
 done
 helm dependency build "$umbrella" >/dev/null
 scripts/secrets/kind-api-lane.sh > "$work/api-lane.yaml"
+# The zone file turns OpenBao on and names a service token; this layout runs without OpenBao, so the
+# token list is emptied with it: the chart refuses tokens that nothing would issue.
 helm upgrade --install ztd "$umbrella" -n ztd-system --create-namespace -f "$umbrella/ci/values.yaml" \
-  -f "$work/api-lane.yaml" --set openbao.enabled=false --wait --wait-for-jobs --timeout 5m >/dev/null
+  -f "$work/api-lane.yaml" --set openbao.enabled=false --set-json 'openbaoBootstrap.serviceTokens=[]' \
+  --wait --wait-for-jobs --timeout 5m >/dev/null
 note "umbrella installed: $(kubectl get ns "$mgmt" -o jsonpath='{.metadata.labels.ztd\.facis\.io/plane}') plane $mgmt, $(kubectl get ns "$data" -o jsonpath='{.metadata.labels.ztd\.facis\.io/plane}') plane $data"
 # Cilium's LoadBalancer IPAM stands in for the cloud's load balancer: it assigns an address to the
 # release's DNS Service (selected by its instance label, so a release under another name gets none).

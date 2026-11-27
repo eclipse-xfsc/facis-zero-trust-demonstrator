@@ -17,8 +17,9 @@ CHART=$REPO/deployment/helm/ztd
 VALUES=${VALUES:-$CHART/ci/values.yaml}
 AMBIENT_VALUES=${AMBIENT_VALUES:-$PWD/ambient-values.yaml}
 # The layout proof runs without OpenBao, which the kind zone file turns on: OpenBao has its own proof
-# (docs/secrets.md), and the stand-in below would collide with its Service name.
-NOBAO=(--set openbao.enabled=false)
+# (docs/secrets.md), and the stand-in below would collide with its Service name. The zone file's
+# service tokens go with it: the chart refuses tokens that nothing would issue.
+NOBAO=(--set openbao.enabled=false --set-json 'openbaoBootstrap.serviceTokens=[]')
 CONTEXT=${KUBE_CONTEXT:-kind-ztd}
 RELEASE=ztd; RNS=ztd-system
 # yaml_get <file> <key>... : one value out of a YAML file; the path travels as an argument, never inside the source
