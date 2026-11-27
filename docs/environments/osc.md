@@ -181,7 +181,10 @@ ZONE_VALUES=deployment/helm/ztd/zones/<zone>.yaml KUBE_CONTEXT=<context> \
 `kubectl -n spire-system exec spire-server-0 -c spire-server -- /opt/spire/bin/spire-server agent
 list` shows one attested agent per node that runs workloads; a labelled test pod receives, over the
 mounted socket, an SVID whose SPIFFE ID matches its service account
-([Checking an identity](../workload-identity.md#checking-an-identity)).
+([Checking an identity](../workload-identity.md#checking-an-identity)). The record of the mesh-identity
+proof now carries the registration inventory too (section 14, `registration-inventory`): every
+entry on the server next to the pod that holds it and its certificate in use, by SPIFFE ID
+([declared workloads](../workload-identity.md#declared-workloads-and-the-registration-inventory)).
 
 ## 4. Mesh
 
