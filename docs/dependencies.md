@@ -130,7 +130,8 @@ release archive). The container images the charts run are pinned separately, by 
 `deployment/helm/values/`: the SPIRE server, agent, controller-manager and SPIFFE CSI driver, the
 CSI node-driver registrar, the server's `busybox` init container and `kubectl` hook image, and
 Istio's `pilot`, `proxyv2` (the injected proxy and the injected `istio-validation` init container)
-and `install-cni`. The images the charts already pin by digest are left
+and `install-cni`; the two injected `proxyv2` references carry the 1.31.1 digest without the tag, so
+the admission digest allow-list can name them exactly. The images the charts already pin by digest are left
 as they ship. One image stays a tag: `busybox:1.28` in Istio's `grpc-simple` injection template,
 which only a pod that chooses its injection templates would run, and the `zone-policy` admission
 policy refuses such a pod in every plane namespace. The values the repository sets on the charts

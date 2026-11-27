@@ -150,6 +150,12 @@ jobs:
       - name: Test the enforcement check
         run: scripts/admission/enforced_test.sh
 
+      - name: Test the digest allow-list parsing
+        run: scripts/admission/allowed-digests_test.sh
+
+      - name: Test the data-plane preflight
+        run: scripts/admission/preflight-data-plane_test.sh
+
   # The trust-framework DNS inspector against local NSD servers that each break one thing it must
   # catch (a wrong DS digest, an unsigned server, a diverging NS set, a resolver without the URI),
   # and through a signed parent zone and a validating Unbound for the delegation path. The servers
@@ -174,9 +180,21 @@ jobs:
   # The whole admission catalogue in a real Gatekeeper: a kind cluster with Gatekeeper (pinned chart,
   # cache off), the provider and a local registry of test images signed with the release script and
   # an ephemeral key. Includes provider-down, Gatekeeper-down and trust-removal cases.
+  # The catalogue in every admission layout: standalone (scripts/admission/install.sh); the umbrella's
+  # admission release installed clean, with the policy owned by Helm and by a stand-in for Argo CD
+  # (with the upgrade, readiness-blip and handoff cases); and the migration to it and back.
   admission-kind:
-    name: Admission catalogue (kind)
+    name: Admission catalogue (kind, ${{ matrix.layout }}, policy ${{ matrix.policy }})
     runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { layout: standalone, policy: helm }
+          - { layout: umbrella, policy: helm }
+          - { layout: umbrella, policy: argocd }
+          - { layout: migrate, policy: argocd }
+          - { layout: rollback, policy: helm }
     steps:
       - name: Checkout repository
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -189,7 +207,14 @@ jobs:
       - name: Install the pinned tools
         run: scripts/tools/install.sh "$RUNNER_TEMP/bin" kind kubectl cosign syft gatekeeper-chart
 
+      - name: Install PyYAML for the zone installer
+        if: matrix.layout != 'standalone'
+        run: python3 -c 'import yaml' 2>/dev/null || python3 -m pip install --user pyyaml
+
       - name: Run the admission catalogue
+        env:
+          LAYOUT: ${{ matrix.layout }}
+          POLICY: ${{ matrix.policy }}
         run: BIN="$RUNNER_TEMP/bin" scripts/admission/kind-e2e.sh
 
   # The admission reconciler (deployment/argocd, ZT-12): Argo CD on a kind cluster with Gatekeeper, handed
@@ -321,7 +346,8 @@ jobs:
       - name: Set up Helm
         uses: azure/setup-helm@1a275c3b69536ee54be43f2070a358922e12c8d4 # v4
         with:
-          # One pinned Helm for QA and for the lifecycle workflow; its flags differ by major version.
+          # One pinned Helm for chart QA and the lifecycle workflow; its flags differ by major version.
+          # The ORCE image builds its own Helm from source (deployment/docker/orce/Dockerfile).
           version: v4.3.0
 
       # The fixture chart under features/ is linted like a release chart: the TDR's lint and
@@ -341,6 +367,96 @@ jobs:
             helm lint deployment/helm/ztd -f "$zone"
             helm template deployment/helm/ztd -f "$zone" >/dev/null
           done
+
+      # The data-plane admission opt-in: off, no namespace carries the admission label; on, the
+      # data-plane namespace and nothing else does - not the management plane, an extra data-plane
+      # namespace, or gatekeeper-system, istio-system, spire-system or kube-system (listed here as
+      # extra plane namespaces so the render would show them if they were labelled). The label set
+      # through planes.namespaceLabels is refused.
+      - name: Render the data-plane admission opt-in
+        run: |
+          python3 -c 'import yaml' 2>/dev/null || python3 -m pip install --user pyyaml
+          extra='planes.extra=[{"name":"spire-system","plane":"management","mesh":false},{"name":"istio-system","plane":"management","mesh":false},{"name":"gatekeeper-system","plane":"management","mesh":false},{"name":"kube-system","plane":"management","mesh":false},{"name":"ztd-data-2","plane":"data"}]'
+          for enforce in false true; do
+            helm lint deployment/helm/ztd -f deployment/helm/ztd/ci/values.yaml --set-json "$extra" --set admission.enforceDataPlane=$enforce
+            helm template deployment/helm/ztd -f deployment/helm/ztd/ci/values.yaml --set-json "$extra" --set admission.enforceDataPlane=$enforce |
+              python3 -c '
+          import sys, yaml
+          want = ["ztd-data"] if sys.argv[1] == "true" else []
+          ns = [d for d in yaml.safe_load_all(sys.stdin) if d and d.get("kind") == "Namespace"]
+          names = sorted(d["metadata"]["name"] for d in ns)
+          for n in ["ztd-mgmt", "ztd-data", "ztd-data-2", "spire-system", "istio-system", "gatekeeper-system", "kube-system"]:
+              assert n in names, f"namespace {n} not rendered: {names}"
+          got = sorted(d["metadata"]["name"] for d in ns if (d["metadata"].get("labels") or {}).get("facis.ztd/admission-proof") == "true")
+          assert got == want, f"enforceDataPlane={sys.argv[1]}: admission label on {got}, want {want}"
+          print(f"enforceDataPlane={sys.argv[1]}: admission label on {got}")
+          ' "$enforce"
+          done
+          if helm template deployment/helm/ztd -f deployment/helm/ztd/ci/values.yaml --set-string 'planes.namespaceLabels.facis\.ztd/admission-proof=true' >/dev/null 2>&1; then
+            echo "planes.namespaceLabels accepted the admission label" >&2; exit 1
+          fi
+          # With the opt-in on, a data-plane namespace that is a system namespace, the management
+          # namespace or an extra plane namespace is refused before anything renders.
+          for data in kube-system gatekeeper-system istio-system spire-system ztd-mgmt ztd-data-2; do
+            if helm template deployment/helm/ztd -f deployment/helm/ztd/ci/values.yaml --set-json "$extra" \
+                --set admission.enforceDataPlane=true --set planes.data.namespace=$data >/dev/null 2>"$RUNNER_TEMP/err"; then
+              echo "enforceDataPlane rendered with planes.data.namespace=$data" >&2; exit 1
+            fi
+            grep -q 'admission.enforceDataPlane: planes.data.namespace' "$RUNNER_TEMP/err" ||
+              { echo "planes.data.namespace=$data refused for another reason:" >&2; cat "$RUNNER_TEMP/err" >&2; exit 1; }
+          done
+
+      # The umbrella's admission release, rendered the way the zone installer installs it: the kind
+      # zone with admission.install and the provider settings of ci/admission-values.yaml. Release
+      # gatekeeper must carry Gatekeeper with both webhooks scoped by the ztd-webhook-scope
+      # post-renderer, the provider, the four constraints (the allowed repositories and digest
+      # allow-list are the provider's) and the admission pool; release ztd, from the same zone file,
+      # none of it. A zone file that sets one of the installer's admission switches is refused.
+      - name: Render the umbrella's admission release
+        run: |
+          python3 -c 'import yaml' 2>/dev/null || python3 -m pip install --user pyyaml
+          zone="$RUNNER_TEMP/zone-admission.yaml"
+          python3 - "$zone" <<'PY'
+          import sys, yaml
+          zone = yaml.safe_load(open("deployment/helm/ztd/ci/values.yaml"))
+          ci = yaml.safe_load(open("deployment/helm/ztd/ci/admission-values.yaml"))
+          zone["admission"] = {"install": True}
+          zone["admissionProvider"] = {k: v for k, v in ci["admissionProvider"].items() if k not in ("enabled", "gatekeeper")}
+          zone["admissionProvider"]["trust"]["allowedDigests"] = ["docker.io/istio/proxyv2@sha256:" + "a" * 64]
+          yaml.safe_dump(zone, open(sys.argv[1], "w"), sort_keys=False)
+          PY
+          ZONE_VALUES="$zone" RENDER_DIR="$RUNNER_TEMP/admission" scripts/install-zone/install.sh render ztd gatekeeper
+          python3 - "$RUNNER_TEMP/admission" <<'PY'
+          import sys, yaml
+          def load(name):
+              return [d for d in yaml.safe_load_all(open(f"{sys.argv[1]}/{name}.yaml")) if d]
+          ztd, gk = load("ztd"), load("gatekeeper")
+          kinds = lambda docs: {d["kind"] for d in docs}
+          assert not kinds(ztd) & {"ValidatingWebhookConfiguration", "Provider", "ConstraintTemplate"}, "release ztd renders admission objects"
+          hooks = [w for d in gk if d["kind"] == "ValidatingWebhookConfiguration" for w in d["webhooks"]]
+          scoped = [w["name"] for w in hooks if {"key": "facis.ztd/admission-proof", "operator": "In", "values": ["true"]} in w["namespaceSelector"]["matchExpressions"]]
+          assert len(hooks) == 2 and len(scoped) == 2, f"webhooks scoped: {scoped} of {[w['name'] for w in hooks]}"
+          constraints = {d["kind"]: d for d in gk if d["apiVersion"].startswith("constraints.gatekeeper.sh/")}
+          assert set(constraints) == {"K8sZtdImageDigest", "K8sZtdAllowedRepositories", "K8sZtdNaming", "K8sZtdVerifiedImages"}, sorted(constraints)
+          policy = [d for d in gk if d["kind"] == "ConfigMap" and d["metadata"]["name"] == "ztd-admission-provider-trust"][0]
+          import json
+          trust = json.loads(policy["data"]["policy.json"])
+          params = constraints["K8sZtdAllowedRepositories"]["spec"]["parameters"]
+          assert params["repositories"] == trust["repositories"] and params["allowedDigests"] == trust["allowedDigests"], (params, trust)
+          pool = sorted(d["metadata"]["name"] for d in gk if d["kind"] == "Namespace" and d["metadata"]["labels"].get("facis.ztd/admission-proof") == "true")
+          assert pool == ["ztd-adm-001", "ztd-adm-002"], pool
+          print(f"admission release: {len(gk)} objects, both webhooks scoped, 4 constraints, pool {pool}; release ztd: none of them")
+          PY
+          python3 - "$zone" "$RUNNER_TEMP/zone-switch.yaml" <<'PY'
+          import sys, yaml
+          zone = yaml.safe_load(open(sys.argv[1]))
+          zone["admissionProvider"]["enabled"] = True
+          yaml.safe_dump(zone, open(sys.argv[2], "w"), sort_keys=False)
+          PY
+          if ZONE_VALUES="$RUNNER_TEMP/zone-switch.yaml" scripts/install-zone/install.sh render ztd 2>"$RUNNER_TEMP/switch.err"; then
+            echo "install-zone rendered a zone file that sets admissionProvider.enabled" >&2; exit 1
+          fi
+          grep -q admissionProvider.enabled "$RUNNER_TEMP/switch.err"
 
       # What the release relies on, against charts the test writes: a set that passes is packaged
       # at the version with matching checksums, and one failing chart leaves no package at all.
@@ -396,7 +512,7 @@ jobs:
           for field in statusPort proxyImage; do
             copy="$RUNNER_TEMP/coupling-$field"
             mkdir -p "$copy/scripts" "$copy/deployment/helm"
-            cp -r scripts/install-zone "$copy/scripts/"
+            cp -r scripts/install-zone scripts/tools scripts/admission "$copy/scripts/"
             cp -r deployment/helm/values deployment/helm/zone-policy deployment/helm/ztd "$copy/deployment/helm/"
             case $field in
               statusPort) sed -i 's/^  statusPort: 15020$/  statusPort: 15021/' "$copy/deployment/helm/zone-policy/values.yaml" ;;
@@ -423,9 +539,42 @@ jobs:
           changed=$(git status --porcelain docs/evidences/mesh-mode-upstream-state)
           [ -z "$changed" ] || { echo "the checker's test changed the evidence: $changed" >&2; exit 1; }
 
-  # The release set of charts. release.yml builds and signs the candidate images and creates no
-  # release; this job delivers the charts when one is published, and only once every gate of this
-  # workflow has passed - a gate job added above is added to needs here. The lifecycle jobs are
+  # The release set (scripts/supplychain/release-set.sh): what the release job of release.yml relies
+  # on to create a release only from a complete set, against sets the test writes - a complete set
+  # gives the manifest and the notes that list every artefact with its digest, the same bytes for the
+  # same set, and each piece missing or at another version is refused.
+  release-set:
+    name: Release set
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+
+      - name: Test the release set check
+        run: scripts/supplychain/release-set_test.sh
+
+      - name: Test the signing runner check
+        run: scripts/supplychain/runner-labels_test.sh
+
+      - name: Test the key source, the key check and the SBOM key set
+        run: scripts/supplychain/keys_test.sh
+
+      - name: Test the registry selection
+        run: scripts/supplychain/registry_test.sh
+
+      - name: Test the release signature gate
+        run: scripts/supplychain/verify-release_test.sh
+
+      - name: Test the signing log audit
+        run: python3 -m unittest scripts/secrets/log_audit_test.py
+
+      - name: Test the environment audit's verdict
+        run: scripts/supplychain/env-audit_test.sh
+
+  # The charts of a release published by hand on GitHub. A release the release workflow creates
+  # from a tag carries its charts already and starts no workflow (GitHub's rule for the events of a
+  # workflow's own token); this job delivers them when one is published by hand, and only once every
+  # gate of this workflow has passed - a gate job added above is added to needs here. The lifecycle jobs are
   # among them: they may be skipped (BDD_CLUSTER_ENABLED off) but never failed or cancelled, which
   # the default condition cannot express, so the results are checked one by one. The chart gate of
   # release.yml (TDR-BDD-11) runs on candidate branches, not on the published release, so this job
@@ -440,7 +589,7 @@ jobs:
     name: Release charts
     needs:
       [tests, lint, images, admission-interop, gator, admission-kind, admission-gitops, contracts, bdd,
-       charts, bdd-cluster, bdd-cluster-report]
+       charts, release-set, bdd-cluster, bdd-cluster-report]
     if: >-
       ${{ !cancelled() && github.event_name == 'release'
       && needs.tests.result == 'success'
@@ -453,6 +602,7 @@ jobs:
       && needs.contracts.result == 'success'
       && needs.bdd.result == 'success'
       && needs.charts.result == 'success'
+      && needs.release-set.result == 'success'
       && contains(fromJSON('["success", "skipped"]'), needs.bdd-cluster.result)
       && contains(fromJSON('["success", "skipped"]'), needs.bdd-cluster-report.result) }}
     runs-on: ubuntu-latest
@@ -486,12 +636,16 @@ jobs:
           . scripts/tools/pins.env
           kind create cluster --name ztd-gate --image "$KIND_NODE_IMAGE" --wait 180s
           tar -xzf "$RUNNER_TEMP/bin/gatekeeper-${GATEKEEPER_CHART_VERSION}.tgz" -C "$RUNNER_TEMP" gatekeeper/crds
-          kubectl apply -f "$RUNNER_TEMP/gatekeeper/crds/provider-customresourcedefinition.yaml" -f "$RUNNER_TEMP/bin/cilium-crds/"
+          # Provider for the admission chart; ConstraintTemplate and Config as well for the umbrella's admission release (ci/admission-values.yaml).
+          kubectl apply -f "$RUNNER_TEMP/gatekeeper/crds/provider-customresourcedefinition.yaml" \
+            -f "$RUNNER_TEMP/gatekeeper/crds/constrainttemplate-customresourcedefinition.yaml" \
+            -f "$RUNNER_TEMP/gatekeeper/crds/config-customresourcedefinition.yaml" -f "$RUNNER_TEMP/bin/cilium-crds/"
           kubectl apply --server-side -f "$RUNNER_TEMP/bin/istio-crds/"
           kubectl wait --for condition=established --timeout=60s -f "$RUNNER_TEMP/bin/istio-crds/"
           helm template argocd "$RUNNER_TEMP/bin/argo-cd-${ARGOCD_CHART_VERSION}.tgz" \
             --show-only templates/crds/crd-application.yaml --show-only templates/crds/crd-appproject.yaml | kubectl apply -f -
           kubectl wait --for condition=established --timeout=60s crd/providers.externaldata.gatekeeper.sh \
+            crd/constrainttemplates.templates.gatekeeper.sh crd/configs.config.gatekeeper.sh \
             crd/ciliumclusterwidenetworkpolicies.cilium.io crd/ciliumnetworkpolicies.cilium.io \
             crd/applications.argoproj.io crd/appprojects.argoproj.io
 
@@ -686,7 +840,8 @@ jobs:
 
   # Reachability of every client cluster from the pipeline: the API server answers and the
   # identity authenticates. Read-only identity, never on pull requests; a target whose kubeconfig secret
-  # is not set yet is reported as skipped, not as reachable.
+  # is not set yet is reported as skipped, not as reachable, unless the repository variable
+  # CLUSTER_REACHABILITY_REQUIRED names it (comma-separated targets): then a missing secret fails the job.
   cluster-reachability:
     name: Reachability of ${{ matrix.target }}
     if: github.event_name != 'pull_request'
@@ -708,9 +863,15 @@ jobs:
       - name: Check the cluster answers
         env:
           OBSERVER_KUBECONFIG: ${{ secrets[format('BDD_{0}_OBSERVER_KUBECONFIG', matrix.key)] }}
+          REQUIRED_TARGETS: ${{ vars.CLUSTER_REACHABILITY_REQUIRED }}
+          TARGET: ${{ matrix.target }}
         run: |
           if [ -z "$OBSERVER_KUBECONFIG" ]; then
-            echo "::notice::No observer kubeconfig for ${{ matrix.target }} - reachability not checked."
+            if [[ ",${REQUIRED_TARGETS// /}," == *",$TARGET,"* ]]; then
+              echo "::error::$TARGET is listed in CLUSTER_REACHABILITY_REQUIRED but BDD_${{ matrix.key }}_OBSERVER_KUBECONFIG is not set."
+              exit 1
+            fi
+            echo "::notice::No observer kubeconfig for $TARGET - reachability not checked."
             exit 0
           fi
           scripts/tools/install.sh "$RUNNER_TEMP/bin" kubectl

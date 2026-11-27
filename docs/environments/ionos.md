@@ -8,7 +8,9 @@ failure in the pipeline cannot be mistaken for a failure in the demonstrator.
     The cluster was provided on 23 September 2026. What is installed today is ORCE, the BDD pool and
     nothing else; stages 1 to 5 below describe that state and were checked against the cluster,
     except where a stage says otherwise. The runner, registry access and visualization stages are
-    planned and marked so.
+    planned and marked so. The ORCE chart and the pipeline deploy (stage 3 and
+    [Deploying from the pipeline](#deploying-from-the-pipeline)) are not applied yet: ORCE still runs
+    from the former interim manifest, without an Ingress of its own.
 
 ## Before you start
 
@@ -63,8 +65,9 @@ digest (`IMAGE=<registry>/facis-ztd-orce@sha256:…`), never by tag.
 
 ## 3. ORCE
 
-Installed from the interim manifests in `deployment/orce-minimal/` (see its README) until the ORCE
-chart exists.
+The namespace and identities come from `deployment/orce-minimal/base.yaml`, ORCE itself from the
+chart [deployment/helm/orce](../../deployment/helm/orce/README.md). After the first install,
+[the pipeline](#deploying-from-the-pipeline) deploys every release.
 
 ```bash
 kubectl apply -f deployment/orce-minimal/base.yaml
@@ -79,8 +82,13 @@ kubectl -n ztd-orce create secret generic orce-credentials \
   --from-literal=ORCE_HTTP_USER=bdd --from-literal=ORCE_HTTP_PASSWORD_HASH="$(hash "$http_pass")" \
   --from-literal=ORCE_READ_TOKEN="$read_token"
 
-sed "s|__IMAGE__|$IMAGE|" deployment/orce-minimal/orce.yaml | kubectl apply -f -
+HELM_DRIVER=configmap helm upgrade --install orce deployment/helm/orce --namespace ztd-orce \
+  --rollback-on-failure --wait --set-string image.repository="${IMAGE%@*}" --set-string image.digest="${IMAGE#*@}"
 ```
+
+`HELM_DRIVER=configmap` keeps the release where the pipeline's deployer, which may not read
+Secrets, finds it. A private registry needs a docker-registry Secret in `ztd-orce`, named in
+`--set imagePullSecrets={<name>}`.
 
 Before closing the shell, copy `$admin_pass`, `$http_pass` and `$read_token` into the password
 manager one at a time through the clipboard (for example `printf %s "$admin_pass" | pbcopy` on
@@ -93,12 +101,29 @@ kubectl -n ztd-orce rollout status deployment/orce --timeout=5m
 kubectl -n ztd-orce get deployment orce -o jsonpath='{.spec.template.spec.containers[0].image}'   # the digest
 kubectl -n ztd-orce logs deployment/orce --tail=5          # one JSON object per line
 kubectl -n ztd-orce get networkpolicy orce-ingress
+kubectl -n ztd-orce get certificate orce-public-tls                   # READY True
+curl -sS -o /dev/null -w '%{http_code}\n' https://orce.85-215-131-155.sslip.io/   # 200
 ```
 
 The rollout completes, the image is the digest you pushed, and the log lines are JSON objects with
 `time`, `level`, `type`, `name`, `id` and `msg` ([ORCE logging](../flows.md#orce-logging)); an
-image built before JSON logging was added prints prefixed lines instead, and must be replaced. There is
-no ingress: ORCE is reached with `kubectl port-forward` until the ORCE chart exposes it over TLS 1.3.
+image built before JSON logging was added prints prefixed lines instead, and must be replaced. The
+host answers over HTTPS with a Let's Encrypt certificate from the ClusterIssuer `ztd-public-acme`; its
+TLS 1.3 minimum is the controller's default TLSOption
+(`deployment/ingress/traefik-tls-options.yaml`), not the chart's.
+
+The host `orce.85-215-131-155.sslip.io` is **interim**: the sslip.io name of the load balancer, until
+the client's DNS name for the demonstrator exists. Then an A record for that name points at the
+load balancer (`kubectl -n ztd-edge get service ztd-edge-traefik -o jsonpath='{.status.loadBalancer.ingress[0].ip}'`)
+and the release sets `ingress.host` to it. The interim host also routes `/dev` and `/dev/fscloud` to
+another ORCE in `xfsc-orce-dev`; those paths stay there.
+
+**Adopting the hand-installed ORCE.** A cluster installed before the chart runs ORCE from the
+former `orce.yaml` manifest, and a `NetworkPolicy/orce-allow-edge` applied by hand. The chart keeps
+the names and the selector; the first install adopts them with `--take-ownership` (or the
+`take_ownership` input of the deploy workflow), after which
+`kubectl -n ztd-orce delete networkpolicy orce-allow-edge` removes the opening the chart's
+`orce-ingress` now carries.
 
 ## 4. The BDD pool
 
@@ -163,7 +188,9 @@ delete `observer.kubeconfig` and `ca.crt` afterwards; the token expires on its o
 
 An early admission proof on this cluster: Gatekeeper and the image-verification provider, with the
 constraints in [deployment/admission](../../deployment/admission), enforcing only in the namespaces
-labelled `facis.ztd/admission-proof=true` (`ztd-adm-001`, `ztd-adm-002`). The images it verifies are
+labelled `facis.ztd/admission-proof=true` (`ztd-adm-001`, `ztd-adm-002`; a zone's data-plane
+namespace only when its umbrella sets `admission.enforceDataPlane`,
+[Umbrella chart](../umbrella-chart.md#admission-in-the-data-plane-is-an-opt-in-label)). The images it verifies are
 signed with the **interim key** ([docs/contracts/keys/interim-cosign.pub](../contracts/keys/interim-cosign.pub)),
 not the client trust chain; this cluster is not a target environment. Everything it records says so.
 
@@ -213,6 +240,49 @@ then `helm uninstall gatekeeper -n gatekeeper-system`. **Teardown:** `kubectl de
 deployment/admission/constraints`, then `kubectl delete -f deployment/admission/templates/`, then `helm uninstall
 admission-pool admission gatekeeper -n gatekeeper-system`.
 
+## Deploying from the pipeline
+
+`.github/workflows/deploy-ionos.yml` deploys ORCE after every successful release of a tag `v*`, or by
+hand for a given release tag. It verifies the release manifest's signature with the key the manifest
+names - accepted only from the allow-list of keys committed in `docs/contracts/keys/` (interim,
+client, OpenBao transit; a manifest without `publicKey` predates it and is verified with the interim
+key) - and the ORCE image's signature with the same key, takes the chart
+package and the image digest from the manifest, runs `helm upgrade --install --rollback-on-failure`
+with a deployer identity that holds rights in `ztd-orce` only, one run at a time, and then checks the
+rollout, the running digest and HTTPS on the host. Until it is switched on, a run deploys nothing and
+says so in a notice.
+
+To switch it on:
+
+1. Stage 3 is done once by hand, so the namespace, ORCE's ServiceAccount and `orce-credentials`
+   exist.
+2. A cluster administrator applies the deployer identity and checks it:
+
+    ```bash
+    kubectl apply -f deployment/ci/ionos-deployer.yaml
+    D=system:serviceaccount:ztd-orce:ztd-ionos-deployer
+    kubectl auth can-i patch deployments -n ztd-orce --as=$D   # yes
+    kubectl auth can-i get secrets -n ztd-orce --as=$D         # no
+    kubectl auth can-i create deployments -n default --as=$D   # no
+    ```
+
+3. The administrator builds a kubeconfig from the token in `ztd-orce/ztd-ionos-deployer-token` (as
+   in stage 5, with that token instead of a short-lived one) and hands it to a maintainer.
+4. A maintainer creates the GitHub environment `ionos` (required reviewers and the deployment
+   branch `main`, since `workflow_run` runs on the default branch), stores the kubeconfig as its
+   secret `IONOS_DEPLOY_KUBECONFIG`, and sets the repository variable `IONOS_DEPLOY_ENABLED` to `true`.
+5. If the release's GHCR package is private, a docker-registry Secret in `ztd-orce` and
+   `imagePullSecrets` in the chart's values, or the package made public.
+6. With Harbor selected (repository variables `HARBOR_HOST` and `HARBOR_PROJECT`), the environment
+   `ionos` also holds the Harbor read robot account as the secrets `HARBOR_READ_USER` and
+   `HARBOR_READ_PASSWORD`: the workflow logs in to the registry the release's image is on, with that
+   registry's read credentials only (the job token for GHCR), so an image in a private Harbor project
+   can be verified; the cluster pulls it with an `imagePullSecrets` Secret as in step 5.
+
+The first run on a cluster that still holds the hand-installed ORCE is started by hand with
+`take_ownership` set (see stage 3). The token does not expire; deleting the Secret
+`ztd-orce/ztd-ionos-deployer-token` revokes it.
+
 ## Planned: runner, registry access and visualization
 
 Not installed on this cluster yet. Each gets its stage and its check when it is.
@@ -228,7 +298,8 @@ Not installed on this cluster yet. Each gets its stage and its check when it is.
 ## Teardown
 
 ```bash
-kubectl delete -f deployment/orce-minimal/orce.yaml --ignore-not-found
+HELM_DRIVER=configmap helm uninstall orce --namespace ztd-orce
+kubectl delete -f deployment/ci/ionos-deployer.yaml --ignore-not-found
 helm uninstall bdd-pool --namespace ztd-orce
 kubectl delete -f deployment/orce-minimal/base.yaml --ignore-not-found
 ```

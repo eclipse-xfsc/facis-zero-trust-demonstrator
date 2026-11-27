@@ -1,3 +1,5 @@
+{{- /* Release ztd only; the admission release renders admission-policy.yaml and the admission subcharts. */ -}}
+{{- if not .Values.gatekeeper.enabled }}
 {{- /*
 Bootstrap of the bundled OpenBao (docs/secrets.md). A regular Job, not a hook: a sealed server is not
 ready, and with --wait Helm runs post-install hooks only after every regular resource is ready, so a
@@ -150,4 +152,5 @@ spec:
           emptyDir:
             medium: Memory
             sizeLimit: 1Mi
+{{- end }}
 {{- end }}

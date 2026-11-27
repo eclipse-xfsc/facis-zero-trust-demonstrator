@@ -21,3 +21,7 @@ spec:
   parameters:
     repositories:
       - ghcr.io/eclipse-xfsc/facis-zero-trust-demonstrator
+    # Exact "host/repository@sha256:<digest>" references admitted from outside those repositories;
+    # empty here, filled by scripts/admission/install.sh from ALLOWED_DIGESTS (the same list as the
+    # provider's trust.allowedDigests).
+    allowedDigests: []

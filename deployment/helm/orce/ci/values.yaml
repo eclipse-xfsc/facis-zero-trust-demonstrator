@@ -1,0 +1,3 @@
+# Renders the chart in CI: a placeholder digest; never deployed as is.
+image:
+  digest: sha256:0000000000000000000000000000000000000000000000000000000000000000

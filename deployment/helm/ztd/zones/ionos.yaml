@@ -36,3 +36,26 @@ networkPolicy:
     enabled: false
     cidrs: []
     ports: [15700]
+
+# Admission (deployment/admission). Recorded 2026-11-21 from the live releases that
+# scripts/admission/install.sh installed (helm get values gatekeeper|admission -n gatekeeper-system).
+# install stays false until the migration in docs/umbrella-chart.md ("Admission in the umbrella")
+# moves the stack into the umbrella's admission release; the values below are what that release
+# then installs. The key is docs/contracts/keys/interim-cosign.pub (interim, not the client's).
+admission:
+  install: false
+gatekeeper:
+  replicas: 2
+admissionProvider:
+  replicas: 2
+  image:
+    repository: ghcr.io/fune5tiatlas/facis-zero-trust-demonstrator/admission-provider
+    digest: sha256:24dc3d201394f20ae8de8c2a65cbefd36fcfd2566d302886f78f5d4417c30e65
+  trust:
+    repositories:
+      - ghcr.io/fune5tiatlas/facis-zero-trust-demonstrator
+    publicKeys: |
+      -----BEGIN PUBLIC KEY-----
+      MFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAE0lFmUtbg0hz8DzhKG9mz6lKqU1Zf
+      ZGTwuAuoCwoIlaVI5RbLNt9Hiwe4/39DPyX+2qZonfl9p16mexhlc+vltw==
+      -----END PUBLIC KEY-----

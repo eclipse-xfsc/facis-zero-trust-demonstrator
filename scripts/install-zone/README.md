@@ -14,16 +14,25 @@ on failure), each waiting on the previous:
 | 5 | `istiod` | `istio-system` | `istiod` 1.31.1 | `deployment/helm/values/istiod.yaml` + zone facts |
 | 6 | `istio-cni` | `istio-system` | `cni` 1.31.1 | `deployment/helm/values/istio-cni.yaml` |
 | 7 | `zone-policy` | `istio-system` | `deployment/helm/zone-policy` | chart defaults + zone facts; also waits for its Jobs |
+| 8 | `gatekeeper` | `gatekeeper-system` | `deployment/helm/ztd`, the admission release; only with `admission.install: true` | the zone file + `deployment/admission/gatekeeper-values.yaml` + the Gatekeeper image pins; in four stages, through the `ztd-webhook-scope` post-renderer |
 
 The umbrella creates every namespace the later releases install into; the lifecycle step never
-creates one. The only namespace the installer creates is the umbrella's release namespace,
-`ztd-system`, which holds the release record and its verification job.
+creates one. The installer creates two: the umbrella's release namespace, `ztd-system`, which holds
+the release record and its verification job, and, for release 8, `gatekeeper-system`, Gatekeeper's
+own. Release 8 renders the admission policy (constraint templates, constraints, exemptions) only where
+the zone file leaves `admission.policy.managedBy` at `helm` (kind, IONOS); on zone A and zone B
+(`argocd`) Argo CD keeps the policy, and the installer waits for it instead of applying it. Release 8, its stages, and the adoption of an admission stack that `scripts/admission/install.sh`
+installed (`ADMISSION_ADOPT=1`) are described in
+[docs/umbrella-chart.md](../../docs/umbrella-chart.md#admission-in-the-umbrella). The umbrella's
+dependencies come from `deployment/helm/ztd/charts`: run `helm dependency build deployment/helm/ztd`
+first, and again after a change to `deployment/helm/admission` or `admission-pool`; the installer
+checks the Gatekeeper chart there against its pinned digest.
 
 ## Usage
 
 ```bash
 ZONE_VALUES=deployment/helm/ztd/zones/<zone>.yaml KUBE_CONTEXT=<context> scripts/install-zone/install.sh plan
-ZONE_VALUES=deployment/helm/ztd/zones/<zone>.yaml KUBE_CONTEXT=<context> scripts/install-zone/install.sh install
+ZONE_VALUES=deployment/helm/ztd/zones/<zone>.yaml KUBE_CONTEXT=<context> scripts/install-zone/install.sh install [release...]
 ZONE_VALUES=deployment/helm/ztd/zones/<zone>.yaml KUBE_CONTEXT=<context> scripts/install-zone/install.sh uninstall
 scripts/install-zone/install.sh render [release...]     # no cluster: what CI runs
 ```
@@ -41,24 +50,28 @@ scripts/install-zone/install.sh install
 | `ZONE_VALUES` | `deployment/helm/ztd/ci/values.yaml` | the zone file |
 | `KUBE_CONTEXT` | `kind-ztd` | the kubectl context of the zone's cluster |
 | `STEP_TIMEOUT` | `10m` | the timeout of each release |
-| `RENDER_DIR` | unset | with `render`, write each release's manifest there |
+| `RENDER_DIR` | unset | with `render`, write each release's manifest there, and the values it was rendered with (`<release>.values.yaml`) |
 | `INSTALL_ZONE_CACHE` | `~/.cache/ztd-install-zone` | where the pinned charts are kept |
+| `ADMISSION_POLICY_TIMEOUT` | `300` | with `admission.policy.managedBy: argocd`, how long each wait for Argo CD's policy (constraint CRDs, then enforced constraints) lasts before the installer stops |
+| `ADMISSION_ADOPT` | unset | `1` lets release `gatekeeper` adopt the objects of `scripts/admission/install.sh`; without it the installer refuses, before anything, a zone that still has them |
 
-- **`install`** first renders all seven releases with their zone facts, so a missing fact stops the
-  run before anything is installed; then installs them in order. It stops at the first release
+- **`install`** first renders all the releases (or the ones named) with their zone facts, so a
+  missing fact stops the run before anything is installed; then installs them in order.
+  `install gatekeeper` installs or upgrades the admission release alone, and checks no mesh
+  setting (it labels no plane namespace), so a zone without a mesh, such as IONOS, can take it. It stops at the first release
   that does not reach a ready state, exits non-zero and names the release and the lifecycle step's
   error; the failed release is rolled back. It exits 0 only when every pod in the plane and
   control-plane namespaces is Ready (finished Job pods aside).
 - **Idempotent.** Run again, it upgrades every release in place with identical manifests.
-- **`render`** renders every release, or only the ones named; a name that is not one of the seven
-  releases (`ztd`, `spire-crds`, `spire`, `istio-base`, `istiod`, `istio-cni`, `zone-policy`)
-  stops it with a non-zero exit and the list of valid names, before anything is rendered.
+- **`render`** renders every release, or only the ones named; a name that is not one of the
+  releases (`ztd`, `spire-crds`, `spire`, `istio-base`, `istiod`, `istio-cni`, `zone-policy`, and
+  `gatekeeper` when the zone opts in) stops it with a non-zero exit and the list of valid names, before anything is rendered.
 - **`plan`** lists the seven steps without touching a cluster; `install` against an unreachable
   cluster prints the same list and refuses to continue, changing nothing.
 - Every command first checks that the zone file exists, and stops with `zone file not found:
   <path>` and a non-zero exit when it does not. `help` (or `-h`, `--help`) prints the usage and
   exits 0; any other word prints the usage and `unknown command '<word>'` on stderr and exits 2.
-- **`uninstall`** removes the releases in reverse order (`zone-policy`, `istio-cni`, `istiod`,
+- **`uninstall`** removes the releases in reverse order (`gatekeeper` when the zone opts in, `zone-policy`, `istio-cni`, `istiod`,
   `istio-base`, `spire`, `spire-crds`, then the umbrella, which takes the namespaces with it) and
   removes the CRDs each release owned, including the ones Istio's `base` chart marks to be kept by
   Helm. Delete the workloads in the plane namespaces first: a pod that still mounts the SPIFFE CSI

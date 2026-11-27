@@ -43,7 +43,31 @@
             }
           }
         },
-        "namespaceLabels": { "type": "object", "additionalProperties": { "type": "string" }, "description": "labels the cluster's provider asks of the namespaces it should leave alone, set on every namespace the umbrella creates; never the plane or the mesh label" }
+        "namespaceLabels": { "type": "object", "additionalProperties": { "type": "string" }, "description": "labels the cluster's provider asks of the namespaces it should leave alone, set on every namespace the umbrella creates; never the plane, the mesh or the admission label" }
+      }
+    },
+    "admission": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "enforceDataPlane": { "type": "boolean", "description": "label the data-plane namespace (planes.data.namespace only) facis.ztd/admission-proof=true, putting it under the Gatekeeper image policy; default false" },
+        "policy": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "keep": { "type": "boolean", "description": "mark the policy objects helm.sh/resource-policy: keep, the first step of handing them to Argo CD; default false" },
+            "managedBy": { "type": "string", "enum": ["helm", "argocd"], "description": "who owns the admission policy objects: the admission release (helm) or an Argo CD on the cluster (argocd, the release renders none of them); default helm" }
+          }
+        },
+        "install": { "type": "boolean", "description": "the zone installer installs and upgrades the admission stack from this chart, as release gatekeeper in gatekeeper-system; default false" }
+      }
+    },
+    "admissionPolicy": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "templates": { "type": "boolean", "description": "admission release only: the constraint templates and the exemptions" },
+        "constraints": { "type": "boolean", "description": "admission release only: the four constraints; needs the CRDs Gatekeeper generates from the templates" }
       }
     },
     "mesh": {

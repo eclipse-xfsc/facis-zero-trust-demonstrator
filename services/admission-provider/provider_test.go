@@ -336,3 +336,66 @@ func publicKeyPEM(t *testing.T) string {
 	der, _ := x509.MarshalPKIXPublicKey(&key.PublicKey)
 	return string(pem.EncodeToMemory(&pem.Block{Type: "PUBLIC KEY", Bytes: der}))
 }
+
+func TestAllowedDigests(t *testing.T) {
+	const listed = "docker.io/istio/proxyv2@sha256:d86cba0dd1eb15c00b6901c69ce5ae3d2d5f8427a47751098cf8c3ab2a4a62e9"
+	file := filepath.Join(t.TempDir(), "policy.json")
+	key := publicKeyPEM(t)
+	write := func(doc map[string]any) {
+		b, _ := json.Marshal(doc)
+		if err := os.WriteFile(file, b, 0o600); err != nil {
+			t.Fatal(err)
+		}
+	}
+	tr := &trust{file: file, apply: func(*cosignverify.Policy) {}}
+
+	// A policy file without the field, as every install before it, still loads and lists nothing.
+	write(map[string]any{"repositories": []string{"ghcr.io/org"}, "publicKeys": key})
+	if err := tr.load(); err != nil || tr.allowListed(listed) {
+		t.Fatalf("policy without allowedDigests: err %v, allow-listed %v", err, tr.allowListed(listed))
+	}
+
+	for name, entry := range map[string]string{
+		"tag":            "docker.io/istio/proxyv2:1.31.1",
+		"tag and digest": "docker.io/istio/proxyv2:1.31.1@sha256:d86cba0dd1eb15c00b6901c69ce5ae3d2d5f8427a47751098cf8c3ab2a4a62e9",
+		"short digest":   "docker.io/istio/proxyv2@sha256:d86cba0d",
+		"upper-case hex": "docker.io/istio/proxyv2@sha256:D86CBA0DD1EB15C00B6901C69CE5AE3D2D5F8427A47751098CF8C3AB2A4A62E9",
+		"other algo":     "docker.io/istio/proxyv2@sha512:d86cba0dd1eb15c00b6901c69ce5ae3d2d5f8427a47751098cf8c3ab2a4a62e9",
+		"no registry":    "istio/proxyv2@sha256:d86cba0dd1eb15c00b6901c69ce5ae3d2d5f8427a47751098cf8c3ab2a4a62e9",
+		"repository":     "docker.io/istio/proxyv2",
+		"padded":         " " + listed,
+		"inner space":    "docker.io/istio/proxy v2@sha256:d86cba0dd1eb15c00b6901c69ce5ae3d2d5f8427a47751098cf8c3ab2a4a62e9",
+		"empty":          "",
+	} {
+		write(map[string]any{"repositories": []string{"ghcr.io/org"}, "publicKeys": key, "allowedDigests": []string{entry}})
+		if tr.load() == nil || tr.err() == nil {
+			t.Errorf("%s entry %q accepted", name, entry)
+		}
+	}
+
+	write(map[string]any{"repositories": []string{"ghcr.io/org"}, "publicKeys": key, "allowedDigests": []string{listed}})
+	if err := tr.load(); err != nil {
+		t.Fatal(err)
+	}
+	// The verifier would deny everything; only the exact reference is admitted without it.
+	deny := cosignverify.Result{Code: cosignverify.CodeRegistryDenied, Detail: "docker.io/istio/proxyv2"}
+	otherDigest := "docker.io/istio/proxyv2@sha256:" + strings.Repeat("a", 64)
+	prefixOnly := "docker.io/istio/proxyv2-extra@sha256:d86cba0dd1eb15c00b6901c69ce5ae3d2d5f8427a47751098cf8c3ab2a4a62e9"
+	tagged := "docker.io/istio/proxyv2:1.31.1@sha256:d86cba0dd1eb15c00b6901c69ce5ae3d2d5f8427a47751098cf8c3ab2a4a62e9"
+	h := newHandler(fakeVerifier{otherDigest: deny, prefixOnly: deny, tagged: {Code: cosignverify.CodeNotDigest}}, tr)
+	_, resp := post(t, h, request(listed, otherDigest, prefixOnly, tagged))
+	items := resp.Response.Items
+	if len(items) != 4 || items[0].Value != verifiedValue || items[0].Error != "" {
+		t.Fatalf("allow-listed image: %+v", items)
+	}
+	for _, it := range items[1:] {
+		if it.Value != nil || it.Error == "" {
+			t.Errorf("%s admitted: %+v", it.Key, it)
+		}
+	}
+	rec := httptest.NewRecorder()
+	h.metrics.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/metrics", nil))
+	if !strings.Contains(rec.Body.String(), `ztd_admission_verdicts_total{code="allow-listed"} 1`) {
+		t.Errorf("allow-listed verdict not counted:\n%s", rec.Body)
+	}
+}

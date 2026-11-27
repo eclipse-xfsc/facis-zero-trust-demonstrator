@@ -75,3 +75,31 @@ networkPolicy:
         type: tunnel
   identityServer:
     enabled: true
+
+# Admission (deployment/admission). Recorded 2026-11-21 from the live releases that
+# scripts/admission/install.sh installed (helm get values gatekeeper|admission -n gatekeeper-system).
+# install stays false until the migration in docs/umbrella-chart.md ("Admission in the umbrella")
+# moves the stack into the umbrella's admission release; the values below are what that release
+# then installs. The key is docs/contracts/keys/interim-cosign.pub (interim, not the client's).
+admission:
+  install: false
+  # The policy objects (constraint templates, constraints, exemptions) are kept by the Argo CD on
+  # this cluster (Applications admission-templates, admission-constraints, admission-exemptions,
+  # under ztd-admission); the admission release installs Gatekeeper, the provider and the pool only.
+  policy:
+    managedBy: argocd
+gatekeeper:
+  replicas: 2
+admissionProvider:
+  replicas: 2
+  image:
+    repository: ghcr.io/fune5tiatlas/facis-zero-trust-demonstrator/admission-provider
+    digest: sha256:e54967a2433a57330947cb4821b99a8355daf27e226a8119ad7f8851b3fcb4f0
+  trust:
+    repositories:
+      - ghcr.io/fune5tiatlas/facis-zero-trust-demonstrator
+    publicKeys: |
+      -----BEGIN PUBLIC KEY-----
+      MFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAE0lFmUtbg0hz8DzhKG9mz6lKqU1Zf
+      ZGTwuAuoCwoIlaVI5RbLNt9Hiwe4/39DPyX+2qZonfl9p16mexhlc+vltw==
+      -----END PUBLIC KEY-----

@@ -7,7 +7,12 @@
 #   LIFECYCLE_RELEASE=r LIFECYCLE_NAMESPACE=ns scripts/lifecycle.sh uninstall
 #
 # Optional: LIFECYCLE_TIMEOUT (default 5m); LIFECYCLE_WAIT_FOR_JOBS=true also waits for the
-# release's Jobs to complete (the zone installer sets it for the zone-policy release).
+# release's Jobs to complete (the zone installer sets it for the zone-policy release);
+# LIFECYCLE_POST_RENDERER names an installed Helm post-renderer plugin for the dry run and the
+# deploy (the zone installer's admission release: ztd-webhook-scope); LIFECYCLE_TAKE_OWNERSHIP=true
+# adopts objects another release or kubectl created (helm --take-ownership) and turns the rollback on
+# failure off - rolling back an adoption would delete the adopted objects, which are in the new
+# revision only; a failed adoption is re-run instead.
 #
 # Protocol on stdout: zero or more `EVENT_JSON=<json>` progress lines, then exactly one
 # `RESULT_JSON=<json>` line, also on failure. Exit status 0 means ok:true, 1 a reported failure.
@@ -25,6 +30,10 @@ values_file="${LIFECYCLE_VALUES_FILE:-}"
 timeout="${LIFECYCLE_TIMEOUT:-5m}"
 wait_for_jobs=()
 [ "${LIFECYCLE_WAIT_FOR_JOBS:-false}" = true ] && wait_for_jobs=(--wait-for-jobs)
+render_flags=()
+[ -z "${LIFECYCLE_POST_RENDERER:-}" ] || render_flags+=(--post-renderer "$LIFECYCLE_POST_RENDERER")
+rollback=(--rollback-on-failure)
+if [ "${LIFECYCLE_TAKE_OWNERSHIP:-false}" = true ]; then render_flags+=(--take-ownership); rollback=(); fi
 
 work="$(mktemp -d)"
 result_printed=false
@@ -144,7 +153,7 @@ values_hash="sha256:$(sha256 "$values_file" | cut -d' ' -f1)"
 # checked before anything is persisted (the TDR's QA dry-run, on every deployment).
 event dry-run running
 if ! helm upgrade "$release" "$chart" --install --namespace "$namespace" \
-    --values "$values_file" --dry-run=server >"$work/helm.out" 2>&1; then
+    --values "$values_file" ${render_flags[@]+"${render_flags[@]}"} --dry-run=server >"$work/helm.out" 2>&1; then
   if grep -q "values don't meet the specifications of the schema" "$work/helm.out"; then
     fail valuesSchemaRejected "the chart rejected the deployment values; nothing was created"
   fi
@@ -153,11 +162,12 @@ fi
 
 event deploy running
 if ! helm upgrade "$release" "$chart" --install --namespace "$namespace" \
-    --values "$values_file" --rollback-on-failure --wait=watcher ${wait_for_jobs[@]+"${wait_for_jobs[@]}"} \
-    --timeout "$timeout" >"$work/helm.out" 2>&1; then
+    --values "$values_file" ${render_flags[@]+"${render_flags[@]}"} ${rollback[@]+"${rollback[@]}"} --wait=watcher \
+    ${wait_for_jobs[@]+"${wait_for_jobs[@]}"} --timeout "$timeout" >"$work/helm.out" 2>&1; then
   if grep -q "values don't meet the specifications of the schema" "$work/helm.out"; then
     fail valuesSchemaRejected "the chart rejected the deployment values; nothing was created"
   fi
+  [ ${#rollback[@]} -gt 0 ] || fail deployFailed "helm did not reach a ready release (an adoption: not rolled back, re-run it)"
   fail deployFailed "helm did not reach a ready release and rolled it back"
 fi
 

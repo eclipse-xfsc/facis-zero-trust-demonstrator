@@ -6,7 +6,7 @@ description: >-
   openings, the ZT-55 allow matrix at the network layer, and the hook-weight scheme that the
   platform components plug into.
 type: application
-version: 0.2.0
+version: 0.3.0
 appVersion: "0.1.0"
 keywords:
   - facis
@@ -22,3 +22,21 @@ dependencies:
     version: 0.28.3
     repository: https://openbao.github.io/openbao-helm
     condition: openbao.enabled
+  # The admission stack (deployment/admission), off by default. It renders only when the zone
+  # installer installs this chart a second time, as release gatekeeper in gatekeeper-system (the
+  # "admission release", README.md): Gatekeeper's chart puts every object in its release namespace
+  # and its Deployment selectors carry its release name, so it cannot live in release ztd.
+  - name: gatekeeper
+    version: 3.23.1   # scripts/tools/pins.env GATEKEEPER_CHART_VERSION; the installer checks its digest
+    repository: https://open-policy-agent.github.io/gatekeeper/charts
+    condition: gatekeeper.enabled
+  - name: admission
+    alias: admissionProvider
+    version: 0.1.0
+    repository: file://../admission
+    condition: admissionProvider.enabled
+  - name: admission-pool
+    alias: admissionPool
+    version: 0.1.0
+    repository: file://../admission-pool
+    condition: admissionPool.enabled

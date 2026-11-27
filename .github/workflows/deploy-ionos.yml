@@ -1,0 +1,214 @@
+name: Deploy to IONOS
+
+# Deploys ORCE (deployment/helm/orce) to the IONOS visualization cluster from a GitHub release: after
+# every successful run of the release workflow for a tag v*, or by hand for a given release tag. The
+# release's signed manifest is verified against the committed interim key; the chart package and the
+# ORCE image are taken from it, the chart by its SHA-256 and the image by its digest after its
+# signature is verified. The deploy is one `helm upgrade --install --rollback-on-failure` (Helm 4's
+# name for --atomic) with the namespaced deployer identity of the protected environment `ionos`,
+# then a smoke test: the rollout completes, the running image is the release's digest, and the
+# public host answers 2xx over HTTPS with a certificate curl accepts.
+#
+# Off until the repository variable IONOS_DEPLOY_ENABLED is "true" and the environment secret
+# IONOS_DEPLOY_KUBECONFIG is set (docs/environments/ionos.md, "Deploying from the pipeline"); until
+# then a run says so in a notice and deploys nothing. workflow_run starts this workflow only from
+# the default branch's copy of it.
+on:
+  workflow_run:
+    workflows: [Release]
+    types: [completed]
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: Release tag to deploy (vX.Y.Z)
+        required: true
+        type: string
+      take_ownership:
+        description: Adopt the hand-installed ORCE objects into the release (first deploy only)
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+concurrency:
+  group: deploy-ionos
+  cancel-in-progress: false
+
+jobs:
+  # Which release, if any: a release run that succeeded for a pushed tag v*, or the tag given by hand.
+  # A candidate run, a failed run or a dispatch of the release workflow deploys nothing.
+  release:
+    name: Release to deploy
+    if: >-
+      (github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main') ||
+      (github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.event == 'push' &&
+       startsWith(github.event.workflow_run.head_branch, 'v'))
+    runs-on: ubuntu-latest
+    outputs:
+      tag: ${{ steps.tag.outputs.tag }}
+      enabled: ${{ steps.tag.outputs.enabled }}
+    steps:
+      - name: Resolve the tag
+        id: tag
+        env:
+          TAG: ${{ github.event_name == 'workflow_dispatch' && inputs.tag || github.event.workflow_run.head_branch }}
+          ENABLED: ${{ vars.IONOS_DEPLOY_ENABLED }}
+        run: |
+          [[ "$TAG" =~ ^v(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)(-[0-9A-Za-z.-]+)?$ ]] ||
+            { echo "::error::'$TAG' is not a release tag vX.Y.Z[-prerelease]"; exit 1; }
+          echo "tag=$TAG" >> "$GITHUB_OUTPUT"
+          if [ "$ENABLED" = true ]; then
+            echo "enabled=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "::notice::IONOS deploy is off (repository variable IONOS_DEPLOY_ENABLED is not \"true\"); $TAG not deployed"
+          fi
+
+  deploy:
+    name: Deploy ORCE to IONOS
+    needs: [release]
+    if: needs.release.outputs.enabled == 'true'
+    runs-on: ubuntu-latest
+    environment: ionos
+    permissions:
+      contents: read # downloads the release assets
+      packages: read # reads the ORCE image's signature from GHCR (Harbor: the read robot)
+    env:
+      TAG: ${{ needs.release.outputs.tag }}
+      GH_TOKEN: ${{ github.token }}
+      HELM_DRIVER: configmap # the deployer may not touch Secrets (deployment/ci/ionos-deployer.yaml)
+      NAMESPACE: ztd-orce
+    steps:
+      - name: Write the deployer kubeconfig
+        id: kubeconfig
+        env:
+          IONOS_DEPLOY_KUBECONFIG: ${{ secrets.IONOS_DEPLOY_KUBECONFIG }}
+        run: |
+          if [ -z "$IONOS_DEPLOY_KUBECONFIG" ]; then
+            echo "::notice::The ionos environment has no IONOS_DEPLOY_KUBECONFIG secret; $TAG not deployed"
+            exit 0
+          fi
+          umask 077
+          printf '%s' "$IONOS_DEPLOY_KUBECONFIG" > "$RUNNER_TEMP/deployer.kubeconfig"
+          echo "KUBECONFIG=$RUNNER_TEMP/deployer.kubeconfig" >> "$GITHUB_ENV"
+          echo "ready=true" >> "$GITHUB_OUTPUT"
+
+      # The default branch, for the committed public key and the pinned tools; nothing of the tag runs.
+      - name: Checkout repository
+        if: steps.kubeconfig.outputs.ready == 'true'
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Set up Helm
+        if: steps.kubeconfig.outputs.ready == 'true'
+        uses: azure/setup-helm@1a275c3b69536ee54be43f2070a358922e12c8d4 # v4
+        with:
+          version: v4.3.0
+
+      - name: Install the pinned tools
+        if: steps.kubeconfig.outputs.ready == 'true'
+        run: |
+          scripts/tools/install.sh "$RUNNER_TEMP/bin" cosign kubectl
+          echo "$RUNNER_TEMP/bin" >> "$GITHUB_PATH"
+
+      # The manifest is signed by the release job; everything deployed is taken from it and checked
+      # against it, so nothing reaches the cluster that the release did not list. The key is the one
+      # the manifest names, accepted only from the allow-list of keys committed in
+      # docs/contracts/keys/ (a manifest without publicKey predates it and was signed with the interim
+      # key), and the same key then verifies the image. The registry login follows the image's host:
+      # the job token for GHCR, the Harbor read robot (HARBOR_READ_USER/PASSWORD of this environment)
+      # for the Harbor host HARBOR_HOST - never another registry's credentials.
+      - name: Verify the release and the ORCE image
+        id: verify
+        if: steps.kubeconfig.outputs.ready == 'true'
+        env:
+          RUN_SHA: ${{ github.event.workflow_run.head_sha }}
+          HARBOR_HOST: ${{ vars.HARBOR_HOST }}
+          GHCR_TOKEN: ${{ github.token }}
+          HARBOR_READ_USER: ${{ secrets.HARBOR_READ_USER }}
+          HARBOR_READ_PASSWORD: ${{ secrets.HARBOR_READ_PASSWORD }}
+        run: |
+          dir="$RUNNER_TEMP/release"
+          version="${TAG#v}"
+          gh release download "$TAG" --dir "$dir" \
+            --pattern release-manifest.json --pattern release-manifest.json.sig --pattern "orce-$version.tgz"
+          manifest="$dir/release-manifest.json"
+          key=$(jq -r '.publicKey // "docs/contracts/keys/interim-cosign.pub"' "$manifest")
+          case "$key" in
+            docs/contracts/keys/interim-cosign.pub | docs/contracts/keys/client-cosign.pub | docs/contracts/keys/openbao-transit-cosign.pub) ;;
+            *) echo "::error::the manifest names the key '$key', which is not on the allow-list of committed keys"; exit 1 ;;
+          esac
+          [ -f "$key" ] || { echo "::error::the manifest names $key, which is not committed"; exit 1; }
+          cosign verify-blob --key "$key" --insecure-ignore-tlog=true \
+            --signature "$dir/release-manifest.json.sig" "$manifest"
+          echo "manifest verified with $key"
+          [ "$(jq -r .tag "$manifest")" = "$TAG" ] || { echo "::error::the manifest is not for $TAG"; exit 1; }
+          if [ -n "$RUN_SHA" ] && [ "$(jq -r .revision "$manifest")" != "$RUN_SHA" ]; then
+            echo "::error::the manifest's revision is not the commit the release run built"; exit 1
+          fi
+          sha=$(jq -r --arg name "orce-$version.tgz" '.assets[] | select(.name == $name and .kind == "chart") | .sha256' "$manifest")
+          [ -n "$sha" ] || { echo "::error::the release lists no chart orce-$version.tgz"; exit 1; }
+          echo "$sha  $dir/orce-$version.tgz" | sha256sum -c -
+          repository=$(jq -r '.images[] | select(.name == "orce") | .repository' "$manifest")
+          digest=$(jq -r '.images[] | select(.name == "orce") | .digest' "$manifest")
+          [[ "$digest" =~ ^sha256:[0-9a-f]{64}$ ]] || { echo "::error::the release lists no ORCE image by digest"; exit 1; }
+          host="${repository%%/*}"
+          if [ "$host" = ghcr.io ]; then
+            REGISTRY_KIND=ghcr REGISTRY_HOST=ghcr.io REGISTRY_USER="$GITHUB_ACTOR" REGISTRY_PASSWORD="$GHCR_TOKEN" \
+              scripts/supplychain/registry-login.sh
+          elif [ -n "$HARBOR_HOST" ] && [ "$host" = "$HARBOR_HOST" ]; then
+            REGISTRY_KIND=harbor REGISTRY_HOST="$HARBOR_HOST" REGISTRY_USER="$HARBOR_READ_USER" REGISTRY_PASSWORD="$HARBOR_READ_PASSWORD" \
+              scripts/supplychain/registry-login.sh
+          else
+            echo "::error::the ORCE image is on $host, neither GHCR nor the Harbor host HARBOR_HOST"; exit 1
+          fi
+          cosign verify --key "$key" --insecure-ignore-tlog=true "$repository@$digest" >/dev/null
+          echo "cosign verified $repository@$digest"
+          {
+            echo "chart=$dir/orce-$version.tgz"
+            echo "repository=$repository"
+            echo "digest=$digest"
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Deploy
+        if: steps.kubeconfig.outputs.ready == 'true'
+        env:
+          CHART: ${{ steps.verify.outputs.chart }}
+          REPOSITORY: ${{ steps.verify.outputs.repository }}
+          DIGEST: ${{ steps.verify.outputs.digest }}
+          TAKE_OWNERSHIP: ${{ inputs.take_ownership && '--take-ownership' || '' }}
+        run: |
+          # --reset-then-reuse-values keeps site values set at install (imagePullSecrets, ingress.host)
+          # while the verified image below replaces the previous one.
+          # shellcheck disable=SC2086 # TAKE_OWNERSHIP is one flag or nothing
+          helm upgrade --install orce "$CHART" --namespace "$NAMESPACE" \
+            --rollback-on-failure --wait --timeout 10m --reset-then-reuse-values \
+            --set-string image.repository="$REPOSITORY" --set-string image.digest="$DIGEST" $TAKE_OWNERSHIP
+
+      - name: Smoke test
+        if: steps.kubeconfig.outputs.ready == 'true'
+        env:
+          IMAGE: ${{ steps.verify.outputs.repository }}@${{ steps.verify.outputs.digest }}
+          DIGEST: ${{ steps.verify.outputs.digest }}
+        run: |
+          kubectl -n "$NAMESPACE" rollout status deployment/orce --timeout=5m
+          spec=$(kubectl -n "$NAMESPACE" get deployment orce -o jsonpath='{.spec.template.spec.containers[0].image}')
+          [ "$spec" = "$IMAGE" ] || { echo "::error::deployment/orce runs $spec, not $IMAGE"; exit 1; }
+          running=$(kubectl -n "$NAMESPACE" get pods -l app.kubernetes.io/name=orce -o json |
+            jq -r '.items[] | select(.metadata.deletionTimestamp == null) | .status.containerStatuses[] | select(.name == "orce") | .imageID')
+          [ -n "$running" ] || { echo "::error::no running ORCE pod"; exit 1; }
+          while read -r id; do
+            [ "${id##*@}" = "$DIGEST" ] || { echo "::error::a pod runs $id, not $DIGEST"; exit 1; }
+          done <<<"$running"
+          host=$(kubectl -n "$NAMESPACE" get ingress orce -o jsonpath='{.spec.rules[0].host}')
+          # The certificate may still be issuing on a first deploy: up to five minutes. curl verifies it.
+          for _ in $(seq 30); do
+            code=$(curl -sS -o /dev/null -w '%{http_code}' --proto '=https' "https://$host/" || true)
+            [[ "$code" == 2* ]] && break
+            sleep 10
+          done
+          [[ "$code" == 2* ]] || { echo "::error::https://$host/ answered '$code', not 2xx with a valid certificate"; exit 1; }
+          {
+            echo "### ORCE $TAG on IONOS"
+            echo "- image \`$IMAGE\`"
+            echo "- https://$host/ answered $code"
+          } >> "$GITHUB_STEP_SUMMARY"

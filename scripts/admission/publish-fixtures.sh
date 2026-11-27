@@ -8,7 +8,8 @@
 #   COSIGN_KEY=env://COSIGN_INTERIM_KEY COSIGN_PASSWORD=... [IMAGEVERIFY_FLAGS=...] \
 #     scripts/admission/publish-fixtures.sh <registry/path> <list>
 #
-# PUBLIC_KEY overrides the committed interim public key (local tests with an ephemeral key only);
+# The public key is the selected source's (SIGNING_PUBLIC_KEY, from key-source.sh), the interim key's by
+# default; PUBLIC_KEY overrides both (local tests with an ephemeral key only);
 # FIXTURES_REGISTRY_PORT moves the scratch registry off port 5000.
 set -euo pipefail
 
@@ -63,7 +64,7 @@ for k in $fixtures_names; do
     nomock) want=ADM-NO-ATTESTATION ;; windows) want=ADM-NOT-LINUX ;; index) want=ADM-INDEX-UNSUPPORTED ;;
   esac
   # shellcheck disable=SC2086 # the flags are a word list on purpose
-  out="$(go run ./cmd/imageverify -key "${PUBLIC_KEY:-docs/contracts/keys/interim-cosign.pub}" -repository "$prefix" ${IMAGEVERIFY_FLAGS:-} "$image" || true)"
+  out="$(go run ./cmd/imageverify -key "${PUBLIC_KEY:-${SIGNING_PUBLIC_KEY:-docs/contracts/keys/interim-cosign.pub}}" -repository "$prefix" ${IMAGEVERIFY_FLAGS:-} "$image" || true)"
   if grep -q -- "$want" <<<"$out"; then
     echo "ok    $k $want"
   else

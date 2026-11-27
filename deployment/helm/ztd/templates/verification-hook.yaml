@@ -1,3 +1,5 @@
+{{- /* Release ztd only; the admission release renders admission-policy.yaml and the admission subcharts. */ -}}
+{{- if not .Values.gatekeeper.enabled }}
 {{- /*
 The chart's own use of the hook-weight scheme, band "verification": after install or upgrade a
 Job reads the layout back through the API and fails the release when a plane namespace, its
@@ -123,4 +125,5 @@ spec:
       volumes:
         - name: tmp
           emptyDir: {}
+{{- end }}
 {{- end }}

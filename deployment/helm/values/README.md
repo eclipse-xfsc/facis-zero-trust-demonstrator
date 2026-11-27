@@ -28,8 +28,8 @@ plane namespace. An upgrade of a chart re-reads every digest.
 | `spire` | `spiffe-csi-driver.image.tag` | `ghcr.io/spiffe/spiffe-csi-driver:0.2.7` |
 | `spire` | `spiffe-csi-driver.nodeDriverRegistrar.image.tag` | `registry.k8s.io/sig-storage/csi-node-driver-registrar:v2.15.0` |
 | `istiod` | `pilot.image` | `docker.io/istio/pilot:1.31.1` |
-| `istiod` | `global.proxy.image` | `docker.io/istio/proxyv2:1.31.1@sha256:d86c…`, the injected proxy; the whole reference, digest included, is mirrored in `zone-policy` `proxySocketPolicy.proxyImage` |
-| `istiod` | `global.proxy_init.image` | `docker.io/istio/proxyv2:1.31.1`, the injected `istio-validation` init container (the chart would otherwise build it from hub and tag, without a digest) |
+| `istiod` | `global.proxy.image` | `docker.io/istio/proxyv2@sha256:d86c…` (the 1.31.1 digest, no tag), the injected proxy; the whole reference, digest included, is mirrored in `zone-policy` `proxySocketPolicy.proxyImage` |
+| `istiod` | `global.proxy_init.image` | `docker.io/istio/proxyv2@sha256:d86c…`, the injected `istio-validation` init container (the chart would otherwise build it from hub and tag, without a digest); the same reference as the proxy |
 | `istio-cni` | `cni.image` | `docker.io/istio/install-cni:1.31.1` |
 
 | Release | Chart | Source | Namespace |

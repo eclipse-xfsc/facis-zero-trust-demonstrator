@@ -89,7 +89,7 @@ Met while building and running the lifecycle pack (TDR-BDD-01..06) on kind and I
 | The ORCE context read returns 401 | The read token is wrong, or it was sent without `Bearer ` | The read token is the `ORCE_READ_TOKEN` of the Secret; it can read, never write |
 | No JSON refusal record for a request in the ORCE log (rows 02 and 06) | An image without the JSON log handler, or the log command reads another pod | Every line of `kubectl -n ztd-orce logs deployment/orce` must be one JSON object ([ORCE logging](flows.md#orce-logging)) |
 | ORCE is slow to start on an Apple Silicon machine | The image is `linux/amd64` only and runs emulated | Expected locally; allow a few minutes |
-| `helm` commands behave differently from the docs | Another Helm major version | The project pins Helm v4.3.0 for chart QA and inside the ORCE image |
+| `helm` commands behave differently from the docs | Another Helm major version | The project pins Helm v4.3.0 for chart QA and v4.3.2 inside the ORCE image |
 
 ## Logs
 

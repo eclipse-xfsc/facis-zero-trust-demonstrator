@@ -1,6 +1,10 @@
+{{- /* Release ztd only; the admission release renders admission-policy.yaml and the admission subcharts. */ -}}
+{{- if not .Values.gatekeeper.enabled }}
 {{- /*
 One namespace per plane entry, labelled with its plane, the zone's planes.namespaceLabels and,
-unless the entry sets mesh: false, the mesh mode. Sidecar mode needs native sidecar containers (the injected proxy as an init container
+unless the entry sets mesh: false, the mesh mode. With admission.enforceDataPlane, the data-plane
+namespace (planes.data.namespace, and no other) also gets the admission label
+facis.ztd/admission-proof=true, which puts it under the Gatekeeper image policy (deployment/admission). Sidecar mode needs native sidecar containers (the injected proxy as an init container
 with restartPolicy Always, ADR-0009), which Kubernetes offers from 1.33: a zone that records an
 older server version cannot be installed.
 */ -}}
@@ -13,8 +17,23 @@ older server version cannot be installed.
 {{- $meshValue := include "ztd.meshLabelValue" . }}
 {{- $extraLabels := .Values.planes.namespaceLabels | default dict }}
 {{- range $k, $_ := $extraLabels }}
-{{- if or (eq $k "ztd.facis.io/plane") (eq $k $meshKey) (hasPrefix "app.kubernetes.io/" $k) (eq $k "helm.sh/chart") }}
+{{- if or (eq $k "ztd.facis.io/plane") (eq $k $meshKey) (hasPrefix "app.kubernetes.io/" $k) (eq $k "helm.sh/chart") (eq $k "facis.ztd/admission-proof") }}
 {{- fail (printf "planes.namespaceLabels may not set %s: the umbrella sets it" $k) }}
+{{- end }}
+{{- end }}
+{{- /* The admission label goes on the data-plane namespace alone: never a system namespace, never one shared with another plane entry. */}}
+{{- if .Values.admission.enforceDataPlane }}
+{{- $data := .Values.planes.data.namespace }}
+{{- if has $data (list "kube-system" "kube-public" "kube-node-lease" "gatekeeper-system" "istio-system" "spire-system") }}
+{{- fail (printf "admission.enforceDataPlane: planes.data.namespace %s is a system namespace, which must stay outside admission control" $data) }}
+{{- end }}
+{{- if eq $data .Values.planes.management.namespace }}
+{{- fail (printf "admission.enforceDataPlane: planes.data.namespace %s is also the management namespace" $data) }}
+{{- end }}
+{{- range .Values.planes.extra }}
+{{- if eq .name $data }}
+{{- fail (printf "admission.enforceDataPlane: planes.data.namespace %s is also listed in planes.extra" $data) }}
+{{- end }}
 {{- end }}
 {{- end }}
 {{- range (include "ztd.planeNamespaces" . | fromJsonArray) }}
@@ -29,7 +48,11 @@ metadata:
     {{- range $k, $v := $extraLabels }}
     {{ $k }}: {{ $v | quote }}
     {{- end }}
+    {{- if and $.Values.admission.enforceDataPlane (eq .plane "data") (eq .name $.Values.planes.data.namespace) }}
+    facis.ztd/admission-proof: "true"
+    {{- end }}
     {{- if and $meshKey .mesh }}
     {{ $meshKey }}: {{ $meshValue | quote }}
     {{- end }}
+{{- end }}
 {{- end }}

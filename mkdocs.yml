@@ -54,6 +54,8 @@ nav:
   - Evidence:
       - "Mesh mode, upstream state: about": evidences/mesh-mode-upstream-state/README.md
       - "Mesh mode, upstream state: record": evidences/mesh-mode-upstream-state/upstream-state.md
+      - "Admission pack: zone A, 21 Nov": evidences/admission/zone-a-2026-11-21.md
+      - "Admission pack: IONOS, 21 Nov": evidences/admission/ionos-2026-11-21.md
   - Architecture decisions:
       - Overview: adr/index.md
       - Decision ledger: adr/decision-ledger.md

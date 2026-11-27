@@ -1,3 +1,5 @@
+{{- /* Release ztd only; the admission release renders admission-policy.yaml and the admission subcharts. */ -}}
+{{- if not .Values.gatekeeper.enabled }}
 {{- /*
 Declared openings whose source a Kubernetes NetworkPolicy cannot name (docs/architecture.md,
 section 6; docs/workload-identity.md): the API server reaching the admission webhooks of the two
@@ -125,6 +127,7 @@ spec:
             - port: {{ . | quote }}
               protocol: TCP
             {{- end }}
+{{- end }}
 {{- end }}
 {{- end }}
 {{- end }}

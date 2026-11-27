@@ -1,0 +1,44 @@
+# The ORCE image (deployment/docker/orce), by digest only - the chart refuses a tag. The release
+# workflow pushes it as <ghcr.io/owner/repository>/orce; deploy-ionos.yml sets both values from the
+# signed release manifest.
+image:
+  repository: ghcr.io/eclipse-xfsc/facis-zero-trust-demonstrator/orce
+  digest: ""
+# Names of docker-registry Secrets in the release namespace, for a registry that needs a login to
+# pull (a private GHCR package). Created outside the chart.
+imagePullSecrets: []
+
+# Required, created before the install and never by the chart: ORCE_ADMIN_USER,
+# ORCE_ADMIN_PASSWORD_HASH, ORCE_HTTP_USER, ORCE_HTTP_PASSWORD_HASH (bcrypt) and ORCE_READ_TOKEN.
+# ORCE refuses to start when one is missing (docs/environments/ionos.md, stage 3).
+credentialsSecret: orce-credentials
+
+# The ServiceAccount ORCE deploys with, managed outside the chart; the BDD pool chart binds it as
+# the deployer of the pool namespaces, so its token stays mounted.
+serviceAccountName: orce
+
+# How long one lifecycle command may take.
+lifecycleTimeout: 5m
+
+resources:
+  requests:
+    cpu: 100m
+    memory: 256Mi
+  limits:
+    memory: 1Gi
+
+# The public HTTPS endpoint. The certificate is requested from cert-manager through the Ingress
+# annotation; TLS 1.3 as the minimum is the ingress controller's default TLSOption
+# (deployment/ingress/traefik-tls-options.yaml), so the Ingress names no TLS option of its own.
+ingress:
+  # Interim: the sslip.io name of the IONOS load balancer, until the client's DNS name exists.
+  host: orce.85-215-131-155.sslip.io
+  className: ztd-public
+  clusterIssuer: ztd-public-acme
+  tlsSecretName: orce-public-tls
+
+# The pods that may reach ORCE besides its own namespace: the ingress controller's.
+ingressController:
+  namespace: ztd-edge
+  podLabels:
+    app.kubernetes.io/name: traefik

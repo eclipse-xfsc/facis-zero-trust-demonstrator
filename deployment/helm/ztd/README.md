@@ -10,9 +10,17 @@ The chart is the first of the seven releases of a zone, installed with the other
 `istio-cni`, `zone-policy`). Alone, as the evidence script does:
 
 ```bash
+helm dependency build deployment/helm/ztd   # OpenBao, Gatekeeper and the two admission charts
 helm upgrade --install ztd deployment/helm/ztd -n ztd-system --create-namespace \
   -f deployment/helm/ztd/zones/<zone>.yaml --wait
 ```
+
+A zone that sets `admission.install: true` gets an eighth release from the installer: this chart
+again, as release `gatekeeper` in `gatekeeper-system` (the admission release), rendering only the
+admission stack - Gatekeeper, the image-verification provider, the admission policy and the
+admission pool. Why a second release, its four install stages and the migration from
+`scripts/admission/install.sh` are in
+[docs/umbrella-chart.md](../../../docs/umbrella-chart.md#admission-in-the-umbrella).
 
 ## Release namespace
 
@@ -54,7 +62,12 @@ declared derogation of the preferred stack first (`docs/workload-identity.md`).
 | `planes.management.namespace` | `ztd-mgmt` | Management-plane namespace |
 | `planes.data.namespace` | `ztd-data` | Data-plane namespace |
 | `planes.extra` | `[]` | Further `{name, plane, mesh}` namespaces: the control planes `spire-system` and `istio-system` (management, `mesh: false`) and any a component task adds. `mesh: false` leaves out the mesh label |
-| `planes.namespaceLabels` | `{}` | Labels the cluster's provider asks of the namespaces it should leave alone, set on every namespace the umbrella creates (never the plane or mesh label). On the Gardener clusters of zone A and zone B: `apiserver-proxy.networking.gardener.cloud/inject: disable`, so that the provider's webhook does not point the pods at the API server's public name, which the `kubeApi` lane (the `kube-apiserver` entity) does not admit |
+| `planes.namespaceLabels` | `{}` | Labels the cluster's provider asks of the namespaces it should leave alone, set on every namespace the umbrella creates (never the plane, mesh or admission label). On the Gardener clusters of zone A and zone B: `apiserver-proxy.networking.gardener.cloud/inject: disable`, so that the provider's webhook does not point the pods at the API server's public name, which the `kubeApi` lane (the `kube-apiserver` entity) does not admit |
+| `admission.policy.managedBy` | `helm` | Who owns the policy objects: `helm`, the admission release renders them; `argocd`, an Argo CD on the cluster keeps them and the release renders none (zone A, zone B) |
+| `admission.install` | `false` | The zone installer installs and upgrades the admission stack from this chart as release `gatekeeper` in `gatekeeper-system`, with the settings below. Off: nothing changes on a zone whose admission is installed by `scripts/admission/install.sh` |
+| `gatekeeper.replicas`, `admissionProvider.*`, `admissionPool.*` | Gatekeeper chart, [admission](../admission/values.yaml) and [admission-pool](../admission-pool/values.yaml) defaults | The admission release's settings, read only there: Gatekeeper's webhook replicas; the provider's image digest, trust policy (`trust.repositories`, `trust.publicKeys`, `trust.allowedDigests`) and replicas - the constraints take the same repositories and allow-list; the pool's namespaces. Gatekeeper's other values come from `deployment/admission/gatekeeper-values.yaml` and its image pins from `scripts/tools/pins.env`, added by the installer |
+| `gatekeeper.enabled`, `admissionProvider.enabled`, `admissionPool.enabled`, `admissionPolicy.templates`, `admissionPolicy.constraints` | `false` | The admission release's switches, set by the installer stage by stage; a zone file may not set them, and the chart refuses every admission part without `gatekeeper.enabled` (with it, it renders nothing of release `ztd`) |
+| `admission.enforceDataPlane` | `false` | Labels the data-plane namespace (`planes.data.namespace`, that namespace only) `facis.ztd/admission-proof=true`, which puts its workloads under the Gatekeeper image policy ([deployment/admission](../../admission)). Management, extra plane and control-plane namespaces never get it; `planes.namespaceLabels` may not set it. Install Gatekeeper and the provider first, with the injected Istio proxy digest on the allow-list (`admissionProvider.trust.allowedDigests`, or `ALLOWED_DIGESTS` of `scripts/admission/install.sh`), and run `scripts/admission/preflight-data-plane.sh <namespace>` before turning it on; with the label, a Gatekeeper or provider outage denies admission there |
 | `mesh.mode` | `sidecar` | `sidecar` (the ADR-0009 baseline), `ambient` (parked) or `none`; sets the namespace label. Sidecar mode refuses a `zone.kubernetesVersion` below 1.33 (native sidecars) |
 | `mesh.revision` | `""` | Sidecar mode: pin an Istio revision (`istio.io/rev`) instead of the default injector |
 | `cni.cilium.enabled` | `true` | Render the Cilium-specific pieces: the entity openings and the API lane, and the host-probe exception of the parked ambient mode. Required with a mesh |
@@ -84,7 +97,10 @@ regular Job, and the OpenBao verification hook needs its result.
 The zone record has no defaults on purpose and `values.schema.json` enforces it: the chart does
 not render until a zone file states what the cluster is. `zones/` holds the zone files;
 `ci/values.yaml` is the file the CI chart job and the local kind cluster render with; it enables the
-control-plane namespaces and every opening.
+control-plane namespaces and every opening. `ci/admission-values.yaml`, layered on it, is the
+admission release without the constraints (their kinds exist only once Gatekeeper has generated
+them); the chart check renders both, and CI renders the full admission release through the
+installer.
 
 ## Declared openings
 

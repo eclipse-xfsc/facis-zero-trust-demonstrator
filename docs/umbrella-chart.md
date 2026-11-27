@@ -93,6 +93,166 @@ only when the mode is ambient and Cilium is enabled; in the sidecar baseline of 
 the kind is rendered, and the template stays so that returning to ambient costs a zone value, not a
 chart change.
 
+## Admission in the data plane is an opt-in label
+
+The Gatekeeper image policy ([deployment/admission](../deployment/admission)) applies only to
+namespaces labelled `facis.ztd/admission-proof=true`. The umbrella sets that label on one namespace,
+the data-plane namespace (`planes.data.namespace`), and only when the zone sets
+`admission.enforceDataPlane: true`; the default is off. The management plane, any `planes.extra`
+namespace (a second data-plane namespace included) and the control-plane namespaces
+(`gatekeeper-system`, `istio-system`, `spire-system`, `kube-system`) never get it, and
+`planes.namespaceLabels`, which applies to every namespace the umbrella creates, may not set it. The
+CI chart job renders both settings and checks exactly that.
+
+Turning it on puts every workload of the data plane under the image policy, the injected Istio
+proxy and `istio-validation` init container included. They run Istio's own `proxyv2` image, which the
+project does not sign; [istiod.yaml](../deployment/helm/values/istiod.yaml) references it by digest
+only, and that exact reference must be on the admission digest allow-list
+(`admissionProvider.trust.allowedDigests` in the zone file for the admission release below, or
+`ALLOWED_DIGESTS` of `scripts/admission/install.sh`). Where Helm owns the policy (standalone, or
+`admission.policy.managedBy: helm`), that one list reaches both the provider's `trust.allowedDigests`
+and the `ztd-allowed-repositories` constraint. Where Argo CD keeps the policy (zone A and zone B,
+`managedBy: argocd`) the zone file reaches the provider only: the same digests must be added to the
+`allowedDigests` of the constraint in Argo CD's policy source and synced, and
+`scripts/admission/preflight-data-plane.sh <namespace>` must pass - it checks the namespace's images
+against both the provider's policy and the live constraint - before the data plane is enforced. The
+zone installer refuses `enforceDataPlane` with `managedBy: argocd` while the live constraint lacks a
+digest of the zone's `admissionProvider.trust.allowedDigests`. Before turning it on, run
+`scripts/admission/preflight-data-plane.sh <namespace>` (read-only), which names every image there
+that would be denied. With the label on, a Gatekeeper or provider outage denies admission in the data
+plane (fail closed), and `scripts/admission/fault-injection.sh` expects it to.
+
+## Admission in the umbrella
+
+The admission stack - Gatekeeper, the image-verification provider
+([deployment/helm/admission](../deployment/helm/admission)), the admission policy (constraint
+templates, exemptions and constraints of [deployment/admission](../deployment/admission)) and the
+admission pool ([deployment/helm/admission-pool](../deployment/helm/admission-pool)) - is part of this
+chart: the pinned Gatekeeper chart and the two local charts are dependencies (`gatekeeper`,
+`admissionProvider`, `admissionPool`, locked in `Chart.lock`), and `templates/admission-policy.yaml`
+renders the policy from `files/admission`, links to `deployment/admission`, so the policy keeps one
+copy. A zone file opts in with `admission.install: true` and carries the settings
+(`gatekeeper.replicas`, `admissionProvider.*`, `admissionPool.*`); the default is off, so an upgrade
+of the chart changes nothing on a zone that has not opted in.
+
+**Namespace model: a second release of this chart.** The stack is not part of release `ztd`. The zone
+installer installs this chart a second time, as release `gatekeeper` in `gatekeeper-system` - the
+*admission release* - and only there are the admission parts switched on (`gatekeeper.enabled` and
+the stage switches, which the installer sets and a zone file may not). With `gatekeeper.enabled` the
+chart renders the admission stack and nothing of release `ztd`; without it, any admission part is
+refused. The reasons are in the Gatekeeper chart itself: it puts every object in
+`.Release.Namespace` (26 places, including the webhook's exempt namespace and the Service URL) and
+its Deployment selectors carry `release: <release name>`, which is immutable. Inside release `ztd`
+Gatekeeper would land in `ztd-system`; under any release name but `gatekeeper` its Deployments
+would have to be deleted and recreated - a webhook outage, and with `failurePolicy: Fail` a denial
+of every admission in the labelled namespaces. As release `gatekeeper` in `gatekeeper-system`,
+Gatekeeper and the provider stay co-located, the provider's Provider URL and server certificate
+names (`.Release.Namespace`) are unchanged, and its TLS Secret is looked up where it already is, so
+the provider CA survives the migration. The provider chart's Deployment selector no longer follows
+the release name: it is fixed to `app.kubernetes.io/instance: admission`, the name it was first
+installed under, so the same Deployment is adopted in place.
+
+**Install order: four stages of one release.** A Helm dependency cannot make a constraint wait for
+the CRD Gatekeeper generates from its template, so on a first install the installer deploys the
+admission release four times, each through `scripts/lifecycle.sh` (server-side dry run, then
+`helm upgrade --install --wait`), each waiting for what the next needs:
+
+| Stage | Adds | The next stage waits for |
+|---|---|---|
+| 1 | Gatekeeper | its CRDs (`providers`, `constrainttemplates`, `configs`) Established |
+| 2 | the provider, the constraint templates, the exemptions | the four constraint CRDs Established |
+| 3 | the four constraints | every constraint enforced by every Ready webhook replica (`scripts/admission/enforced.sh`) |
+| 4 | the admission pool (the labelled `ztd-adm-*` namespaces and the tester identity) | - |
+
+No deploy renders less than the release already holds (its deployed switches): on an upgrade the
+stages below it are not deployed again, whatever a readiness check says at that moment, so a
+readiness blip can never make Helm delete an installed component; a stage above it is skipped only
+when its successor's condition already holds (the migration, where everything is in place). Stage 4
+goes out in two steps: first with the pool namespaces that already exist, so a changed policy is
+applied without touching the pool; then, once every constraint's current generation is enforced by
+every Ready webhook replica, with any new pool namespace. Enforcement therefore exists before any
+labelled namespace does, on a first install and on an upgrade. After the last stage the installer runs the checks of
+`scripts/admission/install.sh`: both webhooks scoped to `facis.ztd/admission-proof=true`, the
+response cache off, every constraint enforced. Every render, dry run and deploy of the admission
+release goes through the `ztd-webhook-scope` post-renderer, and only of that release: release `ztd`
+has no webhook, and the post-renderer fails unless it scopes exactly two.
+
+**Who owns the policy: `admission.policy.managedBy`.** The policy objects (constraint templates,
+constraints, exemptions) have one owner per cluster. `helm` (the default; kind and IONOS): the
+admission release renders them, as above. `argocd` (zone A and zone B): the Argo CD on the cluster
+keeps them from Git - Applications `admission-templates`, `admission-constraints` and
+`admission-exemptions`, created by the app-of-apps Application `ztd-admission`, which itself manages
+only those three Applications and their AppProject, nothing of Gatekeeper or the provider. The
+admission release then installs Gatekeeper, the provider and the pool only, renders no policy object
+(the chart refuses one), and so never takes ownership of one, in an install or an adoption. Stage 3
+deploys nothing: after stage 2 the installer waits for the constraint CRDs that Gatekeeper generates
+from Argo CD's templates, then for Argo CD's constraints to be enforced by every Ready webhook
+replica, and only then deploys stage 4 (the pool). If Argo CD has not provided them within
+`ADMISSION_POLICY_TIMEOUT` seconds (default 300) per wait, the installer stops and names the
+Applications to check.
+
+**Handing the policy from Helm to Argo CD.** Switching a cluster whose release renders the policy
+from `helm` to `argocd` would make Helm delete the policy objects it holds, so the installer refuses
+that switch, before any deploy, while the release holds a policy object without
+`helm.sh/resource-policy: keep`. The handoff: (1) set `admission.policy.keep: true` (managedBy still
+`helm`) and run `install gatekeeper`, which marks every policy object keep; (2) point Argo CD's
+Applications at the same objects; (3) set `managedBy: argocd` and run `install gatekeeper` again:
+the release stops rendering the policy and Helm leaves every object in place (proven by kind-e2e,
+umbrella layout, POLICY=helm).
+
+**Standalone path.** `scripts/admission/install.sh` stays supported and unchanged for a zone that has
+not opted in; it refuses a zone in the umbrella layout except as the rollback below. The fault,
+evidence and end-to-end scripts detect the layout (`admission_layout` in
+`scripts/admission/checks.sh`) and change the provider through whichever release owns it, with
+`--reuse-values` and the recorded replica counts, never resetting other values.
+
+### Migration runbook (live zone, standalone to umbrella)
+
+Not run on a live cluster yet. Proven on kind: `LAYOUT=migrate` and `LAYOUT=rollback` of
+`scripts/admission/kind-e2e.sh`, and `POLICY=argocd` for the Argo CD split (a stand-in applies
+the policy from outside the release; the run checks no policy object gets a Helm owner).
+
+1. **Preflight.** On zone A and zone B the policy stays with Argo CD: the zone files set
+   `admission.policy.managedBy: argocd`, and its Applications must be Synced and Healthy
+   (`kubectl -n argocd get applications`); nothing of them changes. On IONOS (`helm`) the release
+   adopts the policy objects that `install.sh` applied. Then: `helm list -n gatekeeper-system` shows `gatekeeper` (chart `gatekeeper-3.23.1`),
+   `admission` and `admission-pool`. Compare the zone file's admission settings with the live ones:
+   `helm get values admission -n gatekeeper-system` against `admissionProvider` (image digest,
+   repositories, key, allowed digests, replicas) and `helm get values gatekeeper` replicas against
+   `gatekeeper.replicas`. If the zone enforces its data plane (`admission.enforceDataPlane`), run
+   `scripts/admission/preflight-data-plane.sh <data-plane namespace>`; it must exit 0.
+2. **Build and render.** `helm dependency build deployment/helm/ztd`; set `admission.install: true`
+   in the zone file; `ZONE_VALUES=<zone file> RENDER_DIR=<dir> scripts/install-zone/install.sh render gatekeeper`
+   writes the manifest and the values it was rendered with.
+3. **Dry run against the cluster** (read-only), with the rendered values of stage 4:
+   `helm upgrade gatekeeper deployment/helm/ztd -n gatekeeper-system -f <RENDER_DIR>/gatekeeper.values.yaml
+   --post-renderer ztd-webhook-scope --take-ownership --dry-run=server`, then
+   `kubectl diff --server-side --force-conflicts -f <the MANIFEST part of that output>`. Expected:
+   Gatekeeper and the provider (its TLS Secret is looked up, not regenerated) unchanged;
+   `app.kubernetes.io/instance` of the seven pool objects `admission-pool` → `gatekeeper`; Helm's
+   ownership annotations on the adopted objects. On zone A and zone B the manifest holds no policy
+   object, so Argo CD's are untouched. The 2026-11-21 dry runs showed exactly that on zone A and
+   zone B; on IONOS also the policy objects adopted unchanged except the constraint template
+   `k8sztdallowedrepositories` gaining `allowedDigests` - the digest allow-list, which IONOS does
+   not run yet. Any other change is a difference between the zone file and the live values, to
+   settle first. A dry run persists nothing (the release revision stays).
+4. **Adopt.** `ZONE_VALUES=<zone file> KUBE_CONTEXT=<context> ADMISSION_ADOPT=1
+   scripts/install-zone/install.sh install gatekeeper` (or `install` for the whole zone). Release
+   `gatekeeper` is upgraded to this chart with `--take-ownership` and without rollback on failure
+   (rolling an adoption back would delete the adopted objects); on success the records of releases
+   `admission` and `admission-pool` are dropped (their Helm Secrets), their objects kept. A failed
+   adoption is re-run, not rolled back.
+5. **Verify.** `helm list -n gatekeeper-system` shows only `gatekeeper` with chart `ztd-<version>`;
+   the Deployments `gatekeeper-controller-manager`, `gatekeeper-audit` and `ztd-admission-provider`
+   keep their UIDs and the Secret `ztd-admission-provider-tls` its CA; then the evidence pack
+   (`scripts/admission/evidence-pack.sh <zone>`, no provider inputs needed in this layout).
+6. **Rollback** to the standalone layout, if needed: `FROM_UMBRELLA=1 scripts/admission/install.sh`
+   with the usual inputs. It checks them, drops release `gatekeeper`'s records while that release is
+   still the umbrella's - every object stays and keeps serving - and installs `gatekeeper`,
+   `admission` and `admission-pool` again with `--take-ownership`. It is resumable: an interrupted
+   rollback is re-run with the same command; then set `admission.install: false` in the zone file again. `install.sh`
+   applies the policy with kubectl, as it always has; on zone A and zone B Argo CD keeps owning it.
+
 ## The hook-weight scheme
 
 Helm orders two things. Regular resources — of the chart and of every subchart together — are

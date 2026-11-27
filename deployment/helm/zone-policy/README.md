@@ -192,7 +192,7 @@ two proxy images or two status ports differ, and CI runs that check with every r
 | `proxySocketPolicy.name` | `proxy-takes-spire-socket` | Name of the admission policy and its binding |
 | `proxySocketPolicy.volume`, `proxySocketPolicy.mountPath`, `proxySocketPolicy.driver` | `workload-socket`, `/var/run/secrets/workload-spiffe-uds`, `csi.spiffe.io` | The volume, mount path and CSI driver every mesh proxy must have; those of Istio's `sidecar` template and the istiod values file |
 | `proxySocketPolicy.statusPort` | `15020` | The proxy's status port, the one inbound port the capture rule lets the injector exclude; must equal the `istiod` release's `global.proxy.statusPort` (integer, required) |
-| `proxySocketPolicy.proxyImage` | `docker.io/istio/proxyv2:1.31.1@sha256:d86c…` | The injected proxy's whole image reference, by digest; the proxy rule admits no other image for a mesh proxy; must equal the `istiod` release's `global.proxy.image` (string, required) |
+| `proxySocketPolicy.proxyImage` | `docker.io/istio/proxyv2@sha256:d86c…` | The injected proxy's whole image reference, by digest; the proxy rule admits no other image for a mesh proxy; must equal the `istiod` release's `global.proxy.image` (string, required) |
 | `checks.enabled` | `true` | The identity-band jobs |
 | `checks.image` | `curlimages/curl` by digest | Image of the jobs (the umbrella's verification image) |
 | `checks.timeoutSeconds` | `180` | How long each check waits before it fails the release |

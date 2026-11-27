@@ -1,3 +1,5 @@
+{{- /* Release ztd only; the admission release renders admission-policy.yaml and the admission subcharts. */ -}}
+{{- if not .Values.gatekeeper.enabled }}
 {{- /*
 OpenBao verification, band "platform": after install or upgrade a Job reads the server back with the
 narrow verification token and fails the release unless it is initialised and unsealed, secret/ is
@@ -104,4 +106,5 @@ spec:
           emptyDir:
             medium: Memory
             sizeLimit: 1Mi
+{{- end }}
 {{- end }}

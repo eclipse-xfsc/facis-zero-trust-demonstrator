@@ -1,4 +1,11 @@
 ztd umbrella chart {{ .Chart.Version }}: release {{ .Release.Name }} in {{ .Release.Namespace }}, zone {{ .Values.zone.name }}.
+{{- if .Values.gatekeeper.enabled }}
+
+The admission release: Gatekeeper{{ if .Values.admissionProvider.enabled }}, the image-verification provider{{ end }}
+{{- if .Values.admissionPolicy.templates }}, the constraint templates and exemptions{{ end }}
+{{- if .Values.admissionPolicy.constraints }}, the constraints{{ end }}
+{{- if .Values.admissionPool.enabled }}, the admission pool{{ end }}.
+{{- else }}
 
 Plane namespaces:
 {{- $meshKey := include "ztd.meshLabelKey" . }}{{ $meshValue := include "ztd.meshLabelValue" . }}
@@ -15,3 +22,4 @@ The post-install verification job read the layout back; the release would have f
 Next: the platform components (identity, mesh, admission, ...) install after this release and
 plug into the hook-weight scheme described in docs/umbrella-chart.md.
 Evidence: scripts/verify-umbrella/verify.sh
+{{- end }}

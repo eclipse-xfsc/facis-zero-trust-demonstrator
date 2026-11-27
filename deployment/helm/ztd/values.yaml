@@ -49,6 +49,60 @@ planes:
   namespaceLabels: {}
 
 # --------------------------------------------------------------------------------------------
+# Admission (ZT-02, ZT-36; deployment/admission). true labels the data-plane namespace
+# (planes.data.namespace) - that one namespace only, never the management plane, an extra plane
+# namespace or a control-plane namespace - with facis.ztd/admission-proof=true, which puts its
+# workloads under the Gatekeeper image policy: digest references, allowed repositories or the digest
+# allow-list, signature and attestations, naming. Gatekeeper and the provider must be installed and
+# the injected Istio proxy digest allow-listed first (admissionProvider.trust.allowedDigests, or
+# scripts/admission/install.sh ALLOWED_DIGESTS); run scripts/admission/preflight-data-plane.sh
+# <namespace> before turning it on. With the label, a Gatekeeper or provider outage denies admission
+# in the data plane (fail closed). Default off.
+#
+# install: true makes the zone installer install and upgrade the admission stack from this chart - as
+# a second release of it, `gatekeeper` in gatekeeper-system (the admission release, README.md) - with
+# the zone file's gatekeeper, admissionProvider and admissionPool values. Default off: a zone whose
+# admission stack is still installed by scripts/admission/install.sh is not touched; moving it over
+# is the migration in docs/umbrella-chart.md.
+# --------------------------------------------------------------------------------------------
+admission:
+  enforceDataPlane: false
+  install: false
+  # Who owns the admission policy objects (constraint templates, constraints, exemptions): helm -
+  # the admission release renders them (kind, IONOS) - or argocd - an Argo CD on the cluster keeps
+  # them from Git and the release renders none of them; the installer then waits for Argo CD's
+  # constraints to be enforced instead of applying them (zone A, zone B).
+  policy:
+    managedBy: helm
+    # true marks the policy objects helm.sh/resource-policy: keep, so that switching managedBy to
+    # argocd afterwards leaves them in place for Argo CD (the handoff in docs/umbrella-chart.md); the
+    # installer refuses that switch while the release holds a policy object without the mark.
+    keep: false
+
+# --------------------------------------------------------------------------------------------
+# The admission release only (admission.install, above). The zone installer sets every `enabled`
+# below and the two admissionPolicy switches - stage by stage on a first install, because the
+# constraints need the CRDs Gatekeeper generates from the templates - and adds Gatekeeper's values
+# from deployment/admission/gatekeeper-values.yaml and its image pins from scripts/tools/pins.env.
+# A zone file sets only the settings: gatekeeper.replicas, admissionProvider.* (the
+# deployment/helm/admission values: image digest, trust policy, replicas) and admissionPool.*.
+# With gatekeeper.enabled the chart renders the admission stack and nothing else; the chart refuses
+# any other admission part without it, so release ztd never renders one.
+# --------------------------------------------------------------------------------------------
+gatekeeper:
+  enabled: false
+admissionProvider:
+  enabled: false
+admissionPool:
+  enabled: false
+# The constraint templates and the exemptions (deployment/admission/templates, exemptions.yaml), and
+# the four constraints (deployment/admission/constraints), whose allowed repositories and digest
+# allow-list are admissionProvider.trust.repositories and .allowedDigests.
+admissionPolicy:
+  templates: false
+  constraints: false
+
+# --------------------------------------------------------------------------------------------
 # Mesh mode. ADR-0009 baselines Istio sidecar mode with Cilium as the CNI, superseding the ambient
 # baseline of ADR-0001 (the mesh cannot take SPIRE-issued identities under ambient). Ambient is
 # parked, not abandoned: the value stays accepted and the Cilium host-probe exception below still
