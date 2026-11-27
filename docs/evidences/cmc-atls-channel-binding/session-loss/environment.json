@@ -1,0 +1,12 @@
+{
+  "script": "scripts/atls-probe/prove-session-loss.sh",
+  "commit": "40a833484155e1b4d3db1415c7c870d2a4f5861b",
+  "dirty": false,
+  "go_version": "go1.27.0",
+  "cmc_version": "v0.9.15",
+  "cmcd_binary": "github.com/Fraunhofer-AISEC/cmc@v0.9.15",
+  "date": "2026-11-23T15:43:49Z",
+  "host_kind": "local",
+  "os": "Linux 6.8.0-147-generic",
+  "arch": "x86_64"
+}

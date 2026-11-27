@@ -1,0 +1,70 @@
+# Exported API of internal/atls, frozen at v1: one line per exported identifier.
+# TestExportedAPIFrozen (api_test.go) regenerates this listing from the package and fails when
+# the two differ. A change to the API is deliberate: update docs/attested-channel.md with it
+# (its Stability section states which changes need agreement), then regenerate this file with
+#   ATLS_API_UPDATE=1 go test -run TestExportedAPIFrozen ./internal/atls
+const DefaultChannelLifetime time.Duration = 900000000000
+const DefaultHandshakeTimeout time.Duration = 10000000000
+const DefaultMaxConcurrentHandshakes untyped int = 8
+const VerdictSuccess Verdict = "success"
+func Dial(context.Context, string, Config) (*Conn, error)
+func Listen(string, Config) (*Listener, error)
+method (*Conn) Binding() []byte
+method (*Conn) ConnectionState() crypto/tls.ConnectionState
+method (*Conn) Peer() PeerAttestation
+method (*Conn) Read([]byte) (int, error)
+method (*Conn) Write([]byte) (int, error)
+method (*Error) Error() string
+method (*Error) Unwrap() []error
+method (*Listener) Accept(context.Context) (*Conn, error)
+method (*Listener) Addr() net.Addr
+method (*Listener) Close() error
+method (PeerVerifierFunc) VerifyPeer(context.Context, PeerAttestation) error
+type Config struct
+type Config struct, ChannelLifetime time.Duration
+type Config struct, CmcdAddr string
+type Config struct, ExpectedPeerIdentity string
+type Config struct, HandshakeTimeout time.Duration
+type Config struct, MaxConcurrentHandshakes int
+type Config struct, PeerVerifier PeerVerifier
+type Config struct, Policies []byte
+type Config struct, TLS *crypto/tls.Config
+type Conn struct
+type Conn struct, embedded net.Conn
+type Error struct
+type Error struct, Err error
+type Error struct, Kind error
+type Error struct, Peer net.Addr
+type Error struct, Reason string
+type Listener struct
+type Measurement struct
+type Measurement struct, Digest string
+type Measurement struct, Evidence string
+type Measurement struct, HashAlg string
+type Measurement struct, Index int
+type Measurement struct, Name string
+type PeerAttestation struct
+type PeerAttestation struct, AttestedAt time.Time
+type PeerAttestation struct, EvidenceNotAfter time.Time
+type PeerAttestation struct, Identity string
+type PeerAttestation struct, Measurements []Measurement
+type PeerAttestation struct, PeerID string
+type PeerAttestation struct, ValidUntil time.Time
+type PeerAttestation struct, Verdict Verdict
+type PeerVerifier interface
+type PeerVerifier interface, VerifyPeer(context.Context, PeerAttestation) error
+type PeerVerifierFunc func(context.Context, PeerAttestation) error
+type Verdict string
+var ErrAttestModeMismatch error
+var ErrAttesterUnavailable error
+var ErrBindingMismatch error
+var ErrChannelLost error
+var ErrConfig error
+var ErrEvidenceExpired error
+var ErrHandshakeTimeout error
+var ErrIdentityMismatch error
+var ErrNotAttested error
+var ErrPeerAborted error
+var ErrPeerRejected error
+var ErrPeerUnreachable error
+var ErrPlainTLS error

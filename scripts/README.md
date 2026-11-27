@@ -89,3 +89,67 @@ the schema empty. Records and the verdict go to `--out` (default the git-ignored
 for the chart's PeerAuthentication (`BIN=`'s `istio-crds/`, or fetched); `BIN=` as above. The
 `Connector` workflow runs it on every change to the connector, its image, either chart, the proof
 or the pinned images. Design: [Connector service](../docs/connector.md).
+
+## Attested channel proofs (`atls-probe/`)
+
+Three scripts prove the behaviour of the attested channel (`internal/atls`) between separate
+processes and against real `cmcd` attesters. They run everything as plain processes on one machine
+— no container, no cluster: two `cmcd` (one per zone, built from the CMC version `go.mod` pins) and
+the probe `cmd/atls-probe`.
+
+| Script | Proves | Passes only when |
+|---|---|---|
+| `atls-probe/prove-mutual-handshake.sh` | Two processes complete a mutually attested handshake and derive the same channel binding | both records show an established channel with verdict `success`, each end saw the expected peer, and both hold the same 32-byte binding |
+| `atls-probe/prove-tampered-binding.sh` | A report bound to another TLS session is refused | a relay between client and server forwarded the attestation exchange, both ends refused with `ErrBindingMismatch`, and no application data crossed |
+| `atls-probe/prove-session-loss.sh` | Session loss is recorded: server killed, client killed, `cmcd` killed with a channel open and during a handshake, server frozen (half-open) | every scenario ran from an established channel and left its findings, with one reconnect attempt each |
+
+```sh
+scripts/atls-probe/prove-mutual-handshake.sh                   # writes the git-ignored .dev/atls-evidence/mutual-handshake/
+scripts/atls-probe/prove-tampered-binding.sh
+scripts/atls-probe/prove-session-loss.sh                       # about one minute
+scripts/atls-probe/prove-mutual-handshake.sh --out /tmp/run    # writes /tmp/run/mutual-handshake/ instead
+scripts/atls-probe/prove-mutual-handshake.sh --summary         # also writes the summary the repository keeps
+scripts/atls-probe/prove-mutual-handshake.sh --verify DIR      # runs nothing: checks what is already in DIR
+scripts/atls-probe/summary.sh [DIR]                            # the verdicts under DIR as a Markdown table
+```
+
+They need `go`, `git`, `jq` and bash 5. Each run:
+
+1. builds `cmcd` and the probe into a temporary directory;
+2. generates fresh fixtures there, valid for one hour — a CA, a certificate and key, signed
+   metadata and a `cmcd` configuration per zone — with the env-gated test
+   `TestWriteFixtures` of `internal/atls/atlstest` (`ATLS_FIXTURE_DIR`);
+3. starts one `cmcd` per zone on a free port and checks that each produces reports with metadata
+   that both verify (`TestCmcdReports`, `ATLS_FIXTURE_CMCD_CHECK`);
+4. runs the probe processes and checks the proof on their JSON records;
+5. writes the records, the logs, `environment.json` (commit, Go and CMC versions, date, host kind)
+   and `verdict.txt` to the output folder, and removes the temporary directory with its keys.
+
+The full output of a run never goes into the repository. With `--summary` a passing run also
+writes its summary to `docs/evidences/cmc-atls-channel-binding/<proof>/`: `verdict.txt` and
+`environment.json`, and `reconnect-findings.md` for the session-loss proof. `--verify DIR` checks
+the records when `DIR` is the full output of a run; on a folder that holds only the summary, such
+as the committed one, it checks the recorded verdict and says so.
+
+The scripts stop every process they started, also when interrupted. In the copied logs the
+temporary directory appears as `<work>` and the host name as `<host>`; private keys never leave the
+temporary directory.
+
+| Variable | Effect |
+|---|---|
+| `ATLS_HOST_KIND` | what `environment.json` records the run as: `local` (default), `ci` (default on GitHub Actions) or `target-cluster` |
+| `ATLS_CMCD_BIN` | use this `cmcd` binary instead of building one |
+| `ATLS_SESSION_LOSS_LIMIT` | seconds a surviving end is given to observe an error in `prove-session-loss.sh` (default 15) |
+| `ATLS_KEEP_WORK` | keep the temporary directory, keys included, for inspection |
+
+The summaries in the repository are produced by running the scripts locally with `--summary` and
+committing the result. The workflow `.github/workflows/atls-channel-binding.yml` re-runs them with
+`--out` outside the checkout to verify that the proofs reproduce, and uploads the full output of
+its run as the artefact `atls-channel-binding-evidence`; it never writes the committed evidence.
+
+`atls-probe/prove-isolation.sh` is the fourth proof: it regenerates the three text files under
+`docs/evidences/cmc-atls-channel-binding/wrapper-isolation/` (the import guard, the wrapper test
+run and the freeze of the exported API), or writes them to `--out DIR`. It needs `go`, `git` and
+`golangci-lint` (on `PATH`, or `GOLANGCI_LINT=`) and starts no `cmcd`.
+
+`lib.sh` holds what the three channel proofs share and is not run on its own.
