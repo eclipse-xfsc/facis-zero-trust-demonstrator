@@ -1,0 +1,139 @@
+{{- /*
+The credential retrieval service: it takes a credential offer for this tenant (over NATS or its
+API), runs the OID4VCI pre-authorized flow against the issuer, has the holder proof signed by the
+signer and the credential verified by it, and stores the result through the storage topic. Its
+offerings live in the zone's Cassandra.
+*/ -}}
+{{- $c := dict "Release" .Release "Values" .Values "Chart" .Chart "component" "retrieval" -}}
+{{- $signer := include "wallet.component" (dict "Release" .Release "component" "signer") -}}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "wallet.component" $c }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "wallet.labels" . | nindent 4 }}
+    app.kubernetes.io/component: retrieval
+spec:
+  selector:
+    {{- include "wallet.selector" $c | nindent 4 }}
+  ports:
+    - name: http
+      port: 8080
+      targetPort: http
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "wallet.component" $c }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "wallet.labels" . | nindent 4 }}
+    app.kubernetes.io/component: retrieval
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      {{- include "wallet.selector" $c | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "wallet.podLabels" $c | nindent 8 }}
+    spec:
+      serviceAccountName: {{ include "wallet.component" $c }}
+      automountServiceAccountToken: false
+      enableServiceLinks: false
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+        runAsGroup: 1000
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: retrieval
+          image: {{ include "wallet.image" (dict "Values" .Values "image" "retrieval") | quote }}
+          imagePullPolicy: IfNotPresent
+          env:
+            - name: CREDENTIALRETRIEVAL_LOG_LEVEL
+              value: {{ .Values.logLevel | quote }}
+            - name: CREDENTIALRETRIEVAL_LISTEN_ADDR
+              value: 0.0.0.0
+            - name: CREDENTIALRETRIEVAL_LISTEN_PORT
+              value: "8080"
+            - name: CREDENTIALRETRIEVAL_COUNTRY
+              value: {{ .Values.retrieval.country | quote }}
+            - name: CREDENTIALRETRIEVAL_REGION
+              value: {{ .Values.retrieval.region | quote }}
+            - name: CREDENTIALRETRIEVAL_OFFERING_TOPIC
+              value: {{ printf "%s.offering" (include "wallet.prefix" .) | quote }}
+            - name: CREDENTIALRETRIEVAL_STORAGE_TOPIC
+              value: {{ printf "%s.storage" (include "wallet.prefix" .) | quote }}
+            - name: CREDENTIALRETRIEVAL_SIGNER_TOPIC
+              value: {{ printf "%s.signer" (include "wallet.prefix" .) | quote }}
+            - name: CREDENTIALRETRIEVAL_SIGNER_URL
+              value: {{ printf "http://%s:8080" $signer | quote }}
+            - name: CREDENTIALRETRIEVAL_DISABLETLS
+              value: {{ .Values.retrieval.disableTLS | quote }}
+            - name: CREDENTIALRETRIEVAL_NATS_URL
+              value: {{ .Values.backbone.natsUrl | quote }}
+            - name: CREDENTIALRETRIEVAL_NATS_QUEUE_GROUP
+              value: {{ include "wallet.component" $c | quote }}
+            - name: CREDENTIALRETRIEVAL_NATS_REQUEST_TIMEOUT
+              value: 15s
+            - name: CREDENTIALRETRIEVAL_CASSANDRA_HOSTS
+              value: {{ .Values.backbone.cassandraHosts | quote }}
+            - name: CREDENTIALRETRIEVAL_CASSANDRA_HOST
+              value: {{ .Values.backbone.cassandraHosts | quote }}
+            - name: CREDENTIALRETRIEVAL_CASSANDRA_KEYSPACE
+              value: {{ .Values.backbone.keyspace | quote }}
+            {{- if .Values.backbone.credentialsSecret }}
+            - name: CREDENTIALRETRIEVAL_CASSANDRA_USER
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.backbone.credentialsSecret | quote }}
+                  key: username
+            - name: CREDENTIALRETRIEVAL_CASSANDRA_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.backbone.credentialsSecret | quote }}
+                  key: password
+            {{- end }}
+            {{- if .Values.retrieval.trustedCAConfigMap }}
+            - name: SSL_CERT_FILE
+              value: /etc/ocm/ca/ca.crt
+            {{- end }}
+          ports:
+            - name: http
+              containerPort: 8080
+          readinessProbe:
+            httpGet:
+              path: /v1/metrics/health
+              port: http
+            periodSeconds: 5
+            initialDelaySeconds: 5
+          livenessProbe:
+            httpGet:
+              path: /v1/metrics/health
+              port: http
+            periodSeconds: 15
+            initialDelaySeconds: 30
+          resources:
+            {{- toYaml .Values.resources.retrieval | nindent 12 }}
+          securityContext:
+            {{- include "wallet.containerSecurity" . | nindent 12 }}
+          {{- if .Values.retrieval.trustedCAConfigMap }}
+          volumeMounts:
+            - name: ca
+              mountPath: /etc/ocm/ca
+              readOnly: true
+          {{- end }}
+      {{- if .Values.retrieval.trustedCAConfigMap }}
+      volumes:
+        - name: ca
+          configMap:
+            name: {{ .Values.retrieval.trustedCAConfigMap | quote }}
+            items:
+              - key: ca.crt
+                path: ca.crt
+      {{- end }}

@@ -1,0 +1,73 @@
+{{- if .Values.networkPolicy.enabled }}
+{{- $cas := dict "component" "cassandra" | merge (dict "Release" .Release "Values" .Values "Chart" .Chart) -}}
+{{- $nats := dict "component" "nats" | merge (dict "Release" .Release "Values" .Values "Chart" .Chart) -}}
+---
+# CQL to the lane's pods of this namespace only; the node talks to nobody (one node, no gossip
+# peer) except the resolver.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: {{ include "backbone.cassandra" . }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "backbone.labels" . | nindent 4 }}
+spec:
+  podSelector:
+    matchLabels:
+      {{- include "backbone.selector" $cas | nindent 6 }}
+  policyTypes: [Ingress, Egress]
+  ingress:
+    - from:
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/part-of: ocm
+      ports:
+        - { port: 9042, protocol: TCP }
+  egress:
+    {{- include "backbone.dnsEgress" . | nindent 4 }}
+---
+# The keyspace Job: out to the node's CQL port and the resolver, in from nobody.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: {{ printf "%s-keyspace" (include "backbone.cassandra" .) }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "backbone.labels" . | nindent 4 }}
+spec:
+  podSelector:
+    matchLabels:
+      {{- include "backbone.selector" (dict "component" "keyspace" | merge (dict "Release" .Release)) | nindent 6 }}
+  policyTypes: [Ingress, Egress]
+  ingress: []
+  egress:
+    {{- include "backbone.dnsEgress" . | nindent 4 }}
+    - to:
+        - podSelector:
+            matchLabels:
+              {{- include "backbone.selector" $cas | nindent 14 }}
+      ports:
+        - { port: 9042, protocol: TCP }
+---
+# NATS to the lane's pods of this namespace only.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: {{ include "backbone.nats" . }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "backbone.labels" . | nindent 4 }}
+spec:
+  podSelector:
+    matchLabels:
+      {{- include "backbone.selector" $nats | nindent 6 }}
+  policyTypes: [Ingress, Egress]
+  ingress:
+    - from:
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/part-of: ocm
+      ports:
+        - { port: 4222, protocol: TCP }
+  egress: []
+{{- end }}

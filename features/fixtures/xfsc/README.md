@@ -37,7 +37,7 @@ keep the same `expect` as the acceptance check. What the swap still needs, per o
 
 | Operation | Needed from the live service |
 |---|---|
-| `issue` | Issuer endpoint and version; the credential format and how it is secured |
+| `issue` | Issuer endpoint and version; the credential format and how it is secured. The live wallet lane ([OCM wallet](../../../docs/ocm-wallet.md)) stores what the W-Stack issuer sends: SD-JWT VC (`dc+sd-jwt`) or Data Integrity (`ldp_vc`), status by Token Status List, not the proof-less W3C VC 2.0 and Bitstring list these fixtures assume |
 | `present` | Wallet endpoint and the presentation request it accepts |
 | `verify` | Verification endpoint and signing key (`kid`) for IF-03 outcomes |
 | `status` | Status list URL and its update behaviour |

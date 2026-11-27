@@ -31,8 +31,8 @@ no CRD; its Cilium policies are instances of Cilium's own CRDs and are rendered 
 enabled. In the sidecar baseline nothing cluster-wide beyond the namespaces and the verification
 job's role is created. Everything else is namespaced and lives in the plane namespaces, the
 control-plane namespaces included; with OpenBao on, that includes the bootstrap Job's Role (it may
-create Secrets in the management namespace and read and patch only its own) and, under Cilium, its
-CiliumNetworkPolicy to the API server.
+create Secrets in the management namespace and read and patch only its own and the service-token
+Secrets it issues) and, under Cilium, its CiliumNetworkPolicy to the API server.
 
 ## Cilium requirement
 
@@ -73,6 +73,7 @@ declared derogation of the preferred stack first (`docs/workload-identity.md`).
 | `openbao.global.namespace` | `ztd-mgmt` | Must equal `planes.management.namespace`; the chart refuses to render otherwise |
 | `openbao.server.dataStorage.storageClass` | `null` | Must equal `zone.storageClass` when OpenBao is on |
 | `openbao.*` | see `values.yaml` | Passed to the upstream chart: standalone, file storage, no injector, no auth-delegator |
+| `openbaoBootstrap.serviceTokens[]` | `[]` | components that sign with OpenBao transit: `name`, `transitMount`, `period` (default `768h`); the bootstrap creates `<transitMount>` and `<transitMount>-storage`, the policy `ztd-svc-<name>` and a periodic token in Secret `ztd-openbao-<name>`; see [Secrets, service tokens](../../docs/secrets.md#service-tokens) |
 | `openbaoBootstrap.image` | `curlimages/curl` by digest | Image of the bootstrap Job and the OpenBao verification hook |
 | `openbaoExternal.address` | `""` | An OpenBao the umbrella does not own; exclusive with `openbao.enabled` |
 | `openbaoExternal.verifyTokenSecret` | `""` | Secret in the management namespace with its `verify-token` |

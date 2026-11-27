@@ -2,7 +2,9 @@
 OpenBao verification, band "platform": after install or upgrade a Job reads the server back with the
 narrow verification token and fails the release unless it is initialised and unsealed, secret/ is
 kv version 2 and transit/ is transit. With the bundled server it also reads the fixture KV value and
-round-trips the fixture transit key, and every run renews the periodic token. It runs in the
+round-trips the fixture transit key, and every run renews the periodic token. The service tokens
+(openbaoBootstrap.serviceTokens) are the bootstrap Job's, which reruns on every upgrade; this hook
+holds none of them. It runs in the
 management namespace next to the server (no new network lane) and needs no Kubernetes API access:
 the token comes from a Secret volume. It is kept until the next run replaces it, so its log can be
 collected (docs/secrets.md). Install with --wait --wait-for-jobs, so the bootstrap Job has finished.
@@ -90,6 +92,14 @@ spec:
                 code=$(post transit/decrypt/ztd-fixture "{\"ciphertext\":\"$cipher\"}")
                 [ "$code" = 200 ] && flat | grep -q "\"plaintext\":\"$plain\"" && ok "transit round trip with ztd-fixture" || no "transit round trip failed (HTTP $code)"
               fi
+              {{- range .Values.openbaoBootstrap.serviceTokens }}
+              # The service engines exist (the verify token may read the mount table); the tokens
+              # themselves are the bootstrap's business.
+              code=$(get {{ printf "sys/mounts/%s/tune" .transitMount }} t)
+              [ "$code" = 200 ] && ok "{{ .transitMount }}/ exists" || no "{{ .transitMount }}/ is missing (HTTP $code)"
+              code=$(get {{ printf "sys/mounts/%s-storage/tune" .transitMount }} t)
+              [ "$code" = 200 ] && ok "{{ .transitMount }}-storage/ exists" || no "{{ .transitMount }}-storage/ is missing (HTTP $code)"
+              {{- end }}
               rm -f "$W/h" "$W/body" "$W/req"
               [ "$fail" = 0 ] || { echo "OpenBao verification failed ($fail check(s))"; exit 1; }
               echo "OpenBao verified"

@@ -1,0 +1,3 @@
+ocm-backbone {{ .Chart.Version }} in {{ .Release.Namespace }}: Cassandra at {{ include "backbone.cassandra" . }}:9042
+(keyspace {{ .Values.cassandra.keyspace }}, claim kept across uninstalls), NATS at {{ include "backbone.nats" . }}:4222.
+Install the ocm-wallet releases of this zone next.
