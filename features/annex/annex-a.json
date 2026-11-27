@@ -995,8 +995,8 @@
       "then": "management services are reachable only through dedicated control channels and are separated by network-policy and service-mesh controls AND data-plane compromise/reachability does not provide access to management-plane endpoints.",
       "family": "plane-separation",
       "runner": "go",
-      "status": "pending",
-      "cluster": false
+      "status": "implemented",
+      "cluster": true
     },
     {
       "id": "ZT-56",

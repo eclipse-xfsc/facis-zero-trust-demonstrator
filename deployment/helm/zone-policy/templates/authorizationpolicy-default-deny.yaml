@@ -1,0 +1,17 @@
+{{- /*
+The mesh-wide default deny: an AuthorizationPolicy with an empty spec in the mesh root namespace.
+Its action is ALLOW and it has no rules, so it matches nothing: every workload of the mesh then has
+an ALLOW policy in force and refuses every request that no other ALLOW policy admits (Istio's
+"allow-nothing"). The declared pairs (authorizationpolicy-pairs.yaml, and a release's own) admit
+their callers on top. Never a DENY policy: Istio evaluates DENY before ALLOW, so a DENY that matched
+everything would refuse the pairs too. In the root namespace it covers every namespace, so a plane
+namespace a component task adds needs no resource of its own.
+*/ -}}
+apiVersion: security.istio.io/v1
+kind: AuthorizationPolicy
+metadata:
+  name: default-deny
+  namespace: {{ .Values.mesh.namespace }}
+  labels:
+    {{- include "zone-policy.labels" . | nindent 4 }}
+spec: {}

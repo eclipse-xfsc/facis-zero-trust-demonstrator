@@ -1,8 +1,10 @@
 # zone-policy — the identity policy of one zone
 
-The one project chart of the identity path, and the last of the seven releases of a zone
-(`scripts/install-zone/install.sh`), because it uses the CRDs the SPIRE and Istio releases own. It
-installs into `istio-system`, the mesh root namespace:
+The one project chart of the identity path, and the seventh of the eight releases of a zone
+(`scripts/install-zone/install.sh`), because it uses the CRDs the SPIRE and Istio releases own; the
+secret store `ztd-openbao` follows it, so that its pods are registered at creation. It
+installs into `istio-system`, the mesh root namespace (the pair rules go into their destination's
+namespace):
 
 - **`ClusterSPIFFEID` `plane-workloads`**: the registration by selector. Every pod with
   `spiffe.io/spire-managed-identity: "true"` in a namespace that carries the umbrella's plane label
@@ -23,6 +25,10 @@ installs into `istio-system`, the mesh root namespace:
   below refuses them. A program without these marks can still ask istiod's CA for a certificate;
   no peer trusts it (docs/workload-identity.md, "The proxy").
   The same policy holds **the capture rule** and **the proxy rule** (see below).
+- **The mesh authorization** (see [Mesh authorization](#mesh-authorization)): the
+  `AuthorizationPolicy` `default-deny` with an empty spec in `istio-system`, one
+  `AuthorizationPolicy` `allow-<name>` per declared pair by SPIFFE identity, and the `Telemetry`
+  `mesh-default` that logs every denial with both identities.
 - **The identity-band checks**: three post-install and post-upgrade Jobs in the `identity` band of
   the hook-weight scheme (`templates/_hooks.tpl` is a copy of the umbrella's helper). They only read,
   through the Kubernetes API, with a read-only ServiceAccount, and a failure fails the release:
@@ -31,12 +37,56 @@ installs into `istio-system`, the mesh root namespace:
 |---|---|---|
 | `server-healthy` | 20 | the SPIRE server's StatefulSet is not Ready (its readiness probe is the server's health endpoint) or an agent is not Ready |
 | `trust-bundle-published` | 25 | the server has published no X.509 authority in `spire-bundle`, or the controller-manager or the mesh runs with another trust domain than `trustDomain` |
-| `registrations-reconciled` | 30 | the controller-manager reports an entry or render failure, a selected pod without its entry, or fewer selected pods than the running labelled pods of the plane namespaces |
+| `registrations-reconciled` | 30 | the controller-manager reports an entry or render failure, a selected pod without its entry, or fewer selected pods than the labelled pods of the plane namespaces past Pending (running, or finished: the controller-manager selects a completed job's pod too) |
 
 Each check waits up to `checks.timeoutSeconds` for its condition. A failed job is kept for an hour
 so that its log can be read; a successful one is removed by the hook delete policy.
 
 The design is in [docs/workload-identity.md](../../../docs/workload-identity.md).
+
+## Mesh authorization
+
+STRICT peer authentication makes every mesh connection carry a SPIRE identity; the authorization
+decides which identity may reach which workload. The chart renders it in three parts, none of them
+naming a path, a method, a host or an address:
+
+- **The default deny.** `default-deny` in the mesh root namespace (`mesh.namespace`) with an empty
+  spec: an ALLOW policy without rules, which matches nothing (Istio's "allow-nothing"). Every meshed
+  workload of the zone then refuses, with `403 RBAC: access denied`, every request that no pair's
+  rule admits. It is not a DENY policy: Istio evaluates DENY before ALLOW, and a DENY that matched
+  everything would refuse the pairs too. In the root namespace it covers every plane namespace,
+  those a component task adds included.
+- **One rule per pair.** Each entry of `pairs` renders `allow-<name>` in the destination's
+  namespace, with `selector.matchLabels` the destination's `podSelector`, the caller in
+  `rules[0].from[0].source.principals` as `<trustDomain>/ns/<namespace>/sa/<serviceAccount>` (the
+  SPIFFE ID without its scheme), or in `source.namespaces` when the source is a whole plane, and the
+  destination's `ports` in `rules[0].to[0].operation.ports` when the pair names any. A pair names
+  its caller by `serviceAccount` or by `wholePlane: true`, never both and never neither (the schema
+  refuses either); an endpoint names a `plane` (resolved through `planes.<plane>.namespace`) or a
+  `namespace`. Pair names are unique: the template refuses two of the same name.
+- **The denial log.** `mesh-default`, a `Telemetry` in the mesh root namespace, enables the
+  access-log provider `denialLog.provider` (`denial-log`, defined by the `istiod` release in
+  `deployment/helm/values/istiod.yaml`) with the filter
+  `response.code_details.startsWith("rbac_access_denied") || connection.termination_details.startsWith("rbac_access_denied")`:
+  only the requests (HTTP) and connections (TCP) the proxy's authorization refused. The filter is
+  on the authorization decision, not on the status code, so an application's own `403` and every
+  served request leave no line. The destination's proxy writes one JSON line to its stdout with the
+  caller's SPIFFE ID (`source`), its own (`destination`), the authority, the code and the decision
+  detail (`rbac_access_denied_matched_policy[none]`); read it with
+  `kubectl logs <pod> -c istio-proxy`. A workload refused during the mutual TLS handshake (no
+  SPIRE entry) presents no identity, so it leaves no such line.
+
+The pairs come from three places, rendered by one template here or by the release that owns them:
+
+| Where a pair is declared | How it reaches a rule |
+|---|---|
+| a row of the umbrella's `allowMatrix` (data plane → management plane), with the caller's `serviceAccount`, or a whole-plane source (`podSelector: {}`) | `scripts/install-zone/install.sh` copies the merged rows into `pairs`; the umbrella renders the network-policy lane of the same row |
+| an entry of the umbrella's `intraPlanePairs` (two components of different releases in one plane) | copied after the rows into `pairs`; the umbrella renders nothing for it, as the network layer is open inside a plane |
+| a release whose own pods call one another (the secret store's jobs → its server) | that release's chart renders its own `AuthorizationPolicy` (`deployment/helm/ztd-openbao`), not this one |
+
+The installer refuses a zone whose rendered `allow-*` rules are not exactly one per row and
+intra-plane pair, with the row's namespaces, selector, principal or source namespace and ports
+(`pairs_coupling`, beside the proxy-image coupling), so the two layers cannot drift apart.
 
 ## The capture rule
 
@@ -193,11 +243,16 @@ two proxy images or two status ports differ, and CI runs that check with every r
 | `proxySocketPolicy.volume`, `proxySocketPolicy.mountPath`, `proxySocketPolicy.driver` | `workload-socket`, `/var/run/secrets/workload-spiffe-uds`, `csi.spiffe.io` | The volume, mount path and CSI driver every mesh proxy must have; those of Istio's `sidecar` template and the istiod values file |
 | `proxySocketPolicy.statusPort` | `15020` | The proxy's status port, the one inbound port the capture rule lets the injector exclude; must equal the `istiod` release's `global.proxy.statusPort` (integer, required) |
 | `proxySocketPolicy.proxyImage` | `docker.io/istio/proxyv2:1.31.1@sha256:d86c…` | The injected proxy's whole image reference, by digest; the proxy rule admits no other image for a mesh proxy; must equal the `istiod` release's `global.proxy.image` (string, required) |
+| `pairs` | `[]` | The declared pairs, each `{name, from: {plane\|namespace, serviceAccount \| wholePlane: true}, to: {plane\|namespace, podSelector, ports?}}`; each renders `allow-<name>` in the destination's namespace. Filled by the installer from the umbrella's `allowMatrix` and `intraPlanePairs` |
+| `planes.management.namespace`, `planes.data.namespace` | `""` | The namespaces a pair's `plane` resolves to (zone facts; required when a pair names that plane) |
+| `denialLog.provider` | `denial-log` | The `istiod` release's access-log provider the `Telemetry` `mesh-default` enables for denials; must equal the provider's name in `deployment/helm/values/istiod.yaml` |
 | `checks.enabled` | `true` | The identity-band jobs |
 | `checks.image` | `curlimages/curl` by digest | Image of the jobs (the umbrella's verification image) |
 | `checks.timeoutSeconds` | `180` | How long each check waits before it fails the release |
 
-`ci/values.yaml` is the kind zone, the file the CI chart job renders with.
+`ci/values.yaml` is the kind zone, the file the CI chart job renders with: its trust domain, its
+plane namespaces, the five `allowMatrix` rows in the shape the installer hands over, and one
+intra-plane pair that exists only there, so the render shows a same-plane rule as well.
 
 ```bash
 helm lint deployment/helm/zone-policy -f deployment/helm/zone-policy/ci/values.yaml
