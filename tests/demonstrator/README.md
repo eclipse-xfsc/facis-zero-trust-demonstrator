@@ -6,12 +6,13 @@ Run from the repository root with Node.js:
 node --test tests/demonstrator/*.test.cjs
 ```
 
-No npm installation, cluster access, external service access or real account credentials are required.
-Connector and replacement-adapter tests start disposable HTTP servers on numeric loopback addresses; local network binding must be permitted.
+No npm installation, cluster, external network access or real account credentials are required. Some adapter tests start disposable loopback HTTP servers and close them after the checks.
 The tests generate disposable RSA keys and signed tokens. Literal test refresh tokens,
 cookies and authorization values are synthetic fixtures, not deployed credentials.
 
 ## Coverage
+
+- `participant-token.test.cjs`: 31 controlled checks for state/history, reset confirmation/timeout, TLS separation, report/summary validation, auth/CSRF, polling lifecycle and synchronized exports.
 
 - `replacement-adapters.test.cjs`: 21 local checks for both role replacements, interface discovery, request preservation, response contracts, refusal and transport failures.
 
@@ -24,13 +25,13 @@ cookies and authorization values are synthetic fixtures, not deployed credential
 - `participant-integration.test.cjs`: simulated sample-service responses, refusal reasons, correlation, observer access and late responses.
 - `delivery-contract.test.cjs`: mandatory access-token subject, backend rejection of read-only configuration edits and referenced UI assets.
 - `ui-behaviour.test.cjs`: session polling, field-local validation, branding assets and Vue template compilation.
-- `ui-install.test.cjs`: all nine embedded UI assets match source bytes, installation messages use the correct paths, and completion waits for write acknowledgements.
+- `ui-install.test.cjs`: all nine staged UI assets match source bytes, installation messages use the correct paths, and completion waits for write acknowledgements. The test maps Linux runtime paths to the host filesystem so it also runs on Windows.
 
 ## Verification
 
 The Connector adapter is tested against a disposable local HTTP contract server, not a deployed Connector or the Go provider conformance suite.
 
-The synchronized 21 October 2026 source passed **140 tests, zero failures and zero skipped** in the supplied Node v24.19.0 Linux run and an independent Node v24.19.0 Windows run. This is component validation; target-environment checks below remain separate.
+The 21 October delivery passed **140 component tests**. The 7 November token integration adds 31 Participant checks and two installer checks, for **173 tests**. Run the command above on the exact revision being reviewed; reported browser results are separate from this controlled suite.
 
 The 12 October 2026 source passed **60 tests, zero failures and zero skipped** using
 Node v24.19.0 on Windows. `.github/workflows/demonstrator-tests.yml` runs the same
@@ -46,3 +47,5 @@ Use `ui/demonstrator/INSTALL.md` for fresh installation and live checks. Verify 
 refresh rotation/expiry, administrator-initiated logout, front/back-channel delivery,
 and refusal of old-session commands. Run the formal BDD suite separately with the
 approved accounts and environment. Never commit runtime credentials or token dumps.
+
+Installer quality checks reject embedded asset blobs and flow-export lines above 64 KiB. Installation tests verify all nine staged assets byte for byte, including the Vue licence, and reject missing, empty or oversized assets before emitting any writes. Vendored third-party files retain their upstream format.

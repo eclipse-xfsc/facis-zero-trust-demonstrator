@@ -1,31 +1,31 @@
 # Demonstrator installation
 
-Use the approved ORCE/Node-RED runtime with `node-red-contrib-uibuilder` installed. Enable Function node external modules for the identity function's built-in `crypto`, `https`, and `url` imports. The supplied installer targets the container user directory `/data`; its runtime user must be able to write `/data/uibuilder/facis-demo/src`. For a different user directory, change the nine destination paths in the installer before deploying.
+Use the approved ORCE/Node-RED runtime with `node-red-contrib-uibuilder` installed. Enable Function node external modules for the identity function's built-in `crypto`, `https`, and `url` imports. The installer uses the built-in `fs` module imported as `nodeFS` in `Write canonical UI files`. The supplied installer targets the container user directory `/data`; its runtime user must be able to write `/data/uibuilder/facis-demo/src`. For a different user directory, change `destinationRoot` in the installer before deploying.
 
 ## Update an existing installation
 
-1. Export and securely retain the current flows before changing the installation. Preserve runtime credentials, environment settings and the existing node IDs/wiring. Schedule the update when no shared demonstration is running.
-2. In the existing `Sample scenario adapter` Function node (ID `journey-sample-fixtures`), replace **On Message** with `flows/demonstrator/journey-sample-fixtures.js`. In `Execute sample Journey` (ID `journey-engine`), replace **On Message** with `flows/demonstrator/journey-engine.js`. Retain each node's other settings and wiring. These updates add the server-owned Resource fixture catalogue and its execution behavior.
-3. In `Write canonical UI files` (ID `facis-native-ui-files`), replace **On Message** with `flows/demonstrator/ui-installer.js`. In `Report file installed`, keep the body synchronized with `flows/demonstrator/ui-install-report.js` (unchanged from the previous delivery).
-4. In `Install static UI files`, select overwrite, enable directory creation, disable append newline, and use `msg.filename` for the filename. Preserve the existing installer wiring. The runtime user must be able to write both the `assets` and `vendor` subdirectories.
-5. The identity function source is unchanged from the previous UI delivery. If upgrading from an older version, synchronize `Validate identity and session` from `identity-on-start.js` (**On Start**), `identity-on-message.js` (**On Message**) and `identity-on-stop.js` (**On Stop**). Retain imports `crypto` as `crypto`, `https` as `https`, and `url` as `nodeUrl`.
-6. Optionally import `flows/demonstrator/connector-adapter-flow.json` once, only if no `Connector adapter` tab is already present. This independent preparation flow has no Journey wiring and remains inactive unless `CONNECTOR_ADAPTER_ENABLED=true` is explicitly configured. Leave it disabled until approved live inputs are supplied. Do not import the combined export as well.
-7. Deploy. Run the existing `Install UI assets` inject once manually. Wait for `Report file installed` to show `All 9 UI files installed`. Keep automatic injection disabled after installation. Resolve any File node errors before proceeding, then reload the UI with the browser cache disabled.
-8. Check the logo/favicon, field-local validation, operator and observer login, and the Resource fixture catalogue. On a disposable demonstration run, verify fixture outcomes/evidence and observer read-only behavior. Existing shared runs should be preserved until their owner agrees to reset them. Connector and real replacement acceptance remain blocked on the approved external inputs.
+1. Back up the existing flows using the editor's Export command and retain the previous release's UI assets. Keep existing credential settings, environment settings and unrelated flows. Schedule the update when no shared demonstration is running.
+2. In the existing `Validate identity and session` Function node, replace **On Start** with `flows/demonstrator/identity-on-start.js`, **On Message** with `identity-on-message.js`, and **On Stop** with `identity-on-stop.js`. In Setup retain imports `crypto` as `crypto`, `https` as `https`, and `url` as `nodeUrl`.
+3. Copy the release assets into a separate directory readable by ORCE. From the repository root, run `mkdir -p /data/facis-demo-release/ui/demonstrator` and `cp -R ui/demonstrator/src /data/facis-demo-release/ui/demonstrator/` inside the runtime container, or mount that directory read-only at the same path. Set `FACIS_UI_SOURCE_DIR` if using another absolute source path. In the existing `Write canonical UI files` Function node, replace **On Message** with `flows/demonstrator/ui-installer.js` and import built-in `fs` as `nodeFS` in Setup. In `Report file installed`, replace **On Message** with `flows/demonstrator/ui-install-report.js`.
+4. In `Install static UI files`, select overwrite, enable directory creation, disable append newline, and use `msg.filename` for the filename. Preserve the existing installer wiring.
+5. Update `Execute sample Journey` (`journey-engine`) from `journey-engine.js`; this makes shared token results available to observers and labels their provenance correctly. When upgrading from before the B2 fixture delivery, also update `Sample scenario adapter` from `journey-sample-fixtures.js`.
+6. Complete the Participant node additions and identity link wiring described under **Hosted Participant token integration** below before deploying. Updating the function body alone does not add its third output or the new cross-flow links.
+7. Deploy. Run the existing `Install UI assets` inject once manually. Wait for `Report file installed` to show `All 9 UI files installed`. Keep automatic injection disabled. Resolve any File node errors before proceeding, then reload the UI with the browser cache disabled.
+8. Verify operator and observer login, Participant state/history, token response display and the existing fixture journeys. Coordinate any shared live reset first. The optional independent Connector adapter remains separate from this hosted Participant integration; do not enable it as part of this update.
 
-If an upgrade fails, restore the saved flow export and reinstall the previous release's UI assets. Do not restore credentials from an untrusted flow export or change Keycloak configuration as part of this UI update.
+If the upgrade fails, restore the saved flow export and the previous UI assets using that release's installation procedure. Preserve existing credentials and Keycloak settings. For the new staged-file installer, stage all nine assets from the same release before running it; do not mix versions or use the destination as the staging directory.
 
 Do not import the combined export over existing flows: duplicate routes and nodes can interfere with the running installation. Updating these existing nodes does not restore deleted demonstration or diagnostic flows.
 
 ## Clean installation
 
-In a new editor installation, use Import > Clipboard and paste each complete JSON file from `flows/demonstrator`, choosing a new flow for each: `application-interface.json`, `journey_flow.json`, `system_flow.json`, `identity_flow.json`, then `ui-install.json`. The optional independent `connector-adapter-flow.json` can be imported separately; it stays disabled until the server environment enables it. Alternatively import `current-facis-flows.json` once; do not use both methods. Confirm the cross-flow link nodes are connected and the uibuilder node URL is `facis-demo`. Enter the approved Participant credentials in the existing HTTP Request node's credential settings. Deploy, then run `Install UI assets` as above.
+In a new editor installation, use Import > Clipboard and paste each complete JSON file from `flows/demonstrator`, choosing a new flow for each: `application-interface.json`, `journey_flow.json`, `system_flow.json`, `identity_flow.json`, then `ui-install.json`. The optional independent `connector-adapter-flow.json` can be imported separately; it stays disabled until the server environment enables it. Alternatively import `current-facis-flows.json` once; do not use both methods. Confirm the cross-flow link nodes are connected and the uibuilder node URL is `facis-demo`. Only the older HTTP-sample route uses credentials in its HTTP Request node; the new hosted token endpoint requires no Basic Auth credentials. Stage the UI source directory and configure the installer module as described above. Deploy, then run `Install UI assets` as above.
 
 The supplied origin is `https://orce.85-215-131-155.sslip.io`, with public HTTP routes under `/dev`. Preserve that proxy/root configuration. For another origin or root, update the identity origin, callback/post-logout paths, UI route prefix, and the approved Keycloak client configuration together.
 
 ## Installed assets
 
-The installer embeds and overwrites these exact files without downloads:
+The installer reads these real files from the staged release source and overwrites the destinations without downloads. Asset bytes are not embedded in JavaScript or flow exports. All nine source files must be present and nonempty before any writes are emitted:
 
 | Source below `ui/demonstrator/src/` | Destination below `/data/uibuilder/facis-demo/src/` |
 | --- | --- |
@@ -57,3 +57,59 @@ Keycloak client endpoints for this origin are:
 Run `node --test tests/demonstrator/*.test.cjs` from the repository root for component verification. Tests cover expiry, concurrent refresh, refresh rejection/reuse, changed roles, front-/back-channel invalidation, replay rejection, and logout during refresh.
 
 For live acceptance, use separate operator and observer sessions. Verify refresh near expiry, rejection after expiry, UI logout, Keycloak administrator-initiated logout, and both configured logout channels. After each logout, a command with the previous session cookie must return 401; the UI's next session poll must disable operation. Check Keycloak's actual refresh reuse policy and endpoint delivery in the approved environment. Passing source tests does not establish that the deployed realm sends these events or uses the required refresh settings.
+
+## Hosted Participant token integration
+
+The new Participant client is separate from the existing fixture and HTTP-sample
+adapters. Its fixed upstream origin is `https://160.44.12.245`. It calls GET
+`/state`, POST `/reset` and POST `/demo` from ORCE only. No Basic credential or
+Keycloak user token is forwarded to this origin.
+
+Update the existing identity Function's On Start and On Message from their
+matching source files; set its outputs to three and preserve the supplied
+identity export's wires and links. Add `Authenticated Participant request`
+(`facis-native-participant-out`) and wire the identity function's third output
+to it. Link it to `participant-runtime-in`. Link `participant-runtime-reply`
+back to the existing `Journey HTTP result` (`facis-native-journey-in`), retaining
+that node's existing Journey link and HTTP response wiring.
+The Journey export includes the new `participant-runtime-in`,
+`participant-runtime` and `participant-runtime-reply` nodes. The runtime Function
+uses built-in `https` as `nodeHTTPS`, `crypto` as `nodeCrypto` and `fs` as `nodeFS`.
+Preserve existing nodes, credentials and unrelated flows; do not import duplicate
+routes. Use the combined export only for a clean installation.
+
+The complete public `flows/demonstrator/facis-demo-ca.crt` is embedded in the
+runtime Function and used by its outbound HTTPS client with certificate and
+hostname verification enabled. No runtime mount is required for that embedded
+copy. To use a managed CA file instead, set `PARTICIPANT_CA_FILE` to the mounted
+path readable by Node-RED (for example `/data/certs/facis-demo-ca.crt`). A curl
+CA option does not configure this runtime. No global TLS bypass is added.
+
+The hosted runtime response was observed with `source: sample` and `mode: token`.
+The token client defaults to that exact source, independently of the old
+sample-mode validator. `PARTICIPANT_TOKEN_SOURCE` is an optional explicit override
+for a changed deployment contract. Mode remains strictly `token`. Validation
+requires matching request/correlation IDs, bounded content and separate
+full-report/summary-only success shapes. Contract mismatches expose only
+sanitized source, mode and reason-code observations.
+
+Direct verified HTTPS from the ORCE runtime returned `/state` HTTP 200 with
+mode token/state ready and `/demo` HTTP 200 with RESOURCE_REPORT_RETURNED. The
+supplied CA and hostname verification remained enabled. An earlier external
+client's certificate error does not apply to this runtime connection.
+
+Reinstall the UI with the synchronized nine-file installer. In the new
+Participant view, authenticated observers can read service state/history;
+only operators may reset or request token reports. The existing authenticated
+POST `/dev/ztd/api/journey` boundary carries commands `participant-state`,
+`participant-reset` and `participant-demo`. All retain origin/session/CSRF checks.
+Reset additionally requires `data.confirmShared: "yes"` after the UI confirmation
+that the shared service affects all users. It never retries POST automatically.
+
+For a shared live reset, coordinate with other users first. Verify idle is shown
+before polling, then observe ready or a reported failed state. A reset 503 with
+`reason: reset_wait_timeout` retains the last known view and re-reads state.
+Polling stops on view close/logout, avoids overlapping requests and backs off
+when settled or unreachable. History is rendered from the service, including
+rapid transitions that occur between polls. No registration, attestation,
+renewal step or percentage is synthesized.

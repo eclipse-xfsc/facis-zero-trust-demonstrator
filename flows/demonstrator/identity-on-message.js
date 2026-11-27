@@ -13,7 +13,7 @@ let status=200,finished=false; const res={headersSent:false,set(k,v){headers[k]=
    case '/ztd/oidc/logout': await auth.logout(req,res);break;
    case '/ztd/oidc/frontchannel-logout': auth.frontchannel(req,res);break;
    case '/ztd/oidc/backchannel-logout': await auth.backchannel(req,res);break;
-   case '/ztd/api/journey': await auth.command(req,res,command=>{const nativeResponse=msg.res._res||msg.res;const timer=setTimeout(()=>{if(!nativeResponse.headersSent&&!nativeResponse.writableEnded)res.status(504).json({ok:false,error:{code:'MODULE_TIMEOUT'}});},35000);nativeResponse.once('finish',()=>clearTimeout(timer));nativeResponse.once('close',()=>clearTimeout(timer));command.req=msg.req;command.res=msg.res;node.send([null,command],false);});break;
+   case '/ztd/api/journey': await auth.command(req,res,command=>{const nativeResponse=msg.res._res||msg.res;const timer=setTimeout(()=>{if(!nativeResponse.headersSent&&!nativeResponse.writableEnded)res.status(504).json({ok:false,error:{code:'MODULE_TIMEOUT'}});},35000);nativeResponse.once('finish',()=>clearTimeout(timer));nativeResponse.once('close',()=>clearTimeout(timer));command.req=msg.req;command.res=msg.res;node.send(command.type.startsWith('participant-')?[null,null,command]:[null,command],false);});break;
    default:res.status(404).end();
   }
  }catch{if(!finished)res.status(503).json({ok:false,error:{code:'IDENTITY_UNAVAILABLE'}});}finally{node.done();}

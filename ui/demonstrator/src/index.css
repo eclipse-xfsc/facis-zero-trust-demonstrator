@@ -110,3 +110,11 @@ footer { margin-top:auto; padding:20px clamp(22px,4vw,56px); border-top:1px soli
 .config-field.field-invalid, .config-field input[aria-invalid="true"] { border-color: var(--red); }
 .config-field .field-error, .action-error { color: var(--red); }
 .action-error { margin-top: 12px; }
+
+.participant-panel { padding: 24px; background: #fff; border: 1px solid var(--line); border-radius: 12px; }
+.participant-panel dl { display: grid; grid-template-columns: repeat(auto-fit,minmax(160px,1fr)); gap: 12px; }
+.participant-panel dd { margin: 4px 0 16px; overflow-wrap: anywhere; }
+.participant-panel ol { max-height: 360px; overflow: auto; padding-left: 24px; }
+.participant-panel li { margin-bottom: 10px; overflow-wrap: anywhere; }
+.participant-panel button { margin: 8px 12px 8px 0; }
+.participant-panel [role="alertdialog"] { padding: 20px; border: 2px solid var(--blue); border-radius: 10px; }

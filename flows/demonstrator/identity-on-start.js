@@ -111,14 +111,14 @@ class UIAuth {
   csrf(req, s) { return req.headers.origin === this.origin && same(req.headers['x-facis-csrf'], s.csrf); }
   async command(req, res, emit) {
     let s; try { s = await this.session(req); } catch (e) { return reply(res, 401, e.code || 'IDENTITY_UNAVAILABLE', e.code === 'EXPIRED' ? 'expired' : 'logged out'); }
-    const p = req.body; if (!p || typeof p !== 'object' || Array.isArray(p) || !['status', 'start', 'next', 'reset', 'config-preview'].includes(p.type)) return reply(res, 400, 'INVALID_COMMAND');
+    const p = req.body; if (!p || typeof p !== 'object' || Array.isArray(p) || !['status', 'start', 'next', 'reset', 'config-preview', 'participant-state', 'participant-reset', 'participant-demo'].includes(p.type)) return reply(res, 400, 'INVALID_COMMAND');
     if (!this.csrf(req, s)) return reply(res, 403, 'CSRF_DENIED', 'denied');
-    if (!s.role || (p.type !== 'status' && s.role !== ROLE_OPERATOR)) return reply(res, 403, p.type === 'config-preview' ? 'CFG-NOT-AUTHORISED' : 'UI-NOT-AUTHORISED', 'denied');
+    if (!s.role || (!['status','participant-state'].includes(p.type) && s.role !== ROLE_OPERATOR)) return reply(res, 403, p.type === 'config-preview' ? 'CFG-NOT-AUTHORISED' : 'UI-NOT-AUTHORISED', 'denied');
     if (p.type === 'config-preview') {
       let preview; try { preview = validateConfigChange(p.data); } catch (e) { return reply(res, 400, e.code || 'CFG-SCHEMA-INVALID'); }
       safeHeaders(res); return res.json({ ok: true, data: { preview, requested_by: s.claims.preferred_username, applied: false } });
     }
-    const data = {}; for (const k of ['commandId', 'runId', 'scenario', 'serviceScenario', 'profile', 'variant', 'credentialToRevoke']) if (p.data?.[k] !== undefined) { if (typeof p.data[k] !== 'string' || p.data[k].length > 120) return reply(res, 400, 'INVALID_COMMAND'); data[k] = p.data[k]; }
+    const data = {}; for (const k of ['commandId', 'runId', 'scenario', 'serviceScenario', 'profile', 'variant', 'credentialToRevoke', 'confirmShared']) if (p.data?.[k] !== undefined) { if (typeof p.data[k] !== 'string' || p.data[k].length > 120) return reply(res, 400, 'INVALID_COMMAND'); data[k] = p.data[k]; }
     safeHeaders(res); req.facis = { userId: 'oidc-shared-review', subject: s.claims.sub, username: s.claims.preferred_username, role: s.role, scope: 'oidc-review' }; emit({ type: p.type, data, req, res, _facisAuthResponse: true });
   }
   async logout(req, res) {

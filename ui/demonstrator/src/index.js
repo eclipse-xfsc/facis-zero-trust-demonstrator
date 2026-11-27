@@ -354,6 +354,10 @@
           identityPollDisposed: false,
           identityRetryDelay: 2000,
           stopIdentityObserver: null,
+          participant: null, participantFailure: '', participantStale: false,
+          participantPoll: null, participantBusy: false, participantResetBusy: false,
+          participantDemoBusy: false, participantConfirm: false, participantResult: null,
+          participantEpoch: 0, participantDelay: 1000,
           scenarioOptions: scenarioCatalog,
           serviceScenarioOptions: serviceScenarioCatalog,
           activeView: "journey",
@@ -441,6 +445,7 @@
             return !this.canOperate || !this.isHttpSampleMode || this.selectedScenarioId !== "atlas-successful-call" || this.isStarted || this.loading;
           },
           serviceScenarioEvidence() {
+            if(this.adapterMode === "token")return "Not applicable — service token scopes determine the result";
             var _a3;
             return this.isHttpSampleMode && this.selectedScenarioId === "atlas-successful-call" ? ((_a3 = this.runState) == null ? void 0 : _a3.serviceScenario) || this.selectedServiceScenario : "Not applicable \u2014 fixture mode";
           },
@@ -467,7 +472,7 @@
               var _a4, _b, _c, _d, _e;
               return {
                 at: new Date(item.timestamp).toISOString().slice(11, 23),
-                direction: ((_a4 = item.data) == null ? void 0 : _a4.unavailable) ? "Unavailable" : ((_b = item.data) == null ? void 0 : _b.blocked) ? "Blocked" : "Fixture",
+                direction: item.data?.mode === "token" ? "Token response" : ((_a4 = item.data) == null ? void 0 : _a4.unavailable) ? "Unavailable" : ((_b = item.data) == null ? void 0 : _b.blocked) ? "Blocked" : "Fixture",
                 text: ((_c = item.data) == null ? void 0 : _c.contractEvent) ? `${item.data.source} \xB7 ${item.data.kind} \xB7 ${item.data.state}${item.data.reasonCode ? " \xB7 " + item.data.reasonCode : ""}${item.data.ruleId ? " \xB7 " + item.data.ruleId : ""} \u2014 ${item.detail}` : item.detail,
                 status: ((_d = item.data) == null ? void 0 : _d.unavailable) ? "Unavailable" : ((_e = item.data) == null ? void 0 : _e.blocked) ? "Blocked" : "Sent"
               };
@@ -479,6 +484,8 @@
             this.stopIdentityObserver = onIdentity((value) => {
               this.identity = value;
               if (value.state !== "authenticated") {
+                this.stopParticipantPolling();
+                this.participant=null;this.participantResult=null;this.participantConfirm=false;
                 clearTimeout(this.pendingPoll);
                 this.pendingPoll = null;
                 if (["logged out", "expired"].includes(value.state)) {
@@ -507,6 +514,7 @@
         },
         beforeUnmount() {
           this.identityPollDisposed = true;
+          this.stopParticipantPolling();
           var _a3, _b;
           (_a3 = this.stopIdentityObserver) == null ? void 0 : _a3.call(this);
           clearTimeout(this.identityPoll);
@@ -515,6 +523,42 @@
           this.epoch += 1;
         },
         methods: {
+          stopParticipantPolling() {
+            clearTimeout(this.participantPoll);this.participantPoll=null;this.participantEpoch++;
+          },
+          async pollParticipant() {
+            if(this.participantBusy || this.participantResetBusy || this.activeView!=='participant' || !this.isAuthenticated || this.identityPollDisposed)return;
+            clearTimeout(this.participantPoll);this.participantPoll=null;
+            const epoch=this.participantEpoch;this.participantBusy=true;
+            try {
+              const data=await identityCommand('participant-state');
+              if(epoch!==this.participantEpoch)return;
+              const value=data.participant;
+              if(!value?.ok){this.participantFailure=value?.reasonCode || 'PARTICIPANT_UNAVAILABLE';this.participantStale=true;this.participantDelay=Math.min(Math.max(this.participantDelay,2000)*2,30000);}
+              else {this.participant=value.snapshot;this.participantStale=false;this.participantFailure='';this.participantDelay=['idle','presenting','acquiring_token'].includes(value.snapshot.state)?1000:value.snapshot.state==='ready'?5000:10000;}
+            } catch(error) {if(epoch===this.participantEpoch){this.participantFailure=error.code||'PARTICIPANT_UNAVAILABLE';this.participantStale=true;this.participantDelay=Math.min(Math.max(this.participantDelay,2000)*2,30000);}}
+            finally {this.participantBusy=false;if(this.activeView==='participant' && this.isAuthenticated && !this.identityPollDisposed)this.participantPoll=setTimeout(()=>void this.pollParticipant(),epoch===this.participantEpoch?this.participantDelay:0);}
+          },
+          async resetParticipant() {
+            if(!this.canOperate || this.participantResetBusy || !this.participantConfirm)return;
+            this.participantConfirm=false;this.participantResetBusy=true;this.stopParticipantPolling();
+            const epoch=this.participantEpoch;
+            try {
+              const data=await identityCommand('participant-reset',{confirmShared:'yes'});
+              if(epoch!==this.participantEpoch || !this.isAuthenticated)return;
+              const value=data.participant;
+              if(value?.ok){this.participant=value.snapshot;this.participantStale=false;this.participantFailure='';this.participantDelay=1000;}
+              else {this.participantFailure=value?.reasonCode==='reset_wait_timeout'?'Reset did not complete (reset_wait_timeout). State will be refreshed.':value?.reasonCode||'PARTICIPANT_RESET_FAILED';this.participantStale=true;this.participantDelay=1000;}
+            } catch(error) {if(epoch===this.participantEpoch)this.participantFailure=error.code||'PARTICIPANT_RESET_FAILED';}
+            finally {this.participantResetBusy=false;if(this.activeView==='participant' && this.isAuthenticated && !this.identityPollDisposed)this.participantPoll=setTimeout(()=>void this.pollParticipant(),epoch===this.participantEpoch?this.participantDelay:1000);}
+          },
+          async requestTokenReport() {
+            if(!this.canOperate || this.participantDemoBusy || this.participantResetBusy)return;
+            this.participantDemoBusy=true;const epoch=this.participantEpoch;
+            try {const data=await identityCommand('participant-demo');if(epoch!==this.participantEpoch || !this.isAuthenticated)return;this.participantResult=data.participant;if(data.state)this.applyFlowState(data.state);}
+            catch(error){if(epoch===this.participantEpoch)this.participantResult={ok:false,reasonCode:error.code||'PARTICIPANT_REQUEST_FAILED'};}
+            finally {this.participantDemoBusy=false;}
+          },
           async pollIdentity() {
             if (this.identityPollBusy || this.identityPollDisposed) return;
             clearTimeout(this.identityPoll);
@@ -728,8 +772,10 @@
             this.draftPreview = {...change, phase:"preview", validation:d.kind === "policy-ref" ? "awaiting-registry" : "local-schema-valid"};
           },
           setActiveView(view) {
-            if (!["journey", "evidence", "configuration"].includes(view)) return;
+            if (!["journey", "evidence", "configuration", "participant"].includes(view)) return;
+            this.stopParticipantPolling();
             this.activeView = view;
+            if(view==='participant' && this.isAuthenticated)void this.pollParticipant();
             this.$nextTick(() => {
               if (!this.$refs.mainContent) return;
               this.$refs.mainContent.scrollTop = 0;
@@ -752,10 +798,11 @@
         <nav class="primary-nav" aria-label="Primary navigation">
           <p class="nav-label">Demonstrator</p>
           <button class="nav-item" :class="{ active: activeView === 'journey' }" type="button" aria-label="Journey" @click="setActiveView('journey')" :aria-current="activeView === 'journey' ? 'page' : null"><shell-icon name="route" /><span>Journey</span></button>
+          <button class="nav-item" :class="{ active: activeView === 'participant' }" type="button" @click="setActiveView('participant')"><shell-icon name="route" /><span>Participant</span></button>
           <button class="nav-item" :class="{ active: activeView === 'evidence' }" type="button" aria-label="Evidence" @click="setActiveView('evidence')" :aria-current="activeView === 'evidence' ? 'page' : null"><shell-icon name="evidence" /><span>Evidence</span></button>
           <button class="nav-item" :class="{ active: activeView === 'configuration' }" type="button" aria-label="Configuration" @click="setActiveView('configuration')" :aria-current="activeView === 'configuration' ? 'page' : null"><shell-icon name="settings" /><span>Configuration</span><span class="soon">Preview only</span></button>
         </nav>
-        <div class="environment-card"><span class="status-dot"></span><div><strong>Demonstration mode</strong><small>{{ isHttpSampleMode ? 'Fixture security · Participant sample' : 'Fixture security' }}</small></div></div>
+        <div class="environment-card"><span class="status-dot"></span><div><strong>Demonstration mode</strong><small>{{ activeView === 'participant' || adapterMode === 'token' ? 'Participant token path' : isHttpSampleMode ? 'Fixture security · Participant sample' : 'Fixture security' }}</small></div></div>
       </aside>
 
       <div class="workspace">
@@ -765,7 +812,7 @@
           <section v-if="identityMode" class="notice" role="status"><div class="notice-icon">i</div><div><strong>{{ identity.state === "authenticated" ? (canOperate ? "Operator session" : "Observer \xB7 Read only") : identity.state }}</strong><p v-if="!isAuthenticated">Log in to continue. An expired session requires re-authentication.</p><p v-if="errorMessage" class="danger-text" role="alert">{{ errorMessage }}</p></div></section>
           <section v-if="identityMode && passwordMode && !isAuthenticated && loginFormOpen" class="login-panel stage-panel" aria-labelledby="login-title">
             <form @submit.prevent="submitPasswordLogin" class="login-form">
-              <span class="section-kicker">Viewer identity</span><h2 id="login-title">Log in</h2><p>Your identity is checked by Keycloak. Journey results remain fixture-only.</p>
+              <span class="section-kicker">Viewer identity</span><h2 id="login-title">Log in</h2><p>Your identity is checked by Keycloak. Fixture and token results are labelled separately.</p>
               <label class="config-field"><span>Username</span><input v-model="loginUsername" name="username" type="text" autocomplete="username" required maxlength="254" :disabled="loginBusy" /></label>
               <label class="config-field"><span>Password</span><input v-model="loginPassword" name="password" type="password" autocomplete="current-password" required maxlength="4096" :disabled="loginBusy" /></label>
               <p v-if="loginError" class="danger-text" role="alert">{{ loginError }}</p>
@@ -774,7 +821,20 @@
           </section>
           <div v-if="isAuthenticated">
 
-          <section v-show="activeView === 'journey'" class="hero-grid compact-hero">
+          <section v-if="activeView === 'participant'" class="panel participant-panel" aria-labelledby="participant-title">
+          <h2 id="participant-title">Hosted Participant</h2><p>Observed token-mode service state. Reset affects every user of the shared service.</p>
+          <p v-if="participantFailure" class="action-error" role="alert">{{ participantFailure }} <span v-if="participantStale">Last known state is retained.</span></p>
+          <dl v-if="participant"><div><dt>Mode</dt><dd>{{ participant.mode }}</dd></div><div><dt>State</dt><dd>{{ participant.state }}</dd></div><div><dt>Attempt</dt><dd>{{ participant.attempt }}</dd></div><div><dt>Last error code</dt><dd>{{ participant.lastErrorCode || 'None' }}</dd></div></dl>
+          <p v-else>{{ participantBusy ? 'Reading Participant state…' : 'No verified service state available.' }}</p>
+          <button class="secondary-button" type="button" @click="participantConfirm=true" :disabled="!canOperate || participantResetBusy || participantDemoBusy">{{ participantResetBusy ? 'Reset pending…' : 'Reset Participant' }}</button>
+          <button class="primary-button" type="button" @click="requestTokenReport" :disabled="!canOperate || participantDemoBusy || participantResetBusy">{{ participantDemoBusy ? 'Request pending…' : 'Request report (token)' }}</button>
+          <div v-if="participantConfirm" role="alertdialog" aria-modal="true" aria-labelledby="participant-reset-title"><h3 id="participant-reset-title">Reset shared Participant?</h3><p>This restarts the shared Participant for all users. Coordinate with other users before continuing.</p><button type="button" @click="participantConfirm=false">Cancel</button><button type="button" @click="resetParticipant" :disabled="!canOperate || participantResetBusy">Reset for all users</button></div>
+          <h3>Service history</h3><ol><li v-for="(item,index) in participant?.history || []" :key="item.at + '-' + index"><time>{{ item.at }}</time> · {{ item.state }} · {{ item.reason }}</li></ol>
+          <section v-if="participantResult" aria-live="polite"><h3>Token-mode response</h3><p>{{ participantResult.outcome || 'unavailable' }} · {{ participantResult.reasonCode }} · HTTP {{ participantResult.httpStatus ?? 'not received' }}</p><p>{{ participantResult.explanation }}</p><p v-if="participantResult.transportFailure">Connection or TLS failure; this is not a Participant-reported state failure.</p><dl><div><dt>Request ID</dt><dd>{{ participantResult.requestId }}</dd></div><div><dt>Correlation ID</dt><dd>{{ participantResult.correlationId }}</dd></div></dl>
+          <article v-if="participantResult.safeData?.report"><h4>{{ participantResult.safeData.report.title }}</h4><p>{{ participantResult.safeData.report.content }}</p><code>{{ participantResult.safeData.report.id }}</code></article>
+          <article v-if="participantResult.safeData?.summary"><h4>{{ participantResult.safeData.summary.title }}</h4><p>{{ participantResult.safeData.summary.summary }}</p><code>{{ participantResult.safeData.summary.id }}</code></article></section>
+        </section>
+        <section v-show="activeView === 'journey'" class="hero-grid compact-hero">
             <div class="hero-copy"><span class="section-kicker">Request \xB7 Prove \xB7 Verify \xB7 Decide</span><h2>Inspect every decision,<br />not just the outcome.</h2><p>Run the three priority fixture journeys: Successful call, Revoked credential and Wrong scope. Inspect each step, its source and the precise cause of any refusal.</p></div>
             <div class="assurance-panel"><div class="assurance-head"><span>Current run</span><strong>{{ isUnavailable ? (connectionState === 'connecting' ? 'Connecting' : 'Unavailable') : (isComplete ? decisionStatus : (isStarted ? 'In progress' : 'Ready')) }}</strong></div><dl><div><dt>Scenario</dt><dd>{{ scenario.scenarioLabel || scenario.label }}</dd></div><div><dt>Run</dt><dd>{{ runState?.runId || (lastSyncedAt ? 'Not started' : 'Awaiting flow status') }}</dd></div><div><dt>Adapter</dt><dd>{{ adapterMode }}</dd></div><div><dt>Transport</dt><dd>{{ transport }}</dd></div></dl></div>
           </section>
@@ -804,22 +864,22 @@
                 <p>{{ scenario.reason }}</p>
                 <dl class="terminal-details">
                   <div><dt>Reason code</dt><dd><code>{{ runState.reasonCode }}</code></dd></div>
-                  <div><dt>{{ runState.failedCheck ? 'Failed or unavailable check' : 'Final check' }}</dt><dd>{{ runState.failedCheck?.name || 'All sample checks completed' }}</dd></div>
+                  <div><dt>{{ runState.failedCheck ? 'Failed or unavailable check' : 'Final check' }}</dt><dd>{{ runState.failedCheck?.name || (runState.adapterMode === 'token' ? 'Participant application response received' : 'All sample checks completed') }}</dd></div>
                   <div><dt>Transport</dt><dd>{{ runState.transport }}</dd></div>
                   <div v-if="runState.ruleId"><dt>Rule ID</dt><dd><code>{{ runState.ruleId }}</code></dd></div>
                   <div v-if="runState.presentationLink"><dt>OID4VP link (fixture)</dt><dd><code>{{ runState.presentationLink }}</code></dd></div>
                   <div v-if="runState.notExecuted?.length"><dt>Not executed</dt><dd>{{ runState.notExecuted.join(" \xB7 ") }}</dd></div>
                   <div v-if="runState.serviceRequest"><dt>Request ID</dt><dd><code>{{ runState.serviceRequest.requestId }}</code></dd></div>
                   <div v-if="runState.serviceRequest"><dt>Correlation ID</dt><dd><code>{{ runState.serviceRequest.correlationId }}</code></dd></div>
-                  <div v-if="runState.serviceRequest?.respondedAt"><dt>Response observed</dt><dd>{{ runState.serviceRequest.respondedAt }}</dd></div><div v-if="runState.serviceRequest?.httpStatus"><dt>HTTP status</dt><dd>{{ runState.serviceRequest.httpStatus }}</dd></div><div v-if="runState.serviceRequest"><dt>Certificate validation</dt><dd>{{ runState.serviceRequest.tlsVerification }}</dd></div>
+                  <div v-if="runState.serviceRequest?.respondedAt"><dt>Response observed</dt><dd>{{ runState.serviceRequest.respondedAt }}</dd></div><div v-if="runState.serviceRequest?.httpStatus"><dt>HTTP status</dt><dd>{{ runState.serviceRequest.httpStatus }}</dd></div><div v-if="runState.serviceRequest"><dt>Certificate validation</dt><dd>{{ runState.serviceRequest.tlsVerification || (runState.adapterMode === 'token' ? 'TLS verified' : 'Not returned') }}</dd></div>
                 </dl>
               </div>
               <div v-else-if="activeStep === 0"><span class="card-tag">Fixture-only \xB7 Ready</span><h3>Select a priority fixture journey</h3><p>Start evaluates the first step. Continue reveals the remaining stages, including refusal propagation. No live security component is invoked.</p></div>
               <div v-else-if="isServicePending"><span class="card-tag">Participant sample HTTPS pending</span><h3>Waiting for Participant</h3><p>The final resource call is pending. Earlier security results remain fixture-only.</p></div>
               <div v-else><span class="card-tag">Fixture-only \xB7 {{ currentCheck?.source }}</span><h3>{{ currentCheck?.name }}</h3><p>{{ currentCheck?.detail }}</p><span class="status-pill" :class="statusClass(currentCheck?.status)">{{ currentCheck?.status }}</span><p v-if="currentCheck?.reasonCode"><code>{{ currentCheck.reasonCode }}</code></p></div>
             </div>
-            <div v-if="isStarted" class="fixture-step-results" aria-label="Fixture step results">
-              <div class="section-heading small-heading"><div><span class="section-kicker">Fixture-only</span><h3>Each step's result</h3></div></div>
+            <div v-if="isStarted" class="fixture-step-results" :aria-label="runState?.adapterMode === 'token' ? 'Token response results' : 'Fixture step results'">
+              <div class="section-heading small-heading"><div><span class="section-kicker">{{ runState?.adapterMode === 'token' ? 'Token response' : 'Fixture-only' }}</span><h3>Each step's result</h3></div></div>
               <ul class="check-list"><li v-for="check in runState.checks" :key="check.id"><span class="check-marker" :class="statusClass(check.status)"></span><div><strong>{{ check.number }} \xB7 {{ check.name }}</strong><p>{{ check.source }} \xB7 {{ check.kind }} \xB7 {{ check.status === 'Not evaluated' ? 'Not evaluated' : check.detail }}</p><p v-if="check.reasonCode && check.evaluatedAt"><code>{{ check.reasonCode }}</code></p><p v-if="check.ruleId && check.evaluatedAt"><code>{{ check.ruleId }}</code></p></div><span class="status-pill" :class="statusClass(check.status)">{{ check.status }}</span></li></ul>
             </div>
           </section>
@@ -828,10 +888,10 @@
             <article class="data-card"><div class="card-head"><span class="card-tag">Credential</span><span class="status-pill" :class="statusClass(scenario.credential.status)">{{ scenario.credential.status }}</span></div><h3>{{ scenario.credential.type }}</h3><dl><div><dt>Issuer</dt><dd>{{ scenario.credential.issuer }}</dd></div><div><dt>Validity</dt><dd>{{ scenario.credential.validity }}</dd></div><div><dt>Identifier</dt><dd>{{ scenario.credential.id || "\u2014" }}</dd></div></dl></article>
             <article class="data-card"><div class="card-head"><span class="card-tag">Trust zone</span><span class="status-pill" :class="statusClass(scenario.trust.status)">{{ scenario.trust.status }}</span></div><h3>{{ scenario.trust.zone }}</h3><dl><div><dt>Membership</dt><dd>{{ scenario.trust.membershipStatus || 'Not evaluated' }}</dd></div><div><dt>Confidence</dt><dd>{{ showObserved(scenario.trust.confidence) ? scenario.trust.confidence : (scenario.trust.confidence || 'Not evaluated') }}</dd></div><div><dt>Last attestation</dt><dd>{{ showObserved(scenario.trust.attestation) ? scenario.trust.attestation : (scenario.trust.attestation || 'Not evaluated') }}</dd></div></dl></article>
             <article class="data-card"><div class="card-head"><span class="card-tag">Attestation</span><span class="status-pill" :class="statusClass(scenario.attestation.result)">{{ scenario.attestation.result }}</span></div><h3>{{ scenario.attestation.method }}</h3><dl><div><dt>Evidence signature</dt><dd>{{ scenario.attestation.signatureStatus || 'Not evaluated' }}</dd></div><div><dt>Measurement appraisal</dt><dd>{{ scenario.attestation.measurementStatus || 'Not evaluated' }}</dd></div><div><dt>Observed</dt><dd>{{ showObserved(scenario.attestation.timestamp) ? scenario.attestation.timestamp : (scenario.attestation.timestamp || 'Not evaluated') }}</dd></div><div><dt>Freshness</dt><dd>{{ showObserved(scenario.attestation.timestamp) ? '\u2264 60 seconds \xB7 Sample value' : 'Not evaluated' }}</dd></div></dl></article>
-            <article class="data-card"><div class="card-head"><span class="card-tag">Fixture connection metadata</span><span class="status-pill" :class="statusClass(scenario.connection.status)">{{ scenario.connection.status }}</span></div><h3>{{ scenario.connection.protocol }}</h3><dl><div><dt>Encryption</dt><dd>{{ scenario.connection.encryption }}</dd></div><div><dt>Endpoint</dt><dd>{{ scenario.connection.endpoint }}</dd></div><div><dt>Observed transport</dt><dd>{{ runState?.transport || 'fixture' }}</dd></div><div><dt>Claim</dt><dd>Fixture information only</dd></div></dl></article>
+            <article class="data-card"><div class="card-head"><span class="card-tag">{{ runState?.adapterMode === 'token' ? 'Participant connection metadata' : 'Fixture connection metadata' }}</span><span class="status-pill" :class="statusClass(scenario.connection.status)">{{ scenario.connection.status }}</span></div><h3>{{ scenario.connection.protocol }}</h3><dl><div><dt>Encryption</dt><dd>{{ scenario.connection.encryption }}</dd></div><div><dt>Endpoint</dt><dd>{{ scenario.connection.endpoint }}</dd></div><div><dt>Observed transport</dt><dd>{{ runState?.transport || 'fixture' }}</dd></div><div><dt>Claim</dt><dd>{{ runState?.adapterMode === 'token' ? 'Application response only; security internals not returned' : 'Fixture information only' }}</dd></div></dl></article>
           </section>
 
-          <section v-if="isStarted" v-show="activeView === 'journey'" class="inspection-grid" aria-label="Policy inspection">
+          <section v-if="isStarted && runState?.adapterMode !== 'token'" v-show="activeView === 'journey'" class="inspection-grid" aria-label="Policy inspection">
             <article class="inspection-card"><div class="section-heading small-heading"><div><span class="section-kicker">Policy checks</span><h2>Control decisions</h2></div><span class="sample-chip">Sample</span></div><ul class="check-list"><li v-for="check in scenario.checks" :key="check.label"><span class="check-marker" :class="statusClass(check.status)"></span><div><strong>{{ check.label }}</strong><p>{{ check.detail }}</p></div><span class="status-pill" :class="statusClass(check.status)">{{ check.status }}</span></li></ul></article>
             <article class="inspection-card"><div class="section-heading small-heading"><div><span class="section-kicker">Measurements</span><h2>Expected vs observed</h2></div></div><div class="measurement-table" role="table" aria-label="Sample runtime measurements"><div class="measurement-row measurement-header" role="row"><span>Control</span><span>Expected</span><span>Observed</span><span>Result</span></div><div v-for="item in scenario.measurements" :key="item.label" class="measurement-row" role="row"><strong>{{ item.label }}</strong><span>{{ item.expected }}</span><span>{{ item.actual }}</span><span class="status-pill" :class="statusClass(item.status)">{{ item.status }}</span></div></div></article>
           </section>
@@ -864,7 +924,7 @@
             <div class="section-heading"><div><span class="section-kicker">Run evidence</span><h2 id="evidence-title">Messages and decision record</h2></div></div>
             <div class="evidence-grid">
               <article class="message-log"><div v-if="!eventMessages.length" class="empty-state"><strong>No run evidence yet</strong><p>Start the journey to reveal sent and blocked sample messages.</p></div><ol v-else><li v-for="message in eventMessages" :key="message.at + message.text"><time>{{ message.at }}</time><span class="message-direction" :class="statusClass(message.status)">{{ message.direction }}</span><p>{{ message.text }}</p></li></ol></article>
-              <aside class="decision-record"><span class="card-tag">Decision record</span><h3>{{ isComplete ? scenario.outcome : (isServicePending ? 'Participant sample HTTPS pending' : 'Decision pending') }}</h3><dl><div><dt>Run ID</dt><dd>{{ runState?.runId || '\u2014' }}</dd></div><div><dt>Adapter</dt><dd>{{ adapterMode }}</dd></div><div><dt>Transport</dt><dd>{{ transport }}</dd></div><div><dt>Security evidence</dt><dd>Fixture-only</dd></div><div v-if="runState?.serviceRequest"><dt>Application response</dt><dd>Participant sample</dd></div><div><dt>Participant profile</dt><dd>{{ profile }}</dd></div><div><dt>Correlation ID</dt><dd>{{ runState?.correlationId || "\u2014" }}</dd></div><div v-if="runState?.variant"><dt>Variant</dt><dd>{{ runState.variant }}</dd></div><div><dt>Security scenario</dt><dd>{{ scenario.scenarioLabel || scenario.label }}</dd></div><div><dt>Service scenario</dt><dd>{{ serviceScenarioEvidence }}</dd></div><div><dt>Evidence artifacts</dt><dd>{{ runState?.evidence?.length || 0 }}</dd></div><div><dt>Live audit storage</dt><dd>Unavailable</dd></div></dl><div v-if="runState?.fixtureResource?.report" class="service-report"><span>Fixture-only resource payload</span><strong>{{ runState.fixtureResource.report.title }}</strong><p>{{ runState.fixtureResource.report.content }}</p><code>{{ runState.fixtureResource.report.id }}</code></div><div v-if="runState?.serviceRequest?.safeData?.report" class="service-report"><span>Participant sample report · Not live authorization</span><strong>{{ runState.serviceRequest.safeData.report.title }}</strong><p>{{ runState.serviceRequest.safeData.report.content }}</p><code>{{ runState.serviceRequest.safeData.report.id }}</code></div><p v-if="isComplete" class="decision-reason">{{ scenario.reason }}</p></aside>
+              <aside class="decision-record"><span class="card-tag">Decision record</span><h3>{{ isComplete ? scenario.outcome : (isServicePending ? 'Participant sample HTTPS pending' : 'Decision pending') }}</h3><dl><div><dt>Run ID</dt><dd>{{ runState?.runId || '\u2014' }}</dd></div><div><dt>Adapter</dt><dd>{{ adapterMode }}</dd></div><div><dt>Transport</dt><dd>{{ transport }}</dd></div><div><dt>Security evidence</dt><dd>{{ runState?.adapterMode === 'token' ? 'Participant token response; guard/trust details not independently observed' : 'Fixture-only' }}</dd></div><div v-if="runState?.serviceRequest"><dt>Application response</dt><dd>{{ runState?.adapterMode === 'token' ? 'Participant token path' : 'Participant sample' }}</dd></div><div><dt>Participant profile</dt><dd>{{ profile }}</dd></div><div><dt>Correlation ID</dt><dd>{{ runState?.correlationId || "\u2014" }}</dd></div><div v-if="runState?.variant"><dt>Variant</dt><dd>{{ runState.variant }}</dd></div><div><dt>Security scenario</dt><dd>{{ scenario.scenarioLabel || scenario.label }}</dd></div><div><dt>Service scenario</dt><dd>{{ serviceScenarioEvidence }}</dd></div><div><dt>Evidence artifacts</dt><dd>{{ runState?.evidence?.length || 0 }}</dd></div><div><dt>Live audit storage</dt><dd>Unavailable</dd></div></dl><div v-if="runState?.fixtureResource?.report" class="service-report"><span>Fixture-only resource payload</span><strong>{{ runState.fixtureResource.report.title }}</strong><p>{{ runState.fixtureResource.report.content }}</p><code>{{ runState.fixtureResource.report.id }}</code></div><div v-if="runState?.serviceRequest?.safeData?.report" class="service-report"><span>{{ runState?.adapterMode === 'token' ? 'Token-mode report' : 'Participant sample report · Not live authorization' }}</span><strong>{{ runState.serviceRequest.safeData.report.title }}</strong><p>{{ runState.serviceRequest.safeData.report.content }}</p><code>{{ runState.serviceRequest.safeData.report.id }}</code></div><div v-if="runState?.serviceRequest?.safeData?.summary" class="service-report"><span>Token-mode summary</span><strong>{{ runState.serviceRequest.safeData.summary.title }}</strong><p>{{ runState.serviceRequest.safeData.summary.summary }}</p><code>{{ runState.serviceRequest.safeData.summary.id }}</code></div><p v-if="isComplete" class="decision-reason">{{ scenario.reason }}</p></aside>
             </div>
           </section>
           </div>

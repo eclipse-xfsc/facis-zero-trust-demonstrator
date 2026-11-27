@@ -82,8 +82,8 @@ const replyState = (state, extra) => {
   msg.payload = {
     ok: true,
     data: Object.assign({
-      sample: true,
-      fixtureOnly: true,
+      sample: state?.adapterMode !== 'token',
+      fixtureOnly: state?.adapterMode !== 'token',
       atlasCatalog,
       availability: adapterConfig.error ? 'unavailable' : 'available',
       adapterMode: adapterConfig.mode,
@@ -266,7 +266,7 @@ const histories = flow.get('journeyCommandHistory') || {};
 const history = Array.isArray(histories[userId]) ? histories[userId] : [];
 // Observer reads the latest shared demonstration without acquiring ownership.
 const observed = msg.req.facis.role === 'ztd-observer' && type === 'status';
-const observedState = observed ? Object.values(states).filter(state => state && state.sample === true && state.atlasPlan === true && typeof state.ownerId === 'string').sort((a, b) => Date.parse(b.updatedAt) - Date.parse(a.updatedAt))[0] : null;
+const observedState = observed ? Object.values(states).filter(state => state && ((state.sample === true && state.atlasPlan === true) || state.adapterMode === 'token') && typeof state.ownerId === 'string').sort((a, b) => Date.parse(b.updatedAt) - Date.parse(a.updatedAt))[0] : null;
 let current = observed ? (observedState || null) : (states[userId] || null);
 
 if (current && current.serviceRequest && current.serviceRequest.status === 'pending' && typeof current.serviceRequest.deadlineAt === 'number' && Date.now() > current.serviceRequest.deadlineAt) {
