@@ -1,12 +1,27 @@
 {{- /*
 The ZT-55 allow matrix as network policy: for each lane, an egress rule in the source namespace
-and an ingress rule in the destination namespace. The mesh layer decides on identity on top.
+and an ingress rule in the destination namespace. The mesh layer decides on identity on top: the
+zone-policy release renders the same rows (copied by scripts/install-zone) as allow rules by SPIFFE
+identity under a mesh-wide default deny. The intraPlanePairs render nothing here (the network
+layer is open inside a plane namespace); this template only refuses one whose endpoints are not in
+one namespace, as it would then have no network lane.
+Each policy of a row carries the row's L7 owner (ztd.facis.io/l7-owner, the row's l7Owner) under
+mesh.mode sidecar, and none under none or the parked ambient, which has no per-pod proxy and deploys
+no waypoint, so nothing takes an L7 decision there.
 */ -}}
+{{- range .Values.intraPlanePairs }}
+{{- $fromNs := include "ztd.endpointNamespace" (dict "root" $ "endpoint" .from) }}
+{{- $toNs := include "ztd.endpointNamespace" (dict "root" $ "endpoint" .to) }}
+{{- if ne $fromNs $toNs }}
+{{- fail (printf "intraPlanePairs %s: the caller is in %s and the destination in %s; an intra-plane pair joins two endpoints of one plane namespace (a pair across namespaces is an allowMatrix row)" .name $fromNs $toNs) }}
+{{- end }}
+{{- end }}
 {{- range .Values.allowMatrix }}
 {{- $fromNs := include "ztd.endpointNamespace" (dict "root" $ "endpoint" .from) }}
 {{- $toNs := include "ztd.endpointNamespace" (dict "root" $ "endpoint" .to) }}
 {{- $fromSelector := .from.podSelector | default dict }}
 {{- $toSelector := .to.podSelector | default dict }}
+{{- $l7Owner := ternary .l7Owner "none" (eq (toString $.Values.mesh.mode) "sidecar") }}
 ---
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
@@ -18,6 +33,7 @@ metadata:
   annotations:
     ztd.facis.io/allow-matrix: {{ .name }}
     ztd.facis.io/enforced-by: {{ .enforcedBy | default "mesh" | quote }}
+    ztd.facis.io/l7-owner: {{ $l7Owner | quote }}
 spec:
   podSelector:
     matchLabels:
@@ -47,6 +63,7 @@ metadata:
   annotations:
     ztd.facis.io/allow-matrix: {{ .name }}
     ztd.facis.io/enforced-by: {{ .enforcedBy | default "mesh" | quote }}
+    ztd.facis.io/l7-owner: {{ $l7Owner | quote }}
 spec:
   podSelector:
     matchLabels:

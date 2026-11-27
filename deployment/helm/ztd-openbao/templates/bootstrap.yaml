@@ -3,8 +3,12 @@ Bootstrap of the bundled OpenBao (docs/secrets.md). A regular Job, not a hook: a
 ready, and with --wait Helm runs post-install hooks only after every regular resource is ready, so a
 hook could never unseal it. `helm install --wait --wait-for-jobs` waits for this Job instead.
 
-The Job name carries a hash of the script and its values: it is rerun when the bootstrap changes and
-left alone otherwise, so an unchanged upgrade renders the same manifest. Every run is safe to repeat;
+The Job name carries a hash of the script and of the whole of the chart's values (the upstream
+chart's included): an upgrade that changes any value - the server's image, resources or storage,
+which restart the server sealed - renders a new Job, which Helm creates and which unseals the
+restarted server before --wait gives up; Helm removes the previous Job, no longer in the manifest.
+An unchanged upgrade renders the same name, so the manifest is identical and no Job runs. A restart
+the lifecycle does not cause (eviction, node reboot) is unsealed by hand (scripts/secrets/unseal.sh). Every run is safe to repeat;
 the state lives in the Secret ztd-openbao-bootstrap (keys: unseal-key, root-token until revoked,
 verify-token, state = initialized | configured):
 
@@ -20,25 +24,41 @@ verify-token, state = initialized | configured):
 
 Credentials reach curl through header and body files in a memory volume, never through the command
 line or the log; the log names states and HTTP codes only. The Job needs the Kubernetes API: under
-Cilium the chart opens that lane itself (below); with another CNI, networkPolicy.kubeApi must be open.
+Cilium the chart opens that lane itself (below); with another CNI, the umbrella's
+networkPolicy.kubeApi must be open in the management plane.
+
+On a meshed zone the pod carries the identity label: it is created with a sidecar and an SVID, it
+reaches the server through the main Service (which publishes the sealed pod's address) as mesh
+mTLS, and its call to the API server leaves through the sidecar as plain TCP (the API server has
+no sidecar) under the Cilium lane below. The native sidecar exits with the bootstrap container.
 */ -}}
-{{- if and .Values.openbao.enabled .Values.openbaoExternal.address }}
-{{- fail "openbao.enabled and openbaoExternal.address are exclusive: either the umbrella installs OpenBao or it uses an existing one" }}
+{{- $bundled := include "ztd-openbao.bundled" . }}
+{{- if and $bundled .Values.external.address }}
+{{- fail "openbao.server.enabled and external.address are exclusive: either the release installs OpenBao or it verifies an existing one" }}
 {{- end }}
-{{- if and .Values.openbaoExternal.address (not .Values.openbaoExternal.verifyTokenSecret) }}
-{{- fail "openbaoExternal.address needs openbaoExternal.verifyTokenSecret, the Secret holding the verification token" }}
+{{- if and .Values.external.address (not (hasPrefix "https://" .Values.external.address)) }}
+{{- fail "external.address must be https://: the verification hook sends its token to an OpenBao outside the zone, which the zone's mesh does not protect" }}
 {{- end }}
-{{- if .Values.openbao.enabled }}
-{{- if ne .Values.openbao.global.namespace .Values.planes.management.namespace }}
-{{- fail (printf "openbao.global.namespace (%s) must be the management plane namespace (%s)" .Values.openbao.global.namespace .Values.planes.management.namespace) }}
+{{- if and .Values.external.address (not .Values.external.verifyTokenSecret) }}
+{{- fail "external.address needs external.verifyTokenSecret, the Secret holding the verification token" }}
 {{- end }}
-{{- if ne (toString .Values.openbao.server.dataStorage.storageClass) (toString .Values.zone.storageClass) }}
-{{- fail (printf "openbao.server.dataStorage.storageClass (%v) must be the zone's storage class (%v)" .Values.openbao.server.dataStorage.storageClass .Values.zone.storageClass) }}
+{{- if not (or $bundled .Values.external.address) }}
+{{- fail "nothing to install or verify: set openbao.server.enabled (the bundled server) or external.address (an existing OpenBao)" }}
 {{- end }}
-{{- $ns := .Values.planes.management.namespace }}
+{{- if $bundled }}
+{{- if ne .Values.openbao.global.namespace .Values.managementNamespace }}
+{{- fail (printf "openbao.global.namespace (%s) must be the management plane namespace managementNamespace (%s)" .Values.openbao.global.namespace .Values.managementNamespace) }}
+{{- end }}
+{{- if not .Values.openbao.server.dataStorage.storageClass }}
+{{- fail "openbao.server.dataStorage.storageClass must be the zone's storage class (zone fact zone.storageClass)" }}
+{{- end }}
+{{- $ns := .Values.managementNamespace }}
+{{- /* the upstream chart's fullname: the release name when it contains "openbao", else <release>-openbao */}}
+{{- $server := ternary .Release.Name (printf "%s-openbao" .Release.Name) (contains "openbao" .Release.Name) }}
 {{- $name := "ztd-openbao-bootstrap" }}
-{{- $script := include "ztd.openbao.bootstrapScript" . }}
-{{- $hash := printf "%s%s" $script (toJson .Values.openbaoBootstrap) | sha256sum | trunc 8 }}
+{{- $script := include "ztd-openbao.bootstrapScript" . }}
+{{- /* the whole values: an upgrade that may restart the server reruns the bootstrap (above) */}}
+{{- $hash := printf "%s%s" $script (toJson .Values) | sha256sum | trunc 8 }}
 ---
 apiVersion: v1
 kind: ServiceAccount
@@ -46,17 +66,18 @@ metadata:
   name: {{ $name }}
   namespace: {{ $ns }}
   labels:
-    {{- include "ztd.labels" . | nindent 4 }}
+    {{- include "ztd-openbao.labels" . | nindent 4 }}
 ---
 # Create cannot be limited to one name (Kubernetes RBAC has no resourceNames for create), so the Job
-# may create any Secret in the management namespace; it may read and change only its own.
+# may create any Secret in the management namespace; it may read and change only its own. It may
+# read the server's StatefulSet and pod, by name, to wait for the pod of the current revision.
 apiVersion: rbac.authorization.k8s.io/v1
 kind: Role
 metadata:
   name: {{ $name }}
   namespace: {{ $ns }}
   labels:
-    {{- include "ztd.labels" . | nindent 4 }}
+    {{- include "ztd-openbao.labels" . | nindent 4 }}
 rules:
   - apiGroups: [""]
     resources: ["secrets"]
@@ -65,6 +86,14 @@ rules:
     resources: ["secrets"]
     resourceNames: [{{ $name | quote }}]
     verbs: ["get", "patch"]
+  - apiGroups: ["apps"]
+    resources: ["statefulsets"]
+    resourceNames: [{{ $server | quote }}]
+    verbs: ["get"]
+  - apiGroups: [""]
+    resources: ["pods"]
+    resourceNames: [{{ printf "%s-0" $server | quote }}]
+    verbs: ["get"]
 ---
 apiVersion: rbac.authorization.k8s.io/v1
 kind: RoleBinding
@@ -72,7 +101,7 @@ metadata:
   name: {{ $name }}
   namespace: {{ $ns }}
   labels:
-    {{- include "ztd.labels" . | nindent 4 }}
+    {{- include "ztd-openbao.labels" . | nindent 4 }}
 roleRef:
   apiGroup: rbac.authorization.k8s.io
   kind: Role
@@ -81,7 +110,7 @@ subjects:
   - kind: ServiceAccount
     name: {{ $name }}
     namespace: {{ $ns }}
-{{- if .Values.cni.cilium.enabled }}
+{{- if .Values.cilium.enabled }}
 ---
 # Under Cilium a NetworkPolicy ipBlock does not select the API server - Cilium treats it as the
 # kube-apiserver entity, not as an address - so networkPolicy.kubeApi does not open this lane there.
@@ -92,7 +121,7 @@ metadata:
   name: {{ $name }}-kube-api
   namespace: {{ $ns }}
   labels:
-    {{- include "ztd.labels" . | nindent 4 }}
+    {{- include "ztd-openbao.labels" . | nindent 4 }}
 spec:
   endpointSelector:
     matchLabels:
@@ -108,7 +137,7 @@ metadata:
   name: {{ printf "%s-%s" $name $hash }}
   namespace: {{ $ns }}
   labels:
-    {{- include "ztd.labels" . | nindent 4 }}
+    {{- include "ztd-openbao.labels" . | nindent 4 }}
 spec:
   backoffLimit: 3
   template:
@@ -116,6 +145,7 @@ spec:
       labels:
         app.kubernetes.io/name: {{ $name }}
         app.kubernetes.io/instance: {{ .Release.Name }}
+        {{- include "ztd-openbao.podIdentity" . | nindent 8 }}
     spec:
       serviceAccountName: {{ $name }}
       restartPolicy: Never
@@ -127,7 +157,7 @@ spec:
           type: RuntimeDefault
       containers:
         - name: bootstrap
-          image: {{ .Values.openbaoBootstrap.image | quote }}
+          image: {{ .Values.bootstrap.image | quote }}
           imagePullPolicy: IfNotPresent
           securityContext:
             allowPrivilegeEscalation: false
@@ -136,9 +166,13 @@ spec:
               drop: ["ALL"]
           env:
             - name: BAO_ADDR
-              value: {{ include "ztd.openbao.address" . | quote }}
+              value: {{ include "ztd-openbao.address" . | quote }}
             - name: SECRET
               value: {{ $name | quote }}
+            - name: STS
+              value: {{ $server | quote }}
+            - name: POD
+              value: {{ printf "%s-0" $server | quote }}
           volumeMounts:
             - name: work
               mountPath: /work
