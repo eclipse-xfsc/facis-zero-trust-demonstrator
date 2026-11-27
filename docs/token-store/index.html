@@ -149,6 +149,8 @@
     </li>
     <li class="toctree-l2"><a class="reference internal" href="#acquisition-of-upstream-tokens">Acquisition of upstream tokens</a>
     </li>
+    <li class="toctree-l2"><a class="reference internal" href="#key-custody">Key custody</a>
+    </li>
     <li class="toctree-l2"><a class="reference internal" href="#substitution">Substitution</a>
     </li>
     <li class="toctree-l2"><a class="reference internal" href="#renewal">Renewal</a>
@@ -308,7 +310,7 @@ verified.</p>
 <tr>
 <td><code>signing_key</code></td>
 <td>the token store</td>
-<td>references to the store's outbound signing keys in the key-value store, with their thumbprints; never key material</td>
+<td>references to the store's outbound signing keys in the key-value store, with their thumbprints; never key material; at most one <code>active</code> version per key (migration 5)</td>
 </tr>
 <tr>
 <td><code>verified_outcome</code></td>
@@ -328,11 +330,11 @@ verified.</p>
 <tr>
 <td><code>audit_event</code></td>
 <td>both</td>
-<td>the connector's registration decisions (<code>registration.accepted</code> in the transaction that creates the client, <code>registration.refused</code>, <code>registration.uncertain</code> when a commit's outcome is unknown; <a href="../connector/#audit">Connector service</a>), outcome consumption and refusal, every renewal attempt with its reason; append-only</td>
+<td>the connector's registration decisions (<code>registration.accepted</code> in the transaction that creates the client, <code>registration.refused</code>, <code>registration.uncertain</code> when a commit's outcome is unknown; <a href="../connector/#audit">Connector service</a>), outcome consumption and refusal, every renewal attempt with its reason, every key rotation (<code>key.rotated</code>); append-only</td>
 </tr>
 </tbody>
 </table>
-<p>Three properties are the schema's own, not the services' good conduct:</p>
+<p>Four properties are the schema's own, not the services' good conduct:</p>
 <ul>
 <li><strong>An outcome is consumed exactly once.</strong> The upstream token's reference to its outcome is unique,
   so a second token row for one outcome is refused by the database even on a path that skipped the
@@ -346,6 +348,9 @@ verified.</p>
 <li><strong>Renewal is single-flight.</strong> A worker claims a due token with <code>FOR UPDATE SKIP LOCKED</code> and records
   the claim; a second worker sees nothing to do. A claim without a claimant, or the reverse, is a
   constraint violation, and a staleness sweep releases the claim of a worker that died.</li>
+<li><strong>One version of a key mints at a time.</strong> A partial unique index allows one <code>active</code> row per key
+  name, so a rotation that forgot to retire, or two that raced, is refused by the database
+  (<a href="#key-custody">key custody</a>).</li>
 </ul>
 <p>The queries behind these properties, the substitution lookup included, are tested against the
 migrated schema in <code>services/token-store/internal/schema</code> and are what the service's paths are built
@@ -457,7 +462,8 @@ wins. Neither URL is ever logged.</p>
 <p>The environment fills in after the command line is parsed, never as a flag's default, so a
 malformed variable only matters when its flag is absent and no value, the connection URL above
 all, is ever part of the usage text the flag package prints on an error. Exit codes: 0 after a
-clean stop, 1 when a listener cannot be bound or fails, 2 for a usage error. On SIGTERM or SIGINT
+clean stop, 1 when a listener cannot be bound or fails or when the signing keys cannot resolve as
+configured (<a href="#key-custody">key custody</a>), 2 for a usage error. On SIGTERM or SIGINT
 <code>/readyz</code> answers 503 with <code>"draining": true</code> at once, without asking the dependencies, so the
 pod leaves the Service's endpoints, while both listeners keep answering for the drain delay, the
 time routing needs to move away; then both listeners drain at once within the shutdown timeout,
@@ -470,7 +476,8 @@ the store needs, 503 otherwise, and names what it found:</p>
 </code></pre>
 <p>The words are the whole vocabulary: <code>ok</code>, <code>unreachable</code>, <code>schema_behind</code> and <code>schema_drift</code> for
 PostgreSQL; <code>ok</code>, <code>unreachable</code>, <code>uninitialized</code> and <code>sealed</code> for the key-value store; <code>ok</code>,
-<code>unreachable</code>, <code>missing</code>, <code>mismatch</code> and <code>unconfigured</code> for the signing keys. Nothing a
+<code>unreachable</code>, <code>missing</code>, <code>mismatch</code>, <code>unconfigured</code>, <code>retired</code>, <code>refused</code>, <code>starting</code> and
+<code>shared_issuer_key</code> for the signing keys (the contract's <code>readiness</code> schema lists them). Nothing a
 dependency says, no address and no credential, reaches the body. The three checks run at once under
 the readiness budget, and a check that has not answered when the budget ends counts as
 <code>unreachable</code>, whatever it is doing. One evaluation runs at a time: callers that arrive while it
@@ -488,13 +495,26 @@ ends gets its cut-off words but records no transition. A service that was asked 
 <code>{"ready": false, "draining": true, ...}</code> whatever the dependencies say.</p>
 <p>The contract describes a ready store as one where "PostgreSQL is reachable, migrations are
 current and every active key reference resolves". The last clause is the <code>signing_key</code> check
-(D9): every <code>active</code> row of <code>signing_key</code> is read, and its <code>key_ref</code> must name a version of the
-configured transit key whose public key has the row's <code>jkt</code> as RFC 7638 thumbprint. A version
-transit does not have, or a malformed reference, is <code>missing</code>; another key or another thumbprint
-is <code>mismatch</code>; active rows with no transit key configured (no <code>--acquire-config</code>) are
-<code>unconfigured</code>; a database or transit that does not answer is <code>unreachable</code>. No active row is
-<code>ok</code>: a store that has not yet acquired holds no reference. Only public keys enter the process. The
-store fails closed: not ready means no traffic.</p>
+(D9), read the way the store reads its key before it mints: every <code>active</code> row of <code>signing_key</code>
+must name a version of the key it names whose public key has the row's <code>jkt</code> as RFC 7638
+thumbprint, and the configured key must have a version the store can mint with. A version transit
+does not have, a malformed reference, or a configured key transit does not have at all (or no
+transit engine at the mount) is <code>missing</code>; another thumbprint, a key that is not a non-exportable
+<code>ecdsa-p256</code> key, or rows that contradict transit (the latest version's thumbprint registered under
+another reference) is <code>mismatch</code>; a configured key whose only registered version is retired, or
+whose active version is below transit's signing floor (a rotation that did not finish), is
+<code>retired</code>; a transit that refuses the request (the token's policy) is <code>refused</code>; active rows with
+no transit key configured (no <code>--acquire-config</code>) are <code>unconfigured</code>; a key the peer Connector also
+publishes is <code>shared_issuer_key</code> (<a href="#key-material-separation-at-readiness">below</a>); until startup
+has resolved the keys once the store answers <code>starting</code>; a database or transit that does not
+answer is <code>unreachable</code>. The configured key is resolved by the same code the store resolves it
+with before it mints, and the words come from the same table as the startup reasons, so <code>missing</code>,
+<code>mismatch</code>, <code>retired</code> and <code>refused</code> are configuration faults here as there and stop the service at
+<a href="#key-custody">startup</a>. A row of another key that this token may not read (a policy scoped to the
+store's key) is not held against the store. No row at all of the configured key is <code>ok</code> when
+transit has the key and nothing contradicts it: the next acquisition registers it; rows that are
+all retired are <code>retired</code> until <code>keys rotate</code>. Only public keys enter the process. The store fails
+closed: not ready means no traffic.</p>
 <h3 id="records-and-correlation">Records and correlation<a class="headerlink" href="#records-and-correlation" title="Permanent link">&para;</a></h3>
 <p>Every record is one JSON object on stdout, with <code>service</code> and <code>instance</code> (the pod's name) on all
 of them. Every record written while a request is handled carries that request's
@@ -575,9 +595,42 @@ its chart or the pinned images:</p>
   record carries a <code>correlation_id</code>, the probe's <code>x-request-id</code>, <code>trace_id</code> and <code>span_id</code> are on
   its record, and the credential is on none. Then the upgrade leaves <code>schema_migrations</code> identical
   to the timestamp, the uninstall with <code>schema.dropOnUninstall</code> leaves an empty schema, and the
-  default uninstall keeps it. The records and the verdict are the run's artefact and go to the job
-  summary; nothing is committed. Locally, the script writes to the git-ignored
-  <code>.dev/token-store-evidence/</code>.</li>
+  default uninstall keeps it. Its last stage is <a href="#key-custody">key custody</a> in runtime mode:
+  transit mounted and two tokens minted from the policies below, <code>token-store keys ensure</code> run
+  from the built image as an operator would (<code>key-ensure.txt</code>), one <code>signing_key</code> row with the
+  reference and thumbprint (<code>key-row.txt</code>), the thumbprint equal to one computed from the public
+  key with openssl alone (<code>key-thumbprint.txt</code>), the key <code>ecdsa-p256</code> and not exportable with
+  export refused to the root token and to the service's (<code>key-public.txt</code>,
+  <code>key-export-refused.txt</code>), the service ready through the service token alone
+  (<code>runtime-install-readyz.json</code>), a database dump without key material or token
+  (<code>key-material-scan.txt</code>), <code>keys rotate</code> leaving v1 retired and v2 the one active version with
+  the service still ready (<code>key-rotate.txt</code>, <code>key-rows-after-rotate.txt</code>,
+  <code>runtime-rotate-readyz.json</code>), <code>keys status</code> with both versions, transit's latest and the floor
+  (<code>key-status.txt</code>), transit refusing to sign with the retired version and signing with the active
+  one (<code>key-retired-sign-refused.txt</code>), the canary scan's positive control, and OpenBao scaled
+  away: <code>/readyz</code> 503 with
+  <code>openbao</code> and <code>signing_key</code> unreachable, <code>/healthz</code> 200, no restart, and the records with one
+  <code>signing keys resolved</code>, no misconfiguration, and none of the canaries
+  (<code>runtime-openbao-down-readyz.json</code>, <code>runtime-store-logs.txt</code>). The records and the verdict are
+  the run's artefact and go to the job summary; nothing is committed. Locally, the script writes to
+  the git-ignored <code>.dev/token-store-evidence/</code>.</li>
+<li><strong>Key custody in the Go tests.</strong> Against a real OpenBao (<code>TRANSIT_TEST_ADDR</code>,
+  <code>TRANSIT_TEST_TOKEN</code>): the transit client's rotation and signing floor
+  (<code>TestOpenBaoMinSigningVersionRefusesOlderVersions</code>), the database refusing a second active
+  version of a key (<code>TestOneActiveVersionPerSigningKey</code>), the active row deciding the minting
+  version and a retired or malformed one refused (<code>TestLoadKeyFollowsTheActiveReferenceNotTransitLatest</code>,
+  <code>TestLoadKeyRefusesARetiredKey</code>), an activation refusing a key retired during the grant
+  (<code>TestActivationRefusesAKeyRetiredDuringTheGrant</code>), a rotation retiring the previous version and
+  its tokens, moving past versions retired by hand, repairing a floor above the registered version
+  and refusing a key transit does not have (<code>TestRotate*</code>), the startup assertion registering,
+  stopping on a mismatch, a missing version or a version below the floor, and waiting out an
+  outage (<code>TestStartup*</code> in <code>internal/server</code>), readiness answering <code>starting</code> and <code>retired</code>
+  (<code>TestReadyz_*</code>), the commands end to end (<code>TestKeysEnsureRotateAndStatus</code>,
+  <code>TestKeysStatusReportsAnAbsentKey</code>, <code>TestAcquireCommandDoesNotCreateTheKey</code>), a bad key name
+  refused by the configuration (<code>TestLoadConfigRefusesABadKeyName</code>), migration 5 on a database with
+  two active versions (<code>TestMigrationFiveKeepsOnlyTheHighestActiveVersion</code>), and the canary test's
+  needles extended with the key's PEM body, its JWK coordinates and the test's own OpenBao token,
+  searched in every 24-character window.</li>
 </ul>
 <h3 id="replay-check">Replay check<a class="headerlink" href="#replay-check" title="Permanent link">&para;</a></h3>
 <p><code>POST /internal/replay-check</code> records a DPoP proof's <code>(jkt, htm, htu, jti)</code> and answers <code>fresh</code>, or
@@ -654,10 +707,12 @@ is <code>internal/if03/if03fixture</code>, and the zone-B harness of the tests i
    holds for <code>token-store acquire --route</code> too. Replacing a valid token is <a href="#renewal">renewal</a>'s.</li>
 </ol>
 <p><strong>The store's key.</strong> The store's DPoP key is its transit key (<code>signing_key</code> in the configuration),
-created non-exportable if missing; its latest version is used, and a <code>signing_key</code> row
-<code>transit:&lt;name&gt;:v&lt;version&gt;</code> with the version's thumbprint is created if missing (idempotent; a row
-with another thumbprint or a retired one stops acquisition). Proofs are signed by transit with the
-caller's context; no private key enters the process.</p>
+and the version it mints with is the one active <code>signing_key</code> row of that key, resolved through
+transit before every acquisition; a row with another thumbprint or a retired one stops acquisition
+(<code>ACQ-STORE-UNAVAILABLE</code>), and a key retired between the grant and the activation activates
+nothing (<code>ACQ-KEY-RETIRED</code>). Proofs are signed by transit with the caller's context; no private
+key enters the process. The rules, the startup assertion, rotation and the OpenBao policies are
+<a href="#key-custody">key custody</a>.</p>
 <p><strong>Recovery (D10).</strong></p>
 <table>
 <thead>
@@ -682,6 +737,10 @@ caller's context; no private key enters the process.</p>
 <tr>
 <td>The KV write fails</td>
 <td>Nothing activated (<code>ACQ-KV-WRITE</code>). A value written despite the error has no row and is swept</td>
+</tr>
+<tr>
+<td>The store's key was retired between the grant and the activation (<code>keys rotate</code>)</td>
+<td>Nothing activated: the activation holds the key's row <code>FOR SHARE</code> only while it is active, finds none, deletes the value and audits <code>upstream.failed</code> <code>ACQ-KEY-RETIRED</code>. The next attempt signs with the new version (<a href="#key-custody">key custody</a>)</td>
 </tr>
 <tr>
 <td>The transaction is confirmed rolled back: an error before COMMIT was sent, the receipt no longer consumable (<code>ACQ-ACTIVATION-REFUSED</code>), or COMMIT answered <code>ROLLBACK</code> because the transaction had already failed (<code>ACQ-ACTIVATION-FAILED</code>)</td>
@@ -751,6 +810,132 @@ never delivered; a commit that lands while reconciliation waits on a database wh
 isolation is REPEATABLE READ; the orphan sweep, including an activation that commits between its
 first look and its deletion;
 the response checks; and a canary that no credential reaches logs, errors or audit rows.</p>
+<h2 id="key-custody">Key custody<a class="headerlink" href="#key-custody" title="Permanent link">&para;</a></h2>
+<p>The store's DPoP key is a transit key in the zone's OpenBao (<code>signing_key</code> in the acquisition
+configuration): <code>ecdsa-p256</code>, not exportable, no plaintext backup, and the private half never
+leaves OpenBao, which signs the store's proofs with it (ZT-11). PostgreSQL holds, in <code>signing_key</code>,
+a reference to one version of that key, <code>transit:&lt;name&gt;:v&lt;n&gt;</code>, with that version's RFC 7638
+thumbprint (<code>jkt</code>, the <code>cnf.jkt</code> the upstream tokens are bound to), its algorithm and its state,
+<code>active</code> or <code>retired</code>. Only public keys enter the process, and no record, error or readiness body
+carries one; the canary test and the lifecycle proof look for them.</p>
+<p><strong>The active row decides.</strong> At most one row of a key is <code>active</code> (a partial unique index,
+migration 5), and that row is the version the store mints with: <code>LoadKey</code> reads it, resolves its
+public key through transit and refuses a thumbprint that does not match the key, a reference that
+is not of the form above, or a registered version that is retired with nothing newer registered.
+It also refuses a version below transit's signing floor, which transit would not sign with.
+Transit's latest version is advisory: a version rotated in OpenBao alone changes nothing until
+<code>token-store keys rotate</code> registers it, and the service only notes it (<code>transit key is newer than
+the registered version</code>). A key with no row at all is registered at its latest version with its
+thumbprint (<code>ON CONFLICT DO NOTHING</code> lets two replicas race for it, and the row that won is read
+back); a key whose rows are all retired is not: moving on from retired versions is <code>keys rotate</code>'s,
+so a rotation is never skipped by the first acquisition after a retirement. More than one active
+row of a key (a database migration 5 has not reached) is refused, never an arbitrary pick.</p>
+<p><strong>Startup.</strong> With an acquisition configuration the service, before it is ready, makes sure the
+configured key exists in transit (the one place that may create it; see the policies below),
+registers or verifies its active row and that it is not below transit's signing floor, resolves
+every active <code>signing_key</code> row through the key it names, and notes a newer transit version
+(<code>transit key is newer than the registered version; run token-store keys rotate</code>). Readiness
+answers <code>starting</code> until this has succeeded once, so no traffic reaches a pod whose keys may yet
+prove misconfigured. A misconfiguration stops the process: exit 1 with one record, <code>signing key
+misconfigured; stopping</code>, with the key, the <code>key_ref</code> it concerns when one does, and a <code>reason</code>:
+<code>missing</code> (a registered version transit does not have, no key at the configured name, or no
+transit engine at the mount), <code>mismatch</code> (a registered thumbprint that is not the version's public
+key, or rows that contradict transit), <code>malformed</code> (an active <code>key_ref</code> not of the form
+<code>transit:&lt;name&gt;:v&lt;n&gt;</code>), <code>retired</code> (the registered version is retired with nothing newer registered,
+or below transit's signing floor), <code>unsupported</code> (the key is not a non-exportable <code>ecdsa-p256</code>
+key) or <code>refused</code> (transit answered 4xx other than 408 and 429: the token's policy; a 403 from a
+proxy or a policy written after the pod started counts, and the crash loop recovers once it is
+there). An outage is waited out instead: <code>unreachable</code>, <code>token</code> (the token file is missing,
+unreadable or empty) or <code>database</code> (PostgreSQL answered with an error, the schema not applied yet
+for one), retried with a pause growing from one to thirty seconds, one <code>startup signing key
+unavailable</code> record per change of reason rather than per attempt, readiness <code>starting</code> meanwhile;
+<code>signing keys resolved</code> is logged once, with the reference and the number of active rows. A name
+transit would refuse (outside <code>[A-Za-z0-9._-]</code>, longer than 128) is refused when the configuration
+is read, exit 2. No record names what a dependency said. The kubelet and <code>helm --wait</code> are the
+loud part: a pod that stops is a crash loop whose last record is the reason, found at startup and
+not at the first call. A runtime acquisition that cannot load the key logs one <code>store key
+unavailable</code> record with the same reason word and fails <code>ACQ-STORE-UNAVAILABLE</code>.</p>
+<p><strong>Minting under a retired key is refused at both layers.</strong> The activation inserts the
+<code>upstream_token</code> row from a locked read of the key's row (<code>FOR SHARE</code>, <code>state = 'active'</code>), so a
+rotation that retires the key either waits for an activation in flight and then retires its token,
+or came first and the activation inserts nothing: <code>ACQ-KEY-RETIRED</code>, the value deleted, the audit
+row <code>upstream.failed</code>. Substitution reads a token only joined to an <code>active</code> key row. And transit
+itself refuses to sign with a version below the key's <code>min_encryption_version</code>, which <code>keys rotate</code>
+raises, so a retired version signs nothing new for any caller, inside the store or not.</p>
+<p><strong>Operator commands.</strong> <code>token-store keys ensure|rotate|status</code> take the flags of <code>acquire</code>
+(<code>--database-url</code>, <code>--openbao-url</code>, <code>--openbao-token-file</code>, <code>--acquire-config</code>, <code>--timeout</code>) and
+hold the only transit client that may create or rotate a key; the service and <code>acquire</code> sign
+through a read-only one, so a deleted key is reported, never replaced on the way to a grant.</p>
+<ul>
+<li><code>keys ensure</code> creates the key in transit if it is missing and registers its latest version;
+  prints <code>{"key", "key_ref", "jkt", "state"}</code>. Run it before a runtime-mode install whose service
+  token may not create keys.</li>
+<li><code>keys rotate</code> moves the store to the next version inside one database transaction under the
+  key's rotation lock (bounded on the server: statement, lock and idle-in-transaction timeouts, so
+  a client that vanishes cannot keep the key locked), in this order: the key's registered rows are
+  read; the next version exists in transit (adopted when transit is already ahead of every
+  well-formed registered version, active or retired: a rotation done in OpenBao, or a previous
+  <code>rotate</code> that did not commit; else created by rotation, which is also how the store moves past
+  versions an operator retired by hand); every other active row of the key is retired with
+  <code>retired_at</code> and the next version registered with its thumbprint; every live upstream token
+  bound to another version of the key is retired (they are reacquired on demand; a renewal in
+  flight ends <code>ACQ-KEY-RETIRED</code> if it had loaded the old key, or loses its claim, <code>ACQ-CLAIM-LOST</code>,
+  if its row was retired first); the audit row <code>key.rotated</code> is written with the detail
+  the command prints: <code>{"key", "active", "jkt", "retired": [...], "upstream_tokens_retired",
+  "min_signing_version", "adopted"}</code>; the transaction commits; then transit's signing floor is
+  raised to the next version (it only ever rises). Two rotations at once queue on the lock and each
+  sees the other's result, so the registered version never moves backwards. A failure before the
+  commit leaves the database as it was and transit at most a version ahead, which the next <code>rotate</code>
+  adopts; a failure after it leaves the previous version signable in transit only, which the
+  database already refuses, until the next <code>rotate</code>'s floor raise covers it (the floor only
+  rises). A floor found above the registered version (set by hand) is reported by startup and
+  readiness as <code>retired</code> and repaired by adopting. A key with nothing registered is
+  registered, as <code>ensure</code> does, and retires nothing; a key transit does not have is refused, never
+  created; a malformed reference that is retired is ignored, an active one refused. The running
+  service needs no restart: the next acquisition reads the new active row, and readiness resolves
+  it. The activation and the rotation take the key's row before any token row, so neither waits for
+  the other in a cycle; an acquisition that finds the route's live token bound to a key that is no
+  longer active retires it with the expired ones, so a route is never held by a token nothing can
+  substitute. Migration 5 applies the same rule once to a database the earlier store wrote: of
+  several active versions of a key only the highest stays active, the live tokens bound to the
+  others are retired with them, and malformed references are left alone.</li>
+<li><code>keys status</code> prints whether transit has the key (<code>present</code>), its latest version and signing
+  floor (<code>min_signing_version</code>), and the registered versions newest first. Retired rows stay:
+  proofs minted under them remain attributable.</li>
+</ul>
+<p><strong>OpenBao policies.</strong> The service's token reads its key, signs with it and owns its KV prefix; the
+operator's token may create, rotate and configure the key, and nothing else. The lifecycle proof
+writes exactly these and runs the service with the first alone:</p>
+<pre><code class="language-hcl"># token-store: the service's token
+path &quot;transit/keys/&lt;signing_key&gt;&quot;         { capabilities = [&quot;read&quot;] }
+path &quot;transit/sign/&lt;signing_key&gt;&quot;         { capabilities = [&quot;update&quot;] }
+path &quot;secret/data/&lt;kv_prefix&gt;/*&quot;          { capabilities = [&quot;create&quot;, &quot;read&quot;] }
+path &quot;secret/metadata/&lt;kv_prefix&gt;&quot;        { capabilities = [&quot;list&quot;] }
+path &quot;secret/metadata/&lt;kv_prefix&gt;/*&quot;      { capabilities = [&quot;read&quot;, &quot;list&quot;, &quot;delete&quot;] }
+
+# token-store-admin: token-store keys ensure|rotate, never mounted in the service
+path &quot;transit/keys/&lt;signing_key&gt;&quot;         { capabilities = [&quot;create&quot;, &quot;read&quot;, &quot;update&quot;] }
+path &quot;transit/keys/&lt;signing_key&gt;/rotate&quot;  { capabilities = [&quot;update&quot;] }
+path &quot;transit/keys/&lt;signing_key&gt;/config&quot;  { capabilities = [&quot;update&quot;] }
+</code></pre>
+<p>Startup creates the key only when it is missing, which needs <code>update</code> on
+<code>transit/keys/&lt;signing_key&gt;</code> (transit creates a key on an update of its path; <code>create</code> alone is
+refused); a key pre-provisioned with <code>keys ensure</code> keeps the service's token read-only there.
+Readiness reads the key and never creates one.</p>
+<p><strong>Limits, by choice.</strong> Startup keeps provisioning a missing key, as the build before this one did,
+so a fresh runtime install comes up without an operator step; the cost is the capability
+(<code>update</code>) unless the key is pre-provisioned. A transit 4xx at startup is a misconfiguration except 408
+and 429; a policy that appears later is reached through the kubelet's restarts, not an in-process
+retry. Substitution's key cache and <code>KeyAt</code> read no row state: the lookup that chose the token
+joined on an <code>active</code> key in the same statement, and transit's floor refuses a retired version
+regardless. Retiring the last version of a key (decommissioning) has no command yet; <code>keys rotate</code>
+always leaves one active version, and renaming <code>signing_key</code> leaves the old key's active row behind
+until an operator retires it by hand (a token scoped to the new key cannot read it, which the store
+reports as a warning, <code>an active row of another key cannot be read with this token</code>, not a fault;
+a token that can read it still resolves it, and a row of a key deleted from transit is <code>missing</code>,
+a fault, as the contract's clause reads).
+The lifecycle proof's OpenBao runs in memory, so its key-custody stage shows readiness failing
+closed when OpenBao is gone and does not bring it back.</p>
 <h2 id="substitution">Substitution<a class="headerlink" href="#substitution" title="Permanent link">&para;</a></h2>
 <p><code>POST /internal/substitute</code> hands the guard the upstream credential of one configured route: the
 route's token as <code>authorization</code> (<code>DPoP &lt;token&gt;</code>) and a fresh DPoP proof as <code>dpop</code>, minted with the
@@ -894,14 +1079,20 @@ building on the tables, the queries and the service above.</p>
 <h3 id="key-material-separation-at-readiness">Key material separation at readiness<a class="headerlink" href="#key-material-separation-at-readiness" title="Permanent link">&para;</a></h3>
 <p>Runtime readiness resolves the store's current transit key and every active key
 reference, then reads each route Connector's <code>/.well-known/jwks.json</code>. Any matching
-RFC 7638 thumbprint returns <code>signing_key: mismatch</code>; unavailable or malformed
+RFC 7638 thumbprint returns <code>signing_key: shared_issuer_key</code>; unavailable or malformed
 JWKS returns <code>unreachable</code>. Requests share the readiness deadline and redirects
 are refused. No key material or token is returned in the readiness response.</p>
 <p><code>connector_signing_key</code> is now optional defence in depth: when supplied it must
 differ from <code>signing_key</code>, but operator-entered names do not establish separation.
 Existing configs may retain it. Readiness now depends on Connector JWKS access
 even before the first token is acquired; provision keys and network lanes first.</p>
-<p>Readiness reads <code>transit/keys/&lt;store-key&gt;</code> and never creates a key. Startup alone may provision a missing non-exportable P-256 key, requiring <code>update</code> on that key path; pre-provision the key to keep the runtime policy read-only there. Signing requires <code>update</code> on <code>transit/sign/&lt;store-key&gt;</code>. Issuer-separation successes are cached for at most five minutes; any change in the store's active public-key set forces an immediate check of each route's Connector JWKS. Distinct endpoints are fetched concurrently. A shared key returns <code>shared_issuer_key</code> and logs a warning without key material. Non-EC-P-256 issuer entries are skipped with a log record. An unavailable issuer fails readiness once no fresh passing check remains.</p>
+<p>Readiness reads <code>transit/keys/&lt;store-key&gt;</code> and never creates a key; which token may create, rotate
+and sign is <a href="#key-custody">key custody</a>. Issuer-separation successes are cached for at most five
+minutes; any change in the store's active public-key set forces an immediate check of each route's
+Connector JWKS. Distinct endpoints are fetched concurrently. A shared key returns
+<code>shared_issuer_key</code> and logs a warning without key material. Non-EC-P-256 issuer entries are
+skipped with a log record. An unavailable issuer fails readiness once no fresh passing check
+remains.</p>
               
             </div>
           </div><footer>

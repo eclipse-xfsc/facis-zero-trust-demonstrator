@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: FACIS ZTD token store, internal API
-  version: 1.2.1
+  version: 1.3.0
   description: >-
     Internal to the zone. Every call requires mutual TLS with a client certificate whose URI SAN is
     on the store's allow-list (the shape of an X.509 SVID). The store holds the upstream tokens
@@ -198,14 +198,56 @@ paths:
       responses:
         '200':
           description: PostgreSQL is reachable, migrations are current and every active key reference resolves.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/readiness'
         '503':
-          description: Not ready.
+          description: Not ready, or stopping.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/readiness'
 components:
   securitySchemes:
     mtls:
       type: mutualTLS
       description: Client certificate with a URI SAN on the store's allow-list.
   schemas:
+    readiness:
+      type: object
+      description: >-
+        The body of /readyz. The words are the whole vocabulary of each check; nothing a
+        dependency said, no address and no credential, is ever among them.
+      additionalProperties: false
+      required: [ready]
+      properties:
+        ready:
+          type: boolean
+        draining:
+          type: boolean
+          description: Set once the service was asked to stop; the checks are then absent.
+        checks:
+          type: object
+          additionalProperties: false
+          required: [postgres, openbao, signing_key]
+          properties:
+            postgres:
+              type: string
+              enum: [ok, unreachable, schema_behind, schema_drift]
+            openbao:
+              type: string
+              enum: [ok, unreachable, uninitialized, sealed]
+            signing_key:
+              type: string
+              description: >-
+                Every active key reference resolves to a version of the key it names with the
+                recorded thumbprint, and the configured key has a version the store can mint with.
+                missing, mismatch, retired and refused (transit refused the request: the token's
+                policy) are configuration faults; unconfigured is active references without a
+                configured key; starting is startup still resolving the keys; shared_issuer_key is
+                a key the peer Connector also publishes.
+              enum: [ok, unreachable, missing, mismatch, unconfigured, retired, refused, starting, shared_issuer_key]
     refusal:
       type: object
       additionalProperties: false
