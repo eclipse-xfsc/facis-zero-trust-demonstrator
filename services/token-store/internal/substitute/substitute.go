@@ -234,10 +234,10 @@ func (s *Service) acquireOnDemand(ctx context.Context, req Request) (live, error
 // dependencies failed (database, transit, KV, activation, a key retired during the grant) or the
 // caller's deadline ended it, and for anything not known to be the peer's answer.
 func (s *Service) acquisitionFailed(ctx context.Context, route string, err error) error {
-	code := ""
+	code, cause := "", ""
 	var e *acquire.Error
 	if errors.As(err, &e) {
-		code = e.Code
+		code, cause = e.Code, e.Cause
 	}
 	peer := strings.HasPrefix(code, "CRED-")
 	switch code {
@@ -245,13 +245,15 @@ func (s *Service) acquisitionFailed(ctx context.Context, route string, err error
 		peer = true
 	}
 	if peer && ctx.Err() == nil {
-		s.log().WarnContext(ctx, "no upstream token: on-demand acquisition refused or failed at the peer", "route", route, "reason_code", code)
+		s.log().WarnContext(ctx, "no upstream token: on-demand acquisition refused or failed at the peer",
+			acquire.WithCause([]any{"route", route, "reason_code", code}, cause)...)
 		return ErrNoUpstream
 	}
 	if code == "" {
 		code = acquire.CodeStore
 	}
-	s.log().WarnContext(ctx, "on-demand acquisition failed in the store", "route", route, "reason_code", code)
+	s.log().WarnContext(ctx, "on-demand acquisition failed in the store",
+		acquire.WithCause([]any{"route", route, "reason_code", code}, cause)...)
 	return ErrUnavailable
 }
 

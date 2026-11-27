@@ -17,7 +17,10 @@ on:
       - cmd/policy-evaluator/**
       - cmd/participant/**
       - cmd/protected-resource/**
+      - cmd/sdjwt-fixture/**
       - internal/**
+      - features/fixtures/oid4vp/**
+      - docs/contracts/reason-codes.json
       - deployment/docker/token-store/**
       - deployment/docker/connector/**
       - deployment/docker/participant/**
@@ -44,7 +47,10 @@ on:
       - cmd/policy-evaluator/**
       - cmd/participant/**
       - cmd/protected-resource/**
+      - cmd/sdjwt-fixture/**
       - internal/**
+      - features/fixtures/oid4vp/**
+      - docs/contracts/reason-codes.json
       - deployment/docker/token-store/**
       - deployment/docker/connector/**
       - deployment/docker/participant/**
@@ -103,7 +109,8 @@ jobs:
       # queries, the store (replay check, acquisition with its recovery, substitution, renewal) with
       # the real connector binary as the peer zone, the connector's conformance suite on the database
       # stores, the shared packages, and the Participant and Protected Resource end to end through
-      # the real connector. Run twice, once per access-token form the connector issues.
+      # the real connector, and the OID4VP conformance fixtures through the presentation policy.
+      # Run twice, once per access-token form the connector issues.
       # A skipped test means a missing dependency, so it fails the job.
       - name: Run the token path with opaque and with signed access tokens
         run: |
@@ -112,7 +119,7 @@ jobs:
             CONNECTOR_TEST_TOKENS=$tokens go test -count=1 -race -timeout 20m -v \
               ./services/token-store/... ./services/connector/... ./internal/... \
               ./services/participant/... ./services/protectedresource/... \
-              ./cmd/participant/... ./cmd/protected-resource/... \
+              ./cmd/participant/... ./cmd/protected-resource/... ./cmd/sdjwt-fixture/... \
               ./services/guard/... ./services/policyevaluator/... ./cmd/guard/... ./cmd/policy-evaluator/... \
               | tee "$RUNNER_TEMP/token-path-$tokens.log"
             if grep -q -- '--- SKIP' "$RUNNER_TEMP/token-path-$tokens.log"; then

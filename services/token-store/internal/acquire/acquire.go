@@ -18,6 +18,7 @@ import (
 	"github.com/eclipse-xfsc/facis-zero-trust-demonstrator/internal/connectorclient"
 	"github.com/eclipse-xfsc/facis-zero-trust-demonstrator/internal/if03"
 	"github.com/eclipse-xfsc/facis-zero-trust-demonstrator/internal/transit"
+	"github.com/eclipse-xfsc/facis-zero-trust-demonstrator/internal/verificationclient"
 )
 
 // KVPrefix is where upstream token values live in KV v2: KVPrefix + "/" + token_id, create-only.
@@ -56,16 +57,29 @@ const (
 	CodeKeyRetired        = "ACQ-KEY-RETIRED"         // the store key was retired between the grant and the activation
 )
 
-// Error is a failed acquisition: a reason code and fixed text, never anything a peer sent.
+// Error is a failed acquisition: a reason code and fixed text, never anything a peer sent. Cause is
+// set when the store refused a signed outcome that is not verified: the producer's reason for it
+// (if03.Error's Cause, one of four fixed codes), which tells a revoked credential from a status list
+// that could not be read. The code stays the store's own refusal.
 type Error struct {
-	Code string
-	Err  error
+	Code  string
+	Cause string
+	Err   error
 }
 
 func (e *Error) Error() string { return "acquire: " + e.Code + ": " + e.Err.Error() }
 func (e *Error) Unwrap() error { return e.Err }
 
 func fail(code, text string) *Error { return &Error{Code: code, Err: errors.New(text)} }
+
+// WithCause adds the cause to the attributes of a log record when there is one: a record of a
+// failure that has no cause carries no such member.
+func WithCause(record []any, cause string) []any {
+	if cause == "" {
+		return record
+	}
+	return append(record, "cause", cause)
+}
 
 // Route is one upstream route and how to acquire its token.
 type Route struct {
@@ -153,9 +167,10 @@ func (a *Acquirer) acquire(ctx context.Context, r Route, fence *Fence) (Token, e
 		if e.Code == CodeTokenInvalid || e.Code == CodePeerRefused || strings.HasPrefix(e.Code, "CRED-") {
 			kind = "upstream.refused"
 		}
+		at.cause = e.Cause
 		at.audit(ctx, kind, e.Code, at.tokenID)
-		a.log().WarnContext(ctx, "upstream acquisition refused or failed", "route", r.Name, "attempt", at.id,
-			"reason_code", e.Code, "outcome_id", at.outcomeID, "token_id", at.tokenID)
+		a.log().WarnContext(ctx, "upstream acquisition refused or failed", WithCause([]any{"route", r.Name, "attempt", at.id,
+			"reason_code", e.Code, "outcome_id", at.outcomeID, "token_id", at.tokenID}, e.Cause)...)
 		return Token{}, e
 	}
 	a.log().InfoContext(ctx, "upstream token acquired", "route", r.Name, "attempt", at.id, "token_id", tok.ID,
@@ -170,6 +185,7 @@ type attempt struct {
 	outcomeID string
 	tokenID   string
 	detail    string // the failed response check, for the audit row
+	cause     string // the producer's reason of an outcome the store refused, for the audit row
 	fence     *Fence // set for a renewal
 }
 
@@ -204,6 +220,21 @@ func (at *attempt) run(ctx context.Context) (Token, error) {
 	// 2. Outcome.
 	jws, err := r.Outcomes.Outcome(ctx, ch)
 	if err != nil {
+		// One code for every way of having no outcome; the record says which step it was, in the
+		// source's own fixed words, and whether the attempt was cut short rather than refused. Two
+		// holder failures are not a wallet that declined, and the record marks them: a holder that
+		// was not asked because it is still at work on an earlier request, and one that panicked,
+		// a fault to repair, with its stack.
+		record := []any{"route", r.Name, "attempt", at.id, "stage", verificationclient.Stage(err),
+			"cancelled", errors.Is(err, context.Canceled), "timed_out", errors.Is(err, context.DeadlineExceeded)}
+		if errors.Is(err, verificationclient.ErrHolderBusy) {
+			record = append(record, "busy", true)
+		}
+		var fault *verificationclient.HolderPanic
+		if errors.As(err, &fault) {
+			record = append(record, "panicked", true, "stack", string(fault.Stack))
+		}
+		a.log().WarnContext(ctx, "outcome source failed", record...)
 		return Token{}, fail(CodeOutcomeSource, "outcome source failed")
 	}
 	// 3. A's own verification and receipt.
@@ -211,7 +242,7 @@ func (at *attempt) run(ctx context.Context) (Token, error) {
 	if err != nil {
 		var ie *if03.Error
 		if errors.As(err, &ie) {
-			return Token{}, &Error{Code: ie.Code, Err: errors.New("outcome refused by the store")}
+			return Token{}, &Error{Code: ie.Code, Cause: ie.Cause, Err: errors.New("outcome refused by the store")}
 		}
 		return Token{}, fail(if03.CodeSignature, "outcome refused by the store")
 	}
@@ -486,6 +517,9 @@ func (at *attempt) auditDetail() []byte {
 	}
 	if at.detail != "" {
 		d["check"] = at.detail
+	}
+	if at.cause != "" {
+		d["cause"] = at.cause
 	}
 	b, _ := json.Marshal(d)
 	return b

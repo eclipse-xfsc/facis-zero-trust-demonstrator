@@ -158,7 +158,9 @@ before live use. `runtime.replayCallers` lists allowed SPIFFE service accounts;
 acquisition route callers remain in the acquisition configuration.
 
 Configure explicit ingress peers and egress rules for PostgreSQL, OpenBao,
-Connector and mesh control traffic. DNS allows both service port 53 and Gardener's
+Connector and mesh control traffic, and for the verification service of every
+route that uses the presentation hook: egress is denied by default, and without
+that rule each acquisition of such a route ends without an outcome. DNS allows both service port 53 and Gardener's
 translated port 8053. Set `networkPolicy.schemaEgress` to the schema Jobs' database peers. A separate
 egress-only NetworkPolicy hook is created one weight before migrate/drop Jobs;
 it permits DNS and, in runtime mode, istiod TCP 15012 in
@@ -194,7 +196,12 @@ OpenBao policy must permit only the selected prefix.
 The acquisition ConfigMap is mounted in full at `/etc/token-store`, including
 public issuer key files referenced by `trusted_issuers[].public_key_file`.
 `runtime.configKey` selects its acquisition JSON file. Keep private fixture keys
-and client secrets in the credentials Secret, never this ConfigMap. Configure
+and client secrets in the credentials Secret, never this ConfigMap. The same
+holds for a route's presentation hook (`verification_outcomes.holder`): the
+credential it presents and its holder key (for example `holder-credential.sd-jwt`
+and `holder-key.pem`) are keys of the credentials Secret, referenced by their
+paths below `/var/run/token-store/credentials`. They are read at every
+presentation, so a credential replaced in the Secret is used without a restart. Configure
 `connector_signing_key` with the issuer's transit key name; the optional name check rejects equality with the store's `signing_key`.
 Readiness independently compares the public key material against every route
 Connector JWKS, and fails closed on overlap or unavailable keys. These roles need separate

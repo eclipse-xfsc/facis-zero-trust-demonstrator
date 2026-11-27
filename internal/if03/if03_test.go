@@ -10,6 +10,7 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -301,6 +302,88 @@ func TestVerify_RulePrecedence(t *testing.T) {
 	}
 }
 
+// The refusal of an outcome that is not verified names the reason the producer signed, so a consumer
+// can tell a revoked credential from a status list nobody could read. It names it only for an
+// outcome that answers this request now: one signed for another challenge, or an old one, is refused
+// with the same code and no cause, since it says nothing about the credential presented this time.
+func TestVerify_ARefusedOutcomeNamesTheProducersReasonOnlyWhenItIsForThisRequest(t *testing.T) {
+	k := newKey(t)
+	trusted := Issuers{issuer: {kid: &k.PublicKey}}
+	refused := func(status, reason string, change func(map[string]any)) string {
+		p := payload()
+		p["status"], p["reason_code"] = status, reason
+		p["credential_refs"] = []string{CredentialRef("https://issuer.example", "urn:uuid:1")}
+		if change != nil {
+			change(p)
+		}
+		return sign(t, k, header, p)
+	}
+	unnamed := func(p map[string]any) { delete(p, "credential_refs") }
+	long := "CRED-" + strings.Repeat("A", 4096)
+
+	cases := []struct {
+		name  string
+		token string
+		want  Expect
+		cause string
+	}{
+		{"revoked", refused(StatusRevoked, CodeRevoked, nil), want(), CodeRevoked},
+		{"status list unavailable", refused(StatusFailed, CodeStatusUnavailable, nil), want(), CodeStatusUnavailable},
+		{"credential invalid", refused(StatusFailed, CodeInvalid, nil), want(), CodeInvalid},
+		{"issuer untrusted", refused(StatusFailed, CodeIssuerUntrusted, nil), want(), CodeIssuerUntrusted},
+		{"credential invalid before one was read", refused(StatusFailed, CodeInvalid, unnamed), want(), CodeInvalid},
+		{"revoked, naming no credential", refused(StatusRevoked, CodeRevoked, unnamed), want(), CodeRevoked},
+		{"a reason outside the contract", refused(StatusFailed, "CRED-X", nil), want(), ""},
+		{"a reason of any length", refused(StatusRevoked, long, nil), want(), ""},
+		{"revoked with a failure's reason", refused(StatusRevoked, CodeInvalid, nil), want(), ""},
+		{"failed with the revocation reason", refused(StatusFailed, CodeRevoked, nil), want(), ""},
+		{"a consumer's code as the reason", refused(StatusFailed, CodeNotVerified, nil), want(), ""},
+		{"revoked for another challenge", refused(StatusRevoked, CodeRevoked, nil), Expect{want().ClientID, "challenge-other-0000", want().Audience}, ""},
+		{"revoked for another client", refused(StatusRevoked, CodeRevoked, nil), Expect{"someone", want().Challenge, want().Audience}, ""},
+		{"revoked for another audience", refused(StatusRevoked, CodeRevoked, nil), Expect{want().ClientID, want().Challenge, "https://zone-b.example/other"}, ""},
+		{"revoked and expired", refused(StatusRevoked, CodeRevoked, func(p map[string]any) {
+			p["expires_at"] = now.Format(time.RFC3339)
+		}), want(), ""},
+		{"revoked and valid for too long", refused(StatusRevoked, CodeRevoked, func(p map[string]any) {
+			p["expires_at"] = now.Add(111 * time.Second).Format(time.RFC3339)
+		}), want(), ""},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			_, err := Verify(tc.token, trusted, tc.want, now)
+			var e *Error
+			if !errors.As(err, &e) || e.Code != CodeNotVerified {
+				t.Fatalf("refusal %v; want %s", err, CodeNotVerified)
+			}
+			if e.Cause != tc.cause {
+				t.Errorf("cause %q; want %q", e.Cause, tc.cause)
+			}
+			if tc.cause != "" && strings.Contains(err.Error(), tc.cause) {
+				t.Errorf("the error text carries the cause: %q", err)
+			}
+		})
+	}
+
+	t.Run("no other refusal names a cause", func(t *testing.T) {
+		expired := payload()
+		expired["expires_at"] = now.Format(time.RFC3339)
+		for name, err := range map[string]error{
+			"mismatch":  second(Verify(sign(t, k, header, payload()), trusted, Expect{ClientID: "other"}, now)),
+			"expired":   second(Verify(sign(t, k, header, expired), trusted, want(), now)),
+			"signature": second(Verify(sign(t, newKey(t), header, payload()), trusted, want(), now)),
+		} {
+			var e *Error
+			if !errors.As(err, &e) {
+				t.Errorf("%s: not refused: %v", name, err)
+			} else if e.Cause != "" {
+				t.Errorf("%s: %v with cause %q", name, err, e.Cause)
+			}
+		}
+	})
+}
+
+func second(_ Outcome, err error) error { return err }
+
 func TestIsURI_ComponentGrammar(t *testing.T) {
 	for _, s := range []string{
 		"https://example.org/[x]", "https://example.org/?q=[x]", "https://[garbage]/", "https://example.org:abc/",
@@ -335,5 +418,77 @@ func TestParseDateTime_LeapSecondOnlyWhereOneCanBe(t *testing.T) {
 		if got, ok := parseDateTime(s); !ok || !got.Equal(want) {
 			t.Errorf("%q: %v %v", s, got, ok)
 		}
+	}
+}
+
+// What an outcome says it is about can be read without a key, for a caller that only needs to
+// know the answer is not about the credential it presented. Anything that is not an outcome in the
+// IF-03 form names nothing.
+func TestUnverifiedCredentialRefsReadsOnlyWhatAnOutcomeNames(t *testing.T) {
+	k, other := newKey(t), newKey(t)
+	named := payload()
+	named["credential_refs"] = []string{CredentialRef("https://issuer.example", "urn:uuid:1"), "https://issuer.example#vct:a"}
+	want := []string{"https://issuer.example#urn:uuid:1", "https://issuer.example#vct:a"}
+	if got := UnverifiedCredentialRefs(sign(t, k, header, named)); !slices.Equal(got, want) {
+		t.Errorf("refs %q; want %q", got, want)
+	}
+	// Not verified: a signature by a key nobody trusts reads the same, which is why a match proves nothing.
+	if got := UnverifiedCredentialRefs(sign(t, other, header, named)); !slices.Equal(got, want) {
+		t.Errorf("refs under another key %q; want %q", got, want)
+	}
+	extra := payload()
+	extra["credential_refs"], extra["unknown"] = []string{"a#b"}, 1
+	for name, compact := range map[string]string{
+		"an outcome that names no credential": sign(t, k, header, payload()),
+		"a payload outside the schema":        sign(t, k, header, extra),
+		"not a compact JWS":                   "a.b",
+		"a payload that is not base64url":     "a.!!.c",
+		"empty":                               "",
+	} {
+		if got := UnverifiedCredentialRefs(compact); got != nil {
+			t.Errorf("%s: refs %q; want none", name, got)
+		}
+	}
+}
+
+// The contract's own examples of an outcome that is not verified keep their reason as the cause
+// when they are signed for the request: a producer built to the v1 schema and its fixtures, which
+// need not name a credential, has its revocations read as revocations.
+func TestVerify_TheContractsRefusedFixturesNameTheirCause(t *testing.T) {
+	k := newKey(t)
+	trusted := Issuers{issuer: {kid: &k.PublicKey}}
+	files, err := filepath.Glob(filepath.Join("..", "..", "docs", "contracts", "fixtures", "if03-verification-outcome.v1", "valid-*.json"))
+	if err != nil || len(files) == 0 {
+		t.Fatal("no contract fixtures")
+	}
+	checked := 0
+	for _, f := range files {
+		raw, err := os.ReadFile(f)
+		if err != nil {
+			t.Fatal(err)
+		}
+		var p map[string]any
+		if err := json.Unmarshal(raw, &p); err != nil {
+			t.Fatal(err)
+		}
+		reason, refused := p["reason_code"].(string)
+		if !refused {
+			continue
+		}
+		// The fixture as written, moved to this test's issuer, request and clock.
+		for member, value := range payload() {
+			if member != "status" && member != "claims" {
+				p[member] = value
+			}
+		}
+		_, err = Verify(sign(t, k, header, p), trusted, want(), now)
+		var e *Error
+		if !errors.As(err, &e) || e.Code != CodeNotVerified || e.Cause != reason {
+			t.Errorf("%s: refusal %v with cause %q; want %s with cause %s", filepath.Base(f), err, e.Cause, CodeNotVerified, reason)
+		}
+		checked++
+	}
+	if checked < 2 {
+		t.Errorf("only %d refused fixtures found; the revoked and failed ones are expected", checked)
 	}
 }

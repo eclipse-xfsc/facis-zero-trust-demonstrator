@@ -65,7 +65,7 @@ func Sign(ctx context.Context, h Header, payload []byte, sign SignFunc) (string,
 	if err != nil {
 		return "", errors.New("jose: encode header")
 	}
-	signingInput := b64(header) + "." + b64(payload)
+	signingInput := B64(header) + "." + B64(payload)
 	sig, err := sign(ctx, []byte(signingInput))
 	if err != nil {
 		return "", withContextCause(errors.New("jose: signer failed"), err)
@@ -73,7 +73,7 @@ func Sign(ctx context.Context, h Header, payload []byte, sign SignFunc) (string,
 	if len(sig) != sigSize {
 		return "", errors.New("jose: signer did not return a 64-byte signature")
 	}
-	return signingInput + "." + b64(sig), nil
+	return signingInput + "." + B64(sig), nil
 }
 
 // Verify checks the compact JWS against policy and the key from key, and returns its header and payload.
@@ -82,15 +82,15 @@ func Verify(token string, policy HeaderPolicy, key KeyFunc) (Header, []byte, err
 	if len(parts) != 3 {
 		return Header{}, nil, fmt.Errorf("%w: want three parts", ErrMalformed)
 	}
-	rawHeader, err := decodeB64(parts[0])
+	rawHeader, err := DecodeB64(parts[0])
 	if err != nil {
 		return Header{}, nil, fmt.Errorf("%w: header encoding", ErrMalformed)
 	}
-	payload, err := decodeB64(parts[1])
+	payload, err := DecodeB64(parts[1])
 	if err != nil {
 		return Header{}, nil, fmt.Errorf("%w: payload encoding", ErrMalformed)
 	}
-	sig, err := decodeB64(parts[2])
+	sig, err := DecodeB64(parts[2])
 	if err != nil {
 		return Header{}, nil, fmt.Errorf("%w: signature encoding", ErrMalformed)
 	}
@@ -135,7 +135,7 @@ func PublicJWK(k *ecdsa.PublicKey) JWK {
 	if err != nil || len(point) != 1+2*coordSize {
 		return JWK{}
 	}
-	return JWK{Kty: "EC", Crv: "P-256", X: b64(point[1 : 1+coordSize]), Y: b64(point[1+coordSize:])}
+	return JWK{Kty: "EC", Crv: "P-256", X: B64(point[1 : 1+coordSize]), Y: B64(point[1+coordSize:])}
 }
 
 // Thumbprint returns the RFC 7638 SHA-256 thumbprint of j, base64url without padding.
@@ -147,7 +147,7 @@ func (j JWK) Thumbprint() (string, error) {
 	// validated as strict base64url, which needs no JSON escaping.
 	canonical := `{"crv":"P-256","kty":"EC","x":"` + j.X + `","y":"` + j.Y + `"}`
 	digest := sha256.Sum256([]byte(canonical))
-	return b64(digest[:]), nil
+	return B64(digest[:]), nil
 }
 
 // PublicKey returns j as an ECDSA P-256 public key, refusing any other curve or an off-curve point.
@@ -155,8 +155,8 @@ func (j JWK) PublicKey() (*ecdsa.PublicKey, error) {
 	if j.Kty != "EC" || j.Crv != "P-256" {
 		return nil, fmt.Errorf("%w: jwk is not an EC P-256 key", ErrHeader)
 	}
-	x, errX := decodeB64(j.X)
-	y, errY := decodeB64(j.Y)
+	x, errX := DecodeB64(j.X)
+	y, errY := DecodeB64(j.Y)
 	if errX != nil || errY != nil || len(x) != coordSize || len(y) != coordSize {
 		return nil, fmt.Errorf("%w: jwk coordinates must be 32-byte base64url", ErrHeader)
 	}
@@ -332,16 +332,31 @@ func checkValue(dec *json.Decoder, depth int) error {
 	return nil
 }
 
-// decodeB64 is strict base64url without padding. The alphabet check matters: encoding/base64 skips
+// DecodeB64 is strict base64url without padding. The alphabet check matters: encoding/base64 skips
 // CR and LF, which would let two different strings decode to the same bytes.
-func decodeB64(s string) ([]byte, error) {
-	for i := 0; i < len(s); i++ {
-		c := s[i]
-		if !isB64URL(c) {
-			return nil, ErrMalformed
-		}
+func DecodeB64(s string) ([]byte, error) {
+	if !IsB64URL(s) {
+		return nil, ErrMalformed
 	}
 	return base64.RawURLEncoding.Strict().DecodeString(s)
+}
+
+// Integer reads a JSON integer written as digits only: no sign, no fraction, no exponent, no
+// leading zero, and never null or another type. It is the one reader for NumericDates, indexes
+// and counts a peer sends, so that none of them turns a null into a zero.
+func Integer(raw json.RawMessage) (int64, bool) {
+	s := string(bytes.TrimSpace(raw))
+	if s == "" || len(s) > 18 || (len(s) > 1 && s[0] == '0') {
+		return 0, false
+	}
+	var n int64
+	for i := 0; i < len(s); i++ {
+		if s[i] < '0' || s[i] > '9' {
+			return 0, false
+		}
+		n = n*10 + int64(s[i]-'0')
+	}
+	return n, true
 }
 
 // withContextCause returns err, plus the context cancellation or deadline inside cause if there is one.
@@ -356,8 +371,20 @@ func withContextCause(err, cause error) error {
 	return err
 }
 
-func b64(b []byte) string { return base64.RawURLEncoding.EncodeToString(b) }
+// B64 is base64url without padding.
+func B64(b []byte) string { return base64.RawURLEncoding.EncodeToString(b) }
 
-func isB64URL(c byte) bool {
+// IsB64URL reports whether s holds only the base64url alphabet (padding excluded).
+func IsB64URL(s string) bool {
+	for i := 0; i < len(s); i++ {
+		c := s[i]
+		if !isB64URLByte(c) {
+			return false
+		}
+	}
+	return true
+}
+
+func isB64URLByte(c byte) bool {
 	return c >= 'A' && c <= 'Z' || c >= 'a' && c <= 'z' || c >= '0' && c <= '9' || c == '-' || c == '_'
 }

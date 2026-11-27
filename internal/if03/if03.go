@@ -20,7 +20,7 @@ import (
 // Typ is the outcome's typ header.
 const Typ = "facis-verification-outcome+jws"
 
-// Reason codes, as IF-03 names them.
+// Reason codes a consumer of an outcome names, as IF-03 lists them.
 const (
 	CodeSignature   = "CRED-OUTCOME-SIGNATURE"
 	CodeNotVerified = "CRED-OUTCOME-NOT-VERIFIED"
@@ -28,6 +28,30 @@ const (
 	CodeExpired     = "CRED-OUTCOME-EXPIRED"
 	CodeConsumed    = "CRED-OUTCOME-CONSUMED"
 )
+
+// Reason codes a producer writes into a failed or revoked outcome.
+const (
+	CodeInvalid           = "CRED-INVALID"
+	CodeIssuerUntrusted   = "CRED-ISSUER-UNTRUSTED"
+	CodeRevoked           = "CRED-REVOKED"
+	CodeStatusUnavailable = "CRED-STATUS-UNAVAILABLE"
+)
+
+// The outcome statuses.
+const (
+	StatusVerified = "verified"
+	StatusFailed   = "failed"
+	StatusRevoked  = "revoked"
+)
+
+// RoleUnverified is the claims.role a producer writes when the outcome failed before the
+// credential's claims were read: the schema requires a role on every outcome, and no credential
+// role is known. A consumer never maps it to an entitlement; it reaches no grant, since only a
+// verified outcome does.
+const RoleUnverified = "unverified"
+
+// MaxKid bounds a kid: longer ones are never resolved.
+const MaxKid = 128
 
 // Claims is the outcome's role and optional entitlement.
 type Claims struct {
@@ -61,10 +85,14 @@ type Expect struct {
 	Audience  string
 }
 
-// Error carries the IF-03 reason code.
+// Error carries the IF-03 reason code. Cause is set only on CodeNotVerified: the reason the producer
+// signed into the outcome, one of the producer codes above, when the outcome is for the request it
+// was checked against and inside its validity interval. It is empty otherwise, so a caller may
+// record it and act on it. It is not part of the error text.
 type Error struct {
-	Code string
-	Err  error
+	Code  string
+	Cause string
+	Err   error
 }
 
 func (e *Error) Error() string { return e.Code + ": " + e.Err.Error() }
@@ -79,27 +107,21 @@ const (
 
 // Verify checks signature (CodeSignature), payload schema, status (CodeNotVerified), the match with
 // want (CodeMismatch) and the validity interval at now with 30 s skew and a 120 s maximum
-// (CodeExpired). Consumption (CodeConsumed) is the caller's, inside its transaction. A payload that
-// or header that does not follow the IF-03 schemas is refused with CodeSignature, the code of the
-// format rule: whoever signed it, it is not an outcome in the agreed form, so nothing in it is used. Errors carry the code and fixed text only.
+// (CodeExpired). Consumption (CodeConsumed) is the caller's, inside its transaction. A payload or
+// header that does not follow the IF-03 schemas is refused with CodeSignature, the code of the
+// format rule: whoever signed it, it is not an outcome in the agreed form, so nothing in it is used.
+// Errors carry the code and fixed text only; a CodeNotVerified refusal also names its Cause, under
+// the conditions Error states. The order of the rules does not change with it: an outcome that is
+// not verified is refused as such whoever it is for.
 func Verify(compact string, trusted Issuers, want Expect, now time.Time) (Outcome, error) {
 	var owner string
 	_, payload, err := jose.Verify(compact, jose.HeaderPolicy{Typ: Typ, KidNeeded: true}, func(h jose.Header) (*ecdsa.PublicKey, error) {
-		for iss, keys := range trusted {
-			if k, ok := keys[h.Kid]; ok && k != nil {
-				if owner != "" {
-					return nil, errors.New("kid held by more than one issuer")
-				}
-				owner = iss
-			}
+		iss, key, ok := trusted.Key(h.Kid)
+		if !ok {
+			return nil, errors.New("unknown or ambiguous kid")
 		}
-		if owner == "" {
-			return nil, errors.New("unknown kid")
-		}
-		if utf8.RuneCountInString(h.Kid) > 128 {
-			return nil, errors.New("kid too long")
-		}
-		return trusted[owner][h.Kid], nil
+		owner = iss
+		return key, nil
 	})
 	if err != nil {
 		return Outcome{}, refuse(CodeSignature, "signature not verified with a trusted key")
@@ -111,20 +133,78 @@ func Verify(compact string, trusted Issuers, want Expect, now time.Time) (Outcom
 	if o.Issuer != owner {
 		return Outcome{}, refuse(CodeSignature, "issuer does not own the signing key")
 	}
-	if o.Status != "verified" {
-		return Outcome{}, refuse(CodeNotVerified, "outcome is not verified")
+	if o.Status != StatusVerified {
+		return Outcome{}, &Error{Code: CodeNotVerified, Cause: o.cause(want, now), Err: errors.New("outcome is not verified")}
 	}
-	if o.ClientID != want.ClientID || o.Challenge != want.Challenge || o.Audience != want.Audience {
+	if !o.matches(want) {
 		return Outcome{}, refuse(CodeMismatch, "outcome is for another client, challenge or audience")
 	}
-	if !o.VerifiedAt.Before(o.ExpiresAt) || o.ExpiresAt.Sub(o.VerifiedAt) > maxValidity ||
-		o.VerifiedAt.After(now.Add(skew)) || !now.Before(o.ExpiresAt) {
+	if !o.current(now) {
 		return Outcome{}, refuse(CodeExpired, "outcome is outside its validity interval")
 	}
 	return o, nil
 }
 
+func (o Outcome) matches(want Expect) bool {
+	return o.ClientID == want.ClientID && o.Challenge == want.Challenge && o.Audience == want.Audience
+}
+
+func (o Outcome) current(now time.Time) bool {
+	return o.VerifiedAt.Before(o.ExpiresAt) && o.ExpiresAt.Sub(o.VerifiedAt) <= maxValidity &&
+		!o.VerifiedAt.After(now.Add(skew)) && now.Before(o.ExpiresAt)
+}
+
+// cause is the reason of an outcome that is not verified, for Error.Cause. An outcome for another
+// request or outside its interval names none: a signed "revoked" replayed from an earlier request
+// says nothing about this one. Neither does a reason outside the pairs IF-03 writes (revoked with
+// CodeRevoked, failed with one of the other three), which keeps the value to four fixed words
+// whatever the payload carried. Whether the outcome names the credential it is about is not asked
+// here: credential_refs is optional in the schema for every status, and a caller that knows what it
+// presented compares the names itself (verificationclient does).
+func (o Outcome) cause(want Expect, now time.Time) string {
+	if !o.matches(want) || !o.current(now) {
+		return ""
+	}
+	switch o.Status {
+	case StatusRevoked:
+		if o.ReasonCode == CodeRevoked {
+			return CodeRevoked
+		}
+	case StatusFailed:
+		switch o.ReasonCode {
+		case CodeInvalid, CodeIssuerUntrusted, CodeStatusUnavailable:
+			return o.ReasonCode
+		}
+	}
+	return ""
+}
+
 func refuse(code, text string) *Error { return &Error{Code: code, Err: errors.New(text)} }
+
+// CredentialRef is how an outcome names a credential in credential_refs: the credential's issuer
+// and its jti, or its vct when it has no jti.
+func CredentialRef(issuer, id string) string { return issuer + "#" + id }
+
+// UnverifiedCredentialRefs reads the credential_refs of a compact outcome without checking its
+// signature: what the outcome says it is about, for a caller that knows which credential it
+// presented and holds no key to verify with. It is nil for anything that is not an outcome in the
+// IF-03 form or names no credential. Nothing can be concluded from a match, which the signature
+// alone would support; a caller may only refuse an outcome that is about another credential.
+func UnverifiedCredentialRefs(compact string) []string {
+	parts := strings.Split(compact, ".")
+	if len(parts) != 3 {
+		return nil
+	}
+	payload, err := jose.DecodeB64(parts[1])
+	if err != nil {
+		return nil
+	}
+	o, ok := parsePayload(payload)
+	if !ok {
+		return nil
+	}
+	return o.CredentialRefs
+}
 
 var (
 	uuidPattern     = regexp.MustCompile(`^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$`)
@@ -215,11 +295,11 @@ func parsePayload(payload []byte) (Outcome, bool) {
 
 	_, hasReason := m["reason_code"]
 	switch o.Status {
-	case "verified":
+	case StatusVerified:
 		if hasReason {
 			return Outcome{}, false
 		}
-	case "failed", "revoked":
+	case StatusFailed, StatusRevoked:
 		reason, _, isStr := jose.String(m, "reason_code")
 		if !hasReason || !isStr || !reasonPattern.MatchString(reason) {
 			return Outcome{}, false

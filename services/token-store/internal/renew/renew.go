@@ -13,6 +13,7 @@ import (
 
 	"github.com/jackc/pgx/v5/pgxpool"
 
+	"github.com/eclipse-xfsc/facis-zero-trust-demonstrator/internal/if03"
 	"github.com/eclipse-xfsc/facis-zero-trust-demonstrator/services/token-store/internal/acquire"
 )
 
@@ -35,10 +36,11 @@ const (
 // Reason codes the worker writes on its audit rows. Each acquisition attempt is audited by
 // acquisition itself, with the row it replaces in its detail.
 const (
-	CodeNoRoute    = "REN-NO-ROUTE"    // the row's route is not configured: nothing to renew with
-	CodeClaimStale = "REN-CLAIM-STALE" // a claim older than StaleAfter was released
-	CodeExpired    = "REN-EXPIRED"     // a stale claim on an expired token: failed
-	CodeClaimLost  = acquire.CodeClaimLost
+	CodeNoRoute      = "REN-NO-ROUTE"      // the row's route is not configured: nothing to renew with
+	CodeNotAutomated = "REN-NOT-AUTOMATED" // the route has no outcome source: nothing presents for it unattended
+	CodeClaimStale   = "REN-CLAIM-STALE"   // a claim older than StaleAfter was released
+	CodeExpired      = "REN-EXPIRED"       // a stale claim on an expired token: failed
+	CodeClaimLost    = acquire.CodeClaimLost
 )
 
 // Worker renews the due tokens of the store's database. Run it in every replica; Instance tells the
@@ -137,13 +139,24 @@ func (w *Worker) claim(ctx context.Context, n int) ([]Claim, error) {
 
 // renew replaces c's token with bounded attempts and backoff, each a fresh challenge and outcome.
 // A lost claim ends it; the last failure marks the row failed, if the claim still holds.
+//
+// Every renewal presents a credential again, and only the route's outcome source can do that
+// without a person: a route that has none is not eligible for renewal and its row fails at once,
+// with no attempt. An attempt whose outcome says the credential is revoked is the last one: the
+// answer is signed and for this request, and asking again would only present the same credential.
+// Every other failure is retried, an outcome source that cannot be reached or does not answer
+// among them.
 func (w *Worker) renew(ctx context.Context, c Claim) {
 	route, ok := w.Routes.For(c.PeerZone, c.Audience, c.Tenant)
 	if !ok {
-		w.fail(ctx, c, CodeNoRoute)
+		w.fail(ctx, c, "", CodeNoRoute, "")
 		return
 	}
-	code := ""
+	if route.Outcomes == nil {
+		w.fail(ctx, c, route.Name, CodeNotAutomated, "")
+		return
+	}
+	code, cause := "", ""
 	backoff := or(w.Backoff, DefaultBackoff)
 	for i := range or(w.Attempts, DefaultAttempts) {
 		if i > 0 {
@@ -167,10 +180,10 @@ func (w *Worker) renew(ctx context.Context, c Claim) {
 			w.log().InfoContext(ctx, "upstream token renewed", "route", route.Name, "token_id", tok.ID, "replaces", c.Fence.TokenID)
 			return
 		}
-		code = acquire.CodeStore
+		code, cause = acquire.CodeStore, ""
 		var e *acquire.Error
 		if errors.As(err, &e) {
-			code = e.Code
+			code, cause = e.Code, e.Cause
 		}
 		if code == acquire.CodeClaimLost {
 			w.lost(ctx, c)
@@ -179,9 +192,18 @@ func (w *Worker) renew(ctx context.Context, c Claim) {
 		if ctx.Err() != nil {
 			return
 		}
+		if terminal(cause) {
+			break
+		}
 	}
-	w.fail(ctx, c, code)
+	w.fail(ctx, c, route.Name, code, cause)
 }
+
+// terminal reports whether an attempt that failed for cause settles the renewal: another attempt
+// could not end differently. A revoked credential does (a suspended one reads as revoked); a status
+// list that could not be read, or a credential the verifier could not accept, may be the
+// verifier's side passing, and keeps its attempts.
+func terminal(cause string) bool { return cause == if03.CodeRevoked }
 
 // held reports whether c's fence still holds.
 func (w *Worker) held(ctx context.Context, c Claim) (bool, error) {
@@ -195,22 +217,29 @@ func (w *Worker) held(ctx context.Context, c Claim) (bool, error) {
 }
 
 // fail marks c's row failed, terminal, only while c's fence holds, and audits it in the same
-// statement.
-func (w *Worker) fail(ctx context.Context, c Claim, code string) {
+// statement. cause is the last attempt's (acquire.Error's Cause) and is recorded when there is one;
+// route is the configured route's name, empty when the row has none, and goes into the record so
+// that a failure no acquisition attempt has logged still says which route it is.
+func (w *Worker) fail(ctx context.Context, c Claim, route, code, cause string) {
 	ctx2, cancel := context.WithTimeout(ctx, opTimeout)
 	defer cancel()
 	tag, err := w.DB.Exec(ctx2, `WITH f AS (UPDATE upstream_token SET state = 'failed', updated_at = $4
 			WHERE token_id = $1 AND state = 'renewing' AND claimed_by = $2 AND claimed_at = $3 RETURNING token_id)
 		INSERT INTO audit_event (kind, token_id, reason_code, detail)
-		SELECT 'renewal.failed', token_id, $5, jsonb_build_object('peer_zone', $6::text, 'audience', $7::text, 'instance', $2::text) FROM f`,
-		c.Fence.TokenID, c.Fence.ClaimedBy, c.Fence.ClaimedAt, w.now(), code, c.PeerZone, c.Audience)
+		SELECT 'renewal.failed', token_id, $5, jsonb_strip_nulls(jsonb_build_object(
+			'peer_zone', $6::text, 'audience', $7::text, 'instance', $2::text, 'cause', NULLIF($8::text, ''))) FROM f`,
+		c.Fence.TokenID, c.Fence.ClaimedBy, c.Fence.ClaimedAt, w.now(), code, c.PeerZone, c.Audience, cause)
 	switch {
 	case err != nil:
 		w.log().WarnContext(ctx, "renewal failure not recorded; the claim stays for the staleness sweep", "token_id", c.Fence.TokenID)
 	case tag.RowsAffected() == 0:
 		w.lost(ctx, c)
 	default:
-		w.log().WarnContext(ctx, "upstream token renewal failed; token failed", "token_id", c.Fence.TokenID, "reason_code", code)
+		record := []any{"token_id", c.Fence.TokenID, "peer_zone", c.PeerZone, "audience", c.Audience, "reason_code", code}
+		if route != "" {
+			record = append(record, "route", route)
+		}
+		w.log().WarnContext(ctx, "upstream token renewal failed; token failed", acquire.WithCause(record, cause)...)
 	}
 }
 
