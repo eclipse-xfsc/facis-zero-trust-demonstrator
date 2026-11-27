@@ -75,3 +75,14 @@ networkPolicy:
         type: tunnel
   identityServer:
     enabled: true
+
+# The secret store, release ztd-openbao (deployment/helm/ztd-openbao), installed by
+# scripts/install-zone/install.sh after zone-policy with this zone's storage class (zone.storageClass)
+# and the umbrella's management namespace. TEMPORARY pin: the provider's pod network masquerades
+# cross-node pod traffic, so a meshed pod on another node than istiod never passes its proxy's
+# readiness; the installer pins the OpenBao server and both of its jobs to istiod's node (required
+# node affinity on kubernetes.io/hostname). The server's volume (WaitForFirstConsumer) binds on that
+# node. The pin falls when the provider's network is fixed, the criterion that gates mesh enrolment
+# on this cluster (docs/environments/osc.md, "The node pin of OpenBao").
+openbao:
+  pinToMeshNode: true

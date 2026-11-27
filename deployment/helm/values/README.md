@@ -149,6 +149,6 @@ The CI chart job renders every release from its pinned chart with these files an
 facts, and never installs:
 
 ```bash
-scripts/install-zone/install.sh render            # all seven releases, no cluster
+scripts/install-zone/install.sh render            # all eight releases, no cluster
 scripts/install-zone/install.sh render spire      # one release
 ```

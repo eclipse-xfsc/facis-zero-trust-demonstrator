@@ -1,0 +1,112 @@
+# Values of the ztd-openbao chart. Every key is documented here and in README.md.
+#
+# The release `ztd-openbao` is the last of a zone (scripts/install-zone/install.sh), installed into
+# the management-plane namespace after `zone-policy`, so the injector, the registration rule and
+# SPIRE exist when its pods are created: the server, the bootstrap Job and the verification hook
+# each start with a sidecar, a SPIRE entry and an SVID, and the server's traffic inside the
+# management plane is mesh mTLS (docs/secrets.md). The installer fills the zone facts marked below
+# from the umbrella's defaults with the zone file on top; installed by hand (scripts/secrets/
+# baseline.sh), they are set on the command line.
+
+# The management-plane namespace the umbrella created (zone fact: planes.management.namespace).
+# The bootstrap Job, its RBAC and the verification hook go there; openbao.global.namespace below
+# must name the same namespace (the chart refuses to render otherwise).
+managementNamespace: ztd-mgmt
+
+# Values shared with the upstream chart. Helm hands a parent chart's values to a subchart only
+# through `global`, so the node pin lives here: one value pins the server (through
+# openbao.server.affinity below) and both jobs.
+global:
+  pin:
+    # The node the server and both jobs must run on (required node affinity on
+    # kubernetes.io/hostname); empty: no pin. TEMPORARY, participant zones only: the provider's pod
+    # network masquerades cross-node pod traffic, so a meshed pod on another node than istiod
+    # never passes its proxy's readiness. The installer sets it to istiod's node when the zone file
+    # sets openbao.pinToMeshNode (istiod-node-not-found when istiod has no node, which matches no
+    # node, so nothing runs unpinned). The pin falls when the provider's network is fixed
+    # (docs/environments/osc.md). The server's volume binds on the node the server first runs on.
+    node: ""
+
+# The Kubernetes API lane of the bootstrap Job under Cilium (zone fact: cni.cilium.enabled). Under
+# Cilium a NetworkPolicy ipBlock does not select the API server, so the chart opens the Job's lane
+# with a CiliumNetworkPolicy to the kube-apiserver entity; with another CNI the umbrella's
+# networkPolicy.kubeApi lane must be open in the management plane.
+cilium:
+  enabled: true
+
+# The upstream chart (openbao 0.28.3, OpenBao v2.5.4): one standalone server with file storage on a
+# volume in the management plane. The release name `ztd-openbao` makes its fullname `ztd-openbao`:
+# the StatefulSet, the pod ztd-openbao-0, the Services ztd-openbao and ztd-openbao-internal and the
+# ServiceAccount ztd-openbao. The server listens without TLS inside the management plane; on a
+# meshed zone the sidecars carry the traffic as mTLS (ADR-0001, STRICT peer authentication). Set
+# openbao.server.enabled to false to verify an existing OpenBao instead (external, below).
+openbao:
+  global:
+    # Every upstream piece is off unless it is turned on by name below (the server), so that with
+    # openbao.server.enabled false (external mode) the upstream chart renders nothing.
+    enabled: false
+    # zone fact: planes.management.namespace; must equal managementNamespace
+    namespace: ztd-mgmt
+  injector:
+    enabled: false
+  server:
+    enabled: true
+    image:
+      tag: "2.5.4@sha256:436eaf9778cad75507ff70ea26ace30dcbe15606e619ac3823495663d7f7c115"
+    # The identity label the zone-policy registration rule selects (ClusterSPIFFEID plane-workloads):
+    # the server pod gets spiffe://<trust domain>/ns/<management namespace>/sa/ztd-openbao.
+    extraLabels:
+      spiffe.io/spire-managed-identity: "true"
+    # Pinned to global.pin.node when it is set (see global.pin); otherwise the upstream default, a
+    # pod anti-affinity between server replicas. A template string, evaluated by the upstream chart.
+    affinity: |
+      {{- if (.Values.global.pin).node }}
+      nodeAffinity:
+        requiredDuringSchedulingIgnoredDuringExecution:
+          nodeSelectorTerms:
+            - matchExpressions:
+                - key: kubernetes.io/hostname
+                  operator: In
+                  values: [{{ .Values.global.pin.node | quote }}]
+      {{- else }}
+      podAntiAffinity:
+        requiredDuringSchedulingIgnoredDuringExecution:
+          - labelSelector:
+              matchLabels:
+                app.kubernetes.io/name: {{ template "openbao.name" . }}
+                app.kubernetes.io/instance: "{{ .Release.Name }}"
+                component: server
+            topologyKey: kubernetes.io/hostname
+      {{- end }}
+    # The Kubernetes auth method is not used yet (deferred with the ZT-11 signing flow), so the
+    # cluster-wide auth-delegator binding is not created.
+    authDelegator:
+      enabled: false
+    standalone:
+      enabled: true
+    # RollingUpdate, not the upstream default OnDelete: an upgrade that changes the server's pod
+    # template restarts the server, and the bootstrap Job, renamed by the same change, unseals the
+    # new pod (it waits for the pod of the StatefulSet's update revision). Under OnDelete a changed
+    # value would wait for someone to delete the pod by hand, and the server would come back sealed.
+    updateStrategyType: RollingUpdate
+    dataStorage:
+      size: 1Gi
+      # zone fact: zone.storageClass; required with the bundled server
+      storageClass: null
+
+# The bootstrap of the bundled server: a regular Job (not a hook - a sealed server is not ready, and
+# post-install hooks wait for readiness) that initialises the server once, keeps the unseal key in
+# the Kubernetes Secret `ztd-openbao-bootstrap`, unseals, enables kv-v2 at secret/ and transit at
+# transit/, issues a narrow periodic verification token and revokes the root token. Its name hashes
+# the whole of these values, so an upgrade that may restart the server (sealed) runs it again and
+# unseals the server; an unchanged upgrade renders the same name. A restart the lifecycle does not
+# cause leaves the server sealed until scripts/secrets/unseal.sh is run (docs/secrets.md).
+bootstrap:
+  image: docker.io/curlimages/curl:8.10.1@sha256:d9b4541e214bcd85196d6e92e2753ac6d0ea699f0af5741f8c6cccbfcf00ef4b
+
+# An OpenBao the zone does not own, such as the one the XFSC ArgoCD deployment installs. When
+# `address` is set, openbao.server.enabled must be false: nothing is installed or initialised, and
+# only the verification hook runs, with the token in the named Secret of the management namespace.
+external:
+  address: ""
+  verifyTokenSecret: ""

@@ -152,24 +152,22 @@
     },
     "openbao": {
       "type": "object",
-      "required": ["enabled"],
+      "description": "The umbrella installs no OpenBao: the release ztd-openbao does (deployment/helm/ztd-openbao). The one key a zone file may set here is read by scripts/install-zone/install.sh for that release; any other key is a stale value of the umbrella that installed OpenBao and is refused.",
+      "additionalProperties": false,
       "properties": {
-        "enabled": { "type": "boolean" }
+        "pinToMeshNode": {
+          "type": "boolean",
+          "description": "Pin the ztd-openbao release to istiod's node (participant zones on a provider-masqueraded pod network; temporary)."
+        }
       }
     },
     "openbaoBootstrap": {
-      "type": "object",
-      "required": ["image"],
-      "properties": {
-        "image": { "type": "string", "pattern": "@sha256:[0-9a-f]{64}$" }
-      }
+      "description": "Refused: the bootstrap moved to deployment/helm/ztd-openbao (bootstrap.image).",
+      "not": {}
     },
     "openbaoExternal": {
-      "type": "object",
-      "properties": {
-        "address": { "type": "string", "pattern": "^(|https?://.+)$" },
-        "verifyTokenSecret": { "type": "string" }
-      }
+      "description": "Refused: the external mode moved to deployment/helm/ztd-openbao (external.address, external.verifyTokenSecret).",
+      "not": {}
     }
   },
   "allOf": [
