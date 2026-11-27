@@ -11,6 +11,7 @@ import (
 	"fmt"
 	"os"
 	"regexp"
+	"strings"
 	"time"
 
 	"github.com/eclipse-xfsc/facis-zero-trust-demonstrator/internal/connectorclient"
@@ -18,6 +19,8 @@ import (
 	"github.com/eclipse-xfsc/facis-zero-trust-demonstrator/internal/if03/if03fixture"
 	"github.com/eclipse-xfsc/facis-zero-trust-demonstrator/internal/meshcaller"
 	"github.com/eclipse-xfsc/facis-zero-trust-demonstrator/internal/transit"
+	"github.com/eclipse-xfsc/facis-zero-trust-demonstrator/internal/verificationclient"
+	"github.com/eclipse-xfsc/facis-zero-trust-demonstrator/internal/verificationclient/fixtureholder"
 )
 
 // Config is the acquisition configuration file (JSON). It holds file paths, never secrets.
@@ -57,6 +60,20 @@ type Config struct {
 			Entitlement     string `json:"entitlement"`
 			ValiditySeconds int    `json:"validity_seconds"`
 		} `json:"fixture_outcomes"`
+		// VerificationOutcomes makes the route's outcomes come from the verification service: at
+		// every acquisition and renewal a holder presents the credential and the service answers
+		// with the signed outcome.
+		VerificationOutcomes *struct {
+			URL            string `json:"url"`             // the verification service's base URL
+			TimeoutSeconds int    `json:"timeout_seconds"` // 1 to 10; absent or zero means 5
+			// Holder is who presents. Its kind selects the holder and the members it takes; "file"
+			// is the stand-in of fixtureholder, read from two files at every presentation.
+			Holder struct {
+				Kind           string `json:"kind"`
+				CredentialFile string `json:"credential_file"` // the SD-JWT VC to present, with its disclosures
+				KeyFile        string `json:"key_file"`        // PEM, P-256: the credential's holder key
+			} `json:"holder"`
+		} `json:"verification_outcomes"`
 	} `json:"routes"`
 }
 
@@ -162,6 +179,25 @@ func LoadConfig(path string) (Loaded, error) {
 			}
 			route.Outcomes = if03fixture.Fixture{Issuer: f.Issuer, Kid: f.Kid, Key: key, Validity: v,
 				Claims: if03.Claims{Role: f.Role, Entitlement: f.Entitlement}}
+		}
+		if v := r.VerificationOutcomes; v != nil {
+			if r.FixtureOutcomes != nil {
+				return Loaded{}, fmt.Errorf("acquisition config: route %q: fixture_outcomes and verification_outcomes exclude each other", r.Name)
+			}
+			// The bound is checked on the number as written: converted to a duration first, a
+			// large value would wrap into the range.
+			maxSeconds := int(verificationclient.MaxTimeout / time.Second)
+			base, err := connectorclient.BaseURL(v.URL)
+			if err != nil || strings.Contains(v.URL, "?") || v.TimeoutSeconds < 0 || v.TimeoutSeconds > maxSeconds {
+				return Loaded{}, fmt.Errorf("acquisition config: route %q: verification_outcomes needs an absolute http(s) url without query or fragment, and timeout_seconds of 1 to %d when set", r.Name, maxSeconds)
+			}
+			// The files are read at every presentation, not here: only an acquisition needs them.
+			h := v.Holder
+			if h.Kind != "file" || h.CredentialFile == "" || h.KeyFile == "" {
+				return Loaded{}, fmt.Errorf(`acquisition config: route %q: verification_outcomes needs a holder of kind "file" with credential_file and key_file`, r.Name)
+			}
+			route.Outcomes = &verificationclient.Client{BaseURL: base, Timeout: time.Duration(v.TimeoutSeconds) * time.Second,
+				Holder: fixtureholder.Files{CredentialFile: h.CredentialFile, KeyFile: h.KeyFile}}
 		}
 		out.Routes[r.Name] = route
 	}
