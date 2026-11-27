@@ -1,3 +1,3 @@
-time="2026-11-25T15:52:17Z" level=info msg="SUCCESS: Verification for Prover ztd-cmcd-59ffb46b94-g4hfz (2026-11-25T15:52:17.410345801Z)" service=ar
-connector-gateway: startup check of zone zone-a: component atls-gateway: verified c410ce59e2941e318504ca94c02d1fc402078c06c4ee64d2708f2fd6351383c0, configured e247fa13e2ef619c95391b7f816ecf226686cdde22b56736442fe6242fbe4fd1
+time="2026-11-27T17:13:17Z" level=info msg="SUCCESS: Verification for Prover ztd-cmcd-987884ffd-vh56p (2026-11-27T17:13:17.43708771Z)" service=ar
 {"role":"ingress","decision":"refused","reason":"evidence_rejected"}
+connector-gateway: startup check of zone zone-a: component atls-gateway: verified c410ce59e2941e318504ca94c02d1fc402078c06c4ee64d2708f2fd6351383c0, configured e247fa13e2ef619c95391b7f816ecf226686cdde22b56736442fe6242fbe4fd1

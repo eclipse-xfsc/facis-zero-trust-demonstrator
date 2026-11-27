@@ -1,16 +1,17 @@
 # The attested-channel gateway between two zones on kind
 
-Run of 2026-11-25, 15:34 to 15:52 UTC, on a workstation: two kind clusters (`kindest/node` v1.35.8,
+Run of 2026-11-27, 17:02 to 17:13 UTC, on a workstation: two kind clusters (`kindest/node` v1.35.8,
 one control-plane and one worker each, Cilium 1.20.2 with `cni.exclusive=false`), both installed as
 participant zones through `scripts/install-zone` (umbrella, SPIRE, Istio sidecar mode, zone-policy),
 each with the attester release `ztd-cmcd` and the gateway release `ztd-atls-gateway` from its zone
 file; CMC v0.9.15; images built from the working tree for `linux/arm64`, the platform of these nodes.
-Commit `ed40cb66` (tree clean): the gateway's image, charts, startup check and this proof, after the
-review of the same day (readiness endpoint opened only once the startup check passed, the pod rolled
-on changed material, the record of every pod of a role). Three earlier runs of the day, on the
-uncommitted tree and on the two earlier commits, gave the same seventeen verdicts. Eighteen minutes
-from two empty clusters to the verdict (ten and a half before the readiness probes, which make each
-rollout wait for the new pod's startup check).
+Commit `0146299a` (tree clean): the gateway's image, charts, startup check and this proof, after the
+review (readiness endpoint opened only once the startup check passed, the pod rolled on changed
+material, the record of every pod of a role) and after the first CI run (the proof's registry started
+once kind's network exists; the dependencies the image scan flagged raised in both images). Four
+earlier runs on 25 Nov, on the uncommitted tree and on three earlier commits, gave the same seventeen
+verdicts. Eleven minutes from two empty clusters to the verdict (eighteen on a busier run of the
+25th).
 
 Reproduce:
 
@@ -37,13 +38,13 @@ scripts/verify-atls-gateway/verify.sh --kind --out .dev/verify-atls-gateway
 | zone A, zone B: base releases | PASS |
 | zone A, zone B: `ztd-cmcd` and `ztd-atls-gateway` installed from the zone file | PASS |
 | four roles: startup check `evidence_verified` before serving | PASS |
-| A → B: 200, body `from-zone-a`; both ends one channel, `mutual_attestation`, TLS 1.3 (772), binding `7127ff263a6c364f…` at both ends, peer `spiffe://zone-b/gateway` seen by A and `spiffe://zone-a/gateway` seen by B | PASS |
-| B → A: 200, body `from-zone-b`; binding `ee3d7407fd2dad7d…` at both ends | PASS |
-| stranger at B's entry: `curl: (56) Recv failure: Connection reset by peer`, status `000` (an earlier run saw `tlsv1 alert unknown ca` instead; what the client sees depends on when the listener closes); ingress recorded `refused` / `atls: peer certificate identity rejected` | PASS |
+| A → B: 200, body `from-zone-a`; both ends one channel, `mutual_attestation`, TLS 1.3 (772), binding `da8b74c52007ef45…` at both ends, peer `spiffe://zone-b/gateway` seen by A and `spiffe://zone-a/gateway` seen by B | PASS |
+| B → A: 200, body `from-zone-b`; binding `c52e506b5e29f3b5…` at both ends | PASS |
+| stranger at B's entry: `curl: (56) … tlsv1 alert unknown ca`, status `000` (other runs saw the connection reset instead; what the client sees depends on when the listener closes); ingress recorded `refused` / `atls: peer certificate identity rejected` | PASS |
 | A's attester away: the call ends in a reset (`exit code 56`), egress recorded `refused` / `atls: local attester unavailable` | PASS |
 | A's attester back: 200, body `attester-back` | PASS |
 | A's ingress with the tampered configuration: the new pod exits 2, `{"role":"ingress","decision":"refused","reason":"evidence_rejected"}`, never Ready; the rolling update keeps the previously verified pod, so the entry stays up on the configuration it was verified against | PASS |
-| A's ingress restored, the verified pod gone: B's call answered by the restored pod, 200, body `after-restore`; its record holds that channel (binding `ea9ed579f093870a…`, the same in B's egress record) | PASS |
+| A's ingress restored, the verified pod gone: B's call answered by the restored pod, 200, body `after-restore`; its record holds that channel (binding `ce9065b7d4a9c940…`, the same in B's egress record) | PASS |
 
 `verdict.txt`: `verdict: all checks passed`, 17 checks.
 
