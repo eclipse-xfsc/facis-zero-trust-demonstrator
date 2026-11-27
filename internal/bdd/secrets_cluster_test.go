@@ -151,7 +151,7 @@ func (s *secretsBaseline) writeEvidence(problems []string) error {
 	}
 	scenario, _ := json.MarshalIndent(map[string]any{
 		"row": "TDR-BDD-08", "target": s.target, "run": s.run,
-		"chart": "ztd (umbrella with OpenBao) on a disposable kind cluster, synthetic canary", "fixture": false,
+		"chart": "ztd (umbrella) and ztd-openbao (OpenBao) on a disposable kind cluster, synthetic canary", "fixture": false,
 	}, "", "  ")
 	return os.WriteFile(filepath.Join(s.evidence, "scenario.json"), scenario, 0o644)
 }
