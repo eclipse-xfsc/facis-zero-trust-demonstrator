@@ -69,7 +69,11 @@ built, scanned, signed and released by the pipeline like every other context und
 
 `deployment/docker/cmcd`: CMC's `cmcd` at the version `go.mod` pins, built in a scratch module from
 that version, with the tags `nodefaults,grpc,socket,sw` (the `socket` tag is required by cmcd's gRPC
-server at this version). The configuration selects the gRPC API alone.
+server at this version). The dependencies CMC shares with the repository (containerd, go-jose,
+go-attestation, `x/crypto`, `x/net`, `x/text`, grpc, protobuf) are raised to the versions the
+repository's `go.mod` pins, the ones the image scan holds every Go image to, so the attester ships
+the same patched libraries as the gateway built against it. The configuration selects the gRPC API
+alone.
 
 ## Charts
 

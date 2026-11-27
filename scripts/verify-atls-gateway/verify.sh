@@ -125,13 +125,6 @@ platform=linux/$(docker version -f '{{.Server.Arch}}')
 for image in atls-gateway cmcd; do
   docker build -q --platform "$platform" -f "deployment/docker/$image/Dockerfile" -t "$host_reg/$image:atls" . >/dev/null
 done
-docker run -d --name "$reg_name" --network kind -p "$host_reg:5000" "$REGISTRY_IMAGE" >/dev/null
-registry_owned=true
-for _ in $(seq 1 30); do curl -sf -o /dev/null "http://$host_reg/v2/" && break; sleep 1; done
-for image in atls-gateway cmcd; do docker push -q "$host_reg/$image:atls" >/dev/null; done
-# digest_of IMAGE: the digest the registry holds for the pushed image.
-digest_of() { docker image inspect --format '{{index .RepoDigests 0}}' "$host_reg/$1:atls" | sed 's/.*@//'; }
-digest_gateway=$(digest_of atls-gateway) digest_cmcd=$(digest_of cmcd)
 [ -f deployment/helm/ztd/charts/gatekeeper-3.23.1.tgz ] || { helm repo add gatekeeper https://open-policy-agent.github.io/gatekeeper/charts >/dev/null 2>&1 || true; helm dependency build deployment/helm/ztd >/dev/null; }
 scripts/ci/verify-chart-dependencies.sh deployment/helm/ztd >/dev/null
 
@@ -198,6 +191,15 @@ EOF
 }
 step "Two kind zones with Cilium"
 for z in "${zones[@]}"; do zone_up "$z"; done
+# The registry joins kind's Docker network, which exists once the first cluster does (a fresh host has
+# none); both zones' nodes were pointed at it by name when they were created.
+docker run -d --name "$reg_name" --network kind -p "$host_reg:5000" "$REGISTRY_IMAGE" >/dev/null
+registry_owned=true
+for _ in $(seq 1 30); do curl -sf -o /dev/null "http://$host_reg/v2/" && break; sleep 1; done
+for image in atls-gateway cmcd; do docker push -q "$host_reg/$image:atls" >/dev/null; done
+# digest_of IMAGE: the digest the registry holds for the pushed image.
+digest_of() { docker image inspect --format '{{index .RepoDigests 0}}' "$host_reg/$1:atls" | sed 's/.*@//'; }
+digest_gateway=$(digest_of atls-gateway) digest_cmcd=$(digest_of cmcd)
 kind_subnet=$(docker network inspect kind -f '{{json .IPAM.Config}}' | jq -r '[.[] | .Subnet | select(contains(":") | not)][0] // empty')
 [ -n "$kind_subnet" ] || { echo "no IPv4 subnet on the kind network" >&2; exit 1; }
 for z in "${zones[@]}"; do echo "zone $z: worker $(node_ip "$z")"; done

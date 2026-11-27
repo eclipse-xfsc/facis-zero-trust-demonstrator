@@ -18,8 +18,9 @@ HIGH/CRITICAL findings still fail. These are packaging-project statements, not u
 
 `atls-gateway/` builds the attested-channel gateway (`cmd/connector-gateway`), the binary at
 `/atls-gateway` under user 65532 as the zone attestation files measure it, with CMC's `nodefaults,grpc`
-tags since CGO is off; `cmcd/` builds CMC's `cmcd` at the version `go.mod` pins, in a scratch module,
-with the `nodefaults,grpc,socket,sw` tags ([docs/atls-gateway.md](../../docs/atls-gateway.md)).
+tags since CGO is off; `cmcd/` builds CMC's `cmcd` at the version `go.mod` pins, in a scratch module
+whose shared dependencies are raised to the repository's pinned versions, with the
+`nodefaults,grpc,socket,sw` tags ([docs/atls-gateway.md](../../docs/atls-gateway.md)).
 
 `trace-echo/` builds the observability proof's instrumented echo (`tools/trace-echo`), which is never
 part of a zone; it is built, scanned and signed with the others.
