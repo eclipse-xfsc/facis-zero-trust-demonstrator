@@ -4,7 +4,7 @@
 # linux/amd64 only: it is what CI runs on. Images are pinned by digest in pins.env, not installed here.
 #
 #   scripts/tools/install.sh [dir] [tool...]      tools: cosign syft grype gator gatekeeper-chart kind kubectl
-#                                                  cilium-crds istio-crds argocd-chart
+#                                                  cilium-crds istio-crds argocd-chart oras
 #                                                  (default: all)
 set -euo pipefail
 
@@ -14,7 +14,7 @@ here="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 dir="${1:-.tools/bin}"
 shift || true
 tools=("$@")
-[ ${#tools[@]} -gt 0 ] || tools=(cosign syft grype gator gatekeeper-chart kind kubectl)
+[ ${#tools[@]} -gt 0 ] || tools=(cosign syft grype gator gatekeeper-chart kind kubectl cilium-crds argocd-chart oras)
 mkdir -p "$dir"
 work="$(mktemp -d)"
 trap 'rm -rf "$work"' EXIT
@@ -44,6 +44,11 @@ for tool in "${tools[@]}"; do
       fetch "https://github.com/open-policy-agent/gatekeeper/releases/download/${GATOR_VERSION}/gator-${GATOR_VERSION}-linux-amd64.tar.gz" "$GATOR_SHA256" gator.tgz
       tar -xzf "$work/gator.tgz" -C "$work" gator
       install -m 0755 "$work/gator" "$dir/gator"
+      ;;
+    oras)
+      fetch "https://github.com/oras-project/oras/releases/download/v${ORAS_VERSION}/oras_${ORAS_VERSION}_linux_amd64.tar.gz" "$ORAS_SHA256" oras.tgz
+      tar -xzf "$work/oras.tgz" -C "$work" oras
+      install -m 0755 "$work/oras" "$dir/oras"
       ;;
     gatekeeper-chart)
       # The chart archive, verified, for `helm install <dir>/gatekeeper-<version>.tgz`.

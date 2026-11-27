@@ -47,6 +47,48 @@ show (docs/architecture.md, section 6); a zone is also meant to stand on its own
 zone is handed its policy once, by the installer, and the two zones follow the same revision because
 both are told the same one.
 
+## Policy from the registry
+
+ZT-12 wants the zone to read the policy from the registry, not from Git: Git is where the policy is
+authored and reviewed, the registry is where a reviewed, signed package of it is published
+([Policy package](../../docs/ci-cd.md#policy-package)), and a zone applies what it can verify was
+published. Argo CD reads an `oci://` source by digest, with the same paths the package holds
+(`templates/`, `constraints/`, `exemptions.yaml`), but verifies no signature; the puller
+([deployment/helm/policy-puller](../helm/policy-puller/README.md)) is the piece between the two.
+
+It is a CronJob in this namespace. Each run, every five minutes:
+
+1. resolves the package's channel tag (`main`, moved by the publication workflow to each digest it
+   signs) to the digest it names now;
+2. verifies the cosign signature of that digest against the trusted public key, with the admission
+   provider's own code (`internal/cosignverify`), and that the manifest is a policy package;
+3. refuses a package created before the one the zone already follows: the signature covers the
+   manifest's `created` annotation (the commit's time), so a channel tag moved back to an older,
+   legitimately signed digest is a rollback, not a release;
+4. writes the digest into the parent's values (`package.digest`), from which the parent re-renders
+   the three children with `repoURL: oci://<repository>` and `targetRevision: <digest>`.
+
+Only the puller writes the digest, and Argo CD then only reads by digest: a tag can be moved, a
+digest cannot. Everything after step 4 is the reconciler as before: the children sync, prune and
+self-heal, and the zone's prefix is still patched into the allowed-repositories constraint by the
+consumer, never written into the package. A refusal, a tag with nothing at it, or a registry that
+cannot be reached changes nothing: the zone keeps the digest it last verified. The run records what
+it did on the parent, as `kubectl -n argocd describe application ztd-admission` shows: the
+annotations `facis.ztd/policy-digest`, `policy-created`, `policy-verified` and `policy-refused` (the
+last refusal, cleared by the next success), and an Event per change or failure
+(`PolicyPackageApplied`, `PolicyPackageRefused`, `PolicyPackageUnavailable`).
+
+The puller runs with a ServiceAccount that may `get` and `patch` the one parent Application and
+create Events, and reaches the registry through its own egress lane (the registry's port, any
+address, as the repo server's Git lane); the lanes to the API server and to DNS it shares with the
+namespace. The repo server reads the package over its existing HTTPS lane; a test registry on another
+port gets a lane from the installer.
+
+The package is a second source, not a replacement of the chart: the parent still renders
+`deployment/helm/admission-gitops` from Git, so the layout of the children is changed by a pull
+request, and `package.digest` empty (a zone installed without `POLICY_REPOSITORY`) keeps the
+children on Git.
+
 ## What runs, and what it may do
 
 The pinned Argo CD chart (`scripts/tools/pins.env`: chart version and SHA-256, images by digest) with
@@ -104,6 +146,24 @@ installer with the defaults once it is merged. The script is idempotent and stop
 that fails: an image not pinned by digest, an Application not `Synced/Healthy`, the zone's prefix
 missing from the constraint, or the sync status missing from the metrics.
 
+To read the policy from the registry ([Policy from the registry](#policy-from-the-registry)), add
+the package's repository and the puller image:
+
+```bash
+BIN=<dir> TRUST_REPOSITORY=<host/path> CILIUM=1 \
+NAMESPACE_LABELS=apiserver-proxy.networking.gardener.cloud/inject=disable \
+POLICY_REPOSITORY=<registry host>/<path of the policy package> \
+PULLER_IMAGE=<repository of the policy-puller image>@sha256:<digest> \
+scripts/argocd/install.sh
+```
+
+`POLICY_REPOSITORY` is the repository `policy-publish.yml` pushes to (`POLICY_REGISTRY/admission`);
+`POLICY_TAG` (default `main`) the channel tag, `TRUST_KEY` (default the committed interim public key)
+the key the package must be signed by. The installer declares the repository to Argo CD, installs the
+puller, runs it once and finishes only when every child reads the package at the verified digest; a
+re-run keeps the digest the zone follows. Without `POLICY_REPOSITORY` the children read Git, and a
+zone that read the package goes back to Git.
+
 ## Operations
 
 - **Changing the policy** is a pull request to `deployment/admission/`; nothing is applied to a zone
@@ -112,6 +172,9 @@ missing from the constraint, or the sync status missing from the metrics.
 - **Proving the revert:** `scripts/argocd/drift-check.sh` edits the naming constraint's pattern in
   the cluster and reports the seconds until the value from Git is back; the injected pattern still
   admits the `ztd-` names, and it is live for seconds.
+- **Pulling now, and what was pulled:** `kubectl -n argocd create job --from=cronjob/ztd-policy-puller pull-now`
+  runs the puller without waiting for the schedule; `kubectl -n argocd describe application ztd-admission`
+  shows the digest followed, when it was verified, the last refusal and the puller's Events.
 - **Break-glass:** `kubectl -n argocd scale statefulset argocd-application-controller --replicas 0`
   stops reconciliation at once and removes nothing; `--replicas 1` resumes it, and the next
   reconciliation reverts whatever was changed meanwhile.
@@ -126,8 +189,19 @@ missing from the constraint, or the sync status missing from the metrics.
 - `scripts/argocd/kind-e2e.sh`: a throwaway kind cluster with Gatekeeper and Argo CD, handed the
   policy of a Git revision; every Application `Synced/Healthy`, the catalogue in the cluster equal to
   the checkout, the zone's prefix patched in, a hand-edited constraint put back, a hand-edited child
-  Application put back by the parent, and the sync status in the metrics. The `admission-gitops` job
-  of `.github/workflows/ci.yml` runs it against the revision under test, fetched from the repository
-  it came from.
+  Application put back by the parent, and the sync status in the metrics. Then the package: the
+  catalogue published with the release scripts and an ephemeral key to a registry on the kind
+  network, the zone re-installed with `POLICY_REPOSITORY`, every child reading the package by digest
+  with the same content; a tampered package at the channel tag refused and the zone unchanged; a
+  release signed with the trusted key applied, with its change visible in the cluster; the channel
+  tag moved back to the older release refused as a rollback; a stopped registry changing nothing;
+  and the zone re-installed without `POLICY_REPOSITORY` reading Git again with nothing of the
+  package left. The `admission-gitops` job of `.github/workflows/ci.yml` runs it against the revision under
+  test, fetched from the repository it came from.
+- `go test ./cmd/policypuller`: the puller against a registry and an API server in the test: a
+  verified package applied, one already followed not written again, another key's signature, no
+  signature, an older package, a missing `created`, a manifest that is not a policy package and an
+  empty tag refused, an unreachable registry reported and nothing changed, and the refusal
+  annotation written once and cleared by a success.
 - The chart is linted and rendered by the chart gate like every chart under `deployment/helm/`; the
   gate's cluster serves Argo CD's Application and AppProject CRDs for the server dry-run.

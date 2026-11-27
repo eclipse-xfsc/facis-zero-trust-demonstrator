@@ -1,7 +1,9 @@
 {{- /*
-The project confines the children: one source repository, Gatekeeper's namespace, and only the kinds the
-admission policy consists of. Wave -1: it exists before a child refers to it.
+The project confines the children: the Git repository and, when the zone reads the registry, the
+package's repository; Gatekeeper's namespace; and only the kinds the admission policy consists of.
+Wave -1: it exists before a child refers to it.
 */ -}}
+{{- include "admgitops.validate" . -}}
 apiVersion: argoproj.io/v1alpha1
 kind: AppProject
 metadata:
@@ -15,6 +17,9 @@ spec:
   description: Admission policy of the zone, reconciled from Git
   sourceRepos:
     - {{ .Values.git.repoURL | quote }}
+    {{- with .Values.package.repository }}
+    - {{ printf "oci://%s" . | quote }}
+    {{- end }}
   destinations:
     - server: {{ .Values.destination.server | quote }}
       namespace: {{ .Values.gatekeeper.namespace | quote }}

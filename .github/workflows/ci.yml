@@ -132,6 +132,30 @@ jobs:
           FACIS_INTEROP_REGISTRY: localhost:5000
           COSIGN: ${{ runner.temp }}/bin/cosign
 
+  # The policy package (ZT-37) and its publication: the catalogue packaged reproducibly, pushed to a
+  # registry:2 on the runner as one layer of the media type Argo CD reads, signed with an ephemeral key
+  # and verified; a tampered push to the same tag leaves a digest the signature does not cover. No
+  # secret and no external push.
+  policy-package:
+    name: Policy package
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+
+      - name: Start a local registry and install the pinned cosign and oras
+        run: |
+          . scripts/tools/pins.env
+          docker run -d --name registry -p 127.0.0.1:5000:5000 "$REGISTRY_IMAGE"
+          scripts/tools/install.sh "$RUNNER_TEMP/bin" cosign oras
+
+      - name: Package, publish, pull back and tamper
+        env:
+          REGISTRY: localhost:5000
+          ORAS: ${{ runner.temp }}/bin/oras
+          COSIGN: ${{ runner.temp }}/bin/cosign
+        run: scripts/supplychain/policy-package_test.sh
+
   # The constraints that need nothing but the object (digest-only, allowed repositories, naming, the
   # namespace scope), tested offline with the pinned gator.
   gator:
@@ -197,7 +221,9 @@ jobs:
   # checkout is that same revision (the pull request's head, not the merge commit), so the catalogue in
   # the cluster can be compared with the files. Proves every Application Synced and Healthy, the zone's
   # repository prefix patched in, a hand-edited constraint and a hand-edited child put back, and the
-  # sync status in the controller's metrics.
+  # sync status in the controller's metrics. Then the policy package (ZT-12): the catalogue published
+  # to a registry on the kind network and read through the puller, a tampered package refused, a
+  # release applied, a rollback of the channel tag refused, and an unreachable registry changing nothing.
   admission-gitops:
     name: Admission reconciler (kind)
     runs-on: ubuntu-latest
@@ -213,7 +239,7 @@ jobs:
           version: v4.3.0
 
       - name: Install the pinned tools
-        run: scripts/tools/install.sh "$RUNNER_TEMP/bin" kind kubectl gatekeeper-chart argocd-chart
+        run: scripts/tools/install.sh "$RUNNER_TEMP/bin" kind kubectl cosign oras gatekeeper-chart argocd-chart
 
       - name: Run the reconciler scenarios
         env:
