@@ -50,6 +50,7 @@ func run() error {
 	return err
 }
 func main() {
+	slog.SetDefault(slog.New(slog.NewJSONHandler(os.Stderr, nil)))
 	if err := run(); err != nil {
 		slog.Error("policy evaluator stopped", "reason", err.Error())
 		os.Exit(1)

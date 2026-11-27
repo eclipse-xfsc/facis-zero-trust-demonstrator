@@ -113,6 +113,25 @@ func (s *keySet) fetch() (map[string]*ecdsa.PublicKey, error) {
 	return parseKeySet(body)
 }
 
+// ParseKeySet returns the keys of body the verifier would use, by kid, under the same rules.
+func ParseKeySet(body []byte) (map[string]*ecdsa.PublicKey, error) {
+	if len(body) > maxKeySetBytes {
+		return nil, errors.New("tokenverify: key set too large")
+	}
+	return parseKeySet(body)
+}
+
+// CheckKeySet reports whether body is a key set the verifier would use: at most maxKeySetBytes,
+// with at least one usable key by the same rules. It is the availability check of a key set, kept
+// apart from the verifier's own cache.
+func CheckKeySet(body []byte) error {
+	if len(body) > maxKeySetBytes {
+		return errors.New("tokenverify: key set too large")
+	}
+	_, err := parseKeySet(body)
+	return err
+}
+
 // parseKeySet keeps the EC P-256 signing keys that carry a kid; other keys are ignored, and a kid that
 // appears twice is dropped. A set with no usable key is an error, so it never replaces a good one.
 func parseKeySet(body []byte) (map[string]*ecdsa.PublicKey, error) {

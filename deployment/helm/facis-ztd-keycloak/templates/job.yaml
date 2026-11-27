@@ -86,6 +86,15 @@ spec:
               value: WARN
             - name: LOGGING_LEVEL_REALMCONFIG
               value: OFF
+          {{- if .Values.accessRunner.enabled }}
+            # The runner client's secret, as it is: letters, digits, "-" and "_" only, since the
+            # import places it inside a JSON string. The access chart mounts the same value.
+            - name: ACCESS_RUNNER_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: {{ required "accessRunner.secretRef.name is required" .Values.accessRunner.secretRef.name }}
+                  key: {{ .Values.accessRunner.secretRef.key }}
+          {{- end }}
           {{- range $index, $persona := list "demo-operator" "demo-observer" "bdd-operator" "bdd-observer" }}
             - name: {{ $persona | upper | replace "-" "_" }}_PASSWORD_JSON
               valueFrom:

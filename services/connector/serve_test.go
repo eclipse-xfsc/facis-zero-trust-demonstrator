@@ -104,6 +104,19 @@ func TestParseServe(t *testing.T) {
 		{name: "relative registration endpoint", args: []string{"--registration-endpoint", "/oauth2/register"}, env: required(nil), wantErr: "absolute"},
 		{name: "OpenBao with a path", args: []string{"--openbao-url", "http://bao:8200/v1"}, env: required(nil), wantErr: "http(s)://host"},
 		{name: "zero lifespan", args: []string{"--access-token-lifespan", "0"}, env: required(nil), wantErr: "lifespan"},
+		{name: "lifespan of 15 minutes", args: []string{"--access-token-lifespan", "15m"}, env: required(nil), check: func(t *testing.T, c config) {
+			if c.accessTokenLifespan != 15*time.Minute {
+				t.Errorf("lifespan %s", c.accessTokenLifespan)
+			}
+		}},
+		{name: "lifespan of 10 seconds", args: []string{"--access-token-lifespan", "10s"}, env: required(nil), check: func(t *testing.T, c config) {
+			if c.accessTokenLifespan != 10*time.Second {
+				t.Errorf("lifespan %s", c.accessTokenLifespan)
+			}
+		}},
+		{name: "lifespan under 10 seconds", args: []string{"--access-token-lifespan", "9s"}, env: required(nil), wantErr: "at least 10s"},
+		{name: "lifespan over 15 minutes", args: []string{"--access-token-lifespan", "15m1s"}, env: required(nil), wantErr: "re-validation interval"},
+		{name: "lifespan over 15 minutes from the environment", env: required(map[string]string{"CONNECTOR_ACCESS_TOKEN_LIFESPAN": "1h"}), wantErr: "re-validation interval"},
 		{name: "negative drain delay", args: []string{"--drain-delay", "-1s"}, env: required(nil), wantErr: "drain delay"},
 		{name: "no zone", env: required(map[string]string{"CONNECTOR_ZONE": ""}), wantErr: "--zone"},
 		{name: "zone c", args: []string{"--zone", "c"}, env: required(nil), wantErr: "a or b"},

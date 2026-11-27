@@ -12,6 +12,15 @@
 {{- if or (not .Values.trustDomain) (not .Values.participantServiceAccount) (not .Values.resourceName) (not .Values.policyRevision) -}}{{ fail "guard identity, resource and policy revision are required" }}{{- end -}}
 {{- $participant := printf "spiffe://%s/ns/%s/sa/%s" .Values.trustDomain .Release.Namespace .Values.participantServiceAccount -}}
 {{- if and .Values.config.allowed_callers (or (ne (len .Values.config.allowed_callers) 1) (not (has $participant .Values.config.allowed_callers))) -}}{{ fail "allowed_callers must match this namespace's configured Participant service account" }}{{- end -}}
+{{- range .Values.grpc.methods -}}
+{{- if not (regexMatch "^/[A-Za-z_][A-Za-z0-9_.]*/[A-Za-z_][A-Za-z0-9_]*$" .) -}}{{ fail (printf "grpc.methods: %q is not a full method path, /package.Service/Method" .) }}{{- end -}}
+{{- end -}}
+{{- if and .Values.grpc.methods (or (not .Values.grpc.resourcePort) (eq (int .Values.grpc.resourcePort) (int .Values.resourcePort))) -}}{{ fail "grpc.resourcePort is required with grpc.methods and must differ from resourcePort" }}{{- end -}}
+{{- if hasKey .Values.config "grpc_methods" -}}{{ fail "config.grpc_methods is set from grpc.methods; do not set it directly" }}{{- end -}}
+{{- with .Values.metrics.scraper -}}
+{{- if and .principal (or (not .namespace) (empty .podLabels)) -}}{{ fail "metrics.scraper needs namespace and podLabels with a principal" }}{{- end -}}
+{{- if and .principal (not (regexMatch "^spiffe://[A-Za-z0-9._-]+/ns/[a-z0-9]([-a-z0-9]*[a-z0-9])?/sa/[a-z0-9]([-.a-z0-9]*[a-z0-9])?$" .principal)) -}}{{ fail "metrics.scraper.principal must be one workload identity, spiffe://<trust domain>/ns/<namespace>/sa/<service account>, without wildcards" }}{{- end -}}
+{{- end -}}
 {{- $scopes := .Values.config.scope_tenants -}}
 {{- if or (not (get $scopes "report:read")) (not (get $scopes "report:summary")) (eq (get $scopes "report:read") (get $scopes "report:summary")) -}}{{ fail "full-report and summary scope tenants must be distinct" }}{{- end -}}
 {{- end -}}
@@ -24,4 +33,9 @@
 {{- $_ := set $p "proxyHeaders" (mergeOverwrite (get $p "proxyHeaders" | default dict) (dict "forwardedClientCert" "SANITIZE_SET" "setCurrentClientCertDetails" (dict "uri" true "cert" false "chain" false "subject" false "dns" false))) -}}
 {{- $_ := set $a "proxy.istio.io/config" (toJson $p) -}}
 {{- toYaml $a -}}
+{{- end -}}
+
+{{- /* The gRPC part of the guard's and the policy evaluator's configuration: the same list for both. */ -}}
+{{- define "guard.grpcConfig" -}}
+{{- if .Values.grpc.methods -}}{{ dict "grpc_methods" .Values.grpc.methods | toJson }}{{- else -}}{}{{- end -}}
 {{- end -}}

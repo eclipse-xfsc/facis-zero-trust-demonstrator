@@ -45,7 +45,7 @@ app.kubernetes.io/instance: {{ .Release.Name }}
 {{- if not .Values.oauth.registrarID -}}{{ fail "oauth.registrarID is required" }}{{- end -}}
 {{- if lt (int .Values.replicas) 1 -}}{{ fail "replicas must be positive" }}{{- end -}}
 {{- if not .Values.dpop.enforce -}}{{ fail "the protected-service Connector requires dpop.enforce" }}{{- end -}}
-{{- if or (lt (int .Values.server.readinessTimeoutSeconds) 1) (lt (int .Values.server.shutdownTimeoutSeconds) 1) (lt (int .Values.server.drainDelaySeconds) 0) (lt (int .Values.oauth.accessTokenLifespanSeconds) 1) -}}
+{{- if or (lt (int .Values.server.readinessTimeoutSeconds) 1) (lt (int .Values.server.shutdownTimeoutSeconds) 1) (lt (int .Values.server.drainDelaySeconds) 0) (lt (int .Values.oauth.accessTokenLifespanSeconds) 10) (gt (int .Values.oauth.accessTokenLifespanSeconds) 900) -}}
 {{- fail "server timeout and token lifetime values must be positive; drain delay may be zero" -}}
 {{- end -}}
 {{- if not (has .Values.server.logLevel (list "debug" "info" "warn" "error")) -}}{{ fail "invalid server.logLevel" }}{{- end -}}

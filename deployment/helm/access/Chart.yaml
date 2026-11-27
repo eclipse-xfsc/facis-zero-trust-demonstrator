@@ -1,0 +1,6 @@
+apiVersion: v2
+name: access
+description: The privileged-operations runner, the only holder of the demonstrator's administrative credentials, which acts only on approvals checked on every call.
+type: application
+version: 0.1.0
+appVersion: 0.1.0

@@ -14,6 +14,7 @@ import (
 )
 
 func main() {
+	slog.SetDefault(slog.New(slog.NewJSONHandler(os.Stderr, nil)))
 	config, err := participant.LoadConfig()
 	if err != nil {
 		slog.Error("participant configuration rejected", "error", err)

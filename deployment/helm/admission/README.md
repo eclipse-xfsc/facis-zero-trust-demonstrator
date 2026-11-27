@@ -34,7 +34,7 @@ kubectl -n gatekeeper-system get deploy gatekeeper-controller-manager \
 | Object | Purpose |
 |---|---|
 | `Deployment`/`Service` `ztd-admission-provider` | the provider: HTTPS on 8443 (TLS 1.3 only, client certificate required), metrics and health on 9090 |
-| `Secret` `ztd-admission-provider-tls` | the provider's own CA and server certificate, generated on first install and kept on upgrade |
+| `Secret` `ztd-admission-provider-tls` | the provider's own CA and server certificate (ECDSA P-256), generated on first install and kept on upgrade. A Secret from an earlier version holds RSA-2048 keys and is kept too: to replace it, delete the Secret and upgrade the release in a maintenance window. Until the pod has reloaded the new certificate (its reload interval plus the kubelet's Secret sync) the Provider's `caBundle` and the served certificate disagree, and admission in the proof namespaces is refused |
 | `ConfigMap` `ztd-admission-provider-trust` | the trust policy, one `policy.json`: allowed repository prefixes and trusted cosign public keys, read together so an update is never half applied |
 | `Provider` `ztd-image-verifier` | Gatekeeper's pointer to the provider, with the provider CA as `caBundle` |
 

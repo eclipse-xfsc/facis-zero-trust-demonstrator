@@ -1,0 +1,36 @@
+# Alert rules for the guard's dependencies, as a plain Prometheus rule file (rule_files). They read
+# the scrape job "ztd-guard"; a stack that names the job otherwise rewrites the selector. Timing:
+# with the guard's probe every 5 s (2 s timeout, results valid 8 s), a scrape every 5 s with a 1 s
+# timeout and this group evaluated every 5 s, a dependency that stays down fires within about 28 s,
+# a prober that stops within about 29 s (README, "Dependencies"). The firing alert is the signal;
+# delivering it is the observability stack's.
+groups:
+  - name: ztd-guard
+    interval: 5s
+    rules:
+      - alert: ZtdGuardDependencyDown
+        expr: ztd_guard_dependency_up{job="ztd-guard"} == 0
+        for: 10s
+        labels: {severity: critical}
+        annotations:
+          summary: "The guard {{ $labels.instance }} cannot reach its {{ $labels.dependency }}; it refuses the requests that need it."
+      - alert: ZtdGuardScrapeFailing
+        expr: up{job="ztd-guard"} == 0
+        for: 10s
+        labels: {severity: critical}
+        annotations:
+          summary: "The guard {{ $labels.instance }} cannot be scraped; the state of its dependencies is unknown."
+      - alert: ZtdGuardDependencySeriesMissing
+        expr: >-
+          (count by (job, instance) (ztd_guard_dependency_up{job="ztd-guard"}) < 3)
+          or (max by (job, instance) (up{job="ztd-guard"} == 1) unless on (job, instance) ztd_guard_dependency_up{job="ztd-guard"})
+        for: 10s
+        labels: {severity: critical}
+        annotations:
+          summary: "The guard {{ $labels.instance }} does not report all three dependencies."
+      - alert: ZtdGuardTargetAbsent
+        expr: absent(up{job="ztd-guard"})
+        for: 10s
+        labels: {severity: critical}
+        annotations:
+          summary: "No guard is discovered for scraping (all of them; one guard of several disappearing is not seen by this rule)."

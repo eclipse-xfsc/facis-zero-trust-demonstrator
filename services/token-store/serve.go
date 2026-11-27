@@ -144,11 +144,11 @@ func serve(args []string, stdout, stderr io.Writer) int {
 		if errors.Is(err, flag.ErrHelp) {
 			return exitOK
 		}
-		_, _ = fmt.Fprintf(stderr, "token-store: %v\n", err)
+		slog.New(slog.NewJSONHandler(stderr, nil)).Error("token-store configuration rejected", "err", err.Error())
 		return exitUsage
 	}
 	if err := opts.loadAcquisition(); err != nil {
-		_, _ = fmt.Fprintf(stderr, "token-store: %v\n", err)
+		slog.New(slog.NewJSONHandler(stderr, nil)).Error("token-store configuration rejected", "err", err.Error())
 		return exitUsage
 	}
 	hostname, _ := os.Hostname()

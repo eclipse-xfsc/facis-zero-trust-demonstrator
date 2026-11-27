@@ -136,7 +136,8 @@ if [ "$state" = initialized ]; then
   }
   mount secret kv '{"version":"2"}' '"type":"kv".*"version":"2"'
   mount transit transit '{}' '"type":"transit"'
-  printf '{}' > "$W/req"
+  # The type is stated, not left to the server's default: AES-256-GCM (docs/crypto-baseline.md).
+  printf '{"type":"aes256-gcm96"}' > "$W/req"
   code=$(bao POST transit/keys/ztd-fixture "$W/req")
   case "$code" in 200|204) ;; *) die "transit key ztd-fixture: HTTP $code" ;; esac
   code=$(bao GET secret/data/ztd-fixture/canary)

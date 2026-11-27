@@ -30,6 +30,7 @@ Then('the corresponding log is structured JSON and the machine-readable error is
   const found = await refusalLogEntry(this, requestId)
   assert.ok(found, `no whole-line JSON log record for the refusal of ${requestId}`)
   assert.deepEqual(Object.keys(found.record), RECORD_FIELDS, 'the log record does not have the documented fields')
+  assert.deepEqual(found.plain.slice(0, 5), [], `the ORCE log holds ${found.plain.length} line(s) that are not JSON records`)
   assert.equal(found.record.type, 'ztd-lifecycle')
   assert.equal(found.entry.reason, this.controlled.action)
   for (const [name, secret] of [

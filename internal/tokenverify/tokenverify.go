@@ -335,7 +335,10 @@ func (v *Verifier) claims(payload []byte, now time.Time) (tokenClaims, error) {
 	if !okExp || !okIat || !okNbf {
 		return tokenClaims{}, ErrMalformed
 	}
-	if !now.Before(exp.Add(skew)) || iat.After(now.Add(skew)) || (!nbf.IsZero() && nbf.After(now.Add(skew))) {
+	// The skew allows for clocks that disagree about when a token begins (iat, nbf). Its end is
+	// not extended: the access-token lifespan is the session's re-validation interval, and a token
+	// is not accepted after it.
+	if !now.Before(exp) || iat.After(now.Add(skew)) || (!nbf.IsZero() && nbf.After(now.Add(skew))) {
 		return tokenClaims{}, ErrExpired
 	}
 	c.exp = exp

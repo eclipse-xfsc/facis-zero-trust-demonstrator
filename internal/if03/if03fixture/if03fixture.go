@@ -30,6 +30,10 @@ type Fixture struct {
 	Claims   if03.Claims
 	Validity time.Duration // 60 s to 120 s; zero means 90 s
 	Now      func() time.Time
+	// Status is the outcome's status: empty means verified. "failed" and "revoked" carry
+	// ReasonCode, as the IF-03 schema requires.
+	Status     string
+	ReasonCode string
 }
 
 var _ connectorclient.OutcomeSource = Fixture{}
@@ -47,11 +51,15 @@ func (f Fixture) Outcome(ctx context.Context, ch connectorclient.Challenge) (str
 		now = f.Now
 	}
 	at := now().UTC().Truncate(time.Second)
-	payload, err := json.Marshal(map[string]any{
+	fields := map[string]any{
 		"iss": f.Issuer, "outcome_id": NewUUID(), "client_id": ch.ClientID, "challenge": ch.Value,
 		"audience": ch.Audience, "claims": f.Claims, "status": "verified",
 		"verified_at": at.Format(time.RFC3339), "expires_at": at.Add(validity).Format(time.RFC3339),
-	})
+	}
+	if f.Status != "" && f.Status != "verified" {
+		fields["status"], fields["reason_code"] = f.Status, f.ReasonCode
+	}
+	payload, err := json.Marshal(fields)
 	if err != nil {
 		return "", err
 	}

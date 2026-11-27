@@ -98,20 +98,33 @@ export function assertSameCluster (world, result) {
 }
 
 // The ORCE log carries one JSON object per line, {time, level, type, name, id, msg}; the lifecycle
-// node's record is itself JSON inside msg. Only a line that parses whole counts as an entry.
+// node's record is itself JSON inside msg. Only a line that parses whole counts as an entry, and
+// every line that is not one JSON object is returned in `plain`: the whole log is read before the
+// entry is returned, so a plain-text line after it is not missed.
 export async function refusalLogEntry (world, requestId) {
   const { stdout } = await shell(world.target.logsCommand, { maxBuffer: 64 << 20 })
+  const plain = []
+  let found = null
   for (const line of stdout.split('\n')) {
-    let record, entry
+    if (line === '') continue
+    let record
     try {
       record = JSON.parse(line)
+    } catch {}
+    if (record === null || typeof record !== 'object' || Array.isArray(record)) {
+      plain.push(line)
+      continue
+    }
+    // Other nodes log plain strings in msg; only the lifecycle node's is JSON.
+    let entry
+    try {
       entry = JSON.parse(record.msg)
     } catch {
       continue
     }
-    if (entry && entry.event === 'lifecycle.refused' && entry.requestId === requestId) return { line, record, entry, log: stdout }
+    if (!found && entry && entry.event === 'lifecycle.refused' && entry.requestId === requestId) found = { line, record, entry, log: stdout }
   }
-  return null
+  return found && { ...found, plain }
 }
 
 // --- lifecycle -------------------------------------------------------------------------------

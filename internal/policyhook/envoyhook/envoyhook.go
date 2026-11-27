@@ -206,3 +206,41 @@ func headerOptions(h []hook.Header, raw bool) []*corev3.HeaderValueOption {
 	}
 	return opts
 }
+
+// Answer is what an ext_authz hook answered for one request, as Envoy would read it.
+type Answer struct {
+	Allowed bool
+	Status  int         // the denied response's HTTP status; 0 when allowed
+	Headers http.Header // the headers set: on the upstream request when allowed, on the refusal otherwise
+	Body    string      // the refusal's body
+}
+
+// Check asks the ext_authz hook behind cc about r, as Envoy does, and returns its answer. It lets a
+// test or a probe speak to a running hook without importing the Envoy API.
+func Check(ctx context.Context, cc grpc.ClientConnInterface, r hook.Request) (Answer, error) {
+	headers := map[string]string{}
+	for name, values := range r.Headers {
+		headers[strings.ToLower(name)] = strings.Join(values, ",")
+	}
+	resp, err := authv3.NewAuthorizationClient(cc).Check(ctx, &authv3.CheckRequest{Attributes: &authv3.AttributeContext{
+		Source: &authv3.AttributeContext_Peer{Principal: r.PeerID},
+		Request: &authv3.AttributeContext_Request{Http: &authv3.AttributeContext_HttpRequest{
+			Method: r.Method, Scheme: r.Scheme, Host: r.Host, Path: r.Path, Headers: headers}},
+	}})
+	if err != nil {
+		return Answer{}, err
+	}
+	out := Answer{Allowed: resp.GetStatus().GetCode() == int32(codes.OK), Headers: http.Header{}}
+	if ok := resp.GetOkResponse(); ok != nil {
+		for _, h := range ok.GetHeaders() {
+			out.Headers.Set(h.GetHeader().GetKey(), h.GetHeader().GetValue())
+		}
+	}
+	if denied := resp.GetDeniedResponse(); denied != nil {
+		out.Status, out.Body = int(denied.GetStatus().GetCode()), denied.GetBody()
+		for _, h := range denied.GetHeaders() {
+			out.Headers.Set(h.GetHeader().GetKey(), h.GetHeader().GetValue())
+		}
+	}
+	return out, nil
+}

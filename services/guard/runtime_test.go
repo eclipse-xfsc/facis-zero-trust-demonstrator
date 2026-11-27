@@ -157,3 +157,53 @@ func TestHostCaseAndPortBoundaries(t *testing.T) {
 		}
 	}
 }
+
+// A gRPC call is a route only when its method is configured and its content type is gRPC's; the
+// REST route is unaffected by the gRPC configuration.
+func TestGRPCRouteNeedsAConfiguredMethodAndAGRPCContentType(t *testing.T) {
+	const method = "/grpc.health.v1.Health/Check"
+	cfg := testConfig("http://127.0.0.1:1")
+	cfg.GRPCMethods = []string{method}
+	r, err := New(cfg, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, tc := range []struct {
+		name, method, path, contentType, service string
+		routed                                   bool
+	}{
+		{"configured method", "POST", method, "application/grpc", "grpc.health.v1.Health", true},
+		{"with a message encoding", "POST", method, "application/grpc+proto", "grpc.health.v1.Health", true},
+		{"REST route", "POST", "/demo", "application/json", "", true},
+		{"method not configured", "POST", "/grpc.health.v1.Health/Watch", "application/grpc", "", false},
+		{"not a gRPC content type", "POST", method, "application/json", "", false},
+		{"a look-alike content type", "POST", method, "application/grpcx", "", false},
+		{"no content type", "POST", method, "", "", false},
+		{"GET", "GET", method, "application/grpc", "", false},
+		{"path with a query", "POST", method + "?x=1", "application/grpc", "", false},
+	} {
+		in := hook.Request{Method: tc.method, Path: tc.path, Headers: http.Header{}}
+		if tc.contentType != "" {
+			in.Headers.Set("Content-Type", tc.contentType)
+		}
+		service, routed := r.route(in)
+		if routed != tc.routed || service != tc.service {
+			t.Errorf("%s: routed=%v service=%q, want %v %q", tc.name, routed, service, tc.routed, tc.service)
+		}
+	}
+	plain, err := New(testConfig("http://127.0.0.1:1"), nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	in := hook.Request{Method: "POST", Path: method, Headers: http.Header{"Content-Type": []string{"application/grpc"}}}
+	if _, routed := plain.route(in); routed {
+		t.Error("a gRPC method is a route of a guard that names none")
+	}
+	for _, bad := range []string{"grpc.health.v1.Health/Check", "/Check", "/grpc.health.v1.Health/", "/a/b/c", "/pkg.Service/Method?x", "/demo"} {
+		cfg := testConfig("http://127.0.0.1:1")
+		cfg.GRPCMethods = []string{bad}
+		if _, err := New(cfg, nil); err == nil {
+			t.Errorf("gRPC method %q accepted", bad)
+		}
+	}
+}

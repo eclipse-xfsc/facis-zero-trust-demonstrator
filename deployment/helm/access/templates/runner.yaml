@@ -1,0 +1,163 @@
+{{- include "access.validate" . -}}
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: ztd-access-runner
+  namespace: {{ .Release.Namespace }}
+---
+# Read on every call: a grant id on its own line is refused from then on. Created by an install
+# hook only when it does not exist yet: Helm never renders it on upgrade or rollback, never replaces
+# an existing list on a reinstall, and leaves it when the release is uninstalled.
+{{- if not (lookup "v1" "ConfigMap" .Release.Namespace "ztd-access-revocations") }}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: ztd-access-revocations
+  namespace: {{ .Release.Namespace }}
+  annotations:
+    helm.sh/hook: pre-install
+    helm.sh/hook-delete-policy: hook-failed
+    helm.sh/resource-policy: keep
+data:
+  revoked: ""
+{{- end }}
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: ztd-access-runner-revocations
+  namespace: {{ .Release.Namespace }}
+rules:
+  - apiGroups: [""]
+    resources: [configmaps]
+    resourceNames: [ztd-access-revocations]
+    verbs: [get]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: ztd-access-runner-revocations
+  namespace: {{ .Release.Namespace }}
+roleRef: {apiGroup: rbac.authorization.k8s.io, kind: Role, name: ztd-access-runner-revocations}
+subjects: [{kind: ServiceAccount, name: ztd-access-runner, namespace: {{ .Release.Namespace }}}]
+{{- range .Values.planeNamespaces }}
+---
+# What the runner's operations need in a plane namespace, and nothing more. RBAC cannot limit a
+# patch to one annotation: the runner does (services/accessrunner).
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: ztd-access-runner
+  namespace: {{ . }}
+rules:
+  - apiGroups: [apps]
+    resources: [deployments]
+    verbs: [patch]
+  - apiGroups: [""]
+    resources: [pods/log]
+    verbs: [get]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: ztd-access-runner
+  namespace: {{ . }}
+roleRef: {apiGroup: rbac.authorization.k8s.io, kind: Role, name: ztd-access-runner}
+subjects: [{kind: ServiceAccount, name: ztd-access-runner, namespace: {{ $.Release.Namespace }}}]
+{{- end }}
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: ztd-access-runner-config
+  namespace: {{ .Release.Namespace }}
+data:
+  config.json: {{ toJson (dict
+    "addr" ":8443"
+    "tls_cert_file" "/run/access-runner-tls/tls.crt"
+    "tls_key_file" "/run/access-runner-tls/tls.key"
+    "trust" (dict "target" .Values.target "approvers" .Values.approvers)
+    "plane_namespaces" .Values.planeNamespaces
+    "callers" (dict "issuer" (printf "%s/realms/%s" (trimSuffix "/" .Values.keycloak.base) .Values.keycloak.realm) "jwks_url" (printf "%s/realms/%s/protocol/openid-connect/certs" (trimSuffix "/" .Values.keycloak.base) .Values.keycloak.realm) "audience" .Values.keycloak.audience "client" .Values.keycloak.loginClient)
+    "kube" (dict "api" "https://kubernetes.default.svc" "token_file" "/var/run/secrets/kubernetes.io/serviceaccount/token" "ca_file" "/var/run/secrets/kubernetes.io/serviceaccount/ca.crt" "namespace" .Release.Namespace)
+    "keycloak" (dict "base" (trimSuffix "/" .Values.keycloak.base) "realm" .Values.keycloak.realm "client_id" .Values.keycloak.clientId "secret_file" "/run/access-runner/client-secret" "ca_file" (ternary "/etc/access-runner-ca/ca.crt" "" (ne .Values.keycloak.caConfigMap.name "")))
+  ) | quote }}
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: ztd-access-runner
+  namespace: {{ .Release.Namespace }}
+spec:
+  replicas: {{ .Values.replicas }}
+  selector:
+    matchLabels: {app.kubernetes.io/name: ztd-access-runner}
+  template:
+    metadata:
+      labels: {app.kubernetes.io/name: ztd-access-runner, app.kubernetes.io/part-of: facis-zero-trust-demonstrator}
+      annotations:
+        checksum/config: {{ toJson (dict "t" .Values.target "a" .Values.approvers "p" .Values.planeNamespaces "k" .Values.keycloak) | sha256sum }}
+    spec:
+      serviceAccountName: ztd-access-runner
+      securityContext: {runAsNonRoot: true, runAsUser: 65532, runAsGroup: 65532, seccompProfile: {type: RuntimeDefault}}
+      containers:
+        - name: runner
+          image: "{{ .Values.image.repository }}@{{ .Values.image.digest }}"
+          args: ["--config=/etc/access-runner/config.json"]
+          ports: [{name: https, containerPort: 8443}]
+          readinessProbe: {httpGet: {path: /healthz, port: https, scheme: HTTPS}}
+          livenessProbe: {httpGet: {path: /healthz, port: https, scheme: HTTPS}}
+          volumeMounts:
+            - {name: config, mountPath: /etc/access-runner, readOnly: true}
+            - {name: secret, mountPath: /run/access-runner, readOnly: true}
+            - {name: tls, mountPath: /run/access-runner-tls, readOnly: true}
+            {{- if .Values.keycloak.caConfigMap.name }}
+            - {name: keycloak-ca, mountPath: /etc/access-runner-ca, readOnly: true}
+            {{- end }}
+          resources:
+            {{- toYaml .Values.resources | nindent 12 }}
+          securityContext: {allowPrivilegeEscalation: false, readOnlyRootFilesystem: true, capabilities: {drop: [ALL]}}
+      volumes:
+        - name: config
+          configMap: {name: ztd-access-runner-config}
+        - name: tls
+          secret: {secretName: {{ .Values.tls.secretName }}}
+        - name: secret
+          secret:
+            secretName: {{ .Values.keycloak.secretRef.name }}
+            items: [{key: {{ .Values.keycloak.secretRef.key }}, path: client-secret}]
+        {{- if .Values.keycloak.caConfigMap.name }}
+        - name: keycloak-ca
+          configMap:
+            name: {{ .Values.keycloak.caConfigMap.name }}
+            items: [{key: {{ .Values.keycloak.caConfigMap.key }}, path: ca.crt}]
+        {{- end }}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: ztd-access-runner
+  namespace: {{ .Release.Namespace }}
+spec:
+  selector: {app.kubernetes.io/name: ztd-access-runner}
+  ports: [{name: https, port: 8443, targetPort: https}]
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: ztd-access-runner
+  namespace: {{ .Release.Namespace }}
+spec:
+  podSelector:
+    matchLabels: {app.kubernetes.io/name: ztd-access-runner}
+  policyTypes: [Ingress]
+  ingress:
+    {{- if and .Values.callers.namespace .Values.callers.podLabels }}
+    - from:
+        - namespaceSelector:
+            matchLabels: {kubernetes.io/metadata.name: {{ .Values.callers.namespace | quote }}}
+          podSelector:
+            matchLabels:
+              {{- toYaml .Values.callers.podLabels | nindent 14 }}
+      ports: [{protocol: TCP, port: 8443}]
+    {{- end }}

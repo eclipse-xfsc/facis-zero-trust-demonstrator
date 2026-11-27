@@ -14,6 +14,7 @@ import (
 )
 
 func main() {
+	slog.SetDefault(slog.New(slog.NewJSONHandler(os.Stderr, nil)))
 	config, err := protectedresource.LoadConfig()
 	if err != nil {
 		slog.Error("protected resource configuration rejected", "error", err)

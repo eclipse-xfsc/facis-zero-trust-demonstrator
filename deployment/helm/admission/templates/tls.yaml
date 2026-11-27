@@ -1,8 +1,11 @@
 {{- include "admission.validate" . }}
 {{- /*
-The provider's own CA and server certificate. Generated on first install and reused afterwards
+The provider's own CA and server certificate, both on ECDSA P-256 keys (genPrivateKey "ecdsa"; the
+helpers that take no key make short RSA keys). Generated on first install and reused afterwards
 (looked up from the cluster), so an upgrade does not rotate them; the Provider's caBundle is always
-the CA in this Secret.
+the CA in this Secret. A Secret from an earlier version is reused too, RSA keys and all: replacing
+it is a step of its own (README), because the caBundle and the certificate the pod serves change at
+different moments and admission is refused in between.
 */ -}}
 {{- $name := printf "%s-tls" (include "admission.name" .) }}
 {{- $existing := lookup "v1" "Secret" .Release.Namespace $name }}
@@ -12,9 +15,9 @@ the CA in this Secret.
 {{- $crt = index $existing.data "tls.crt" | b64dec }}
 {{- $key = index $existing.data "tls.key" | b64dec }}
 {{- else }}
-{{- $genCA := genCA "ztd-admission-provider-ca" (int .Values.tls.validityDays) }}
+{{- $genCA := genCAWithKey "ztd-admission-provider-ca" (int .Values.tls.validityDays) (genPrivateKey "ecdsa") }}
 {{- $dns := include "admission.dnsNames" . | fromYamlArray }}
-{{- $cert := genSignedCert (index $dns 2) nil $dns (int .Values.tls.validityDays) $genCA }}
+{{- $cert := genSignedCertWithKey (index $dns 2) nil $dns (int .Values.tls.validityDays) $genCA (genPrivateKey "ecdsa") }}
 {{- $ca = $genCA.Cert }}{{- $crt = $cert.Cert }}{{- $key = $cert.Key }}
 {{- end }}
 apiVersion: v1

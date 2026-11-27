@@ -52,15 +52,19 @@ type vpHarness struct {
 	issuer *signing.Local
 }
 
-// countingSigner counts the access tokens it signs.
+// countingSigner counts the access tokens it signs. during, when set, runs inside each signature.
 type countingSigner struct {
 	oauth2provider.TokenSigner
 
 	signed atomic.Int64
+	during func()
 }
 
 func (s *countingSigner) Sign(ctx context.Context, input []byte) ([]byte, error) {
 	s.signed.Add(1)
+	if s.during != nil {
+		s.during()
+	}
 
 	return s.TokenSigner.Sign(ctx, input)
 }

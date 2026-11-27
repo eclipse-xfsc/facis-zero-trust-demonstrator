@@ -175,6 +175,20 @@
         "pt": "msg",
         "to": "{\"type\":\"result\",\"ok\":false,\"action\":null,\"requestId\":null,\"data\":null,\"ui\":{\"toast\":{\"kind\":\"error\",\"message\":\"Please correct the highlighted fields.\"}},\"errors\":{\"fields\":{\"command\":\"must be a JSON object\"}}}",
         "tot": "json"
+      },
+      {
+        "t": "set",
+        "p": "lifecycleMalformed.result",
+        "pt": "flow",
+        "to": "payload",
+        "tot": "msg"
+      },
+      {
+        "t": "set",
+        "p": "lifecycleMalformed.time",
+        "pt": "flow",
+        "to": "iso",
+        "tot": "date"
       }
     ],
     "x": 370,

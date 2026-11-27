@@ -34,6 +34,12 @@ spec:
             ports: [{{ if eq $target "resource" }}{{ $.Values.resourcePort | quote }}{{ else }}"8080"{{ end }}]
             methods: ["POST"]
             paths: [{{ if eq $target "policy-evaluator" }}"/decision"{{ else }}"/demo"{{ end }}]
+        {{- if and $.Values.grpc.methods (ne $target "policy-evaluator") }}
+        - operation:
+            ports: [{{ if eq $target "resource" }}{{ $.Values.grpc.resourcePort | quote }}{{ else }}"8080"{{ end }}]
+            methods: ["POST"]
+            paths: {{ $.Values.grpc.methods | toJson }}
+        {{- end }}
 ---
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
@@ -48,7 +54,7 @@ spec:
     - from:
         - podSelector:
             matchLabels: {app.kubernetes.io/name: {{ $source }}}
-      ports: [{protocol: TCP, port: {{ if eq $target "resource" }}{{ $.Values.resourcePort }}{{ else }}8080{{ end }}}]
+      ports: [{protocol: TCP, port: {{ if eq $target "resource" }}{{ $.Values.resourcePort }}{{ else }}8080{{ end }}}{{ if and $.Values.grpc.methods (eq $target "resource") }}, {protocol: TCP, port: {{ $.Values.grpc.resourcePort }}}{{ end }}]
   {{- if ne $target "resource" }}
   egress:
     - to:
@@ -68,7 +74,7 @@ spec:
     - to:
         - podSelector:
             matchLabels: {app.kubernetes.io/name: {{ $.Values.resourceName }}}
-      ports: [{protocol: TCP, port: {{ $.Values.resourcePort }}}]
+      ports: [{protocol: TCP, port: {{ $.Values.resourcePort }}}{{ if $.Values.grpc.methods }}, {protocol: TCP, port: {{ $.Values.grpc.resourcePort }}}{{ end }}]
     {{- end }}
     {{- if $.Values.networkPolicy.istiod.enabled }}
     - to:

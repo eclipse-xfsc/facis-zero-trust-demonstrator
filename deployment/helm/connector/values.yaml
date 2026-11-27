@@ -27,6 +27,7 @@ oauth:
   registrarDelegableScopes: []
   exclusiveAudiences: []
   allowAudienceMigration: false
+  # The session re-validation interval (docs/oauth2-provider.md#session-re-validation); 10 to 900.
   accessTokenLifespanSeconds: 300
 dpop:
   enforce: true

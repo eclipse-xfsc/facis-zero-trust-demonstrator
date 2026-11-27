@@ -108,6 +108,11 @@ jobs:
       - name: Run the token path with opaque and with signed access tokens
         run: |
           set -o pipefail
+          # The guard's gRPC and REST path through the pinned Envoy, and its fail-closed proof with
+          # the pinned Prometheus, run here too (each would skip without its image, and a skip fails
+          # this job).
+          . scripts/tools/pins.env
+          export GUARD_ENVOY_IMAGE="$ENVOY_IMAGE" PROMETHEUS_IMAGE="$PROMETHEUS_IMAGE"
           for tokens in opaque jwt; do
             CONNECTOR_TEST_TOKENS=$tokens go test -count=1 -race -timeout 20m -v \
               ./services/token-store/... ./services/connector/... ./internal/... \

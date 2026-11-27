@@ -28,6 +28,9 @@ global:
       commonName: ""           # zone fact: zone.trustDomain (required)
 
 spire-server:
+  # The key of the server's X.509 CA and of its JWT signing keys. The chart's default is a
+  # short RSA key, below the cryptographic baseline (docs/crypto-baseline.md).
+  caKeyType: ec-p256
   # The datastore stays the chart's SQLite on the server's volume, one replica.
   image:
     tag: "1.15.3@sha256:4082f30d3e0ddc4000a171392c4ea174345ee44d161ee917c70b97b2ecfba141"

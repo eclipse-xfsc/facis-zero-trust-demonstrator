@@ -246,8 +246,10 @@ outcome and the challenge cannot be used again (IF-03, D10: the next attempt use
 and outcome). A panic during the transaction rolls it back as well. The store adapter implements the
 library's `storage.Transactional` by delegating to `Stores.Transactions`, and the grant refuses to
 run outside a transaction. Of concurrent requests with one outcome or one challenge exactly one is
-issued a token; the others wait for its row lock and are refused `CRED-OUTCOME-CONSUMED`. A refused
-request is never signed.
+issued a token; the others wait for its row lock and are refused `CRED-OUTCOME-CONSUMED`. A request
+refused before issuance is never signed; one refused after signing because the access it allows ran
+out ([Session re-validation](#session-re-validation)) gets no token, and its consumption and token
+record are rolled back.
 
 **Token records.** `TokenHandler` records the grant it validated with every access token
 (`TokenRecord.GrantType`, `oauth2_token.grant_type`), independently of the grant handler that adds
@@ -276,6 +278,51 @@ that gap: per registrar client id, the scopes the server lets that registrar gra
 registers, in addition to its token's. Only the registration endpoint consults it; the registrar is
 never issued those scopes itself, and the registration scope is never delegable (refused at start-up,
 and by the library whatever the ceiling).
+
+### Session re-validation
+
+The access-token lifespan is the session's re-validation interval. A session continues only by a new
+grant, and a grant needs a fresh outcome: the credential is verified again each time a token is
+renewed, and a credential the verifier no longer answers `verified` for gets no new token. The
+Participant renews when a request finds its token at three quarters of its life (renewal is driven by
+requests); the token store's worker renews on its own schedule, once a token is due. A session that
+is not renewed in time, because nobody uses it or because renewal fails, simply ends at its token's
+expiry.
+
+- **Bound from the verification.** A token expires no later than one lifespan after the verification
+  its outcome states (`verified_at`), and no later than one lifespan after the grant; it is cut to the
+  whole second. An outcome may be up to 120 s old when it is presented, and counting from the grant
+  would let access outlast the verification by that much. A grant that would leave less than two
+  seconds of access is refused with `CRED-OUTCOME-EXPIRED`; this is judged when the request arrives,
+  again inside the issuing transaction, and once more after the token is signed, when a refusal
+  still rolls back the consumption and the token record.
+- **No grace at the end.** The token verifier of the guard and the Protected Resource accepts no
+  token at or after its `exp`. The clock skew it allows applies to when a token or proof begins, not
+  to when a token ends. The bound therefore holds in the verifier's clock: the connector's and the
+  verifiers' clocks are assumed synchronised, and a difference between them shortens or lengthens
+  access by that difference.
+- **Between 10 seconds and 15 minutes.** The connector refuses an `--access-token-lifespan` outside
+  that range at start, and its chart refuses `oauth.accessTokenLifespanSeconds` outside 10 to 900. The
+  default is 5 minutes.
+- **Authorization on every request.** The guard asks the policy engine for each request, so
+  authorization does not wait for the interval.
+- **`client_credentials`.** Those tokens stand on no credential; the client re-authenticates with its
+  secret at every issuance, under the same lifespan.
+
+`TestSessionRevalidation` (`services/participant`) runs a Participant's session against the real
+connector with a 12 s interval, PostgreSQL and OpenBao, and records every grant the Participant makes.
+Over three intervals every request is served, by at least three tokens, each expiring no later than
+the verification of the outcome it was granted on plus the interval. After the verifier starts
+answering `revoked`, the Participant's own renewal is refused with `CRED-OUTCOME-NOT-VERIFIED`, and
+every request sent from one interval after the last granted verification is refused without data,
+with no action. A token used directly at the Resource after its `exp`, with a fresh proof, is refused
+`token_expired`. The connector's tests cover the deadline arithmetic and its refusal inside the
+transaction and after signing.
+
+What it does not show: the verifier is the fixture signer (`internal/if03/if03fixture`), so this is
+the enforcement of the interval, not a real source of credential status, and the Annex row for
+continuous authentication stays pending until one exists. The test's Participant calls the Resource
+directly, without the guard, and the token store's renewal is not part of it.
 
 ## Reason codes
 
@@ -379,7 +426,7 @@ line break in a secret file is not part of the secret.
 | `--registrar-delegable-scopes` | `CONNECTOR_REGISTRAR_DELEGABLE_SCOPES` | none | Comma-separated scopes the registrar may grant to the clients it registers beyond its own token's: `Registration.DelegableScopes` for `--registrar-id`. This is how a client gets a verified-presentation scope. Never `connector:client_registration` |
 | `--vp-trusted-issuers-file` | `CONNECTOR_VP_TRUSTED_ISSUERS_FILE` | none | JSON file of the IF-03 issuers and their keys (below). Set, it enables the verified-presentation grant; unset, the grant is off and the challenge endpoint refuses every request |
 | `--vp-scope-map-file` | `CONNECTOR_VP_SCOPE_MAP_FILE` | none | JSON file mapping outcome claims to scopes (below); required with, and refused without, the issuers file |
-| `--access-token-lifespan` | `CONNECTOR_ACCESS_TOKEN_LIFESPAN` | `300s` | Lifetime of an access token |
+| `--access-token-lifespan` | `CONNECTOR_ACCESS_TOKEN_LIFESPAN` | `300s` | Lifetime of an access token, and so the session re-validation interval; `10s` to `15m` ([Session re-validation](#session-re-validation)) |
 | `--dpop-enforce` | `CONNECTOR_DPOP_ENFORCE` | `true` | Require a proof from every client (`--dpop-enforce=false` to relax) |
 | `--dpop-nonce` | `CONNECTOR_DPOP_NONCE` | `true` | Challenge with a server nonce |
 | `--readiness-timeout` | `CONNECTOR_READINESS_TIMEOUT` | `2s` | Budget of one `/readyz` evaluation |

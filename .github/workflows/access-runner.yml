@@ -1,0 +1,55 @@
+name: Privileged-operations runner
+
+# Runs the runner's end-to-end proof (scripts/verify-access-runner/verify.sh): kind and a Keycloak
+# container from the pinned images, the realm applied by the Keycloak chart's import job, the access
+# chart installed, every operation and every refusal. Nothing is committed.
+on:
+  pull_request:
+    paths:
+      - services/accessrunner/**
+      - cmd/access-runner/**
+      - cmd/access-grant/**
+      - deployment/helm/access/**
+      - deployment/helm/facis-ztd-keycloak/**
+      - deployment/docker/access-runner/**
+      - internal/jose/**
+      - internal/tokenverify/**
+      - scripts/verify-access-runner/**
+      - scripts/tools/pins.env
+      - go.mod
+      - go.sum
+      - .github/workflows/access-runner.yml
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  proof:
+    name: Runner on kind with Keycloak
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+
+      - name: Set up Go
+        uses: actions/setup-go@40f1582b2485089dde7abd97c1529aa768e1baff # v5.6.0
+        with:
+          go-version-file: go.mod
+
+      - name: Set up Helm
+        uses: azure/setup-helm@1a275c3b69536ee54be43f2070a358922e12c8d4 # v4
+        with:
+          version: v4.3.0
+
+      - name: Install the pinned kind and kubectl
+        run: scripts/tools/install.sh "$RUNNER_TEMP/bin" kind kubectl
+
+      # The test skips without its environment; a skip is refused here.
+      - name: Run the runner's proof
+        run: |
+          set -o pipefail
+          export PATH="$RUNNER_TEMP/bin:$PATH"
+          scripts/verify-access-runner/verify.sh | tee "$RUNNER_TEMP/access-runner.log"
+          ! grep -q -- '--- SKIP' "$RUNNER_TEMP/access-runner.log"

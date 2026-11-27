@@ -51,7 +51,9 @@ spec:
           ports:
             - {name: ops, containerPort: {{ if eq $component "guard" }}9090{{ else }}8080{{ end }}}
           readinessProbe:
-            httpGet: {path: /healthz, port: ops}
+            # The guard is ready only while its dependencies answer (cmd/guard /readyz); the policy
+            # evaluator has none.
+            httpGet: {path: {{ if eq $component "guard" }}/readyz{{ else }}/healthz{{ end }}, port: ops}
           livenessProbe:
             httpGet: {path: /healthz, port: ops}
           resources:
@@ -88,5 +90,5 @@ metadata:
   namespace: {{ $.Release.Namespace }}
 spec:
   selector: {app.kubernetes.io/name: {{ $name }}}
-  ports: [{name: http, port: 8080, targetPort: 8080}]
+  ports: [{name: {{ if and $.Values.grpc.methods (eq $component "guard") }}http2{{ else }}http{{ end }}, port: 8080, targetPort: 8080}]
 {{- end }}

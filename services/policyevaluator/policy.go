@@ -20,6 +20,21 @@ type Config struct {
 	GuardCallers       []string          `json:"guard_callers"`
 	ParticipantCallers []string          `json:"participant_callers"`
 	ScopeTenants       map[string]string `json:"scope_tenants"`
+	// GRPCMethods are the gRPC methods the rule set covers besides the REST route, as full method
+	// paths; the guard is configured with the same list.
+	GRPCMethods []string `json:"grpc_methods,omitempty"`
+}
+
+// routed reports whether the request is for a route the rule set covers: the REST route, or a
+// configured gRPC method whose service the guard named. The decision that follows is the same.
+func (p *Policy) routed(r hook.RequestInfo) bool {
+	if r.Method != http.MethodPost {
+		return false
+	}
+	if r.GRPCService == "" {
+		return r.Path == "/demo"
+	}
+	return slices.Contains(p.cfg.GRPCMethods, r.Path) && strings.HasPrefix(r.Path, "/"+r.GRPCService+"/")
 }
 
 type Policy struct {
@@ -43,7 +58,7 @@ func New(cfg Config) (*Policy, error) {
 
 func (p *Policy) Decide(in hook.Input) hook.Decision {
 	deny := hook.Decision{Allow: false, ReasonCode: hook.ReasonRuleDeny, RuleID: "m3-default-deny", BundleRevision: p.cfg.Revision, DenyBody: &hook.DenyBody{Error: "access_denied"}}
-	if !slices.Contains(p.cfg.ParticipantCallers, in.Source.SPIFFEID) || in.Request.Method != http.MethodPost || in.Request.Path != "/demo" || in.Request.Host != p.cfg.Host || !in.Token.Present || !in.Token.ProofValid || in.Token.Aud != p.cfg.Audience || in.Token.Sub == "" || in.Token.ClientID == "" || in.Token.JKT == "" || in.Tenant == nil {
+	if !slices.Contains(p.cfg.ParticipantCallers, in.Source.SPIFFEID) || !p.routed(in.Request) || in.Request.Host != p.cfg.Host || !in.Token.Present || !in.Token.ProofValid || in.Token.Aud != p.cfg.Audience || in.Token.Sub == "" || in.Token.ClientID == "" || in.Token.JKT == "" || in.Tenant == nil {
 		return deny
 	}
 	// A summary identity must select a summary-only acquisition route, never a full-report token.

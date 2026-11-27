@@ -209,9 +209,35 @@ func (g *vpGrant) HandleTokenEndpointRequest(ctx context.Context, request oauth2
 		return err
 	}
 
-	request.GetSession().SetExpiresAt(oauth2.AccessToken, v.at.UTC().Add(g.lifespan))
+	deadline, ok := accessDeadline(v.at, v.outcome.VerifiedAt, g.lifespan)
+	if !ok {
+		return refuseCred(oauth2provider.CodeCredOutcomeExpired)
+	}
+
+	request.GetSession().SetExpiresAt(oauth2.AccessToken, deadline)
 
 	return nil
+}
+
+// minAccessRemaining is the shortest access a token may still grant when it is issued. A token with
+// less would expire, at whole seconds, about when it arrives.
+const minAccessRemaining = 2 * time.Second
+
+// accessDeadline is when access granted at at on an outcome verified at verifiedAt ends: one lifespan
+// after the verification, and never more than one lifespan after the grant (an outcome may name a
+// verification instant slightly ahead of the connector's clock). The lifespan is the session
+// re-validation interval, so access never outlasts the last verification of the credential by
+// more. It is cut to the whole second the token's exp carries. ok is false when less than
+// minAccessRemaining of it is left at at: the verification is too old to grant on.
+func accessDeadline(at, verifiedAt time.Time, lifespan time.Duration) (deadline time.Time, ok bool) {
+	from := at
+	if verifiedAt.Before(at) {
+		from = verifiedAt
+	}
+
+	deadline = from.Add(lifespan).UTC().Truncate(time.Second)
+
+	return deadline, deadline.Sub(at) >= minAccessRemaining
 }
 
 // check runs every read-only check of the grant, in the order IF-02 gives them codes. With lock, the
@@ -368,10 +394,18 @@ func (g *vpGrant) PopulateTokenEndpointResponse(ctx context.Context, request oau
 	}
 
 	// The outcome insert may have waited on another transaction: validity is judged once more, now,
-	// before anything is signed.
-	if later := g.clock.now(); !later.Before(v.outcome.ExpiresAt) || !later.Before(v.challengeExpires) {
+	// before anything is signed, and so is what is left of the access the verification allows.
+	later := g.clock.now()
+	if !later.Before(v.outcome.ExpiresAt) || !later.Before(v.challengeExpires) {
 		return refuseCred(oauth2provider.CodeCredOutcomeExpired)
 	}
+
+	deadline, ok := accessDeadline(later, v.outcome.VerifiedAt, g.lifespan)
+	if !ok {
+		return refuseCred(oauth2provider.CodeCredOutcomeExpired)
+	}
+
+	request.GetSession().SetExpiresAt(oauth2.AccessToken, deadline)
 
 	for _, scope := range v.scopes {
 		request.GrantScope(scope)
@@ -382,6 +416,12 @@ func (g *vpGrant) PopulateTokenEndpointResponse(ctx context.Context, request oau
 	if _, err = g.IssueAccessToken(withOutcomeID(ctx, v.outcome.OutcomeID), g.lifespan, request, response); err != nil {
 		// A store or signer failure is a server error, not an unrecognised one.
 		return oauth2.ErrorToRFC6749ErrorFallback(err, oauth2.ErrServerError)
+	}
+
+	// Signing may have taken long enough to use up what was left; the transaction is still open,
+	// so the refusal rolls back the consumption and the token record.
+	if deadline.Sub(g.clock.now()) < minAccessRemaining {
+		return refuseCred(oauth2provider.CodeCredOutcomeExpired)
 	}
 
 	return nil

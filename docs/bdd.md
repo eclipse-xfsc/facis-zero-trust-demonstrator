@@ -71,7 +71,9 @@ both are implemented, and the generator refuses the source otherwise. The Annex 
 and ZT-46/ZT-81 as one shared execution each; each pair is one scenario carrying both rows' tags.
 
 Checks that exist but prove only part of a row — the usage manual in the site navigation (behind
-ZT-17), pinned and scoped workflows (behind ZT-56) — stay as untagged `@regression` scenarios. They
+ZT-17), pinned and scoped workflows (behind ZT-56), JSON log records from every Go service that
+rejects its configuration (behind TDR-BDD-06), the cryptographic register against the repository
+(behind ZT-50), the TLS minimum of the public ingress (behind TDR-BDD-07, on a cluster) — stay as untagged `@regression` scenarios. They
 run strict and do not cover a row.
 
 Cucumber.js describes its `json` formatter as being in maintenance mode; it is the interchange
@@ -222,12 +224,37 @@ The ORCE image is amd64 only; on an arm64 machine Docker runs it emulated.
 | `BDD_ORCE_URL` | ORCE base URL |
 | `BDD_ORCE_ADMIN_TOKEN` | read-only ORCE admin API bearer token |
 | `BDD_ORCE_HTTP_USER`, `BDD_ORCE_HTTP_PASS` | credentials of the ORCE HTTP endpoints |
-| `BDD_ORCE_LOGS_CMD` | a command printing the ORCE log (rows 02 and 06 assert the JSON refusal record) |
+| `BDD_ORCE_LOGS_CMD` | a command printing the ORCE container's log, both of its streams, and nothing else on stdout: `kubectl logs` of that one container does (rows 02 and 06 assert the JSON refusal record; row 06 fails on any line that is not a JSON object, so a banner or another container's output fails it). The command's own stderr is not read |
 | `BDD_RELEASE_CHART` | the release under test, a chart path in the ORCE image; default the lifecycle fixture |
 | `BDD_RELEASE_VALUES` | its valid baseline values; default the fixture's `ci/values.yaml` |
 | `BDD_TARGET`, `BDD_RUN_ID` | names the target and the run in the evidence |
 
 A missing input stops the run and is named.
+
+### TLS 1.3 on the public ingress
+
+`features/go/tls-public-ingress.feature` is a regression scenario behind TDR-BDD-07 that runs on a
+cluster target (`internal/bdd/tls_cluster_test.go`, tag `@tls-ingress`). For every endpoint in
+`BDD_TLS_ENDPOINTS` (comma-separated `host:port`, the repository variable
+`BDD_<TARGET>_TLS_ENDPOINTS` in CI) it makes four attempts, each at exactly one protocol version and
+each verifying the certificate for the host: TLS 1.3 must complete an HTTP request, and TLS 1.2,
+1.1 and 1.0 must each be refused by the server in the handshake with the protocol-version alert. A
+timeout, a reset or a certificate error is a failure, not a refusal. `BDD_TLS_CA_FILE` names the
+issuing CA when it is not in the system roots. The request is HTTP/1.1 and that is the only
+protocol the attempt offers, so an endpoint that speaks HTTP/2 only, or no HTTP, fails the scenario
+and does not belong in the list. A target that names no endpoints lists the scenario as not run.
+
+It does not cover the row. TDR-BDD-07 is about every relevant endpoint, and these are only the
+hosts a client outside the cluster reaches. Of the TLS listeners inside the cluster, the mesh's
+minimum (`meshMTLS.minProtocolVersion` in `deployment/helm/values/istiod.yaml`) is proven between
+workloads by `scripts/verify-mesh-identity/verify.sh`, and the admission provider accepts TLS 1.3
+only in its code. Nothing yet probes the listeners of istiod (xDS and its webhook), the SPIRE
+server and its controller-manager, or the Gatekeeper webhook, whose upstream defaults start at
+TLS 1.2; the row stays pending until something does.
+
+`scripts/verify-tls13/verify.sh` runs the scenario against a Traefik on kind, first as its chart
+installs it, where it fails on TLS 1.2, then with `deployment/ingress/traefik-tls-options.yaml`,
+where it passes.
 
 ### The release under test
 

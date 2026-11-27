@@ -255,7 +255,10 @@ func TestVerify_TokenClaimsAreEnforced(t *testing.T) {
 		want error // nil means accepted
 	}{
 		{"expired", func(c map[string]any, now time.Time) { c["exp"] = now.Add(-skew - time.Second).Unix() }, ErrExpired},
-		{"expired within leeway", func(c map[string]any, now time.Time) { c["exp"] = now.Add(-skew + time.Second).Unix() }, nil},
+		{"expired within the proof skew", func(c map[string]any, now time.Time) { c["exp"] = now.Add(-skew + time.Second).Unix() }, ErrExpired},
+		{"expired a second ago", func(c map[string]any, now time.Time) { c["exp"] = now.Add(-time.Second).Unix() }, ErrExpired},
+		{"expiring at this second", func(c map[string]any, now time.Time) { c["exp"] = now.Unix() }, ErrExpired},
+		{"a second left", func(c map[string]any, now time.Time) { c["exp"] = now.Add(time.Second).Unix() }, nil},
 		{"nbf in the future", func(c map[string]any, now time.Time) { c["nbf"] = now.Add(time.Minute).Unix() }, ErrExpired},
 		{"nbf within leeway", func(c map[string]any, now time.Time) { c["nbf"] = now.Add(skew).Unix() }, nil},
 		{"iat in the future", func(c map[string]any, now time.Time) { c["iat"] = now.Add(time.Minute).Unix() }, ErrExpired},

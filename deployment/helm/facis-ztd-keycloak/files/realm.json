@@ -12,6 +12,15 @@
   "clientSessionMaxLifespan": 28800,
   "revokeRefreshToken": true,
   "refreshTokenMaxReuse": 0,
+  "components": {
+    "org.keycloak.keys.KeyProvider": [
+      {"name": "rsa-generated", "providerId": "rsa-generated", "subComponents": {}, "config": {"priority": ["100"], "keySize": ["4096"], "algorithm": ["RS256"]}},
+      {"name": "rsa-enc-generated", "providerId": "rsa-enc-generated", "subComponents": {}, "config": {"priority": ["100"], "keySize": ["4096"], "algorithm": ["RSA-OAEP-256"]}},
+      {"name": "aes-generated", "providerId": "aes-generated", "subComponents": {}, "config": {"priority": ["100"], "secretSize": ["32"]}},
+      {"name": "hmac-generated-hs512", "providerId": "hmac-generated", "subComponents": {}, "config": {"priority": ["100"], "algorithm": ["HS512"], "secretSize": ["128"]}},
+      {"name": "ecdsa-generated", "providerId": "ecdsa-generated", "subComponents": {}, "config": {"priority": ["90"], "ecdsaEllipticCurveKey": ["P-256"]}}
+    ]
+  },
   "roles": {
     "realm": [
       {
@@ -180,8 +189,75 @@
           }
         }
       ]
-    }
-  ],
+    }{{ if .Values.accessRunner.enabled }},
+    {
+      "clientId": "ztd-access",
+      "name": "Privileged-operations runner login",
+      "enabled": true,
+      "protocol": "openid-connect",
+      "publicClient": true,
+      "bearerOnly": false,
+      "standardFlowEnabled": true,
+      "implicitFlowEnabled": false,
+      "directAccessGrantsEnabled": false,
+      "serviceAccountsEnabled": false,
+      "authorizationServicesEnabled": false,
+      "consentRequired": false,
+      "fullScopeAllowed": false,
+      "redirectUris": {{ .Values.accessRunner.redirectUris | toJson }},
+      "webOrigins": [],
+      "defaultClientScopes": ["basic"],
+      "optionalClientScopes": [],
+      "attributes": {
+        "pkce.code.challenge.method": "S256",
+        "access.token.signed.response.alg": "ES256",
+        "oauth2.device.authorization.grant.enabled": "false",
+        "oidc.ciba.grant.enabled": "false",
+        "access.token.lifespan": "300"
+      },
+      "protocolMappers": [
+        {
+          "name": "runner audience",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-audience-mapper",
+          "config": {
+            "included.client.audience": "ztd-access-runner",
+            "access.token.claim": "true",
+            "id.token.claim": "false",
+            "userinfo.token.claim": "false"
+          }
+        }
+      ]
+    },
+    {
+      "clientId": "ztd-access-runner",
+      "name": "Privileged-operations runner",
+      "enabled": true,
+      "protocol": "openid-connect",
+      "publicClient": false,
+      "bearerOnly": false,
+      "clientAuthenticatorType": "client-secret",
+      "secret": "$(env:ACCESS_RUNNER_SECRET)",
+      "standardFlowEnabled": false,
+      "implicitFlowEnabled": false,
+      "directAccessGrantsEnabled": false,
+      "serviceAccountsEnabled": true,
+      "authorizationServicesEnabled": false,
+      "consentRequired": false,
+      "fullScopeAllowed": false,
+      "defaultClientScopes": [],
+      "optionalClientScopes": [],
+      "attributes": {
+        "oauth2.device.authorization.grant.enabled": "false",
+        "oidc.ciba.grant.enabled": "false"
+      }
+    }{{ end }}
+  ],{{ if .Values.accessRunner.enabled }}
+  "clientScopeMappings": {
+    "realm-management": [
+      {"client": "ztd-access-runner", "roles": ["view-users", "manage-users", "view-clients"]}
+    ]
+  },{{ end }}
   "requiredActions": [
     {
       "alias": "VERIFY_PROFILE",
@@ -319,6 +395,15 @@
           "value": $(env:BDD_OBSERVER_PASSWORD_JSON)
         }
       ]
-    }
+    }{{ if .Values.accessRunner.enabled }},
+    {
+      "username": "service-account-ztd-access-runner",
+      "enabled": true,
+      "serviceAccountClientId": "ztd-access-runner",
+      "realmRoles": [],
+      "clientRoles": {
+        "realm-management": ["view-users", "manage-users", "view-clients"]
+      }
+    }{{ end }}
   ]
 }

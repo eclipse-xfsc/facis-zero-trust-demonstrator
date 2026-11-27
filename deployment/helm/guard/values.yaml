@@ -8,6 +8,15 @@ trustDomain: zone-b.trust.invalid
 participantServiceAccount: ztd-participant
 resourceName: ztd-protected-resource
 resourcePort: 8080
+# Unary gRPC methods guarded besides the REST route, as full method paths
+# (/package.Service/Method). Empty leaves the guard REST-only. Each method is authorised through
+# the same hook and policy as the REST route and forwarded to the resource's gRPC port over
+# cleartext HTTP/2, with the REST route's 15 s response timeout: a streaming method is cut off at
+# it. The guard's Service port is then named http2, the protocol Istio needs declared to carry
+# gRPC; the resource's Service must declare its gRPC port as HTTP/2 or gRPC too (README).
+grpc:
+  methods: []
+  resourcePort: 9090
 nodeSelector: {}
 podAnnotations: {}
 config:
@@ -22,6 +31,15 @@ config:
   allowed_callers: []
   scope_tenants: {"report:read": report-read, "report:summary": report-summary}
 policyRevision: m3-v1
+# The scraper admitted to the guard's /metrics on the ops port (9090). With a principal, the chart
+# renders an AuthorizationPolicy that admits that mesh identity to GET /metrics on 9090, a
+# NetworkPolicy that admits pods matching podLabels in namespace, and a Service ztd-guard-metrics.
+# The scraper must be in the mesh (STRICT mTLS). Empty admits none. See README, "Dependencies".
+metrics:
+  scraper:
+    principal: ""
+    namespace: ""
+    podLabels: {}
 # Added to component-specific service and DNS rules; use only explicit dependency/control peers.
 networkPolicy:
   istiod: {enabled: false, namespace: istio-system}

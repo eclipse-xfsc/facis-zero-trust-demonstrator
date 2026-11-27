@@ -66,6 +66,9 @@ type Request struct {
 	Headers http.Header
 	// PeerID is the caller's SPIFFE ID when the transport authenticated one, else empty.
 	PeerID string
+	// GRPCService is the service of a gRPC call ("package.Service"), set by a caller that has
+	// matched the path against its configured gRPC methods; empty for any other request.
+	GRPCService string
 }
 
 // Config is what the guard knows about its zone.
@@ -131,7 +134,7 @@ func (g *Guard) Evaluate(ctx context.Context, req Request) Outcome {
 		CorrelationID: id,
 		Tenant:        g.cfg.Tenant,
 		Source:        Source{SPIFFEID: source},
-		Request:       RequestInfo{Method: method, Path: path, Host: req.Host},
+		Request:       RequestInfo{Method: method, Path: path, Host: req.Host, GRPCService: req.GRPCService},
 		Token:         g.auth.Authenticate(req.Headers.Get("Authorization"), req.Headers.Get("DPoP")),
 	}
 
