@@ -131,14 +131,29 @@
     },
     "allowMatrix": {
       "type": "array",
+      "description": "The data plane -> management plane rows: a network-policy lane here, an allow rule by SPIFFE identity in zone-policy.",
       "items": {
         "type": "object",
         "required": ["name", "from", "to"],
         "properties": {
           "name": { "type": "string", "pattern": "^[a-z0-9-]+$" },
-          "from": { "$ref": "#/$defs/endpoint" },
+          "from": { "allOf": [{ "$ref": "#/$defs/endpoint" }, { "$ref": "#/$defs/sourceAccount" }] },
           "to": { "$ref": "#/$defs/endpoint" },
           "enforcedBy": { "type": "string", "enum": ["mesh", "networkPolicy", "both"] }
+        }
+      }
+    },
+    "intraPlanePairs": {
+      "type": "array",
+      "description": "Pairs inside one plane namespace between components of different releases: an allow rule by SPIFFE identity in zone-policy, nothing at the network layer (open inside a plane namespace).",
+      "items": {
+        "type": "object",
+        "required": ["name", "from", "to"],
+        "additionalProperties": false,
+        "properties": {
+          "name": { "type": "string", "pattern": "^[a-z0-9-]+$" },
+          "from": { "allOf": [{ "$ref": "#/$defs/endpoint" }, { "$ref": "#/$defs/sourceAccount" }] },
+          "to": { "$ref": "#/$defs/endpoint" }
         }
       }
     },
@@ -152,24 +167,17 @@
     },
     "openbao": {
       "type": "object",
-      "required": ["enabled"],
-      "properties": {
-        "enabled": { "type": "boolean" }
-      }
+      "description": "The umbrella installs no OpenBao: the release ztd-openbao does (deployment/helm/ztd-openbao). No key is read here: any key is a stale value of the umbrella that installed OpenBao, or of the zone files that placed that release on a node, and is refused.",
+      "additionalProperties": false,
+      "properties": {}
     },
     "openbaoBootstrap": {
-      "type": "object",
-      "required": ["image"],
-      "properties": {
-        "image": { "type": "string", "pattern": "@sha256:[0-9a-f]{64}$" }
-      }
+      "description": "Refused: the bootstrap moved to deployment/helm/ztd-openbao (bootstrap.image).",
+      "not": {}
     },
     "openbaoExternal": {
-      "type": "object",
-      "properties": {
-        "address": { "type": "string", "pattern": "^(|https?://.+)$" },
-        "verifyTokenSecret": { "type": "string" }
-      }
+      "description": "Refused: the external mode moved to deployment/helm/ztd-openbao (external.address, external.verifyTokenSecret).",
+      "not": {}
     }
   },
   "allOf": [
@@ -202,6 +210,10 @@
         "plane": { "type": "string", "enum": ["management", "data"] },
         "namespace": { "$ref": "#/$defs/namespaceName" },
         "podSelector": { "type": "object" },
+        "serviceAccount": {
+          "$ref": "#/$defs/namespaceName",
+          "description": "The service account the endpoint's pods run under, the last segment of their SPIFFE ID. Required on a source that names a workload; documentation on a destination."
+        },
         "ports": {
           "type": "array",
           "items": {
@@ -215,6 +227,12 @@
         }
       },
       "anyOf": [{ "required": ["plane"] }, { "required": ["namespace"] }]
+    },
+    "sourceAccount": {
+      "description": "A source that names a workload (a non-empty podSelector) names its service account, which the mesh rule admits by SPIFFE identity; a whole-plane source (podSelector {} or absent) names none, as the mesh rule admits its namespace.",
+      "if": { "properties": { "podSelector": { "maxProperties": 0 } } },
+      "then": { "not": { "required": ["serviceAccount"] } },
+      "else": { "required": ["serviceAccount"] }
     }
   }
 }

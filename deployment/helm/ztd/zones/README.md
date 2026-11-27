@@ -8,10 +8,16 @@ ZONE_VALUES=deployment/helm/ztd/zones/<zone>.yaml KUBE_CONTEXT=<context> \
   scripts/install-zone/install.sh install
 ```
 
-The installer runs the seven releases in order (the umbrella, `spire-crds`, `spire`,
-`istio-base`, `istiod`, `istio-cni`, `zone-policy`; `scripts/install-zone/README.md`). The umbrella
-reads the whole file; the SPIRE, Istio and `zone-policy` releases read the zone facts they need
-from it (the trust domain), so the three cannot disagree.
+The installer runs the eight releases in order (the umbrella, `spire-crds`, `spire`,
+`istio-base`, `istiod`, `istio-cni`, `zone-policy`, `ztd-openbao`; `scripts/install-zone/README.md`).
+The umbrella reads the whole file; the SPIRE, Istio, `zone-policy` and `ztd-openbao` releases read
+the zone facts they need from the umbrella's defaults with this file on top (the trust domain, the
+storage class, the management namespace, the Cilium switch), so they cannot disagree.
+
+The secret store is not an umbrella value: the umbrella's schema refuses `openbao.enabled` and the
+other values it once took for OpenBao. Every zone the installer installs gets the release
+`ztd-openbao` (`deployment/helm/ztd-openbao`), with the zone's `zone.storageClass`; a zone file
+carries no OpenBao key, and the schema refuses any under `openbao`.
 
 The chart has no defaults for the zone record on purpose. `zone.kubernetesVersion`,
 `zone.storageClass` and `zone.loadBalancer.type` are facts about the cluster, and the chart
@@ -42,14 +48,17 @@ trust domain.
 
 `zone-a.yaml` and `zone-b.yaml` record the two participant clusters on the Open Sovereign Cloud
 (contexts `zerotrust-a` and `zerotrust-b`): Kubernetes `v1.34.7`, StorageClass `default`,
-`loadBalancer.type: cloud` (not yet exercised), Cilium 1.18.8 installed by the provider with
-`cni-exclusive=false`, the mesh in sidecar mode, the two control-plane namespaces and the three
+`loadBalancer.type: cloud` (not yet exercised), Cilium 1.19.6 installed by the provider with
+`cni-exclusive=false` and tunnel routing (VXLAN), the mesh in sidecar mode, the two control-plane namespaces and the three
 openings, and the API lane on port 443 by entity, with no address in the file. Two facts of the
 provider's platform are recorded with them: CoreDNS listens on 8053 (`networkPolicy.dns.ports`),
 and the zone's namespaces carry Gardener's opt-out label
 `apiserver-proxy.networking.gardener.cloud/inject: disable` (`planes.namespaceLabels`), so that the
 provider's webhook leaves the pods on the `kubernetes` Service and they reach the API through the
-`kubeApi` lane.
+`kubeApi` lane. No zone file places a release on a node: the scheduler places the OpenBao server
+and its jobs as it places every other pod (`docs/environments/osc.md`, "The secret store", on the
+zones as they were installed before). `ionos.yaml` carries no OpenBao value either: the installer
+does not install that cluster, which runs the visualization only.
 
 | Zone file | `zone.trustDomain` | Status |
 |---|---|---|

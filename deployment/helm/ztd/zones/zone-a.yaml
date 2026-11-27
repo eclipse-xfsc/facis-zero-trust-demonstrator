@@ -24,9 +24,9 @@ zone:
 mesh:
   mode: sidecar
 
-# kubectl -n kube-system get ds cilium: Cilium 1.18.8, installed and upgraded by the provider, with
-# cni-exclusive=false already set (kubectl -n kube-system get cm cilium-config). Verified, never
-# installed or reconfigured by the zone.
+# kubectl -n kube-system get ds cilium: Cilium 1.19.6, installed and upgraded by the provider, with
+# cni-exclusive=false already set and tunnel routing over VXLAN (kubectl -n kube-system get cm
+# cilium-config: routing-mode, tunnel-protocol). Verified, never installed or reconfigured by the zone.
 cni:
   cilium:
     enabled: true

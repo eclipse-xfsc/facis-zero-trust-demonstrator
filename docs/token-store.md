@@ -208,9 +208,9 @@ current database changes nothing, which the lifecycle proof below checks to the 
 chart does not run PostgreSQL and never carries its credential: the database is the zone's, and
 its connection URL reaches the Job and the service from a Secret of the release namespace, created
 before the install and named in `database.existingSecret`. The key-value store's address is
-`openbao.address`, by default the umbrella chart's OpenBao under the release name `ztd`, which the
-umbrella ships disabled: it must be enabled there, or the address pointed at the zone's OpenBao,
-or the service never becomes ready. The pod's termination grace period is derived from the drain
+`openbao.address`, by default the zone's OpenBao, the release `ztd-openbao` that the zone installer
+installs last ([Secrets](secrets.md)); a zone without it points the address at its own OpenBao, or
+the service never becomes ready. The pod's termination grace period is derived from the drain
 delay, the shutdown timeout and the readiness budget, the service's worst case before it exits.
 With `schema.dropOnUninstall`, off by
 default, a `pre-delete` Job reverts every migration on `helm uninstall` and the schema is empty
