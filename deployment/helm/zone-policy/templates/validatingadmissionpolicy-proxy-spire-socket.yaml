@@ -69,7 +69,7 @@ injector's: in a namespace with the injection label only (no mesh proxy at all i
 plane namespace, where nothing is injected), named istio-proxy (so no second proxy under another
 name), the image proxySocketPolicy.proxyImage (which must equal the istiod release's
 global.proxy.image; scripts/install-zone refuses a mismatch), no command, the arguments as the
-1.31.1 injector writes them (proxy sidecar --domain $(POD_NAMESPACE).svc.<cluster domain>, the three
+1.31.4 injector writes them (proxy sidecar --domain $(POD_NAMESPACE).svc.<cluster domain>, the three
 log-level flags, and only --stsPort, --log_as_json or --outlierLogPath besides), no envFrom, only
 the environment variables the injector writes (proxyEnv), with PILOT_CERT_PROVIDER, CA_ADDR,
 ISTIO_META_INTERCEPTION_MODE and TRUST_DOMAIN at the injector's values and PROXY_CONFIG an empty

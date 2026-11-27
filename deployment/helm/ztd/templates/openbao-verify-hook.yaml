@@ -6,10 +6,34 @@ round-trips the fixture transit key, and every run renews the periodic token. It
 management namespace next to the server (no new network lane) and needs no Kubernetes API access:
 the token comes from a Secret volume. It is kept until the next run replaces it, so its log can be
 collected (docs/secrets.md). Install with --wait --wait-for-jobs, so the bootstrap Job has finished.
+
+The management namespace is meshed. On a first install the hook runs before the installer installs
+istiod, so it gets no proxy; on every later upgrade (an installer rerun) the injector adds the mesh
+proxy, a native sidecar that stays unready until the SPIRE agent hands it an SVID. Its pod therefore
+carries the identity label that the zone-policy registration rule selects (ClusterSPIFFEID
+plane-workloads), and runs with a ServiceAccount of its own, <release>-verify-openbao, that holds no
+role and mounts no API token: its SPIFFE ID is
+spiffe://<trust domain>/ns/<namespace>/sa/<release>-verify-openbao, apart from any other labelled
+pod of the namespace. Without the label the proxy is refused its SVID, the pod
+stays at Init:1/2 and the upgrade times out and is rolled back. The native sidecar exits with the
+verify container, so the Job completes. Without a mesh the label is inert. The ServiceAccount is a
+hook of the same phase and delete policy as the Job, one weight lower, so Helm creates it just
+before the Job and replaces both on the next run.
 */ -}}
 {{- if or .Values.openbao.enabled .Values.openbaoExternal.address }}
 {{- $bundled := .Values.openbao.enabled }}
 {{- $secret := ternary "ztd-openbao-bootstrap" .Values.openbaoExternal.verifyTokenSecret $bundled }}
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: {{ .Release.Name }}-verify-openbao
+  namespace: {{ .Values.planes.management.namespace }}
+  labels:
+    {{- include "ztd.labels" . | nindent 4 }}
+  annotations:
+    {{- include "ztd.hook.annotations" (dict "phase" "post-install,post-upgrade" "band" "platform" "offset" 9 "deletePolicy" "before-hook-creation") | nindent 4 }}
+automountServiceAccountToken: false
 ---
 apiVersion: batch/v1
 kind: Job
@@ -27,7 +51,9 @@ spec:
       labels:
         app.kubernetes.io/name: ztd-verify-openbao
         app.kubernetes.io/instance: {{ .Release.Name }}
+        spiffe.io/spire-managed-identity: "true"
     spec:
+      serviceAccountName: {{ .Release.Name }}-verify-openbao
       automountServiceAccountToken: false
       restartPolicy: Never
       securityContext:

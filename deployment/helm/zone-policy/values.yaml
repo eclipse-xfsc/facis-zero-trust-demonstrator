@@ -67,7 +67,7 @@ proxySocketPolicy:
   # The injected proxy's image, the whole reference. It MUST equal the istiod release's
   # global.proxy.image (deployment/helm/values/istiod.yaml); if the two differ, the policy refuses
   # every injected pod. An Istio upgrade changes both.
-  proxyImage: docker.io/istio/proxyv2:1.31.1@sha256:d86cba0dd1eb15c00b6901c69ce5ae3d2d5f8427a47751098cf8c3ab2a4a62e9
+  proxyImage: docker.io/istio/proxyv2:1.31.4@sha256:04f0f4a8d494f17ae6c67ee400194f646f90460a220811acaaedafb0c332dd1d
 
 # Identity-band checks (hook-weight band "identity", 20-39): post-install and post-upgrade Jobs that
 # only read, through the Kubernetes API, and fail the release when identity is not there. They run

@@ -198,7 +198,7 @@ no plane, control-plane or release namespace, no SPIRE or Istio CRD and no admis
 behind. The registration-failure step labels `kube-public` (ignored by the controller-manager on
 every cluster) as a plane for its duration, and unlabels and empties it again.
 
-Needs `kind` (on kind), `kubectl`, `helm` (v4.3.0), the `cilium` CLI, `istioctl` 1.31.1, `jq`, `openssl`,
+Needs `kind` (on kind), `kubectl`, `helm` (v4.3.0), the `cilium` CLI, `istioctl` 1.31.4, `jq`, `openssl`,
 `python3` with PyYAML and `git`; the versions are recorded in `environment.json`. It refuses to run under
 CI (`CI` set): the evidence is the record of a run on a cluster, never written by a pipeline. The
 exit status is 0 when every check passed, the number of failed checks (1 to 124, capped at 124)

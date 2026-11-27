@@ -10,9 +10,9 @@ on failure), each waiting on the previous:
 | 1 | `ztd` | `ztd-system` | `deployment/helm/ztd` (the umbrella) | the zone file |
 | 2 | `spire-crds` | `spire-system` | `spire-crds` 0.6.1, SPIFFE hardened charts | `deployment/helm/values/spire-crds.yaml` |
 | 3 | `spire` | `spire-system` | `spire` 0.30.2 (SPIRE v1.15.3) | `deployment/helm/values/spire.yaml` + zone facts |
-| 4 | `istio-base` | `istio-system` | `base` 1.31.1, Istio release archive | `deployment/helm/values/istio-base.yaml` |
-| 5 | `istiod` | `istio-system` | `istiod` 1.31.1 | `deployment/helm/values/istiod.yaml` + zone facts |
-| 6 | `istio-cni` | `istio-system` | `cni` 1.31.1 | `deployment/helm/values/istio-cni.yaml` |
+| 4 | `istio-base` | `istio-system` | `base` 1.31.4, Istio release archive | `deployment/helm/values/istio-base.yaml` |
+| 5 | `istiod` | `istio-system` | `istiod` 1.31.4 | `deployment/helm/values/istiod.yaml` + zone facts |
+| 6 | `istio-cni` | `istio-system` | `cni` 1.31.4 | `deployment/helm/values/istio-cni.yaml` |
 | 7 | `zone-policy` | `istio-system` | `deployment/helm/zone-policy` | chart defaults + zone facts; also waits for its Jobs |
 
 The umbrella creates every namespace the later releases install into; the lifecycle step never
@@ -112,8 +112,80 @@ The chart versions and digests are at the top of `install.sh` and in `docs/depen
 container images are pinned by tag and digest in the values files under `deployment/helm/values/`. The SPIRE
 charts come from `https://spiffe.github.io/helm-charts-hardened/` and are checked against their
 sha256. The Istio 1.31 charts are not in Istio's Helm repository or OCI registry; they come from
-the release archive `istio-1.31.1-linux-amd64.tar.gz`, checked against its published sha256. An
+the release archive `istio-1.31.4-linux-amd64.tar.gz`, checked against its published sha256. An
 upgrade changes a version and its digest here and reruns `scripts/verify-mesh-identity/verify.sh`.
+
+## Upgrading a zone in place
+
+A zone moves to a new Istio pin without an uninstall: rerun the installer from the commit that
+carries the pin, then restart the mesh proxies.
+
+```bash
+KUBE_CONTEXT=<context> scripts/install-zone/install.sh install
+KUBE_CONTEXT=<context> scripts/install-zone/roll-proxies.sh
+```
+
+The installer upgrades `istio-base`, `istiod`, `istio-cni` and `zone-policy` in order, but it never
+restarts a workload, so that a routine rerun does not restart a zone: a running pod keeps the
+proxy it was injected with, and a fix in the proxy or its interception reaches the pod only when the
+pod is recreated. `roll-proxies.sh` takes the pinned image from `zone-policy`'s
+`proxySocketPolicy.proxyImage` and restarts (`kubectl rollout restart`, then `rollout status`)
+only the Deployments, StatefulSets and DaemonSets whose pods carry a `proxyv2` container on another
+image, init or regular: the proxies are native sidecars, so `istio-proxy` and `istio-validation` are
+init containers. A workload whose pods carry no proxy is left alone, since restarting it in a
+namespace with the injection label would inject a proxy it does not have. The script then lists
+every pod in the cluster and exits non-zero, naming the pod, its namespace, the container and the
+image, while any container still runs a `proxyv2` image other than the pinned one. Bare pods and
+Job pods are not restarted; the check names them, and the operator deletes them once they may go.
+`KUBE_CONTEXT` has no default in this script: it refuses to run without it.
+
+A restarted workload that needs a manual step before it is Ready holds `rollout status` until that
+step is done (`ROLLOUT_TIMEOUT`, 10 minutes by default). An OpenBao server that carries the mesh
+proxy is one: it seals itself on every restart, so run `scripts/secrets/unseal.sh` while the script
+waits on it. `unseal.sh` acts on kubectl's current context, not on `KUBE_CONTEXT`, so run it only
+behind a check that the current context is the zone being upgraded (in a second shell, while
+`roll-proxies.sh` waits; set `zone` to the context given to it as `KUBE_CONTEXT`):
+
+```bash
+zone=<context>
+if [ "$(kubectl config current-context)" = "$zone" ]; then
+  scripts/secrets/unseal.sh
+else
+  echo "the current context is not $zone: not unsealing" >&2
+fi
+```
+
+The check looks at running pods only: a pod that has finished (`Succeeded` or `Failed`, such as a
+completed Job's pod) runs no proxy, so its old image is not counted. It keeps the old image in its
+spec until it is deleted or its Job is cleaned up.
+
+**Short admission refusals.** Between the `istiod` step and the `zone-policy` step, the injector
+already writes the new proxy image while the `proxy-takes-spire-socket` policy still admits only
+the old one, so a plane pod created in that interval (a rescheduled or scaled pod) is refused with
+a `FailedCreate` event. Nothing is lost: the pod's controller (its ReplicaSet, StatefulSet,
+DaemonSet or Job) retries the creation with a growing backoff, and the first retry after the
+`zone-policy` step is admitted. Because of the backoff, such a pod can stay missing for a minute or
+two after that step; on kind the interval was about a minute between the first refusal and the
+`zone-policy` step, and about three minutes until the pod was back. A bare pod is not retried;
+`roll-proxies.sh` names any pod left on the old image. The policy is not widened to admit both
+images during the move, because that would mean a template and schema change to a security policy
+and a second step to narrow it again.
+
+**A hook pod on a rerun.** On the first install the umbrella runs before istiod, so its hook pods
+get no proxy; on a rerun a hook pod created in a meshed namespace gets the proxy injected. The
+umbrella's OpenBao verification hook `ztd-verify-openbao` (with `openbao.enabled: true`, as in the
+kind file `deployment/helm/ztd/ci/values.yaml`) therefore carries the identity label
+`spiffe.io/spire-managed-identity: "true"` and runs with a ServiceAccount of its own: SPIRE issues
+its proxy an SVID, and the hook completes. Without the label its pod would stay at `Init:1/2` and
+the rerun would fail at step 1 (`docs/troubleshooting.md`). CI checks that every hook the umbrella
+renders into a meshed namespace carries the label (`scripts/ci/check-hook-identity.sh`). The
+OpenBao bootstrap is a regular Job, not a hook: a rerun leaves it alone unless its script or values
+change, and it carries no identity label, so such a change on an installed zone is not covered.
+
+**Rollback.** Rerun the installer from the previous commit (the previous pin), then
+`roll-proxies.sh` from the same commit, so that the proxies return to the previous image. A release
+that does not become Ready during an upgrade is already rolled back by the installer's lifecycle
+step.
 
 ## Tools
 

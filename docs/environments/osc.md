@@ -27,7 +27,7 @@ You need:
 - the DNS zone delegation for the trust framework in place before the trust-list steps (5 to 7),
   which resolve the trust framework's records;
 - Helm v4.3.0, the version the pipeline pins, kubectl, `jq`, `curl`, `openssl` and `python3` with
-  PyYAML (the zone installer and the proof), istioctl 1.31.1 and the `cilium` CLI;
+  PyYAML (the zone installer and the proof), istioctl 1.31.4 and the `cilium` CLI;
 - this repository checked out.
 
 Check the version first — everything below assumes 1.29 or later, and the mesh needs 1.33 or later:
@@ -90,9 +90,9 @@ the previous, and stops at the first release that fails, naming it:
 | 1 | `ztd` | `ztd-system` | `deployment/helm/ztd`, the umbrella | 2 |
 | 2 | `spire-crds` | `spire-system` | `spire-crds` 0.6.1 | 3 |
 | 3 | `spire` | `spire-system` | `spire` 0.30.2 (SPIRE v1.15.3) | 3 |
-| 4 | `istio-base` | `istio-system` | Istio `base` 1.31.1 | 4 |
-| 5 | `istiod` | `istio-system` | Istio `istiod` 1.31.1 | 4 |
-| 6 | `istio-cni` | `istio-system` | Istio `cni` 1.31.1 | 4 |
+| 4 | `istio-base` | `istio-system` | Istio `base` 1.31.4 | 4 |
+| 5 | `istiod` | `istio-system` | Istio `istiod` 1.31.4 | 4 |
+| 6 | `istio-cni` | `istio-system` | Istio `cni` 1.31.4 | 4 |
 | 7 | `zone-policy` | `istio-system` | `deployment/helm/zone-policy` | 3 and 4 |
 
 The zone files record each cluster: `deployment/helm/ztd/zones/zone-a.yaml` and `zone-b.yaml`
@@ -286,7 +286,7 @@ reason code rather than a generic admission error. A cluster where that image st
 configured.
 
 The policy catalogue is then handed to the zone's Argo CD, which keeps it equal to Git from there on
-([deployment/argocd](../../deployment/argocd/README.md)). The two OSC clusters are Gardener shoots
+([deployment/argocd](https://github.com/eclipse-xfsc/facis-zero-trust-demonstrator/blob/main/deployment/argocd/README.md)). The two OSC clusters are Gardener shoots
 with Cilium, so the installer gets the Cilium lane to the API server and the namespace label that
 keeps the platform's API proxy out of it:
 

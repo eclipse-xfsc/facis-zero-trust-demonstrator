@@ -82,6 +82,14 @@ never the value) and round-trips the fixture transit key. It renews the token, s
 expire while the release is upgraded or verified at least once every 32 days. The Job stays until the
 next run replaces it, so its log can be collected.
 
+The management namespace is meshed. A first install runs the umbrella before istiod, so the hook
+gets no proxy; on every upgrade after that the injector adds one. The hook's pod therefore carries
+the identity label `spiffe.io/spire-managed-identity: "true"` and runs with a ServiceAccount of its
+own, `ztd-verify-openbao`, which holds no role and mounts no token: SPIRE issues its proxy the SVID
+`spiffe://<trust domain>/ns/<management namespace>/sa/ztd-verify-openbao`, and the native sidecar
+exits with the check. Without the label the proxy gets no SVID, the pod stays at `Init:1/2` and the
+upgrade is rolled back ([Troubleshooting](troubleshooting.md)).
+
 **Token expiry.** If the verification token expires, the hook fails. Recovery: generate a root token
 with the unseal key (`bao operator generate-root`), issue a new periodic token with the `ztd-verify`
 policy, write it to the Secret's `verify-token`, and revoke the root token again.

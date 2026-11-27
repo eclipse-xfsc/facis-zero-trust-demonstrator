@@ -104,14 +104,14 @@ Kubernetes API, and a failure fails the release:
 |---|---|---|
 | `server-healthy` | 20 | the SPIRE server's StatefulSet is Ready (its readiness probe is the server's health endpoint) and every agent is Ready |
 | `trust-bundle-published` | 25 | the server has published its trust bundle (`spire-bundle`), and the controller-manager and the mesh both run with the zone's trust domain |
-| `registrations-reconciled` | 30 | the controller-manager has reconciled the `ClusterSPIFFEID` with no entry or render failure, and every running labelled pod of the plane namespaces is selected, so its entry exists on the server |
+| `registrations-reconciled` | 30 | the controller-manager has reconciled the `ClusterSPIFFEID` with no entry or render failure, and every labelled pod of the plane namespaces past Pending (running, or finished, as a completed job's pod is) is selected, so its entry exists on the server |
 
 **What the Jobs read.** The Jobs hold no SPIRE credential and never call the SPIRE server, so they
 read Kubernetes objects that stand for the server's state: `server-healthy` reads the readiness of
 the server's StatefulSet, which the server's own health endpoint drives through the readiness
 probe, not the endpoint itself; `registrations-reconciled` reads the counters the controller-manager
 writes into the `ClusterSPIFFEID` status after it has set the entries on the server, not the entries
-themselves. On a zone with no running labelled pod (a fresh install, before any workload),
+themselves. On a zone with no labelled pod past Pending (a fresh install, before any workload),
 `registrations-reconciled` has nothing to compare and passes on the absence of failures alone. The
 entries themselves are read on the server by each run of the mesh identity proof
 (`spire-server entry show`, in the record a run writes; see `scripts/verify-mesh-identity/README.md`).
@@ -302,7 +302,7 @@ merged over the injected one without that annotation. A mesh proxy is therefore 
 namespace with the injection label, only under the name `istio-proxy` (no second proxy under
 another name), with the image `proxySocketPolicy.proxyImage` (which must equal the `istiod`
 release's `global.proxy.image`; the installer refuses a zone where they differ), no command, the
-arguments the 1.31.1 injector writes (`proxy sidecar --domain $(POD_NAMESPACE).svc.<cluster
+arguments the 1.31.4 injector writes (`proxy sidecar --domain $(POD_NAMESPACE).svc.<cluster
 domain>` and the three log-level flags, with only `--stsPort`, `--log_as_json` or
 `--outlierLogPath` besides), no `envFrom`, only the environment variables the injector writes, with
 `PILOT_CERT_PROVIDER`, `CA_ADDR`, `ISTIO_META_INTERCEPTION_MODE` and `TRUST_DOMAIN` at the

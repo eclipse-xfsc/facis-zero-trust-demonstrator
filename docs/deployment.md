@@ -54,7 +54,7 @@ hook-weight scheme and the evidence are in [Umbrella chart](umbrella-chart.md) a
 ### Admission policy from Git
 
 Gatekeeper, the provider and the policy catalogue install with `scripts/admission/install.sh`
-([deployment/admission](../deployment/admission/README.md)). From then on the catalogue is kept equal
+([deployment/admission](https://github.com/eclipse-xfsc/facis-zero-trust-demonstrator/blob/main/deployment/admission/README.md)). From then on the catalogue is kept equal
 to Git by an Argo CD in the zone, installed after it:
 
 ```bash
@@ -66,7 +66,7 @@ scripts/argocd/install.sh
 A change merged to `deployment/admission/` on the revision the zone follows reaches the cluster on the
 next reconciliation, a constraint edited in the cluster is put back, and the sync status is exported
 as metrics. The layout, the lanes it needs and how it is operated are in
-[deployment/argocd/README.md](../deployment/argocd/README.md).
+[deployment/argocd/README.md](https://github.com/eclipse-xfsc/facis-zero-trust-demonstrator/blob/main/deployment/argocd/README.md).
 
 ### Through the ORCE workflow
 

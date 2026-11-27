@@ -1,0 +1,7 @@
+# PyYAML for the CI steps that need it when the runner's Python lacks it
+# (pip install --require-hashes --only-binary :all: --no-deps -r scripts/tools/requirements-ci.txt).
+# The hash is PyPI's for the CPython 3.12 manylinux x86_64 wheel, the Python of ubuntu-latest
+# (https://pypi.org/pypi/PyYAML/6.0.4/json). Another Python finds no wheel with an allowed hash and
+# fails instead of building from source.
+pyyaml==6.0.4 \
+    --hash=sha256:93bfb2459195406a518e2f487a9bbf01df240175f31e06f5a252ac6734c7bbf0

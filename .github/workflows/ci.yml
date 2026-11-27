@@ -347,6 +347,44 @@ jobs:
       - name: Test the chart check
         run: scripts/ci/check-charts_test.sh
 
+      # Helm reruns an install or upgrade hook on every upgrade, when the mesh already exists: a hook
+      # pod in a namespace with the injection label gets the mesh proxy, which waits for an SVID that
+      # SPIRE issues only to a pod with zone-policy's identity label. The umbrella is rendered with
+      # its ci/values.yaml and every shipped zone file, and every such hook must carry the label; a
+      # copy of the umbrella with a post-upgrade hook Job planted in the management namespace without
+      # it must be refused, naming the hook. Rendering only. PyYAML falls back to the pinned,
+      # hash-checked wheel.
+      - name: Check that hook pods in meshed namespaces carry the identity label
+        run: |
+          python3 -c 'import yaml' 2>/dev/null ||
+            python3 -m pip install --user --require-hashes --only-binary :all: --no-deps \
+              -r scripts/tools/requirements-ci.txt
+          scripts/ci/check-hook-identity.sh
+          copy="$RUNNER_TEMP/hook-identity/ztd"
+          mkdir -p "$copy"
+          cp -r deployment/helm/ztd/. "$copy/"
+          cat > "$copy/templates/zz-planted-hook.yaml" <<'YAML'
+          apiVersion: batch/v1
+          kind: Job
+          metadata:
+            name: planted-hook
+            namespace: {{ .Values.planes.management.namespace }}
+            annotations:
+              helm.sh/hook: post-install,post-upgrade
+          spec:
+            template:
+              spec:
+                restartPolicy: Never
+                containers:
+                  - name: planted
+                    image: planted
+          YAML
+          if CHART="$copy" scripts/ci/check-hook-identity.sh "$copy/ci/values.yaml" 2>"$copy.err"; then
+            echo "the check passed a hook without the identity label" >&2; exit 1
+          fi
+          cat "$copy.err"
+          grep -q 'Job ztd-mgmt/planted-hook' "$copy.err" || { echo "the refusal does not name the hook" >&2; exit 1; }
+
       # A zone is seven releases (scripts/install-zone/install.sh): the two project charts above and
       # five upstream charts, SPIRE's and Istio's, pinned by version and digest in the installer.
       # Each upstream release is rendered from its pinned chart with its values file under
@@ -357,7 +395,9 @@ jobs:
       # zone-policy whose proxy image or status port differs from istiod's before it renders anything.
       - name: Render the upstream releases of a zone
         run: |
-          python3 -c 'import yaml' 2>/dev/null || python3 -m pip install --user pyyaml
+          python3 -c 'import yaml' 2>/dev/null ||
+            python3 -m pip install --user --require-hashes --only-binary :all: --no-deps \
+              -r scripts/tools/requirements-ci.txt
           RENDER_DIR="$RUNNER_TEMP/render" \
             scripts/install-zone/install.sh render spire-crds spire istio-base istiod istio-cni
           python3 - "$RUNNER_TEMP/render/istiod.yaml" <<'PY'
@@ -411,6 +451,27 @@ jobs:
             grep -q "proxySocketPolicy.$field" "$copy.err" || { echo "the refusal does not name proxySocketPolicy.$field" >&2; exit 1; }
             [ ! -e "$copy/out/istiod.yaml" ] || { echo "install-zone rendered istiod before refusing the $field mismatch" >&2; exit 1; }
           done
+
+      # The proxy restart after an in-place Istio upgrade (scripts/install-zone/roll-proxies.sh),
+      # against a kubectl stub, no cluster (the cases are listed in the test's header):
+      # - no, or an empty, KUBE_CONTEXT, an unknown argument, a DRAIN_TIMEOUT that is not a number:
+      #   exit 2 before any kubectl call; --help exits 0;
+      # - a Deployment whose istio-validation init container runs another proxyv2 image is restarted,
+      #   one without a proxy next to it never is; still on the other image afterwards, the script
+      #   fails naming pod, namespace, container and image; on the pinned image, it exits 0;
+      # - a replica set list larger than one argument; nothing stale: nothing restarted;
+      # - a StatefulSet's and a DaemonSet's pods: both restarted;
+      # - a bare pod and a Job's pod: neither restarted, both named, non-zero;
+      # - a finished (Succeeded) pod: ignored; a terminating pod: waited on, and named as terminating
+      #   when it outlasts DRAIN_TIMEOUT.
+      # PyYAML falls back to a pinned, hash-checked wheel (scripts/tools/requirements-ci.txt) when
+      # the runner's Python lacks it.
+      - name: Test the proxy restart script
+        run: |
+          python3 -c 'import yaml' 2>/dev/null ||
+            python3 -m pip install --user --require-hashes --only-binary :all: --no-deps \
+              -r scripts/tools/requirements-ci.txt
+          scripts/install-zone/roll-proxies-test.sh
 
       # The upstream-state checker against local stand-ins that answer 404, 500 and the wrong
       # document: an error page must count as unreachable, never as the document. Its record goes

@@ -36,7 +36,7 @@ and nobody hand-rolls their own:
 | `Go tests` | Calls the shared `go-test.yml`, which runs the tests of every Go module it finds | yes |
 | `Go lint` | `golangci-lint run ./...`, with a pinned golangci-lint built by the Go version `go.mod` names | yes |
 | `Image build and scan` | Builds each context under `deployment/docker/` for `linux/amd64`, asserts the built image's OS, then scans it with Trivy for HIGH and CRITICAL vulnerabilities | yes |
-| `Chart lint and render` | `scripts/ci/check-charts.sh`: `helm lint` and a `helm template` render of every chart under `deployment/helm/` and `features/fixtures/charts/`, dependencies built from `Chart.lock`; then `scripts/ci/check-charts_test.sh`, the cases that hold the script to refusing a package when a chart fails | yes |
+| `Chart lint and render` | `scripts/ci/check-charts.sh`: `helm lint` and a `helm template` render of every chart under `deployment/helm/` and `features/fixtures/charts/`, dependencies built from `Chart.lock`; then `scripts/ci/check-charts_test.sh`, the cases that hold the script to refusing a package when a chart fails; then `scripts/ci/check-hook-identity.sh`, which renders the umbrella with its kind zone file and every shipped zone file (the example excepted) and fails when an install or upgrade hook pod in a meshed namespace lacks the SPIRE identity label (a rerun would inject a proxy that never gets an SVID) | yes |
 | `Release charts` | On a published release only, once every other gate job of the workflow has passed: runs the chart gate with its server dry-run on a disposable cluster, packages the charts under `deployment/helm/` at the release version, attaches them to the release with their checksums and, when a registry is configured, pushes them as OCI chart artefacts — see [Chart release](#chart-release) | yes — a release whose gates fail ships no chart |
 
 ZT-13 requires Linux images. The pipeline reads the OS back off the built image with
@@ -109,7 +109,7 @@ them as not run.
 ## Admission reconciler
 
 The `admission-gitops` job proves the path from Git to the cluster that
-[deployment/argocd](../deployment/argocd/README.md) builds: a kind cluster with Gatekeeper and the
+[deployment/argocd](https://github.com/eclipse-xfsc/facis-zero-trust-demonstrator/blob/main/deployment/argocd/README.md) builds: a kind cluster with Gatekeeper and the
 pinned Argo CD, handed the admission policy of the revision under test by `scripts/argocd/install.sh`,
 fetched from the repository the revision came from (the pull request's head repository and commit, or
 the pushed commit). The job checks out that same commit, not the merge commit, so the catalogue the

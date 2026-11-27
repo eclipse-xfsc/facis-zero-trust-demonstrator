@@ -31,7 +31,7 @@ installs into `istio-system`, the mesh root namespace:
 |---|---|---|
 | `server-healthy` | 20 | the SPIRE server's StatefulSet is not Ready (its readiness probe is the server's health endpoint) or an agent is not Ready |
 | `trust-bundle-published` | 25 | the server has published no X.509 authority in `spire-bundle`, or the controller-manager or the mesh runs with another trust domain than `trustDomain` |
-| `registrations-reconciled` | 30 | the controller-manager reports an entry or render failure, a selected pod without its entry, or fewer selected pods than the running labelled pods of the plane namespaces |
+| `registrations-reconciled` | 30 | the controller-manager reports an entry or render failure, a selected pod without its entry, or fewer selected pods than the labelled pods of the plane namespaces past Pending (running, or finished: the controller-manager selects a completed job's pod too) |
 
 Each check waits up to `checks.timeoutSeconds` for its condition. A failed job is kept for an hour
 so that its log can be read; a successful one is removed by the hook delete policy.
@@ -88,7 +88,7 @@ without the annotation). So a mesh proxy is admitted only:
 - in a namespace with the injection label (none in a `mesh: false` plane namespace, where nothing is
   injected), and only under the name `istio-proxy`, so there is no second proxy under another name;
 - with the image `proxySocketPolicy.proxyImage` and no command;
-- with the arguments the 1.31.1 injector writes: `proxy sidecar --domain
+- with the arguments the 1.31.4 injector writes: `proxy sidecar --domain
   $(POD_NAMESPACE).svc.<cluster domain>`, the three log-level flags, and only `--stsPort`,
   `--log_as_json` or `--outlierLogPath` besides;
 - with no `envFrom`, only the environment variables the injector writes, `PILOT_CERT_PROVIDER`,
@@ -115,7 +115,7 @@ without the annotation). So a mesh proxy is admitted only:
   `windowsOptions`. `sidecar.istio.io/capNetBindService: "true"`, with which the injector runs the
   proxy as root with `NET_BIND_SERVICE`, is therefore refused.
 
-The allowed environment variables (`proxyEnv`) are the ones the 1.31.1 injector writes for this
+The allowed environment variables (`proxyEnv`) are the ones the 1.31.4 injector writes for this
 zone, from the template and from its code after the template: `ISTIO_KUBE_APP_PROBERS` when it
 rewrites an application's probes, and `ISTIO_PROMETHEUS_ANNOTATIONS` when a pod carries
 `prometheus.io/*` annotations (the mesh sets `enablePrometheusMerge`). Variables it writes only
@@ -192,7 +192,7 @@ two proxy images or two status ports differ, and CI runs that check with every r
 | `proxySocketPolicy.name` | `proxy-takes-spire-socket` | Name of the admission policy and its binding |
 | `proxySocketPolicy.volume`, `proxySocketPolicy.mountPath`, `proxySocketPolicy.driver` | `workload-socket`, `/var/run/secrets/workload-spiffe-uds`, `csi.spiffe.io` | The volume, mount path and CSI driver every mesh proxy must have; those of Istio's `sidecar` template and the istiod values file |
 | `proxySocketPolicy.statusPort` | `15020` | The proxy's status port, the one inbound port the capture rule lets the injector exclude; must equal the `istiod` release's `global.proxy.statusPort` (integer, required) |
-| `proxySocketPolicy.proxyImage` | `docker.io/istio/proxyv2:1.31.1@sha256:d86c…` | The injected proxy's whole image reference, by digest; the proxy rule admits no other image for a mesh proxy; must equal the `istiod` release's `global.proxy.image` (string, required) |
+| `proxySocketPolicy.proxyImage` | `docker.io/istio/proxyv2:1.31.4@sha256:04f0…` | The injected proxy's whole image reference, by digest; the proxy rule admits no other image for a mesh proxy; must equal the `istiod` release's `global.proxy.image` (string, required) |
 | `checks.enabled` | `true` | The identity-band jobs |
 | `checks.image` | `curlimages/curl` by digest | Image of the jobs (the umbrella's verification image) |
 | `checks.timeoutSeconds` | `180` | How long each check waits before it fails the release |

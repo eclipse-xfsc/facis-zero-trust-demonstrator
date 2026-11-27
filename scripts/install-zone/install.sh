@@ -62,9 +62,9 @@ SPIRE_SHA256=aadaeabe1dfecbcd803d541580ab41c229d99c0075ace3b6e050b0ceef36aa8d
 # Istio 1.31 charts are not in Istio's Helm repository (its index stops at 1.31.0-rc.0, last
 # modified 2026-09-21) nor in its OCI registry; they ship in the release archive, under
 # manifests/charts, which is pinned by its published sha256.
-ISTIO_VERSION=1.31.1
+ISTIO_VERSION=1.31.4
 ISTIO_ARCHIVE_URL=https://github.com/istio/istio/releases/download/$ISTIO_VERSION/istio-$ISTIO_VERSION-linux-amd64.tar.gz
-ISTIO_ARCHIVE_SHA256=cb4af2e8a099acfc51368c1d15d4deab8321ae628554d4ee5c74f62ebe775857
+ISTIO_ARCHIVE_SHA256=956421eb4934c10029622b6cd96442c904548d12eadbe874fb1d1a38d5d58ccc
 
 # ---- The steps: release, namespace, chart, values file, zone facts (<values key>=<zone key>,...),
 # ---- extra lifecycle settings. "zone" as values file means the zone file itself.

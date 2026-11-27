@@ -1,8 +1,8 @@
 # Release `istio-base` of the zone: Istio's custom resource definitions and cluster-wide base
 # resources, installed as the upstream chart ships them, in templates/, so that this release
 # installs, upgrades and removes them.
-#   chart source      Istio 1.31.1 release archive, chart `base` 1.31.1
-#                     https://github.com/istio/istio/releases/download/1.31.1/istio-1.31.1-linux-amd64.tar.gz
+#   chart source      Istio 1.31.4 release archive, chart `base` 1.31.4
+#                     https://github.com/istio/istio/releases/download/1.31.4/istio-1.31.4-linux-amd64.tar.gz
 #                     (manifests/charts/base; the archive's sha256 is pinned in scripts/install-zone/install.sh)
 #   namespace         istio-system (created by the umbrella chart, never by this release)
 # Pinned in scripts/install-zone/install.sh and docs/dependencies.md. Every value set here is
