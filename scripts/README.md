@@ -7,10 +7,12 @@ Bash is the language for scripts under `scripts/` per the Technical Development 
 | Script | What |
 |---|---|
 | `lifecycle.sh` | deploy or uninstall one Helm release: server-side dry run, then upgrade with rollback; the ORCE lifecycle node runs it |
-| `install-zone/install.sh` | install, upgrade, render or uninstall a zone as its seven releases in order, each through `lifecycle.sh` |
+| `install-zone/install.sh` | install, upgrade, render or uninstall a zone as its releases in order (eight on the sidecar path, six on the ambient path), each through `lifecycle.sh` |
 | `dev/kind-cilium-up.sh` | the local kind cluster with Cilium chained (`cni.exclusive=false`) |
 | `verify-umbrella/verify.sh` | evidence for the umbrella chart alone on kind |
 | `verify-mesh-identity/verify.sh` | evidence that the mesh identities are SPIRE's, the whole zone on kind |
+| `verify-ambient-mesh/verify.sh` | proof of the Istio ambient mesh on the demonstrator cluster (no SPIRE, ADR-0018), with stand-ins; writes its dated record under `docs/evidences/ambient-mesh-demonstrator/` |
+| `verify-ambient-mesh/admission-kind.sh` | the admission cases of that proof against the rendered `no-sidecar-in-planes`, in a throwaway kind cluster (CI job "Ambient admission (kind)") |
 | `mesh-mode/check-upstream-state.sh` | the upstream-state record behind ADR-0009 and its reopen check |
 ## Guard policy-hook proofs (`verify-policy-hook/`)
 

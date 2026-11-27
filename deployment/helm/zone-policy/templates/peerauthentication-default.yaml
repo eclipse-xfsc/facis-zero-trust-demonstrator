@@ -1,6 +1,8 @@
 {{- /*
-Mesh-wide peer authentication in the mesh root namespace: STRICT, so a proxy without a SPIRE
-certificate can neither be reached in plaintext nor reach a peer. A future plaintext exception is a
+Mesh-wide peer authentication in the mesh root namespace: STRICT, so a workload without a mesh
+certificate can neither be reached in plaintext nor reach a peer. The certificate is the SPIRE-issued
+SVID where the zone runs SPIRE (spire.enabled), and the one istiod's CA issues where it does not (the
+demonstrator cluster in ambient mode, ADR-0018). Rendered in either case. A future plaintext exception is a
 namespaced PeerAuthentication recorded per path, never a change here.
 */ -}}
 apiVersion: security.istio.io/v1

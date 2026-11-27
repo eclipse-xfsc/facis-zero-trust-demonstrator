@@ -187,6 +187,8 @@ Pod Security follow-up.
 {{- define "zone-policy.takesSocket" -}}
 (has(c.volumeMounts) && c.volumeMounts.exists(m, m.name == {{ .volume | squote }} && m.mountPath == {{ .mountPath | squote }} && !has(m.subPath) && !has(m.subPathExpr) && (!has(m.mountPropagation) || m.mountPropagation == 'None')))
 {{- end }}
+{{- /* The policy assumes SPIRE's socket: a zone without SPIRE (spire.enabled: false) renders none. */ -}}
+{{- if .Values.spire.enabled }}
 apiVersion: admissionregistration.k8s.io/v1
 kind: ValidatingAdmissionPolicy
 metadata:
@@ -406,3 +408,4 @@ spec:
       matchExpressions:
         - key: {{ .Values.registration.planeLabel }}
           operator: Exists
+{{- end }}

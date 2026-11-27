@@ -1,12 +1,18 @@
 {{- /*
 The ZT-55 allow matrix as network policy: for each lane, an egress rule in the source namespace
 and an ingress rule in the destination namespace. The mesh layer decides on identity on top.
+In ambient mode a lane that names ports also names the HBONE port 15008: ztunnel carries the
+captured connection to the destination pod on that port, so the application port alone would drop
+it (ADR-0018). A lane without ports opens every port already.
 */ -}}
+{{- $hbone := eq .Values.mesh.mode "ambient" }}
 {{- range .Values.allowMatrix }}
 {{- $fromNs := include "ztd.endpointNamespace" (dict "root" $ "endpoint" .from) }}
 {{- $toNs := include "ztd.endpointNamespace" (dict "root" $ "endpoint" .to) }}
 {{- $fromSelector := .from.podSelector | default dict }}
 {{- $toSelector := .to.podSelector | default dict }}
+{{- $ports := .to.ports }}
+{{- if and $hbone $ports }}{{ $ports = append $ports (dict "port" 15008 "protocol" "TCP") }}{{ end }}
 ---
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
@@ -32,7 +38,7 @@ spec:
           podSelector:
             matchLabels:
               {{- toYaml $toSelector | nindent 14 }}
-      {{- with .to.ports }}
+      {{- with $ports }}
       ports:
         {{- toYaml . | nindent 8 }}
       {{- end }}
@@ -61,7 +67,7 @@ spec:
           podSelector:
             matchLabels:
               {{- toYaml $fromSelector | nindent 14 }}
-      {{- with .to.ports }}
+      {{- with $ports }}
       ports:
         {{- toYaml . | nindent 8 }}
       {{- end }}

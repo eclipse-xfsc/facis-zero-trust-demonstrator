@@ -56,7 +56,10 @@
     },
     "cni": {
       "type": "object",
-      "properties": { "cilium": { "type": "object", "properties": { "enabled": { "type": "boolean" } } } }
+      "properties": {
+        "cilium": { "type": "object", "properties": { "enabled": { "type": "boolean" } } },
+        "derogation": { "type": "string", "enum": ["", "calico-ambient"], "description": "The declared CNI derogation (ADR-0018): calico-ambient lets mesh.mode ambient render without Cilium, with plain NetworkPolicy openings; empty declares none" }
+      }
     },
     "networkPolicy": {
       "type": "object",
@@ -82,7 +85,7 @@
         },
         "meshControlPlane": {
           "type": "object",
-          "description": "Declared opening: sidecars of every meshed plane namespace -> istiod on the xDS port.",
+          "description": "Declared opening: the xDS clients -> istiod on the xDS port: the sidecars of every meshed plane namespace, or, under cni.derogation calico-ambient, the ztunnel pods.",
           "properties": {
             "enabled": { "type": "boolean" },
             "namespace": { "$ref": "#/$defs/namespaceName" },
@@ -98,6 +101,7 @@
           "properties": {
             "enabled": { "type": "boolean" },
             "fromEntities": { "type": "array", "minItems": 1, "items": { "type": "string", "enum": ["kube-apiserver", "host", "remote-node"] } },
+            "fromPods": { "type": "array", "description": "Without Cilium, under cni.derogation calico-ambient: the provider's pods through which the API server reaches in-cluster webhooks, by namespace and labels (demonstrator cluster: kube-system, k8s-app=konnectivity-agent); a zone fact; never an address", "items": { "type": "object", "required": ["namespace", "podSelector"], "additionalProperties": false, "properties": { "namespace": { "$ref": "#/$defs/namespaceName" }, "podSelector": { "$ref": "#/$defs/labels" } } } },
             "fromEndpoints": { "type": "array", "description": "Cilium endpoint selectors (matchLabels, with k8s:io.kubernetes.pod.namespace) of the pods through which the provider's API server reaches in-cluster webhooks, such as Gardener's vpn-shoot; a zone fact, empty by default; never an address", "items": { "type": "object", "minProperties": 2, "required": ["k8s:io.kubernetes.pod.namespace"], "additionalProperties": { "type": "string" } } },
             "targets": {
               "type": "array",
@@ -152,24 +156,17 @@
     },
     "openbao": {
       "type": "object",
-      "required": ["enabled"],
-      "properties": {
-        "enabled": { "type": "boolean" }
-      }
+      "description": "The umbrella installs no OpenBao: the release ztd-openbao does (deployment/helm/ztd-openbao). No key is read here: any key is a stale value of the umbrella that installed OpenBao, or of the zone files that placed that release on a node, and is refused.",
+      "additionalProperties": false,
+      "properties": {}
     },
     "openbaoBootstrap": {
-      "type": "object",
-      "required": ["image"],
-      "properties": {
-        "image": { "type": "string", "pattern": "@sha256:[0-9a-f]{64}$" }
-      }
+      "description": "Refused: the bootstrap moved to deployment/helm/ztd-openbao (bootstrap.image).",
+      "not": {}
     },
     "openbaoExternal": {
-      "type": "object",
-      "properties": {
-        "address": { "type": "string", "pattern": "^(|https?://.+)$" },
-        "verifyTokenSecret": { "type": "string" }
-      }
+      "description": "Refused: the external mode moved to deployment/helm/ztd-openbao (external.address, external.verifyTokenSecret).",
+      "not": {}
     }
   },
   "allOf": [
@@ -182,6 +179,23 @@
           "networkPolicy": {
             "required": ["kubeApi"],
             "properties": { "kubeApi": { "required": ["enabled"], "properties": { "enabled": { "const": true } } } }
+          }
+        }
+      }
+    },
+    {
+      "description": "The declared CNI derogation calico-ambient (ADR-0018) is allowed only with mesh.mode ambient and Cilium disabled, and then needs the API endpoint addresses (networkPolicy.kubeApi.cidrs) and the webhook source pods (networkPolicy.controlPlaneWebhooks.fromPods).",
+      "if": { "properties": { "cni": { "properties": { "derogation": { "const": "calico-ambient" } }, "required": ["derogation"] } }, "required": ["cni"] },
+      "then": {
+        "properties": {
+          "mesh": { "properties": { "mode": { "const": "ambient" } } },
+          "cni": { "required": ["cilium"], "properties": { "cilium": { "required": ["enabled"], "properties": { "enabled": { "const": false } } } } },
+          "networkPolicy": {
+            "required": ["kubeApi", "controlPlaneWebhooks"],
+            "properties": {
+              "kubeApi": { "required": ["cidrs"], "properties": { "cidrs": { "minItems": 1 } } },
+              "controlPlaneWebhooks": { "required": ["enabled", "fromPods"], "properties": { "enabled": { "const": true }, "fromPods": { "minItems": 1 } } }
+            }
           }
         }
       }

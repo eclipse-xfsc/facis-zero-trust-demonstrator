@@ -2,8 +2,10 @@
 Istio ambient over Cilium: kubelet health probes reach ambient pods SNAT-ed to 169.254.7.127, an
 address Cilium does not exempt from policy, so the default-deny above would fail every probe.
 Istio's platform prerequisites prescribe this cluster-wide exception (istio/istio#49277).
-Ambient is the parked mode (ADR-0009 baselines sidecar); the template stays so that returning to
-ambient is a zone value and not a chart change. Nothing renders in sidecar mode.
+With Cilium, ambient is the parked mode (ADR-0009 baselines sidecar); the template stays so that
+returning to ambient is a zone value and not a chart change. Nothing renders in sidecar mode or
+without Cilium: the demonstrator cluster's Calico gets the same lane as a Kubernetes NetworkPolicy
+per meshed plane namespace (networkpolicy-ambient-calico.yaml, ADR-0018).
 */ -}}
 {{- if and .Values.cni.cilium.enabled (eq .Values.mesh.mode "ambient") }}
 ---

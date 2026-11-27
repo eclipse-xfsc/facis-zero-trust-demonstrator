@@ -1,7 +1,8 @@
 # zone-policy — the identity policy of one zone
 
-The one project chart of the identity path, and the last of the seven releases of a zone
-(`scripts/install-zone/install.sh`), because it uses the CRDs the SPIRE and Istio releases own. It
+The one project chart of the identity path, and the seventh of the eight releases of a zone
+(`scripts/install-zone/install.sh`), because it uses the CRDs the SPIRE and Istio releases own; the
+secret store `ztd-openbao` follows it, so that its pods are registered at creation. It
 installs into `istio-system`, the mesh root namespace:
 
 - **`ClusterSPIFFEID` `plane-workloads`**: the registration by selector. Every pod with
@@ -9,7 +10,8 @@ installs into `istio-system`, the mesh root namespace:
   gets `spiffe://<trust domain>/ns/<namespace>/sa/<service account>`. A regular resource that the
   SPIRE controller-manager reconciles into entries, never a hook.
 - **`PeerAuthentication` `default`** in `istio-system`: mesh-wide mutual TLS in `STRICT` mode, so a
-  workload without a SPIRE entry has no mesh connection.
+  workload without a mesh certificate (a SPIRE entry, where the zone runs SPIRE) has no mesh
+  connection.
 - **`ValidatingAdmissionPolicy` `proxy-takes-spire-socket`** and its binding: in every namespace
   with the plane label, a pod may not choose its injection templates (`inject.istio.io/templates`),
   and every mesh proxy of a pod (a container, init container or ephemeral container named
@@ -31,7 +33,7 @@ installs into `istio-system`, the mesh root namespace:
 |---|---|---|
 | `server-healthy` | 20 | the SPIRE server's StatefulSet is not Ready (its readiness probe is the server's health endpoint) or an agent is not Ready |
 | `trust-bundle-published` | 25 | the server has published no X.509 authority in `spire-bundle`, or the controller-manager or the mesh runs with another trust domain than `trustDomain` |
-| `registrations-reconciled` | 30 | the controller-manager reports an entry or render failure, a selected pod without its entry, or fewer selected pods than the running labelled pods of the plane namespaces |
+| `registrations-reconciled` | 30 | the controller-manager reports an entry or render failure, a selected pod without its entry, or fewer selected pods than the labelled pods of the plane namespaces past Pending (running, or finished: the controller-manager selects a completed job's pod too) |
 
 Each check waits up to `checks.timeoutSeconds` for its condition. A failed job is kept for an hour
 so that its log can be read; a successful one is removed by the hook delete policy.
@@ -175,11 +177,84 @@ If the two differ, every injected pod in a plane namespace is refused by the pro
 upgrade changes both. `scripts/install-zone/install.sh` refuses to render or install a zone whose
 two proxy images or two status ports differ, and CI runs that check with every render.
 
+## A zone without SPIRE
+
+`spire.enabled: false` is the zone without SPIRE: the demonstrator cluster, which runs the mesh in
+ambient mode with istiod's CA as the only certificate source (`docs/adr/0018-service-mesh-on-the-demonstrator-cluster.md`).
+The chart then renders the `PeerAuthentication`, the admission policy `no-sidecar-in-planes` and the
+lane-port policies. The `ClusterSPIFFEID`, the admission policy `proxy-takes-spire-socket` (there is
+no injected proxy and no SPIRE socket) and the identity-band checks are left out.
+`scripts/install-zone/install.sh` sets `spire.enabled: false` on its ambient path; a sidecar zone
+keeps the default `true` and renders exactly as before.
+
+- `no-sidecar-in-planes` (`templates/validatingadmissionpolicy-no-sidecar.yaml`): in a namespace with
+  the plane label, a pod may not choose its injection templates (`inject.istio.io/templates`) and may
+  not ask for injection (`sidecar.istio.io/inject: "true"`, label or annotation). istiod still ships
+  its injector and templates in ambient mode, and other requests reach it too (a pod label
+  `istio.io/rev`, a namespace label `istio-injection` or `istio.io/rev`). Admission policies are
+  evaluated after the mutating webhooks, so the policy also refuses what the injector leaves behind,
+  whatever asked for it: the annotation `sidecar.istio.io/status`, an init container `istio-init` or
+  `istio-validation`, and, outside the mesh root namespace (`mesh.namespace`), a container or init
+  container named `istio-proxy`. The root namespace carries the plane label as well; ztunnel's own
+  container there is named `istio-proxy` and istiod there carries `istio.io/rev`, so neither the name
+  in that namespace nor the label as such is refused. This keeps the injector unused in the planes.
+  The name rule also refuses a hand-added proxy and a waypoint (istiod's waypoint pods run a
+  container `istio-proxy`) outside the root namespace; the ambient zone uses no waypoint, its policies
+  are L4 and enforced by ztunnel. In a namespace enrolled in the ambient mesh (namespace label
+  `istio.io/dataplane-mode=ambient`: the meshed plane namespaces, not the mesh root namespace) the
+  policy also keeps every pod in the mesh, as `proxy-takes-spire-socket` does on the sidecar path: a
+  pod label `istio.io/dataplane-mode` other than `ambient` (the opt-out `none`), the annotation
+  `ambient.istio.io/bypass-inbound-capture` (inbound traffic left uncaptured by ztunnel), and the
+  host network (`hostNetwork`, a `hostPort`) are refused. Istio SNATs every connection from a node's
+  network namespace to an ambient pod to `169.254.7.127`, which ztunnel lets past without mTLS (the
+  kubelet's probes need it), so a host-network pod there would reach every port of every ambient pod
+  in plaintext. So are the other ways into the node, its network or the pod's own capture rules,
+  the other controls of the Pod Security Standards `baseline` profile (Kubernetes 1.35): a
+  privileged container, `hostPID` (a privileged `hostPID` pod can `nsenter` the node's network
+  namespace), `hostIPC`, a `hostPath` volume; an added capability outside `baseline`'s list
+  (`AUDIT_WRITE`, `CHOWN`, `DAC_OVERRIDE`, `FOWNER`, `FSETID`, `KILL`, `MKNOD`, `NET_BIND_SERVICE`,
+  `SETFCAP`, `SETGID`, `SETPCAP`, `SETUID`, `SYS_CHROOT`), compared case-insensitively and with or
+  without `CAP_`, so `NET_ADMIN` (which could delete the capture rules istio-cni writes in the pod's
+  network namespace), `SYS_ADMIN`, `ALL`, `SYS_MODULE`, `DAC_READ_SEARCH`, `SYS_RAWIO` and
+  `SYS_PTRACE` (`kubectl debug --profile=general`) are refused; seccomp or AppArmor `Unconfined`
+  (the field, or an annotation `container.apparmor.security.beta.kubernetes.io/*` other than
+  `runtime/default` or `localhost/*`); a `procMount` other than `Default`; a Windows `hostProcess`;
+  an SELinux type other than `container_t`, `container_init_t`, `container_kvm_t` or
+  `container_engine_t`, or an SELinux user or role; a sysctl outside `baseline`'s safe set; and a
+  host in a probe or a lifecycle hook (the kubelet would call it from the node's network
+  namespace). Each holds in containers, init containers and ephemeral containers, and at pod level
+  where the field exists there. The policy matches `pods`, `pods/status` (which can change a pod's labels and
+  annotations, so the opt-outs cannot be written there either) and `pods/ephemeralcontainers`
+  (`kubectl debug`), like `proxy-takes-spire-socket`. istio-cni and ztunnel, which add `NET_ADMIN`
+  and `SYS_ADMIN` (istio-cni also `SYS_PTRACE`, with AppArmor `Unconfined`) and mount `hostPath`
+  volumes (neither is privileged nor host-network), run in the
+  root namespace, which is not enrolled. The namespace label `istio.io/dataplane-mode=ambient` is the
+  trust anchor of all these rules: removing it takes the namespace out of the mesh and out of the
+  rules at once, which needs namespace-update rights. What stays open (what `baseline` admits and only `restricted` would
+  refuse: root containers, privilege escalation, `baseline`'s own capabilities; a
+  `hostPath`-backed PersistentVolume, a kernel or runtime escape, other namespaces, the node) is listed
+  in ADR-0018. CI checks each refusal and the mesh's own pod templates in a kind cluster
+  (`scripts/verify-ambient-mesh/admission-kind.sh`).
+- The lane-port policies (`templates/authorizationpolicy-lane-ports.yaml`): in ambient mode a lane of
+  the umbrella's allow matrix that names ports also opens the HBONE port 15008 at the network layer,
+  where ztunnel then delivers the connection to any port of the destination pod. One DENY
+  `AuthorizationPolicy` per destination of those lanes, enforced by ztunnel, refuses every other port
+  from the lane's source namespace. DENY rather than ALLOW, so other callers the network layer admits
+  (the destination's own intra-plane lane) are not refused. Because DENY rules add up and the source
+  is a whole namespace, the render fails on a matrix whose policies would hold another lane to the
+  wrong ports: a lane that names ports without a destination `podSelector`; lanes between the same
+  namespaces and to the same destination of which only some name ports, or whose source
+  `podSelector`s differ; a lane that names ports whose destination selector overlaps another lane's
+  between the same namespaces (two selectors are disjoint only when they share a label key with
+  different values); and a port given by name or as a range (`endPort`). The installer fills `lanePorts` from the
+  zone document on its ambient path only.
+
 ## Values
 
 | Key | Default | Meaning |
 |---|---|---|
 | `trustDomain` | none, required | The zone's trust domain, `zone.trustDomain` of the zone file (the installer fills it) |
+| `spire.enabled` | `true` | `false` for a zone without SPIRE (ADR-0018): the `PeerAuthentication`, `no-sidecar-in-planes` and the lane-port policies are rendered, nothing of SPIRE |
 | `spire.namespace` | `spire-system` | Where the `spire` release runs |
 | `spire.className` | `spire-system-spire` | The controller-manager's class: `<release namespace>-<release name>` of the `spire` release |
 | `spire.serverStatefulSet`, `spire.agentDaemonSet` | `spire-server`, `spire-agent` | Read by `server-healthy` |
@@ -193,6 +268,8 @@ two proxy images or two status ports differ, and CI runs that check with every r
 | `proxySocketPolicy.volume`, `proxySocketPolicy.mountPath`, `proxySocketPolicy.driver` | `workload-socket`, `/var/run/secrets/workload-spiffe-uds`, `csi.spiffe.io` | The volume, mount path and CSI driver every mesh proxy must have; those of Istio's `sidecar` template and the istiod values file |
 | `proxySocketPolicy.statusPort` | `15020` | The proxy's status port, the one inbound port the capture rule lets the injector exclude; must equal the `istiod` release's `global.proxy.statusPort` (integer, required) |
 | `proxySocketPolicy.proxyImage` | `docker.io/istio/proxyv2:1.31.1@sha256:d86c…` | The injected proxy's whole image reference, by digest; the proxy rule admits no other image for a mesh proxy; must equal the `istiod` release's `global.proxy.image` (string, required) |
+| `noSidecarPolicy.name` | `no-sidecar-in-planes` | Name of the no-sidecar admission policy and its binding (zone without SPIRE) |
+| `lanePorts.allowMatrix`, `lanePorts.namespaces.management`, `lanePorts.namespaces.data` | `[]`, `""`, `""` | The zone's allow matrix and plane namespaces, filled by the installer on the ambient path; empty, no lane-port policy is rendered |
 | `checks.enabled` | `true` | The identity-band jobs |
 | `checks.image` | `curlimages/curl` by digest | Image of the jobs (the umbrella's verification image) |
 | `checks.timeoutSeconds` | `180` | How long each check waits before it fails the release |

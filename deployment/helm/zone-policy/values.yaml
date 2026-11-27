@@ -8,7 +8,13 @@ trustDomain: ""
 
 # Where the SPIRE release (`spire`, chart spire 0.30.2) put its pieces. These follow from the
 # release name and namespace the installer uses; change them only together with the installer.
+# `enabled: false` is the zone without SPIRE (the demonstrator cluster in ambient mode, ADR-0018):
+# the chart then renders the mesh-wide STRICT PeerAuthentication, the no-sidecar admission policy
+# (noSidecarPolicy) and the lane-port policies (lanePorts), without the ClusterSPIFFEID, the
+# proxy-takes-spire-socket admission policy and the identity-band checks, which all assume SPIRE.
+# scripts/install-zone sets it on the ambient path; every sidecar zone keeps the default.
 spire:
+  enabled: true
   namespace: spire-system
   # The controller-manager reconciles only ClusterSPIFFEIDs of its class:
   # "<release namespace>-<release name>" in the upstream chart.
@@ -35,8 +41,10 @@ registration:
     value: "true"
   planeLabel: ztd.facis.io/plane
 
-# Mesh-wide peer authentication. STRICT is what makes "no SPIRE entry, no mesh" true: in the
-# default permissive mode a proxy without a certificate could still be reached in plaintext.
+# Mesh-wide peer authentication. STRICT is what makes "no identity, no mesh" true: in the default
+# permissive mode a workload without a mesh certificate could still be reached in plaintext. With
+# SPIRE the certificate is the SPIRE-issued SVID; without SPIRE (spire.enabled: false) it is the one
+# istiod's CA issues.
 peerAuthentication:
   mode: STRICT
 
@@ -77,3 +85,23 @@ checks:
   image: docker.io/curlimages/curl:8.10.1@sha256:d9b4541e214bcd85196d6e92e2753ac6d0ea699f0af5741f8c6cccbfcf00ef4b
   # How long each check waits for the condition before it fails the release.
   timeoutSeconds: 180
+
+# A zone without SPIRE (spire.enabled: false) runs no injected proxy: in a plane namespace a pod may
+# not choose its injection templates or ask for injection, and may not carry what the injector leaves
+# behind, whatever asked for it (templates/validatingadmissionpolicy-no-sidecar.yaml; ztunnel's own
+# istio-proxy container in mesh.namespace stays admitted).
+noSidecarPolicy:
+  name: no-sidecar-in-planes
+
+# The allow-matrix lanes' ports at the mesh layer, for a zone in ambient mode
+# (templates/authorizationpolicy-lane-ports.yaml): one ztunnel-enforced DENY AuthorizationPolicy per
+# destination of the lanes that name ports, refusing every other port from the lane's source
+# namespace. scripts/install-zone fills both keys on its ambient path from the zone document
+# (allowMatrix, planes.management.namespace, planes.data.namespace); empty, nothing renders. A matrix
+# whose policies would hold another lane to the wrong ports, or that gives a port by name or as a
+# range, fails the render (the template's header lists the cases).
+lanePorts:
+  namespaces:
+    management: ""
+    data: ""
+  allowMatrix: []

@@ -1,0 +1,18 @@
+# Release `ztunnel` of the demonstrator cluster (the ambient path, ADR-0018): the ambient data plane,
+# one ztunnel per node, which takes the workload certificates of its node's ambient pods from
+# istiod's CA and carries their traffic over HBONE (mutual TLS on port 15008), installed as the
+# upstream chart ships it. The sidecar path has no such release.
+#   chart source      Istio 1.31.4 release archive, chart `ztunnel` 1.31.4
+#                     https://github.com/istio/istio/releases/download/1.31.4/istio-1.31.4-linux-amd64.tar.gz
+#                     (manifests/charts/ztunnel; the archive's sha256 is pinned in
+#                     scripts/install-zone/install.sh as ISTIO_AMBIENT_ARCHIVE_SHA256)
+#   namespace         istio-system (created by the umbrella chart, never by this release)
+# Pinned in scripts/install-zone/install.sh and docs/dependencies.md. Every value set here is
+# listed with its reason in README.md next to this file. The chart sets priorityClassName
+# system-node-critical on its DaemonSet itself (not a value); the CI render asserts it. The
+# release name `ztunnel` is the ServiceAccount istiod trusts to request certificates for the pods
+# of its node (istiod's CA_TRUSTED_NODE_ACCOUNTS default, istio-system/ztunnel).
+profile: ambient
+# Pinned by tag and digest (the multi-arch index digest of the 1.31.4 tag, read from its registry);
+# a value that contains "/" is used by the chart as the whole image reference.
+image: docker.io/istio/ztunnel:1.31.4@sha256:18c2ef38857675ed6ae430c7c2b7c9977f7d5a3bc31be7000383d532a1be5b4e

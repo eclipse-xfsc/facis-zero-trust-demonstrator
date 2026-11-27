@@ -1,0 +1,136 @@
+{{- /*
+The declared openings of the ambient mesh without Cilium, under the CNI derogation calico-ambient
+(ADR-0018; values.yaml, `cni`): the demonstrator cluster, whose CNI is its provider's Calico and
+whose mesh runs in ambient mode without SPIRE. Rendered only with that derogation; every opening is
+a Kubernetes NetworkPolicy under the default deny of the baseline, its source named by a namespace
+and pod selector wherever the source is a pod, and each carries ztd.facis.io/declared-opening as
+a label and as an annotation:
+
+  controlPlaneWebhooks  the API server -> istiod's webhook port (15017). The managed API server
+                        reaches the pods through the provider's agent pods (fromPods: on the
+                        demonstrator cluster kube-system, k8s-app=konnectivity-agent), so the
+                        source is those pods, never an address. Only targets in a plane namespace
+                        of the zone are opened: the zone has no SPIRE, so a target elsewhere (the
+                        SPIRE controller-manager's) is refused.
+  meshControlPlane      ztunnel -> istiod's xDS port (15012). In ambient mode ztunnel is the xDS
+                        and CA client, not the workloads, so no plane namespace gets egress to
+                        istiod (networkpolicy-baseline.yaml leaves it out under the derogation).
+  ambientHostProbes     the node's own network namespace into every meshed plane namespace:
+                        Istio SNATs every connection from it to an ambient pod (the kubelet's
+                        probes among them, which the default deny would otherwise drop) to
+                        169.254.7.127, on every port, and ztunnel lets that address past without
+                        mTLS. Any host-network pod is therefore admitted in plaintext; zone-policy's
+                        no-sidecar-in-planes refuses host-network pods in the enrolled namespaces,
+                        and every other host-network pod on the node bypasses the mesh (ADR-0018).
+                        The Calico counterpart of cilium-ambient-hostprobes.yaml; the proof checks
+                        probe readiness.
+
+The API lane (kubeApi) is the address form of networkpolicy-baseline.yaml, to
+networkPolicy.kubeApi.cidrs on the endpoint ports: Calico enforces egress after kube-proxy's DNAT,
+so the Service port 443 is not needed. The HBONE port 15008 of the allow-matrix lanes is in
+networkpolicy-allow-matrix.yaml.
+*/ -}}
+{{- if include "ztd.derogated" . }}
+{{- $np := .Values.networkPolicy }}
+{{- $planes := include "ztd.planeNamespaces" . | fromJsonArray }}
+{{- $names := list }}
+{{- $meshed := list }}
+{{- range $planes }}
+{{- $names = append $names .name }}
+{{- if .mesh }}{{ $meshed = append $meshed .name }}{{ end }}
+{{- end }}
+{{- if not $np.controlPlaneWebhooks.enabled }}
+{{- fail "cni.derogation calico-ambient needs networkPolicy.controlPlaneWebhooks.enabled: istiod's validation webhook would be unreachable under the default deny (ADR-0018)" }}
+{{- end }}
+{{- if not $np.controlPlaneWebhooks.fromPods }}
+{{- fail "cni.derogation calico-ambient needs networkPolicy.controlPlaneWebhooks.fromPods: the pods through which the API server reaches the webhooks (ADR-0018)" }}
+{{- end }}
+{{- if not $np.meshControlPlane.enabled }}
+{{- fail "cni.derogation calico-ambient needs networkPolicy.meshControlPlane.enabled: ztunnel would not reach istiod (ADR-0018)" }}
+{{- end }}
+{{- range $np.controlPlaneWebhooks.targets }}
+{{- if not (has .namespace $names) }}
+{{- fail (printf "networkPolicy.controlPlaneWebhooks.targets: %s is in %s, not a plane namespace of this zone; under cni.derogation calico-ambient the zone runs no SPIRE and lists istiod alone (ADR-0018)" .name .namespace) }}
+{{- end }}
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-control-plane-webhooks-{{ .name }}
+  namespace: {{ .namespace }}
+  labels:
+    {{- include "ztd.labels" $ | nindent 4 }}
+    ztd.facis.io/declared-opening: controlPlaneWebhooks
+  annotations:
+    ztd.facis.io/declared-opening: controlPlaneWebhooks
+spec:
+  podSelector:
+    matchLabels:
+      {{- toYaml .podSelector | nindent 6 }}
+  policyTypes:
+    - Ingress
+  ingress:
+    - from:
+        {{- range $np.controlPlaneWebhooks.fromPods }}
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: {{ .namespace }}
+          podSelector:
+            matchLabels:
+              {{- toYaml .podSelector | nindent 14 }}
+        {{- end }}
+      ports:
+        - port: {{ .port }}
+          protocol: TCP
+{{- end }}
+{{- $mcp := $np.meshControlPlane }}
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-mesh-control-plane-ingress
+  namespace: {{ $mcp.namespace }}
+  labels:
+    {{- include "ztd.labels" . | nindent 4 }}
+    ztd.facis.io/declared-opening: meshControlPlane
+  annotations:
+    ztd.facis.io/declared-opening: meshControlPlane
+spec:
+  podSelector:
+    matchLabels:
+      {{- toYaml $mcp.podSelector | nindent 6 }}
+  policyTypes:
+    - Ingress
+  ingress:
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: {{ $mcp.namespace }}
+          podSelector:
+            matchLabels:
+              app: ztunnel
+      ports:
+        - port: {{ $mcp.port }}
+          protocol: TCP
+{{- range $meshed }}
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-ambient-hostprobes
+  namespace: {{ . }}
+  labels:
+    {{- include "ztd.labels" $ | nindent 4 }}
+    ztd.facis.io/declared-opening: ambientHostProbes
+  annotations:
+    ztd.facis.io/declared-opening: ambientHostProbes
+spec:
+  podSelector: {}
+  policyTypes:
+    - Ingress
+  ingress:
+    - from:
+        - ipBlock:
+            cidr: 169.254.7.127/32
+{{- end }}
+{{- end }}

@@ -20,11 +20,15 @@ enableDefaultDeny false: the policy adds its lane and leaves the deny to the Kub
 policy of the baseline.
 
 With a mesh and without Cilium the chart refuses to render: the control planes cannot be opened
-under the default deny, and another CNI needs a declared derogation.
+under the default deny, and another CNI needs a declared derogation. The one declared derogation is
+cni.derogation calico-ambient (ADR-0018): mesh.mode ambient without SPIRE, whose openings are the
+Kubernetes NetworkPolicies of networkpolicy-ambient-calico.yaml. A sidecar zone without Cilium is
+refused even with it.
 */ -}}
 {{- $np := .Values.networkPolicy }}
-{{- if and (ne .Values.mesh.mode "none") (not .Values.cni.cilium.enabled) }}
-{{- fail (printf "mesh.mode %s needs Cilium (cni.cilium.enabled): the control-plane openings (controlPlaneWebhooks, identityServer and the kubeApi lane) have the API server and the host-networked SPIRE agents as sources, which only a Cilium policy can name. A zone on another CNI needs a declared derogation of the preferred stack before it is installed (docs/workload-identity.md)." .Values.mesh.mode) }}
+{{- $derogated := include "ztd.derogated" . }}
+{{- if and (ne .Values.mesh.mode "none") (not .Values.cni.cilium.enabled) (not $derogated) }}
+{{- fail (printf "mesh.mode %s needs Cilium (cni.cilium.enabled): the control-plane openings (controlPlaneWebhooks, identityServer and the kubeApi lane) have the API server and the host-networked SPIRE agents as sources, which only a Cilium policy can name. A zone on another CNI needs a declared derogation of the preferred stack before it is installed (docs/workload-identity.md); the one declared, cni.derogation calico-ambient (ADR-0018), covers mesh.mode ambient without SPIRE only." .Values.mesh.mode) }}
 {{- end }}
 {{- if .Values.cni.cilium.enabled }}
 {{- /* namespace -> list of ingress rules */ -}}

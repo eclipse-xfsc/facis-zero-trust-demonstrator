@@ -30,7 +30,7 @@ secret is set; until then it is **unverified**.
 
 What the sheets support for the service mesh mode (ADR-0001, and the proposed ADR-0009):
 
-- **IONOS** runs Calico with NetworkPolicy enforced, on a single node; it runs no mesh, so it says
+- **IONOS** runs Calico with NetworkPolicy enforced, on a single node; it ran no mesh at measurement, so it says
   nothing about Cilium chaining or SPIRE under the mesh.
 - **The local zone** runs Cilium with `cni.exclusive=false` and enforces NetworkPolicy; it is where the
   mesh mode can be exercised before the zones exist, and is not target evidence.

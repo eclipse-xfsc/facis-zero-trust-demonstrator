@@ -1,0 +1,7 @@
+# A render fixture, not the cluster's addresses: the demonstrator cluster's zone file
+# (zones/ionos.yaml) keeps its API endpoint addresses out of the repository, and the CNI derogation
+# it declares requires them, so CI and scripts/verify-umbrella render it with this overlay on top.
+# The addresses are from the documentation range 192.0.2.0/24 (RFC 5737), which no network routes.
+networkPolicy:
+  kubeApi:
+    cidrs: ["192.0.2.10/32", "192.0.2.11/32"]
