@@ -266,20 +266,29 @@ func TestServeBootstrapsTheRegistrarAndIssuesVerifiableTokens(t *testing.T) {
 	type auditRow struct {
 		Kind, ClientID, Reason, Correlation, Detail string
 	}
-	rows, err := in.pool.Query(t.Context(), `SELECT kind, coalesce(client_id, ''), coalesce(reason_code, ''), coalesce(correlation_id, ''), detail::text
+	// The gate answers before it writes the audit row (TestGateAnswersBeforeTheAuditRow), so the last
+	// registration's row may land just after its answer: read until every row is there, up to 5 s.
+	readAudit := func() []auditRow {
+		rows, err := in.pool.Query(t.Context(), `SELECT kind, coalesce(client_id, ''), coalesce(reason_code, ''), coalesce(correlation_id, ''), detail::text
 		FROM audit_event WHERE kind LIKE 'registration.%' ORDER BY event_id`)
-	if err != nil {
-		t.Fatal(err)
-	}
-	var audit []auditRow
-	for rows.Next() {
-		var a auditRow
-		if err := rows.Scan(&a.Kind, &a.ClientID, &a.Reason, &a.Correlation, &a.Detail); err != nil {
+		if err != nil {
 			t.Fatal(err)
 		}
-		audit = append(audit, a)
+		defer rows.Close()
+		var audit []auditRow
+		for rows.Next() {
+			var a auditRow
+			if err := rows.Scan(&a.Kind, &a.ClientID, &a.Reason, &a.Correlation, &a.Detail); err != nil {
+				t.Fatal(err)
+			}
+			audit = append(audit, a)
+		}
+		return audit
 	}
-	rows.Close()
+	audit := readAudit()
+	for deadline := time.Now().Add(5 * time.Second); len(audit) < registrations && time.Now().Before(deadline); audit = readAudit() {
+		time.Sleep(100 * time.Millisecond)
+	}
 	if len(audit) != registrations {
 		t.Fatalf("%d audit rows for %d registrations: %+v", len(audit), registrations, audit)
 	}

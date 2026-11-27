@@ -15,3 +15,6 @@ only the exact upstream Go module pseudo-version for release 1.31.4, not all Ist
 image directory. The source revision matches the upstream release tag and `pilot-agent version`.
 Each statement links the upstream fixed-version advisory. CI displays suppressed findings; other
 HIGH/CRITICAL findings still fail. These are packaging-project statements, not upstream signatures.
+
+`trace-echo/` builds the observability proof's instrumented echo (`tools/trace-echo`), which is never
+part of a zone; it is built, scanned and signed with the others.

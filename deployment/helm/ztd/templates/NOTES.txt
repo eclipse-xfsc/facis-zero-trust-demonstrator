@@ -1,4 +1,9 @@
-ztd umbrella chart {{ .Chart.Version }}: release {{ .Release.Name }} in {{ .Release.Namespace }}, zone {{ .Values.zone.name }}.
+ztd umbrella chart {{ .Chart.Version }}: release {{ .Release.Name }} in {{ .Release.Namespace }}, zone {{ .Values.zone.name }} (role {{ include "ztd.role" . }}).
+{{- if eq (include "ztd.role" .) "demonstrator" }}
+
+Demonstrator cluster: the backends' namespace {{ .Values.observabilityBackends.namespace }} (default deny, outside both
+trust domains), with the entry's listeners open to the zones' egress addresses and nothing else.
+{{- end }}
 
 Plane namespaces:
 {{- $meshKey := include "ztd.meshLabelKey" . }}{{ $meshValue := include "ztd.meshLabelValue" . }}

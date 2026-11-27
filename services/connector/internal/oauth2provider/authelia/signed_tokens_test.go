@@ -134,7 +134,9 @@ func TestSignedTokens_Format(t *testing.T) {
 	_ = json.Unmarshal(claims["exp"], &exp)
 	_ = json.Unmarshal(claims["iat"], &iat)
 
-	if exp-iat != int64(defaultSignedTokenLifespan/time.Second) {
+	// iat and exp are each truncated to the second, so a second boundary between them makes the
+	// difference one second short.
+	if want := int64(defaultSignedTokenLifespan / time.Second); exp-iat != want && exp-iat != want-1 {
 		t.Errorf("lifetime %d s, want %s by default", exp-iat, defaultSignedTokenLifespan)
 	}
 

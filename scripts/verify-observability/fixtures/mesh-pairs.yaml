@@ -1,0 +1,53 @@
+# The proof's own pairs at the mesh layer. Under the mesh default deny of zone-policy (an empty ALLOW
+# policy in the mesh root namespace) a meshed pod is served only through a declared pair. The calls
+# into the zone gateway are the zone's own row workloads-to-otel-collector (zone-policy renders its
+# rule from the umbrella's allowMatrix); the two calls inside one plane namespace that only the proof
+# makes are declared here, as a release declares the pairs between its own pods, and applied by
+# verify.sh before its fixtures start: the client to the echo (the trace check) and the zone gateway
+# to the stand-in of the revocation status list (the probe; on a zone the list is outside the zone).
+# Each rule admits one caller by its SPIFFE principal on the destination's HTTP port and names
+# nothing else, as the zone's rules do. The client runs under a service account of its own, so that
+# its principal names it alone. Placeholders: ${NS_DATA}, ${NS_MGMT}, ${TRUST_DOMAIN}. Every object
+# carries app.kubernetes.io/part-of: verify-observability, by which the proof removes them.
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: obs-client
+  namespace: ${NS_DATA}
+  labels: { app.kubernetes.io/name: obs-client, app.kubernetes.io/part-of: verify-observability }
+---
+apiVersion: security.istio.io/v1
+kind: AuthorizationPolicy
+metadata:
+  name: proof-client-to-trace-echo
+  namespace: ${NS_DATA}
+  labels: { app.kubernetes.io/name: verify-observability-pairs, app.kubernetes.io/part-of: verify-observability }
+spec:
+  selector:
+    matchLabels: { app.kubernetes.io/name: trace-echo }
+  action: ALLOW
+  rules:
+    - from:
+        - source:
+            principals: ["${TRUST_DOMAIN}/ns/${NS_DATA}/sa/obs-client"]
+      to:
+        - operation:
+            ports: ["8080"]
+---
+apiVersion: security.istio.io/v1
+kind: AuthorizationPolicy
+metadata:
+  name: proof-gateway-to-status-list
+  namespace: ${NS_MGMT}
+  labels: { app.kubernetes.io/name: verify-observability-pairs, app.kubernetes.io/part-of: verify-observability }
+spec:
+  selector:
+    matchLabels: { app.kubernetes.io/name: status-list }
+  action: ALLOW
+  rules:
+    - from:
+        - source:
+            principals: ["${TRUST_DOMAIN}/ns/${NS_MGMT}/sa/otel-gateway"]
+      to:
+        - operation:
+            ports: ["8080"]

@@ -6,23 +6,28 @@
 
 Each trust zone is one cluster and its own SPIFFE trust domain (ZT-24, SRS 3.1.2). The two domains
 meet only through the attested channel and a TRAIN verdict; they are never merged. The
-management-plane components whose placement this section records, the SPIRE server, the
-OpenTelemetry Collector and the CMC daemon (cmcd), run in the same cluster as the zone's data-plane
-workloads and therefore inside the zone's trust domain: the separation between the planes is a
-namespace and policy boundary, not an identity boundary. Data-plane calls into the management plane are denied by default
-at both the NetworkPolicy layer and the mesh AuthorizationPolicy layer, and are permitted only along
-the paths the allow matrix below lists, which are named mTLS pairs and the declared observability
-export under ZT-26 (SRS 3.1.2), with one path the matrix does not yet dispose: the meshed
-namespaces' opening to istiod's xDS port, declared under [Declared openings](#declared-openings-of-the-network-baseline). ZT-55
-names the first of those two layers the *Kubernetes network policy layer*, a layer and not a
-resource kind: in the zones it is enforced by Cilium, through Kubernetes `NetworkPolicy` objects
-and, where a source is not a pod, `CiliumNetworkPolicy` objects. In this section *NetworkPolicy*
-names that layer. The management-plane components whose placement is not yet recorded,
-TRAIN (TCR and TSPA), the TSA policy engine and OCM, are drawn outside both zones under the same
-rule until their placement is decided; the four provisional rows of the allow matrix are theirs. A
-workload without an SVID or running an unsigned image cannot join or start.
+management-plane components whose placement this section records, the SPIRE server, the zone's
+OpenTelemetry collectors (the zone gateway and the node collectors) and the CMC daemon (cmcd), run
+in the same cluster as the zone's data-plane workloads and therefore inside the zone's trust domain:
+the separation between the planes is a namespace and policy boundary, not an identity boundary.
+Data-plane calls into the management plane are denied by default at both the NetworkPolicy layer and
+the mesh AuthorizationPolicy layer, and are permitted only along the paths the allow matrix below
+lists, which are named mTLS pairs and the declared observability export under ZT-26 (SRS 3.1.2), with
+one path the matrix does not yet dispose: the meshed namespaces' opening to istiod's xDS port,
+declared under [Declared openings](#declared-openings-of-the-network-baseline). ZT-55 names the first
+of those two layers the *Kubernetes network policy layer*, a layer and not a resource kind: in the
+zones it is enforced by Cilium, through Kubernetes `NetworkPolicy` objects and, where a source is not
+a pod, `CiliumNetworkPolicy` objects. In this section *NetworkPolicy* names that layer. The
+management-plane components whose placement is not yet recorded, TRAIN (TCR and TSPA), the TSA
+policy engine and OCM, are drawn outside both zones under the same rule until their placement is
+decided; the four provisional rows of the allow matrix are theirs. A workload without an SVID or
+running an unsigned image cannot join or start. The demonstrator cluster (IONOS) is drawn as its own
+grouping outside both trust domains: it holds the observability backends, a recorded placement
+([Observability placement](#observability-placement-zt-55-zt-26)), and each zone has one outward
+edge to it, from its management plane: the ZT-26 observability export. No edge leads from it into a
+zone.
 
-![Diagram 03, trust boundaries: zone-a and zone-b are separate SPIFFE trust domains, each holding its data plane and the management-plane components placed in it (SPIRE server, OpenTelemetry Collector, cmcd), with data-plane calls into that management plane denied by default except along the allow-matrix paths and the declared xDS opening; the zones meet only through the attested channel and a TRAIN verdict; TRAIN, the TSA policy engine and OCM are drawn outside both zones under the same rule; anything without an SVID or with an unsigned image is denied](diagrams/03-trust-boundaries.svg)
+![Diagram 03, trust boundaries: zone-a and zone-b are separate SPIFFE trust domains, each holding its data plane and the management-plane components placed in it (SPIRE server, the zone's OpenTelemetry collectors, cmcd), with data-plane calls into that management plane denied by default except along the allow-matrix paths and the declared xDS opening; each zone exports telemetry outward only to the observability backends on the demonstrator cluster (IONOS), drawn outside both trust domains; the zones meet only through the attested channel and a TRAIN verdict; TRAIN, the TSA policy engine and OCM are drawn outside both zones under the same rule; anything without an SVID or with an unsigned image is denied](diagrams/03-trust-boundaries.svg)
 
 Source: [`diagrams/03-trust-boundaries.mmd`](diagrams/03-trust-boundaries.mmd). The diagram only
 illustrates; every path it draws is listed in the [allow matrix](#allow-matrix-data-plane-management-plane) below.
@@ -65,7 +70,7 @@ source — not who supplies the service; see the allow matrix below.
 | TRAIN | TCR (trust-list resolution); TSPA (trust-list publication) | Client-supplied | [External XFSC components](dependencies.md#external-xfsc-components); [TSPA in the ZT-35 flow](tspa-publish-api.md#3-what-tspa-is-in-the-zt-35-flow) |
 | SPIRE control plane | SPIRE server and its controller-manager | Project-built | [Workload identity](environments/osc.md#3-workload-identity) |
 | OCM | OCM W-Stack, used by the backend as the credential verification service | Client-supplied | [External XFSC components](dependencies.md#external-xfsc-components) |
-| Observability stack | OpenTelemetry Collector, read through Prometheus and Jaeger | Project-built | [Operations](environments/osc.md#operations) |
+| Observability stack | the zone's OpenTelemetry collectors (the zone gateway and the node collectors); the backends on the demonstrator cluster: the receiving collector, Prometheus, Jaeger | Project-built | [Observability placement](#observability-placement-zt-55-zt-26); [ADR-0017](adr/0017-central-observability-backends.md); [Operations](environments/osc.md#operations) |
 | Attestation | cmcd, the per-zone CMC daemon, and its enrolment server (estserver) | Project-built | [Specifications](specifications.md); [trust boundary between the zones](environments/osc.md#7-the-trust-boundary-between-the-zones) |
 
 ### Allow matrix (data plane → management plane)
@@ -80,6 +85,14 @@ pair: it is permitted as a declared bypass under ZT-26, defined below the matrix
 column names the role from the table above that the destination serves. Any management-plane
 destination without its own row is denied by the catch-all row.
 
+At the mesh layer the default deny is the `AuthorizationPolicy` `default-deny` of the `zone-policy`
+release, an ALLOW policy with an empty spec in the mesh root namespace `istio-system`: every meshed
+workload refuses every request that no pair's allow rule admits, with `403 RBAC: access denied`, and
+logs the refusal with both SPIFFE IDs. Each permitted row below is a row of the umbrella's
+`allowMatrix`, rendered at both layers from that one entry: a NetworkPolicy pair selected by pod
+labels (`allow-<row>-egress`, `allow-<row>-ingress`) and an `AuthorizationPolicy` `allow-<row>` that
+admits the caller's SPIFFE identity, given in the Principal column.
+
 ZT-55 (SRS 3.3) requires the separation to be enforced at both the Kubernetes network policy layer
 and the service mesh layer, so every row states its disposition at both. The enforcement column
 holds layers only: for each row it gives the NetworkPolicy disposition and the mesh
@@ -87,19 +100,33 @@ AuthorizationPolicy disposition, and nothing else. A permitted row is permitted 
 layers; a denied row is denied at both.
 
 On the path of every permitted row the **mesh's L7 proxy** is the single L7 enforcement owner, and
-the NetworkPolicy layer is held to L3/L4 for that path. Which proxy that is follows the zone's
-`mesh.mode`: the workload's sidecar proxy under sidecar mode, the current baseline
-([ADR-0009](adr/0009-service-mesh-mode-istio-sidecar-with-cilium.md)), and the waypoint under
-ambient mode. A zone whose `mesh.mode` is `none` has no mesh layer and so no L7 proxy;
-it does not meet ZT-55's rule that both layers enforce the separation, and is outside this matrix.
-Two L7 decision points on one path would make the fail-closed behaviour ZT-55 depends on
-non-deterministic, so each path has exactly one, in either mode. The place of record for the
-assignment is the mesh configuration, per path. No per-path mesh AuthorizationPolicy is deployed
-yet — the mesh-wide `PeerAuthentication` the `zone-policy` chart renders fixes STRICT mTLS and names
-no path's owner — so until one is, this column declares the intended assignment rather than
-reflecting a configured one. Once the
-configuration is deployed, this matrix reflects that record and does not replace it. If the mesh
-configuration changes the owner of a path, this column changes with it.
+the NetworkPolicy layer is held to L3/L4 for that path. Under sidecar mode, the current baseline
+([ADR-0009](adr/0009-service-mesh-mode-istio-sidecar-with-cilium.md)), that proxy is the
+destination's Envoy sidecar. Ambient mode is parked: the excursion that keeps it renderable deploys
+no waypoint, so no proxy owns L7 there and the record reads `none`; a return to ambient brings its
+waypoints and their owner value in its own change. A zone whose `mesh.mode` is `none` has no mesh
+layer and so no L7 proxy; it does not meet ZT-55's rule that both layers enforce the separation, and
+is outside this matrix. Two L7 decision points on one path would make the fail-closed behaviour
+ZT-55 depends on non-deterministic (SRS 2.3.3, Table 4: L7 policies must not be enforced by Istio
+and Cilium simultaneously), so each path has exactly one.
+
+The place of record for the assignment is the mesh configuration, per path: the field `l7Owner` of
+the path's row in the umbrella's `allowMatrix` (`sidecar` or `none`, required by the chart's schema;
+`sidecar` on every row below). Both layers' policies of the row carry it as the annotation
+`ztd.facis.io/l7-owner`: the NetworkPolicy pair the umbrella renders and the `AuthorizationPolicy`
+`allow-<row>` the `zone-policy` release renders from the same row, which the installer's coupling
+check keeps equal to the pair. The annotation reads `none` in a zone whose `mesh.mode` is `none` or
+the parked `ambient`. The other layer is held to L3/L4 at admission: the `zone-policy` rule
+`l7-owner-is-the-mesh` refuses any Cilium policy in a plane namespace, and any cluster-wide one,
+that sends traffic to Cilium's L7 proxy (an HTTP, Kafka or generic L7 rule, a custom Envoy listener,
+an SNI allow-list, TLS termination or origination), and any Cilium Envoy configuration in a plane
+namespace or cluster-wide, whoever applies it; the pipeline fails on any such object in the charts'
+own renderings and on any rendered allow-matrix policy without its owner
+(`scripts/ci/check-policy-l7-owner.sh`). This matrix reflects that record and does not replace it:
+`scripts/check-plane-separation.sh` fails when a row below names the mesh's proxy as owner and the
+row of the same name records another owner, or does not exist. If the mesh configuration changes
+the owner of a path, this column changes with it. The paths outside this matrix and their owners
+are listed under [L7 owner of the paths outside the matrix](#l7-owner-of-the-paths-outside-the-matrix).
 
 The test column names the scenario tag that proves each row, in the form the acceptance harness
 requires: the requirement row and its acceptance test identifier
@@ -107,16 +134,32 @@ requires: the requirement row and its acceptance test identifier
 matrix is the specification that scenario is written from, and the traceability sheet reports the
 row as uncovered until it exists.
 
-| From data-plane workload → | ZT-55 role | Allowed? | Enforcement (NetworkPolicy; mesh AuthorizationPolicy) | Test |
-|---|---|---|---|---|
-| PDP adapter → TSA policy engine | Policy Engine | ALLOW (mTLS, named pair) | NetworkPolicy: ALLOW, L3/L4 only; mesh: ALLOW, L7 owner (mesh proxy: sidecar or waypoint, per `mesh.mode`) | `@ZT-55 @BDD-ZT-055` |
-| aTLS gateway → TCR resolve | TRAIN (resolution) | ALLOW (named pair) | NetworkPolicy: ALLOW, L3/L4 only; mesh: ALLOW, L7 owner (mesh proxy: sidecar or waypoint, per `mesh.mode`) | `@ZT-55 @BDD-ZT-055` |
-| aTLS gateway → cmcd | Attestation (CMC) | ALLOW (named pair) | NetworkPolicy: ALLOW, L3/L4 only; mesh: ALLOW, L7 owner (mesh proxy: sidecar or waypoint, per `mesh.mode`) | `@ZT-55 @BDD-ZT-055` |
-| workloads → OTel collector (export only) | Observability stack | ALLOW (declared bypass, ZT-26) | NetworkPolicy: ALLOW, L3/L4 only, egress rule limiting the source to the collector's export port (ZT-26); mesh: ALLOW, L7 owner (mesh proxy: sidecar or waypoint, per `mesh.mode`) | `@ZT-55 @BDD-ZT-055` |
-| backend → verification service | OCM | ALLOW (named pair) | NetworkPolicy: ALLOW, L3/L4 only; mesh: ALLOW, L7 owner (mesh proxy: sidecar or waypoint, per `mesh.mode`) | `@ZT-55 @BDD-ZT-055` |
-| any data-plane workload → TSPA (trust-list publication) | TRAIN (publication) | **DENY** | NetworkPolicy: DENY; mesh: DENY | `@ZT-55 @BDD-ZT-055` |
-| any data-plane workload → SPIRE server | SPIRE control plane | **DENY** | NetworkPolicy: DENY; mesh: DENY | `@ZT-55 @BDD-ZT-055` |
-| anything else data → management: any management-plane destination without its own row, including a bound service without a row of its own (estserver) and other management components (for example ArgoCD, OpenBao, Harbor, admin APIs), except istiod's xDS port (a declared opening, no row yet) | any management-plane destination not listed above | **DENY** | NetworkPolicy: DENY; mesh: DENY | `@ZT-55 @BDD-ZT-055` |
+| From data-plane workload → (row) | ZT-55 role | Allowed? | Enforcement (NetworkPolicy; mesh AuthorizationPolicy) | Principal admitted | Test |
+|---|---|---|---|---|---|
+| PDP adapter → TSA policy engine (`pdp-adapter-to-tsa`) | Policy Engine | ALLOW (mTLS, named pair) | NetworkPolicy: ALLOW, L3/L4 only, the pod pair (`allow-pdp-adapter-to-tsa-egress`, `allow-pdp-adapter-to-tsa-ingress`); mesh: ALLOW, L7 owner (mesh proxy: sidecar or waypoint, per `mesh.mode`), mTLS, `allow-pdp-adapter-to-tsa` | `<trust domain>/ns/ztd-data/sa/pdp-adapter` | `@ZT-55 @BDD-ZT-055` |
+| aTLS gateway → TCR resolve (`atls-gateway-to-tcr`) | TRAIN (resolution) | ALLOW (named pair) | NetworkPolicy: ALLOW, L3/L4 only, the pod pair (`allow-atls-gateway-to-tcr-egress`, `allow-atls-gateway-to-tcr-ingress`); mesh: ALLOW, L7 owner (mesh proxy: sidecar or waypoint, per `mesh.mode`), mTLS, `allow-atls-gateway-to-tcr` | `<trust domain>/ns/ztd-data/sa/atls-gateway` | `@ZT-55 @BDD-ZT-055` |
+| aTLS gateway → cmcd (`atls-gateway-to-cmcd`) | Attestation (CMC) | ALLOW (named pair) | NetworkPolicy: ALLOW, L3/L4 only, the pod pair (`allow-atls-gateway-to-cmcd-egress`, `allow-atls-gateway-to-cmcd-ingress`); mesh: ALLOW, L7 owner (mesh proxy: sidecar or waypoint, per `mesh.mode`), mTLS, `allow-atls-gateway-to-cmcd` | `<trust domain>/ns/ztd-data/sa/atls-gateway` | `@ZT-55 @BDD-ZT-055` |
+| workloads → OTel collector (export only; `workloads-to-otel-collector`) | Observability stack | ALLOW (declared bypass, ZT-26) | NetworkPolicy: ALLOW, L3/L4 only, the pair (`allow-workloads-to-otel-collector-egress`, `allow-workloads-to-otel-collector-ingress`) from every data-plane pod, egress rule limiting the source to the collector's export ports 4317 and 4318 (ZT-26); mesh: ALLOW, L7 owner (mesh proxy: sidecar or waypoint, per `mesh.mode`), mTLS, `allow-workloads-to-otel-collector`, ports 4317 and 4318 | every identity of the namespace `ztd-data` (source namespace) | `@ZT-55 @BDD-ZT-055` |
+| backend → verification service (`backend-to-verification-service`) | OCM | ALLOW (named pair) | NetworkPolicy: ALLOW, L3/L4 only, the pod pair (`allow-backend-to-verification-service-egress`, `allow-backend-to-verification-service-ingress`); mesh: ALLOW, L7 owner (mesh proxy: sidecar or waypoint, per `mesh.mode`), mTLS, `allow-backend-to-verification-service` | `<trust domain>/ns/ztd-data/sa/backend` | `@ZT-55 @BDD-ZT-055` |
+| any data-plane workload → TSPA (trust-list publication) | TRAIN (publication) | **DENY** | NetworkPolicy: DENY; mesh: DENY | none | `@ZT-55 @BDD-ZT-055` |
+| any data-plane workload → SPIRE server | SPIRE control plane | **DENY** | NetworkPolicy: DENY; mesh: DENY | none | `@ZT-55 @BDD-ZT-055` |
+| anything else data → management: any management-plane destination without its own row, including a bound service without a row of its own (estserver) and other management components (for example ArgoCD, OpenBao, Harbor, admin APIs), except istiod's xDS port (a declared opening, no row yet) | any management-plane destination not listed above | **DENY** | NetworkPolicy: DENY; mesh: DENY | none | `@ZT-55 @BDD-ZT-055` |
+
+Both layers hold every permitted row: the network layer admits a pod by its labels, the mesh layer
+by its identity, so a pod that carries a row's labels under another service account passes the
+network lane and is refused by the mesh. A denied row whose destination runs without a mesh proxy
+(the SPIRE server, and istiod on its ports other than xDS) rests on the network layer alone: the
+SPIRE and Istio control planes are not meshed
+([Workload identity](workload-identity.md#mesh-authorization)). Inside a plane namespace the network layer is open
+(`allow-intra-plane`) and the mesh layer decides alone: a same-plane pair between releases is an
+entry of the umbrella's `intraPlanePairs` (none today), and a release whose own pods call one
+another declares those pairs in its own chart (`ztd-openbao`: its bootstrap Job and verification
+hook to its server). No policy at either layer names an address; CI renders every shipped zone and
+fails on one (`scripts/ci/check-policy-addresses.sh`).
+
+**Mesh authorization** — the default deny, how a pair is declared, the coupling check that keeps
+the two layers' rows equal, and how to read a denial — is described in
+[Workload identity](workload-identity.md#mesh-authorization).
 
 **Same-cluster assumption.** The layers named above assume that the destination runs in the same
 cluster as the source workload, where both are policies between namespaces. The enforcing
@@ -134,10 +177,13 @@ communication, naming DNS and administrative or observability APIs as examples; 
 section declares from those examples are name resolution, observability export and cluster
 administration. A declared bypass is listed with its reason and remains subject to its own ingress
 and egress controls. It bypasses the Connector only — not the mesh and not the network layer — and
-the term carries no other meaning in this section. The observability row above and the
-name-resolution row under [Supporting services](#supporting-services-outside-the-management-plane)
-are the two rows of this section that carry it; the entries of the cluster-administration class
-are listed under [Declared openings](#declared-openings-of-the-network-baseline), and none of them is a row here.
+the term carries no other meaning in this section. Of the paths that start in the data plane, the
+observability row above and the name-resolution row under
+[Supporting services](#supporting-services-outside-the-management-plane) are the two rows of this
+section that carry it. The declared bypasses that do not start in the data plane, the
+cluster-administration openings and the telemetry export out of a zone, are listed under
+[Declared openings](#declared-openings-of-the-network-baseline) and
+[Observability placement](#observability-placement-zt-55-zt-26), and none of them is a row here.
 
 This matrix is not the ZT-26 bypass list, which is a separate reviewed artefact; the rows here that
 carry a declared bypass are entries in that list, not the list itself. Cluster administration is
@@ -151,9 +197,10 @@ and it is declared as such under [Declared openings](#declared-openings-of-the-n
 reaches remains denied by the catch-all row.
 
 **Out of scope: collection initiated from the management plane.** Paths initiated from the
-management plane toward a data-plane cluster, such as metric collection pulled by the
-observability interfaces, are outside this matrix. ZT-55 governs reachability from the data plane,
-so the matrix models that direction only.
+management plane, such as the observability collectors' scrapes inside a zone and their export out
+of it, are outside this matrix. ZT-55 governs reachability from the data plane, so the matrix models
+that direction only. [Observability placement](#observability-placement-zt-55-zt-26) lists the
+observability paths of this kind.
 
 Each row of the matrix is justified below. A permitted row states the requirement that needs the
 path, which end initiates it, and the surface it is limited to. A denied row states what reaching
@@ -204,13 +251,14 @@ plays in the matrix.
   without adding to the separation ZT-55 requires.
 
   What these requirements need is narrower than reaching the observability stack, and the row
-  permits only that. The source is admitted by the workload identity it holds, its SVID. The
+  permits only that. The source is admitted by the workload identity it holds, its SVID (at the
+  mesh layer, any identity of the data-plane namespace). The
   destination is the collector alone, not Prometheus, Jaeger or any other part of the stack. The
-  surface is the collector's export port, to which the egress rule in the enforcement column limits
-  the source. The workload initiates, and telemetry travels outward only: the path lets a workload
-  hand its telemetry to the collector and opens no route back into the stack, to the data it holds
-  or to its configuration. None of this depends on which component takes the L7 decision on the
-  path, so a change of mesh mode leaves the justification standing.
+  surface is the collector's export ports, 4317 and 4318, to which the egress rule in the
+  enforcement column limits the source. The workload initiates, and telemetry travels outward only:
+  the path lets a workload hand its telemetry to the collector and opens no route back into the
+  stack, to the data it holds or to its configuration. None of this depends on which component takes
+  the L7 decision on the path, so a change of mesh mode leaves the justification standing.
 - **backend → verification service — OCM.** ZT-40 (SRS 3.1.5) bases access on credentials from
   the OCM W-Stack, and ZT-51 (SRS 3.3) requires revocation status to be checked at every credential
   verification, failing closed when it cannot be. A verdict held from an earlier verification
@@ -252,6 +300,20 @@ plays in the matrix.
   istiod's xDS port, reached under the opening described under
   [Declared openings](#declared-openings-of-the-network-baseline), which no row disposes yet.
 
+### L7 owner of the paths outside the matrix
+
+The zone's other paths have an owner too, so that no path is left to two decision points. Only the
+intra-plane lane is mesh traffic; the others reach a destination that runs without a mesh proxy, or
+are not mTLS traffic, so nothing takes an L7 decision on them (`none`) and Cilium is held to L3/L4
+there as everywhere in the plane namespaces.
+
+| Path | L7 owner | Why |
+|---|---|---|
+| intra-plane lane: two meshed pods of one plane namespace (`allow-intra-plane`; the umbrella's `intraPlanePairs`, the secret store's own `allow-ztd-openbao-bootstrap-to-server` and `allow-ztd-verify-openbao-to-server`) | `sidecar` | mesh traffic under STRICT mTLS; the destination's sidecar decides alone, its rule carries `ztd.facis.io/l7-owner: sidecar` |
+| control-plane openings: `meshControlPlane` (istiod xDS), `controlPlaneWebhooks`, `identityServer` ([Declared openings](#declared-openings-of-the-network-baseline)) | `none` | istiod and the SPIRE server run without a proxy, the webhook callers and the SPIRE agents are not meshed: the network layer imposes the restriction at L3/L4 |
+| the API lane (`kubeApi`) | `none` | the API server is outside the mesh; a Cilium L3/L4 policy to the `kube-apiserver` entity |
+| workloads → DNS ([Supporting services](#supporting-services-outside-the-management-plane)) | `none` | plaintext DNS to a resolver without a proxy; `allow-dns-egress` carries `ztd.facis.io/l7-owner: none`, and a DNS-aware Cilium rule stays admitted (ZT-26 bypass) |
+
 ### Supporting services (outside the management plane)
 
 The allow matrix covers destinations in the management plane, so a permitted destination outside
@@ -268,17 +330,39 @@ not by the plane-separation test, so the table has no test column.
 
 | From data-plane workload → | Supporting service | Allowed? | Enforcement (NetworkPolicy; mesh AuthorizationPolicy) |
 |---|---|---|---|
-| workloads → DNS | name-resolution infrastructure | ALLOW (declared bypass, ZT-26) | NetworkPolicy: ALLOW, the resolver's port only (53; 8053 on the Gardener clusters); mesh: not applicable — DNS is not mTLS traffic, so the mesh cannot govern it |
+| workloads → DNS | name-resolution infrastructure | ALLOW (declared bypass, ZT-26) | NetworkPolicy: ALLOW, the resolver's port only (53; 8053 on the Gardener clusters); mesh: not applicable — DNS is not mTLS traffic and the resolver has no proxy, so the mesh cannot govern it |
 
 - **workloads → DNS — name-resolution infrastructure.** Data-plane workloads reach every
   destination permitted above by service name, so none of those paths works without name
   resolution. DNS is cluster infrastructure and a declared bypass under ZT-26, in the sense defined
-  above. The mesh cannot govern it because it is not mTLS traffic, so the NetworkPolicy rule
-  limited to the resolver's port (53; 8053 on the Gardener clusters) imposes the restriction.
+  above. The mesh cannot govern it because it is not mTLS traffic and the resolver runs without a
+  proxy, so the NetworkPolicy rule limited to the resolver's port (53; 8053 on the Gardener
+  clusters) imposes the restriction.
+
+### Pairs and the interface contracts
+
+The pair set reviewed against the interface registry ([API documentation](api-docs.md#interface-registry)):
+each interface, the in-zone caller → callee it implies, and the pair that declares it. A pair for a
+service that has not landed is not guessed: its change adds the row when it lands.
+
+| Interface | In-zone caller → callee it implies | Declared by |
+|---|---|---|
+| [IF-01](api-docs.md#if-01-security-state-feed) security-state feed | components → collector (their events are IF-04 log lines); feed bridge → UI | no pair of its own: the events travel the IF-04 path (below); the UI is outside the zone's mesh, so the bridge → UI leg is no in-zone pair |
+| [IF-02](api-docs.md#interface-registry) connector authorization surface | a participant or the viewer → the connector; the connector → the token store | the first crosses the zone boundary (no in-zone pair); connector → token store: not yet declared, added by the service's change |
+| [IF-03](api-docs.md#if-03-signed-verification-outcome) signed verification outcome | the participant backend → the verification service | `backend-to-verification-service` |
+| [IF-04](api-docs.md#if-04-observability-and-evidence) observability and evidence | every data-plane workload → the OTel collector, export only | `workloads-to-otel-collector` |
+| [IF-05](api-docs.md#header-propagation-guard-to-gateway) policy decision | the guard's policy adapter → the policy engine; the guard → the zone's gateway (an allowed request) | `pdp-adapter-to-tsa`; guard → gateway: not yet declared, added by the service's change |
+| [IF-06](api-docs.md#interface-registry) governed configuration change | the UI → the governed pipeline (a pull request) | no in-zone pair: the change reaches the zone through the pipeline, never as a call into its mesh |
+| [IF-07](api-docs.md#if-07-attested-channel-control) attested channel control | the aTLS gateway → cmcd (attestation evidence); the aTLS gateway → TCR (trust-list resolve) | `atls-gateway-to-cmcd`; `atls-gateway-to-tcr` |
+| [IF-08](api-docs.md#if-08-deployment-lifecycle-command) deployment lifecycle command | the scenario driver or an operator → ORCE | no in-zone pair: the caller is outside the zone's mesh, and ORCE's calls go to the Kubernetes API, which is not meshed |
+
+Every declared pair appears once above, apart from the two that serve no interface: the secret
+store's own `allow-ztd-openbao-bootstrap-to-server` and `allow-ztd-verify-openbao-to-server` (the
+release's jobs to its server, `docs/secrets.md`), which are internal to that release.
 
 ### Declared openings of the network baseline
 
-Beside the DNS bypass, the network baseline of a meshed zone has four declared openings for the two
+Beside the DNS bypass, the network baseline of a meshed zone has five declared openings for the two
 control planes: the identity control plane (`spire-system`) and the mesh control plane
 (`istio-system`), both management-plane namespaces under the default deny. They are entries of the
 **cluster-administration** class of the Zero Trust Connector bypass list (ZT-26: administrative
@@ -308,11 +392,54 @@ proven by the named check of the mesh identity proof, which every run records (s
 | `controlPlaneWebhooks` | the API server (entities `kube-apiserver`, `host`, `remote-node`); where the zone names it, the provider's pod that relays the API server's calls (`fromEndpoints`; Gardener's `vpn-shoot` on zone A and zone B) | istiod's webhook; the SPIRE controller-manager's webhook | 15017; 9443 | ingress in `istio-system` and `spire-system` (`CiliumNetworkPolicy`) | `control-planes-under-default-deny`, `install-order-idempotent` (injection and admission work) |
 | `identityServer` | the SPIRE agents on the host network (entities `host`, `remote-node`) | the SPIRE server | 8081 | ingress in `spire-system` (`CiliumNetworkPolicy`) | `control-planes-under-default-deny` (every agent attested) |
 | `kubeApi` | pods of the management-plane namespaces | the API server (entity `kube-apiserver`) | the API server's port | egress in each management-plane namespace (`CiliumNetworkPolicy`) | `install-order-idempotent` (the controllers reconcile) |
+| `observabilityScrape` | the zone gateway's pods (management namespace) | the SPIRE server and the controller-manager (`spire-system`), through the Service `spire-server-metrics` | 9988; 8082 | egress in the management namespace, ingress in `spire-system` (Kubernetes `NetworkPolicy`) | `spire-lane-is-narrow`, `spire-server-scraped` of `scripts/verify-observability/verify.sh` (the registration port stays refused) |
 
 The sources of the last three are not pods, so they are expressed as Cilium entities rather than
 addresses ([Workload identity](workload-identity.md#openings-under-the-default-deny)). The sidecar
 reaches its SPIRE agent over a mounted socket and the agent reaches the kubelet over the host's
 loopback, so neither needs an opening.
+
+### Observability placement (ZT-55, ZT-26)
+
+The observability stack is one management-plane role with two placements
+([ADR-0017](adr/0017-central-observability-backends.md)):
+
+| Role | Placement | Services | Reached from the data plane |
+|---|---|---|---|
+| Observability stack | the collectors, in each participant zone's management plane | the node collectors (`ztd-otel-node`, host network, no mesh) and the zone gateway (the management namespace, meshed, with its own SVID) | through the zone gateway only, on 4317 and 4318, along the row workloads → OTel collector |
+| Observability stack | the backends, on the demonstrator cluster, outside both trust domains | the receiving collector (the entry), which also writes the logs of every zone to files, Prometheus (its alert rules in the `firing` state are the alerts), Jaeger | never: a data-plane workload has no path to the demonstrator cluster, and the zone's egress policy refuses one |
+
+**Declared bypasses of the observability export class (ZT-26).** ZT-26 lets observability APIs bypass
+the Zero Trust Connector, each with its own ingress and egress configuration. Two paths carry this
+class; each bypasses the Connector only, not the mesh and not the network layer:
+
+- **workloads → zone gateway** (the allow-matrix row above): mesh mTLS by SVID, the network policy
+  limited to the gateway's export ports.
+- **zone → demonstrator cluster** (the telemetry export): starts in the management plane, so it is
+  outside the allow matrix. Its controls: in the zone, an egress policy that lets the zone gateway reach
+  the demonstrator cluster's entry address and port and no other external destination
+  (`allow-telemetry-export-egress`); the node collectors, on the host network where no pod policy
+  applies, name the entry as their only exporter; mutual TLS 1.3 with one client certificate per zone,
+  the zone taken from the listener the certificate completes, never from the client's data; on the
+  demonstrator cluster, a `LoadBalancer` restricted to the zones' egress addresses with the per-zone
+  listeners only, and an ingress policy to the same. It carries telemetry outward only: nothing on the
+  demonstrator cluster opens a connection into a zone. During the contingency period it runs over
+  public transit; after the move, over the CUG interconnect ([Specifications](specifications.md)).
+
+**Paths the collectors initiate.** These start in the management plane, so they are outside the
+allow matrix ([Out of scope](#allow-matrix-data-plane-management-plane)); each has its own control:
+
+- the zone gateway's scrapes of the SPIRE server and the controller-manager, the declared opening
+  `observabilityScrape` above;
+- the node collectors' scrape of their own node's SPIRE agent on `127.0.0.1:9988`, over the host's
+  loopback;
+- the zone gateway's read of node readiness and its probe of the revocation status list
+  ([ADR-0017](adr/0017-central-observability-backends.md));
+- the zone gateway's and the node collectors' export of telemetry out of the zone to the demonstrator
+  cluster, the declared bypass above, with its own egress control.
+
+Metrics are pushed from the zones, never pulled into them: the central Prometheus scrapes no target in
+a zone.
 
 ### Staleness matrix
 

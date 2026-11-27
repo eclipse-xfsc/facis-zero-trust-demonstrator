@@ -1,0 +1,33 @@
+{{- /*
+The denial log. A mesh-wide Telemetry in the mesh root namespace enables the access-log provider
+denialLog.provider (defined by the istiod release: an Envoy file access log to the proxy's stdout,
+one JSON line with the caller's and the destination's SPIFFE IDs, the authority, the response code
+and its details) for the requests and connections the mesh's authorization refused only. The filter
+is on the authorization decision, which only the proxy's RBAC filter sets (HTTP: the response-code
+details; TCP: the connection's termination details), never on the status code: a filter on 403 would
+also log an application's own 403, a request the mesh served. Served requests are not logged. Named
+mesh-default, the one mesh-wide Telemetry a zone has: every mesh-wide setting is in this resource.
+Mesh-wide tracing (tracing.enabled): every proxy reports a span per request to the istiod extension
+provider tracing.provider (deployment/helm/values/istiod.yaml, meshConfig.extensionProviders, an
+OpenTelemetry provider pointing at the zone gateway on 4317), and propagates W3C traceparent. The
+spans reach the zone gateway along the allow-matrix row workloads-to-otel-collector, under mTLS.
+*/ -}}
+apiVersion: telemetry.istio.io/v1
+kind: Telemetry
+metadata:
+  name: mesh-default
+  namespace: {{ .Values.mesh.namespace }}
+  labels:
+    {{- include "zone-policy.labels" . | nindent 4 }}
+spec:
+  accessLogging:
+    - providers:
+        - name: {{ .Values.denialLog.provider }}
+      filter:
+        expression: {{ `response.code_details.startsWith("rbac_access_denied") || connection.termination_details.startsWith("rbac_access_denied")` | squote }}
+  {{- if .Values.tracing.enabled }}
+  tracing:
+    - providers:
+        - name: {{ .Values.tracing.provider }}
+      randomSamplingPercentage: {{ .Values.tracing.randomSamplingPercentage }}
+  {{- end }}

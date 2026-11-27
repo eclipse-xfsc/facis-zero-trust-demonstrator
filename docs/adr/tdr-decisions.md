@@ -95,4 +95,19 @@ logging API — `console` calls in function or third-party nodes, Node.js warnin
 entrypoint — is not JSON. Details in [ORCE logging](../flows.md#orce-logging); TDR-BDD-06 proves it
 on a cluster.
 
-**Not yet:** the observability stack for the services (ZT-27).
+**Applied, for the services (ZT-27, ZT-52):** the observability stack of
+[ADR-0017](0017-central-observability-backends.md). In each participant zone the node collectors read
+every pod's log lines, keeping the fields of an IF-01 event (`correlation_id`, `run_id`, `seq`) as
+attributes, and scrape the SPIRE agents on their loopback; the zone gateway receives the workloads'
+and the mesh proxies' OTLP, scrapes the SPIRE server and the controller-manager, and probes the
+revocation status list. Both export over mutual TLS to the demonstrator cluster, where Prometheus
+stores the metrics and fires the alerts of a missing SPIRE target, a silent zone and an unreachable
+status list within 30 seconds (a rule in the `firing` state is the alert), and
+Jaeger stores the traces. `scripts/verify-observability/verify.sh`
+proves it on a cluster.
+
+The logs are exported, as this record and IF-04 ask: the receiving collector writes the JSON records
+of every zone to files on the demonstrator cluster, one file per zone, rotated by size, each record
+keeping its zone, namespace, pod, timestamp and IF-01 fields. No log query service is installed.
+
+**Not yet:** the alert rules for the Policy Engine, TRAIN and OCM come with those components.

@@ -43,8 +43,11 @@ kubectl get storageclass
 
 The common baseline ([Environments](index.md)) names Cilium with `cni.exclusive=false`, for the
 service mesh ([ADR-0009](../adr/0009-service-mesh-mode-istio-sidecar-with-cilium.md)). This cluster
-runs no mesh and no demonstration workload, so its provider CNI is kept; whether the visualization
-stage needs the mesh here is decided with that stage.
+keeps its provider CNI. SPIRE and the mesh here are in progress and not installed yet: Istio in
+sidecar mode as on the zones, the Istio CNI plugin chained behind Calico, the SPIRE datastore on a
+persistent volume, the trust domain decided with the final trust domains. Until that work sets it,
+the zone file keeps `mesh.mode: none`; what is met on which cluster is stated in [the mesh and SPIRE
+on each cluster](../specifications.md#the-mesh-and-spire-on-each-cluster).
 
 ## 2. The ORCE image
 
@@ -159,13 +162,15 @@ npm run bdd:cluster
 back to its baseline (`kubectl -n ztd-bdd-tdr-001 get all` shows nothing). Stop the port-forward and
 delete `observer.kubeconfig` and `ca.crt` afterwards; the token expires on its own.
 
-## 6. Admission proof (non-target)
+## 6. Admission proof (interim key)
 
 An early admission proof on this cluster: Gatekeeper and the image-verification provider, with the
 constraints in [deployment/admission](../../deployment/admission), enforcing only in the namespaces
 labelled `facis.ztd/admission-proof=true` (`ztd-adm-001`, `ztd-adm-002`). The images it verifies are
 signed with the **interim key** ([docs/contracts/keys/interim-cosign.pub](../contracts/keys/interim-cosign.pub)),
-not the client trust chain; this cluster is not a target environment. Everything it records says so.
+not the client trust chain, so it is not acceptance evidence for the admission requirements.
+The fault-injection run marks its evidence that way, in its own words: "interim signing key; not
+the client trust chain".
 
 ```bash
 # Gatekeeper, the provider (by digest, from the release candidate job), the policy and the pool.
@@ -221,9 +226,31 @@ Not installed on this cluster yet. Each gets its stage and its check when it is.
   digest, with the key restricted to protected workflows.
 - **Registry access.** Pushing images and signatures to the client's registry, and pulling from it
   on the OSC clusters, with a robot account rather than a personal one.
-- **Visualization.** The demonstrator UI and the observability interfaces — Prometheus and Jaeger.
-  There is no Grafana; the reason is recorded in
+- **Visualization.** The demonstrator UI. The observability interfaces are a stage of their own,
+  below. There is no Grafana; the reason is recorded in
   [specification changes](../specifications.md#readings-and-additions).
+
+## The observability backends
+
+The cluster is the demonstrator cluster of the observability stack
+([ADR-0017](../adr/0017-central-observability-backends.md)): its zone file sets `zone.role:
+demonstrator`, and `scripts/install-zone/install.sh` installs, into `ztd-observability`, the
+receiving collector (the entry), Prometheus with the alert rules, and Jaeger, with the telemetry CA as
+cert-manager resources (cert-manager runs here already, v1.21.2). The cluster takes no plane and no
+mesh: it sits outside both trust domains. The Prometheus and Jaeger interfaces are
+ClusterIP Services, reached with cluster access only (`kubectl port-forward`), until the demonstrator
+UI defines its own access; they are the visualization of the observability data on IONOS (ZT-15).
+
+The entry is the cluster's first `LoadBalancer`: per-zone mutual-TLS listeners only (zone A 4317,
+zone B 4417), with the zones' egress addresses as source ranges. The installer refuses the zone file
+while those addresses are empty, so they are recorded first, then the entry's public address goes
+into both zone files (`telemetryExport.entry.address`). Not installed yet: the install and the zone
+evidence wait for the go-ahead on the shared clusters.
+
+```bash
+ZONE_VALUES=deployment/helm/ztd/zones/ionos.yaml KUBE_CONTEXT=cluster-admin@ZeroTrustDemonstrator \
+  scripts/install-zone/install.sh plan
+```
 
 ## Teardown
 

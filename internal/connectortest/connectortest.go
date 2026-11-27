@@ -164,48 +164,68 @@ func Start(t *testing.T, dsn, baoAddr, baoToken string, o Options) *Connector {
 		delegable = append(delegable, e.Scopes...)
 	}
 
-	apiAddr, opsAddr := FreeAddr(t), FreeAddr(t)
-	base := "http://" + apiAddr
-	endpoint := base + "/oauth2/register"
-	registrarSecret := RandHex(24)
-	cmd := exec.Command(connectorBinary(t), "serve", "--addr", apiAddr, "--ops-addr", opsAddr,
-		"--database-url", dsn, "--openbao-url", baoAddr, "--openbao-token-file", WriteFile(t, "bao-token", baoToken+"\n"),
-		"--issuer", o.Issuer, "--signing-key", key.Name, "--signing-key-version", strconv.Itoa(key.Version),
-		"--registration-endpoint", endpoint,
-		"--token-secret-file", WriteFile(t, "token-secret", RandHex(24)),
-		"--registration-secret-file", WriteFile(t, "registration-secret", RandHex(24)),
-		"--registrar-id", "registrar", "--registrar-secret-file", WriteFile(t, "registrar-secret", registrarSecret),
-		"--registrar-scopes", "connector:client_registration", "--registrar-audiences", strings.Join(append([]string{endpoint}, o.Audiences...), ","),
-		"--registrar-delegable-scopes", strings.Join(delegable, ","),
-		"--vp-trusted-issuers-file", WriteFile(t, "issuers.json", `{"`+o.VPIssuer+`":{"keys":[`+string(jwkJSON)+`]}}`),
-		"--vp-scope-map-file", WriteFile(t, "scopes.json", string(scopeMap)),
-		"--zone", "b", "--drain-delay", "0s", "--shutdown-timeout", "2s")
-	out := &buffer{}
-	cmd.Stdout, cmd.Stderr = out, out
-	if err := cmd.Start(); err != nil {
-		t.Fatal(err)
-	}
-	var stopOnce sync.Once
-	stop := func() {
-		stopOnce.Do(func() {
-			_ = cmd.Process.Signal(syscall.SIGTERM)
-			_ = cmd.Wait()
-		})
-	}
-	t.Cleanup(stop)
-	for i := 0; ; i++ {
-		resp, err := http.Get("http://" + opsAddr + "/readyz")
-		if err == nil {
-			body, _ := io.ReadAll(resp.Body)
-			_ = resp.Body.Close()
-			if strings.Contains(string(body), `"ready":true`) {
+	// The two ports are free when FreeAddr returns but not held: another process on a busy runner can
+	// take one before the connector binds it, and the connector then exits with "address already in
+	// use". Only that failure is retried, on two new ports, up to three attempts.
+	var (
+		base, endpoint, registrarSecret string
+		stop                            func()
+	)
+	for attempt := 1; ; attempt++ {
+		ready := false
+		apiAddr, opsAddr := FreeAddr(t), FreeAddr(t)
+		base = "http://" + apiAddr
+		endpoint = base + "/oauth2/register"
+		registrarSecret = RandHex(24)
+		cmd := exec.Command(connectorBinary(t), "serve", "--addr", apiAddr, "--ops-addr", opsAddr,
+			"--database-url", dsn, "--openbao-url", baoAddr, "--openbao-token-file", WriteFile(t, "bao-token", baoToken+"\n"),
+			"--issuer", o.Issuer, "--signing-key", key.Name, "--signing-key-version", strconv.Itoa(key.Version),
+			"--registration-endpoint", endpoint,
+			"--token-secret-file", WriteFile(t, "token-secret", RandHex(24)),
+			"--registration-secret-file", WriteFile(t, "registration-secret", RandHex(24)),
+			"--registrar-id", "registrar", "--registrar-secret-file", WriteFile(t, "registrar-secret", registrarSecret),
+			"--registrar-scopes", "connector:client_registration", "--registrar-audiences", strings.Join(append([]string{endpoint}, o.Audiences...), ","),
+			"--registrar-delegable-scopes", strings.Join(delegable, ","),
+			"--vp-trusted-issuers-file", WriteFile(t, "issuers.json", `{"`+o.VPIssuer+`":{"keys":[`+string(jwkJSON)+`]}}`),
+			"--vp-scope-map-file", WriteFile(t, "scopes.json", string(scopeMap)),
+			"--zone", "b", "--drain-delay", "0s", "--shutdown-timeout", "2s")
+		out := &buffer{}
+		cmd.Stdout, cmd.Stderr = out, out
+		if err := cmd.Start(); err != nil {
+			t.Fatal(err)
+		}
+		var stopOnce sync.Once
+		stop = func() {
+			stopOnce.Do(func() {
+				_ = cmd.Process.Signal(syscall.SIGTERM)
+				_ = cmd.Wait()
+			})
+		}
+		t.Cleanup(stop)
+		for i := 0; ; i++ {
+			resp, err := http.Get("http://" + opsAddr + "/readyz")
+			if err == nil {
+				body, _ := io.ReadAll(resp.Body)
+				_ = resp.Body.Close()
+				if strings.Contains(string(body), `"ready":true`) {
+					ready = true
+					break
+				}
+			}
+			if bindRace(out.String()) && attempt < 3 {
 				break
 			}
+			if i == 150 {
+				t.Fatalf("connector never ready:\n%s", out.String())
+			}
+			time.Sleep(100 * time.Millisecond)
 		}
-		if i == 150 {
-			t.Fatalf("connector never ready:\n%s", out.String())
+
+		if ready {
+			break
 		}
-		time.Sleep(100 * time.Millisecond)
+		stop()
+		t.Logf("connector start attempt %d lost a port to another process, retrying on new ports", attempt)
 	}
 
 	return &Connector{Base: base, SigningKey: key.Name, Stop: stop, registrarSecret: registrarSecret, endpoint: endpoint}
@@ -256,3 +276,6 @@ func (b *buffer) String() string {
 	defer b.mu.Unlock()
 	return b.buf.String()
 }
+
+// bindRace reports whether the connector's output shows it lost a listening port to another process.
+func bindRace(out string) bool { return strings.Contains(out, "address already in use") }
