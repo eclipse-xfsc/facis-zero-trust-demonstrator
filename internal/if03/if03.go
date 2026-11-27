@@ -20,7 +20,7 @@ import (
 // Typ is the outcome's typ header.
 const Typ = "facis-verification-outcome+jws"
 
-// Reason codes, as IF-03 names them.
+// Reason codes a consumer of an outcome names, as IF-03 lists them.
 const (
 	CodeSignature   = "CRED-OUTCOME-SIGNATURE"
 	CodeNotVerified = "CRED-OUTCOME-NOT-VERIFIED"
@@ -28,6 +28,30 @@ const (
 	CodeExpired     = "CRED-OUTCOME-EXPIRED"
 	CodeConsumed    = "CRED-OUTCOME-CONSUMED"
 )
+
+// Reason codes a producer writes into a failed or revoked outcome.
+const (
+	CodeInvalid           = "CRED-INVALID"
+	CodeIssuerUntrusted   = "CRED-ISSUER-UNTRUSTED"
+	CodeRevoked           = "CRED-REVOKED"
+	CodeStatusUnavailable = "CRED-STATUS-UNAVAILABLE"
+)
+
+// The outcome statuses.
+const (
+	StatusVerified = "verified"
+	StatusFailed   = "failed"
+	StatusRevoked  = "revoked"
+)
+
+// RoleUnverified is the claims.role a producer writes when the outcome failed before the
+// credential's claims were read: the schema requires a role on every outcome, and no credential
+// role is known. A consumer never maps it to an entitlement; it reaches no grant, since only a
+// verified outcome does.
+const RoleUnverified = "unverified"
+
+// MaxKid bounds a kid: longer ones are never resolved.
+const MaxKid = 128
 
 // Claims is the outcome's role and optional entitlement.
 type Claims struct {
@@ -85,21 +109,12 @@ const (
 func Verify(compact string, trusted Issuers, want Expect, now time.Time) (Outcome, error) {
 	var owner string
 	_, payload, err := jose.Verify(compact, jose.HeaderPolicy{Typ: Typ, KidNeeded: true}, func(h jose.Header) (*ecdsa.PublicKey, error) {
-		for iss, keys := range trusted {
-			if k, ok := keys[h.Kid]; ok && k != nil {
-				if owner != "" {
-					return nil, errors.New("kid held by more than one issuer")
-				}
-				owner = iss
-			}
+		iss, key, ok := trusted.Key(h.Kid)
+		if !ok {
+			return nil, errors.New("unknown or ambiguous kid")
 		}
-		if owner == "" {
-			return nil, errors.New("unknown kid")
-		}
-		if utf8.RuneCountInString(h.Kid) > 128 {
-			return nil, errors.New("kid too long")
-		}
-		return trusted[owner][h.Kid], nil
+		owner = iss
+		return key, nil
 	})
 	if err != nil {
 		return Outcome{}, refuse(CodeSignature, "signature not verified with a trusted key")
@@ -111,7 +126,7 @@ func Verify(compact string, trusted Issuers, want Expect, now time.Time) (Outcom
 	if o.Issuer != owner {
 		return Outcome{}, refuse(CodeSignature, "issuer does not own the signing key")
 	}
-	if o.Status != "verified" {
+	if o.Status != StatusVerified {
 		return Outcome{}, refuse(CodeNotVerified, "outcome is not verified")
 	}
 	if o.ClientID != want.ClientID || o.Challenge != want.Challenge || o.Audience != want.Audience {
@@ -215,11 +230,11 @@ func parsePayload(payload []byte) (Outcome, bool) {
 
 	_, hasReason := m["reason_code"]
 	switch o.Status {
-	case "verified":
+	case StatusVerified:
 		if hasReason {
 			return Outcome{}, false
 		}
-	case "failed", "revoked":
+	case StatusFailed, StatusRevoked:
 		reason, _, isStr := jose.String(m, "reason_code")
 		if !hasReason || !isStr || !reasonPattern.MatchString(reason) {
 			return Outcome{}, false

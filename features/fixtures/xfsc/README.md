@@ -19,6 +19,15 @@ One file per operation and case: `<operation>/<case>.json`.
 Each file has the same members: `fixture`, `operation`, `case`, `input`, `output` (the artefact, or
 `error` for an unavailable service) and `expect` (what the demonstrator must do with it).
 
+## Status of this set
+
+This set predates the credential profile the demonstrator verifies. It is kept for the scenario
+decisions that reference it and for the wallet lane's storage proof, which publishes
+`issue/allow.json`. The presentations a verifier is tested against live in
+[`features/fixtures/oid4vp/`](../oid4vp/README.md): SD-JWT VC with a key-binding JWT and an IETF
+Token Status List, which is what the live wallet stack issues and what the verification service
+checks. New fixtures go there.
+
 ## Formats
 
 - **Credentials and presentations** follow the W3C Verifiable Credentials Data Model 2.0. They carry
@@ -44,8 +53,8 @@ keep the same `expect` as the acceptance check. What the swap still needs, per o
 
 ## Open points
 
-- **No reason code for an unreachable verifier or status list.** The behaviour is fixed — fail
-  closed, no token issued — but the registry has no `CRED` code for it. Adding one is a change to
-  the reason-code registry.
+- **Unreachable status list.** Closed: the registry now carries `CRED-STATUS-UNAVAILABLE` (fail
+  closed, no token issued). An unreachable verification service still has no code of its own: the
+  token store reports it as its own acquisition failure and issues nothing.
 - **No IF-01 source for the issuer.** Issuance events cannot be shown on the feed until IF-01 gains
   a source for it.

@@ -20,8 +20,21 @@ const oasDir = path.join(here, 'oas-3.1');
 // Schemas outside docs/contracts that are part of the registry (IF-08, delivered before v1).
 const extraSchemas = ['docs/lifecycle-result.schema.json'];
 const extraOpenAPI = ['docs/lifecycle.openapi.yaml'];
-// Documents whose text is scanned for reason codes.
-const prose = ['docs/api-docs.md'];
+// Documents whose text is scanned for reason codes: every Markdown page under docs/ and features/
+// (pages, ADRs, fixture READMEs), so a code written anywhere a reader finds it is registered.
+const prose = [...markdownUnder('docs'), ...markdownUnder('features')];
+function markdownUnder(dir) {
+  const out = [];
+  const walk = (d) => {
+    for (const entry of readdirSync(path.join(root, d), { withFileTypes: true })) {
+      const p = path.join(d, entry.name);
+      if (entry.isDirectory()) walk(p);
+      else if (entry.isFile() && entry.name.endsWith('.md')) out.push(p);
+    }
+  };
+  walk(dir);
+  return out.sort();
+}
 
 const failures = [];
 const fail = (msg) => failures.push(msg);
@@ -103,10 +116,22 @@ if (!validateRegistry || !validateRegistry(registry)) {
   }
 }
 const families = new Set(Object.keys(registry.families ?? {}));
-const codePattern = /\b([A-Z]{2,5})-[A-Z0-9]+(?:-[A-Z0-9]+)*\b/g;
+// A code is FAMILY-SEGMENT(-SEGMENT)*; a trailing "-*" makes it a glob over registered codes that
+// share the prefix (CRED-OUTCOME-*). The token ends where no further segment or glob follows, so a
+// glob is never read as a shorter code and an unregistered prefix with a glob is still reported.
+const codePattern = /\b([A-Z]{2,5})((?:-[A-Z0-9]+)+)(-\*)?(?![A-Z0-9])(?!-[A-Z0-9*])/g;
+// Dash look-alikes (non-breaking hyphen, en and em dashes, minus, full-width hyphen) are read as
+// hyphens first: a code pasted through a word processor is still a code.
+const dashVariants = /[\u2010\u2011\u2012\u2013\u2014\u2015\u2212\uFF0D]/g;
 function checkCodesInText(text, where) {
-  for (const match of text.matchAll(codePattern)) {
-    if (families.has(match[1]) && !registered.has(match[0])) fail(`${where}: ${match[0]} is not a registered reason code`);
+  for (const [token, family, rest, glob] of text.replace(dashVariants, '-').matchAll(codePattern)) {
+    if (!families.has(family)) continue;
+    if (glob) {
+      const prefix = `${family}${rest}-`;
+      if (![...registered].some((code) => code.startsWith(prefix))) fail(`${where}: ${token} names no registered reason code`);
+    } else if (!registered.has(token)) {
+      fail(`${where}: ${token} is not a registered reason code`);
+    }
   }
 }
 // A reason_code member's value, or the const/enum/default/examples of a reason_code property schema,
