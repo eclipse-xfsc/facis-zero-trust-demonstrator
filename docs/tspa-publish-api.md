@@ -275,7 +275,11 @@ signed reference metadata** the pipeline already produces for cmcd, not computed
 of truth can disagree. Which representation of that metadata goes into the trust-list entry is the decision.
 
 Closed now (no client instance needed): endpoint list, HTTP methods, auth mechanism and required authority,
-payload schema, error/idempotency semantics, and a working local round-trip.
+payload schema, error/idempotency semantics, and a working local round-trip. Closed since (2026-11-12): the
+publication step itself, `scripts/train-publish/publish.sh`, whose two steps are proven against this same
+TSPA on kind, and its gate in `scripts/lifecycle.sh`, held by `scripts/lifecycle_test.sh` against stubs
+([TRAIN publication step](train-publish.md)); the carrier is ADR-0011's `TEEM-sha256` pair in
+`TSPCertification`, with the image digest beside it.
 
 Still open — **first, and not external:**
 - **decision**: which TSP field carries the TEEM and what the TCR/policy side reads (candidates in §1). This is a

@@ -1,0 +1,40 @@
+{
+  "TrustServiceProvider": {
+    "UUID": "",
+    "TSPName": "",
+    "TSPTradeName": "",
+    "TSPInformation": {
+      "Address": {
+        "ElectronicAddress": "n/a",
+        "PostalAddress": {
+          "City": "n/a", "Country": "n/a", "PostalCode": "n/a",
+          "State": "n/a", "StreetAddress1": "n/a", "StreetAddress2": "n/a"
+        }
+      },
+      "TSPCertificationList": { "TSPCertification": [] },
+      "TSPEntityIdentifierList": { "TSPEntityIdendifier": [] },
+      "TSPInformationURI": "n/a"
+    },
+    "TSPServices": {
+      "TSPService": [
+        {
+          "ServiceName": "attested-tls-endpoint",
+          "ServiceTypeIdentifier": "",
+          "ServiceCurrentStatus": "active",
+          "StatusStartingTime": "",
+          "ServiceDefinitionURI": "n/a",
+          "ServiceDigitalIdentity": { "DigitalId": { "X509Certificate": "n/a", "DID": "" } },
+          "AdditionalServiceInformation": {
+            "ServiceBusinessRulesURI": "n/a",
+            "ServiceGovernanceURI": "n/a",
+            "ServiceIssuedCredentialTypes": { "CredentialType": [ { "Type": "n/a" }, { "Type": "n/a" } ] },
+            "ServiceContractType": "n/a",
+            "ServicePolicySet": "n/a",
+            "ServiceSchemaURI": "n/a",
+            "ServiceSupplyPoint": "n/a"
+          }
+        }
+      ]
+    }
+  }
+}
