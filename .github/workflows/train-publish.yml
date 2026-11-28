@@ -10,7 +10,9 @@ name: TRAIN publication proof
 # quarter of an hour of the first build. The publisher's own cases against the stand-in run in the
 # CI workflow on every pull request; this one runs when the step, its proof or its inputs change.
 # The trust-lists job runs the reconciler's proof (scripts/verify-train-trust-list/verify.sh)
-# against the same TSPA image, restored from the same cache.
+# against the same TSPA image, restored from the same cache; the resolve job runs the TRAIN
+# resolution's proof (scripts/verify-train-resolve/verify.sh): the gateway's resolver against the
+# real list and the real name server, through the resolver stand-in.
 on:
   pull_request:
     paths:
@@ -18,6 +20,10 @@ on:
       - scripts/verify-train-publish/**
       - scripts/train-trust-list/**
       - scripts/verify-train-trust-list/**
+      - internal/trainresolve/**
+      - cmd/train-resolve-probe/**
+      - scripts/train-resolve/**
+      - scripts/verify-train-resolve/**
       - scripts/verify-train-dns/kind/**
       - deployment/train/trust-lists/**
       - docs/contracts/train-trust-list.v1.schema.json
@@ -243,6 +249,111 @@ jobs:
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: train-trust-list-proof
+          path: ${{ runner.temp }}/proof
+          if-no-files-found: warn
+
+      - name: The repository is unchanged
+        if: ${{ !cancelled() }}
+        run: |
+          if [ -n "$(git status --porcelain)" ]; then
+            git status --porcelain
+            echo "::error::the proof changed files in the repository"
+            exit 1
+          fi
+
+  resolve:
+    name: TRAIN resolution against the real TSPA (kind)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+
+      # The probe is built from the checkout with the Go version go.mod names.
+      - name: Set up Go
+        uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version-file: go.mod
+
+      - name: Set up Helm
+        uses: azure/setup-helm@1a275c3b69536ee54be43f2070a358922e12c8d4 # v4
+        with:
+          version: v4.3.0
+
+      - name: Install the pinned kind and kubectl
+        run: |
+          scripts/tools/install.sh "$RUNNER_TEMP/bin" kind kubectl
+          echo "$RUNNER_TEMP/bin" >> "$GITHUB_PATH"
+
+      # The resolver stand-in asks the zone manager's name server with dig; the runner image is not
+      # relied on to have it.
+      - name: Make sure dig is present
+        env:
+          DEBIAN_FRONTEND: noninteractive
+        run: command -v dig >/dev/null || (sudo apt-get -qq update && sudo apt-get -qq install -y --no-install-recommends dnsutils >/dev/null)
+
+      - name: Clone upstream's TSPA and train-shared at the verified commits
+        run: |
+          git clone --quiet https://github.com/eclipse-xfsc/train-trust-framework-manager "$RUNNER_TEMP/tspa"
+          git -C "$RUNNER_TEMP/tspa" -c advice.detachedHead=false checkout --quiet "$TSPA_COMMIT"
+          git clone --quiet https://github.com/eclipse-xfsc/train-shared "$RUNNER_TEMP/tspa/shared"
+          git -C "$RUNNER_TEMP/tspa/shared" -c advice.detachedHead=false checkout --quiet "$TRAIN_SHARED_COMMIT"
+
+      # The same key as the other two jobs: whichever builds first fills the cache for all.
+      - name: Restore the TSPA image built for these commits
+        id: image
+        uses: actions/cache/restore@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
+        with:
+          path: ${{ runner.temp }}/tspa-image.tar
+          key: tspa-image-${{ env.TSPA_COMMIT }}-${{ env.TRAIN_SHARED_COMMIT }}-${{ hashFiles('scripts/verify-tspa-api/kind-up.sh') }}
+
+      - name: Load the cached image
+        if: steps.image.outputs.cache-hit == 'true'
+        run: docker load --input "$RUNNER_TEMP/tspa-image.tar"
+
+      # The removal case waits on the real 300 s window; the job's budget allows for it.
+      - name: Run the proof
+        env:
+          TSPA_REPO: ${{ runner.temp }}/tspa
+          TSPA_SKIP_BUILD: ${{ steps.image.outputs.cache-hit == 'true' && '1' || '' }}
+          TRAIN_PROOF_EVIDENCE: ${{ runner.temp }}/proof/evidence.md
+        run: |
+          mkdir -p "$RUNNER_TEMP/proof"
+          scripts/verify-train-resolve/verify.sh --out "$RUNNER_TEMP/proof/records"
+
+      - name: Write the built image to a file
+        id: tar
+        if: steps.image.outputs.cache-hit != 'true' && !cancelled()
+        run: |
+          if docker image inspect tspa-service:local >/dev/null 2>&1; then
+            docker save tspa-service:local --output "$RUNNER_TEMP/tspa-image.tar"
+            echo "written=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "no tspa-service:local image was built; nothing to cache"
+            echo "written=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Save the image for the next run
+        if: steps.tar.outputs.written == 'true' && !cancelled()
+        uses: actions/cache/save@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
+        with:
+          path: ${{ runner.temp }}/tspa-image.tar
+          key: ${{ steps.image.outputs.cache-primary-key }}
+
+      - name: Write the summary of the cases to the job summary
+        if: ${{ !cancelled() }}
+        run: |
+          if [ -f "$RUNNER_TEMP/proof/evidence.md" ]; then
+            awk '/^## Summary of the cases/{p=1} /^## 1\./{p=0} p' "$RUNNER_TEMP/proof/evidence.md" >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo "no evidence was written; see the proof step" >> "$GITHUB_STEP_SUMMARY"
+          fi
+
+      - name: Upload this run's evidence and records
+        if: ${{ !cancelled() }}
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: train-resolve-proof
           path: ${{ runner.temp }}/proof
           if-no-files-found: warn
 

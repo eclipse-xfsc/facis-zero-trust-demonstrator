@@ -87,6 +87,7 @@
       "ui": "CHANNEL-DOWN",
       "codes": {
         "CHAN-MEASUREMENT-MISMATCH": { "meaning": "The peer's launch measurement differs from the expected value on the trust list (ZT-70)" },
+        "CHAN-MEASUREMENT-UNPUBLISHED": { "meaning": "No expected measurement is published in TRAIN for the peer: no entry under its lookup key, or an entry without a TEEM-sha256 value (ZT-64) - deny" },
         "CHAN-ZONE-UNKNOWN": { "meaning": "The peer zone is absent from the trust list" },
         "CHAN-EVIDENCE-STALE": { "meaning": "The attestation report is outside its validity" },
         "CHAN-DOWNGRADE": { "meaning": "A client without an attested handshake was refused" },

@@ -112,10 +112,12 @@ walks (PTR, URI, DID document) names the list, not its entries. For a zone chang
 TTLs the [TRAIN DNS zone](train-dns.md) page records.
 
 What this side proves is that the list the TCR fetches no longer carries the issuer and that the
-VC's hash changed. That a verifier then refuses the issuer's credentials, and does so within the
-cache window, is the read side's proof (the handshake verification against TRAIN), to be run
-jointly once a TCR runs against this list; until then the window above is documented and the
-publishing half of it tested.
+VC's hash changed. The read half, a verifier that stops trusting an entry within the cache window,
+is proven for the measurement entries by the [TRAIN resolution at the handshake](train-resolve.md):
+its proof on kind deletes an entry from this list while a verifier with the 300 s cache keeps
+verifying, and times the refusal. For the issuer entries the same resolver finds the entry and
+refuses it as carrying no measurement; that a credential verifier refuses an issuer's credentials
+is still the credential side's proof, once a TCR runs against this list.
 
 ## The audit trail
 
@@ -161,8 +163,8 @@ withdraw one; the DID record of the framework (`PUT /{fw}/did`) is not this step
 
 | Done when | Proven where | Still needs |
 |---|---|---|
-| An update pull request takes effect within the documented TTL | the TSPA side on kind: the list and the VC follow the file within a second of the write; the verifier side documented at 300 s from the staleness matrix | a TCR reading this list, to measure the verifier side |
-| Removing an entry causes dependent verification to fail | the publishing half: the entry and its lookup key are gone from the list and the VC the TCR fetches | the read half, jointly with the handshake verification work: the handshake refusing the issuer within the window |
+| An update pull request takes effect within the documented TTL | the TSPA side on kind: the list and the VC follow the file within a second of the write; the verifier side measured on kind by the [TRAIN resolution](train-resolve.md) proof: a removal refused within the 300 s cache, through the resolver stand-in | a real TCR reading this list |
+| Removing an entry causes dependent verification to fail | the publishing half: the entry and its lookup key are gone from the list and the VC the TCR fetches; the read half for measurement entries: the gateway's resolver refuses the peer within the window (`verify-train-resolve/evidence.md`) | the same refusal inside a real handshake (the gateway work); a credential verifier refusing an issuer's credentials |
 | The change history is auditable | the Git history of the file; `reconciliations.jsonl` with file sha256, commit, plan, writes, list sha256 and VC hash per run | nothing on this side |
 
 After the merge the ticket stays blocked, not done, until the joint proof with the read side and

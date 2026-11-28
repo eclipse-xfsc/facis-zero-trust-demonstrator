@@ -42,6 +42,7 @@ nav:
   - TRAIN trust-list publishing: tspa-publish-api.md
   - TRAIN publication step: train-publish.md
   - TRAIN trust lists: train-trust-lists.md
+  - TRAIN resolution at the handshake: train-resolve.md
   - TRAIN DNS zone: train-dns.md
   - BDD acceptance:
       - Harness and pack: bdd.md

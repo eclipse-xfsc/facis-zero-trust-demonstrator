@@ -109,7 +109,7 @@ attestation component triggers that, and the ADR leaves it as an item to raise w
 | Each attested component publishes its expected measurement to TRAIN before it rolls out | on kind, with a stand-in component and real measurements of the fixture bundle (`verify-train-publish/evidence.md`) | measurement records for the real components (the measuring side); the client's TSPA |
 | The pipeline step gates the rollout on the publication | `lifecycle.sh` with the stand-in (`lifecycle_test.sh`); the same two steps around real rollouts on kind | a release deployed with `LIFECYCLE_PUBLISH_RECORD` set, once a component has a record; the record as a field of the lifecycle command in the ORCE node |
 | The published digest matches the running image | on kind: pod `imageID` equals the published digest, the configuration inside the pod is the one measured | the same check on the components once they carry records |
-| The read side resolves the entry and compares | — | the attested-channel work (ZT-64, ZT-67): the TCR lookup and the comparison; the agreement on the carrier and the lookup-key string |
+| The read side resolves the entry and compares | [TRAIN resolution at the handshake](train-resolve.md): the gateway's resolver asks the TCR under the peer's identity, selects the `TEEM-sha256` values and compares them with the peer's verified measurements, on kind against the real list and name server through the resolver stand-in (`verify-train-resolve/evidence.md`) | the resolver behind the attested channel's peer verifier (the gateway work); the agreement on the lookup-key string (the identity verbatim, proposed there); a real TCR |
 
 After the merge the ticket stays blocked, not done, until the client's instance confirms the
 rows below.
