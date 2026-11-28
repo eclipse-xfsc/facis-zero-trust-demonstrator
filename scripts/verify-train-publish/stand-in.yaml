@@ -1,0 +1,41 @@
+# The stand-in for an attested component: one pod from an image pinned by digest, running with the
+# configuration that was measured (the ConfigMap holds the bytes of the config.json the record was
+# computed over, mounted where the bundle has it). A new version is a new ConfigMap and a changed
+# annotation, so the rollout is a configuration-only change, as the second record is. The pod takes
+# twenty seconds to become ready, which keeps both generations running at once long enough for the
+# proof to read the trust list while they do, and two seconds to terminate, so a replaced pod is
+# gone before the next row looks. Rendered by verify.sh: ${NAMESPACE}, ${IMAGE}, ${VERSION},
+# ${CONFIG_SHA}.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: connector
+  namespace: ${NAMESPACE}
+  labels: {app: connector}
+spec:
+  replicas: 1
+  strategy:
+    type: RollingUpdate
+    rollingUpdate: {maxSurge: 1, maxUnavailable: 0}
+  selector:
+    matchLabels: {app: connector}
+  template:
+    metadata:
+      labels: {app: connector}
+      annotations:
+        config-version: "${VERSION}"
+        config-sha256: "${CONFIG_SHA}"
+    spec:
+      terminationGracePeriodSeconds: 2   # the shell ignores SIGTERM; a replaced pod must not linger
+      containers:
+        - name: connector
+          image: ${IMAGE}
+          command: [sh, -c, "sleep 20; touch /tmp/ready; while true; do sleep 3600; done"]
+          readinessProbe:
+            exec: {command: [test, -f, /tmp/ready]}
+            periodSeconds: 2
+          volumeMounts:
+            - {name: config, mountPath: /app/config.json, subPath: config.json, readOnly: true}
+      volumes:
+        - name: config
+          configMap: {name: connector-config-${VERSION}}

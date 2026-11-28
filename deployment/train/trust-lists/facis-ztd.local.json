@@ -1,0 +1,27 @@
+{
+  "schemaVersion": 1,
+  "framework": "facis-ztd.local",
+  "operator": "FACIS Zero Trust Demonstrator",
+  "zones": [
+    { "name": "a", "domain": "zone-a.facis-ztd.local" },
+    { "name": "b", "domain": "zone-b.facis-ztd.local" }
+  ],
+  "issuers": [
+    {
+      "id": "issuer-a",
+      "name": "Participant credential issuer of zone a",
+      "serviceTypeIdentifier": "did:web:issuer-a.facis-ztd.local",
+      "credentialTypes": ["ParticipantCredential"],
+      "supplyPoint": "https://issuer-a.facis-ztd.local",
+      "zone": "a"
+    },
+    {
+      "id": "issuer-b",
+      "name": "Participant credential issuer of zone b",
+      "serviceTypeIdentifier": "did:web:issuer-b.facis-ztd.local",
+      "credentialTypes": ["ParticipantCredential"],
+      "supplyPoint": "https://issuer-b.facis-ztd.local",
+      "zone": "b"
+    }
+  ]
+}

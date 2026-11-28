@@ -1,0 +1,74 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/eclipse-xfsc/facis-zero-trust-demonstrator/docs/contracts/measurement-record.v1.schema.json",
+  "title": "Reference measurement record (contracts v1)",
+  "description": "One attested component's reference measurement as the pipeline hands it to the TRAIN publication step (scripts/train-publish). The value is the CMC container measurement of the component as deployed, the template hash over the normalised OCI configuration and the rootfs (ADR-0011, 4.1), never the image digest; the image digest travels beside it so a reader can tie the entry to the image that is running. Produced by the measurement step, consumed by the publisher; neither computes what the other owns.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["component", "zone", "serviceTypeIdentifier", "image", "measurement", "source"],
+  "properties": {
+    "component": {
+      "description": "The attested component, as the charts name it.",
+      "type": "string",
+      "pattern": "^[a-z][a-z0-9-]{0,62}$"
+    },
+    "zone": {
+      "description": "The zone the component is deployed in. With the component it fixes the entry's UUID.",
+      "type": "string",
+      "pattern": "^[a-z][a-z0-9-]{0,62}$"
+    },
+    "serviceTypeIdentifier": {
+      "description": "The string the verifying connector asks the TCR for; written into the entry's ServiceTypeIdentifier, the trust-list lookup key (ADR-0011, 4.3).",
+      "type": "string",
+      "minLength": 1
+    },
+    "image": {
+      "description": "The image the measurement was taken for, by digest. A tag is not accepted: the digest is what admission admits and what the running pod reports.",
+      "type": "string",
+      "pattern": "^[^@\\s]+@sha256:[0-9a-f]{64}$"
+    },
+    "measurement": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["type", "value", "configSha256", "rootfsSha256"],
+      "properties": {
+        "type": {
+          "description": "The algorithm lives in the type, never in the value (ADR-0011, 4.2). A new algorithm is a new type.",
+          "const": "TEEM-sha256"
+        },
+        "value": {
+          "description": "The template hash: sha256(normalised OCI config || rootfs hash), lowercase hex, no prefix.",
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "configSha256": {
+          "description": "The two halves the template hash is built from, for the record; the value above is what is published.",
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "rootfsSha256": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        }
+      }
+    },
+    "source": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["commit", "tool"],
+      "properties": {
+        "commit": {
+          "description": "The repository commit the measured configuration comes from.",
+          "type": "string",
+          "pattern": "^[0-9a-f]{7,40}$"
+        },
+        "tool": {
+          "description": "The measuring code and its revision, so two values are only compared when both sides ran the same one.",
+          "type": "string",
+          "minLength": 1
+        },
+        "producedAt": { "type": "string", "format": "date-time" }
+      }
+    }
+  }
+}
