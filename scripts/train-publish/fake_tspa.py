@@ -13,7 +13,10 @@ Tokens the token endpoint hands out, by client id: `publisher` with the secret i
 gets a token with enrolltf; `weak` gets a token without it; `ghost` gets a token the write side
 ignores as if absent. Anything else is 401. Three hooks exist for the test alone: POST /__fake/duplicate clones an
 entry, POST /__fake/after-next-get removes or adds an entry right after the next GET (a writer racing
-the publisher), and a framework named error-500* answers 500. State lives in memory; every request is
+the publisher), and a framework named error-500* answers 500. PUT /trustframework/{name} stores the
+scheme claim it is given (the name is the PTR's owner, the schemes its targets, as upstream has it)
+and answers 500 when the name starts with nozone (a zone manager the TSPA cannot reach, or a name
+outside the DNS zone it serves). State lives in memory; every request is
 appended as a JSON line to --log.
 
   fake_tspa.py --port PORT [--log FILE]
@@ -67,6 +70,7 @@ def schema_errors(node, data, at="$", out=None):
 
 
 pending_after_get = []   # test hook: list mutations applied right after the next GET of a trust list
+claims = {}     # PTR owner name -> the schemes PUT /trustframework/{name} received
 lists = {}      # framework -> {"FrameworkInformation": {...}, "TrustServiceProviderList": {"TrustServiceProvider": [...]}}
 log_path = None
 
@@ -203,6 +207,18 @@ class Handler(BaseHTTPRequestHandler):
 
     def do_PUT(self):
         p = self.path
+        if p.startswith(API + "/trustframework/"):      # a scheme claim, written through the zone manager
+            # Upstream's semantics: {name} is the owner of the PTR record (a name inside the DNS zone
+            # the manager serves), the body's schemes are its targets.
+            if not self._gate():
+                return
+            name = p[len(API + "/trustframework/"):]
+            body = json.loads(self._body() or b"{}")
+            schemes = body.get("schemes") or []
+            if name.startswith("nozone"):   # the zone manager cannot be reached, or refuses the name
+                return self._end(500, {"Map": {"status": 500, "error": "Internal Server Error", "path": p}})
+            claims[name] = schemes
+            return self._end(201, {"MapN": {"message": f"Trust-framework created for {name}", "status": 201}})
         if p.startswith(API + "/init/json/") and p.endswith("/trust-list"):
             if not self._gate():
                 return

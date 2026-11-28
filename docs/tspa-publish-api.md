@@ -279,7 +279,9 @@ payload schema, error/idempotency semantics, and a working local round-trip. Clo
 publication step itself, `scripts/train-publish/publish.sh`, whose two steps are proven against this same
 TSPA on kind, and its gate in `scripts/lifecycle.sh`, held by `scripts/lifecycle_test.sh` against stubs
 ([TRAIN publication step](train-publish.md)); the carrier is ADR-0011's `TEEM-sha256` pair in
-`TSPCertification`, with the image digest beside it.
+`TSPCertification`, with the image digest beside it. Closed since (2026-11-18): the issuers and
+zones of a framework as a file in the repository, reconciled into the list with `PUT`, `PATCH` and
+`DELETE` and the same read-back rule ([TRAIN trust lists](train-trust-lists.md)).
 
 Still open — **first, and not external:**
 - **decision**: which TSP field carries the TEEM and what the TCR/policy side reads (candidates in §1). This is a
@@ -299,7 +301,7 @@ commit `ecd5fdc` (+ `train-shared` `6a0abe4`), Keycloak 26.0 with the bundled re
 | # | Call | Status | Meaning |
 |---|---|---|---|
 | 2b | PUT tsp before the list exists (token) | 404 | order matters: list first, then entries |
-| 3 | PUT trustframework (token) | 500 | needs Zone Manager (external) |
+| 3 | PUT trustframework (token) | 500 | needs Zone Manager (external); with the kit's `TSPA_ZONE_MANAGER=1` it answers 201 and writes the PTR (`scripts/verify-train-trust-list/evidence.md`, 2026-11-19) |
 | 4a | PUT init/json trust-list (token) | 201 | list + first signed VC created |
 | 4b | PUT tsp, UUID U, `TEEM-sha256 = 1111…` (token) | 201 | **measurement written** |
 | 4c | GET trust-list | 200 | **`1111…` read back** |

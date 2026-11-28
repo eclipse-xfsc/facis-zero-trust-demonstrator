@@ -51,7 +51,10 @@ pair per value in force; `{Type: image-digest, Value: sha256:…}` pairs follow 
 reader can tie the entry to the image a pod reports. `ServiceTypeIdentifier` carries the
 connector's identifier, the field the TCR matches. `publish` writes the union of the values already
 there and the record's; `prune` writes the record's alone; `verify` only reads back. Details,
-outcomes and configuration: [scripts/train-publish](../scripts/train-publish/README.md).
+outcomes and configuration: [scripts/train-publish](../scripts/train-publish/README.md). The
+other entries of the same list, the issuers the framework trusts, are governed by a file in this
+repository and reconciled by another step, which never touches the publisher's entries
+([TRAIN trust lists](train-trust-lists.md)).
 
 ## The gate in the lifecycle step
 
