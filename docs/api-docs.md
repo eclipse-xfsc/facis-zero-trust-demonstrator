@@ -221,6 +221,10 @@ built. What is fixed now:
 - **Rules:** the evidence is bound to one TLS session, so a channel has a maximum lifetime and is
   replaced by a freshly attested one rather than refreshed. The gateway port speaks only the
   attested protocol; a plain TLS or plaintext client is refused (`CHAN-DOWNGRADE`).
+- **TRAIN behind the verifier:** after the peer's evidence verifies, the channel's peer verifier
+  asks TRAIN for the peer's expected measurement and compares
+  ([TRAIN resolution at the handshake](train-resolve.md)); its refusals are the `CHAN-*` codes
+  `MEASUREMENT-MISMATCH`, `MEASUREMENT-UNPUBLISHED`, `ZONE-UNKNOWN` and `TRUST-UNREACHABLE`.
 
 ## Attestation evidence
 

@@ -339,7 +339,9 @@ scenario is written from, and the traceability sheet reports the row as uncovere
 
 - **Trust list / measurement.** The window bounds the locally held copy from the moment the
   published list changes, not the time until it changes upstream: the trust list is not
-  provisioned by this project.
+  provisioned by this project. The copy is the resolver's cache of
+  [TRAIN resolution at the handshake](train-resolve.md), one TTL for presence and absence alike,
+  a failure never cached; its proof on kind measures a removal against this window.
 - **Connector issuer JWKS.** The connector guard validates token signatures against the
   connector's own published key set, so that is the artefact this row bounds. No requirement
   governs that key set's freshness directly: the SRS names neither a key set nor its rotation. The

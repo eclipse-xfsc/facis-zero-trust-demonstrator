@@ -12,9 +12,21 @@
 #                  (default: a431f14…, main on 2026-10-06)
 #   NAMESPACE      namespace for the release                           (default: train)
 #   DNS_IP         ClusterIP of the DNS service, inside kind's range   (default: 10.96.0.53)
+#   ZONE           the zone the manager serves; ns1/ns2/ns3.<ZONE> are its name servers
+#                  (default: values.yaml's trust.ztd.test)
+#   ISSUER_URL     OIDC issuer the API's write routes trust (auth.conf); CLIENT_ID the audience
+#                  (default: values.yaml's placeholders, which exercise no authenticated route)
 set -euo pipefail
 cd "$(dirname "$0")"
 CONTEXT=${KIND_CONTEXT:-kind-ztd}; NS=${NAMESPACE:-train}; DNS_IP=${DNS_IP:-10.96.0.53}
+# auth.conf is executed as Python by the zone manager, so every value carries its own quotes.
+extra=()
+[ -n "${ZONE:-}" ] && extra+=(--set "application.properties.zoneConfig.TF_DOMAIN_NAME=$ZONE"
+  --set "application.properties.zoneConfig.PRIMARY_SERVER_NSD=ns1.$ZONE"
+  --set "application.properties.zoneConfig.SECONDARY_SERVER_1_NSD=ns2.$ZONE"
+  --set "application.properties.zoneConfig.SECONDARY_SERVER_2_NSD=ns3.$ZONE")
+[ -n "${ISSUER_URL:-}" ] && extra+=(--set-string "application.properties.authConfigFileContent.ISSUER_URL=\"$ISSUER_URL\"")
+[ -n "${CLIENT_ID:-}" ] && extra+=(--set-string "application.properties.authConfigFileContent.CLIENT_ID=\"$CLIENT_ID\"")
 COMMIT=${COMMIT:-a431f148c4ef1f3c897385e99b463c556f271070}
 IMAGE=ztd/train-dns-zone-manager:${COMMIT:0:7}
 k() { kubectl --context "$CONTEXT" "$@"; }
@@ -53,6 +65,7 @@ helm template zonemanager "$UPSTREAM/deployment/helm/nsd" -n "$NS" -f values.yam
   --set application.properties.zoneConfig.PRIMARY_SERVER_IP="$DNS_IP" \
   --set application.properties.zoneConfig.SECONDARY_SERVER_1_IP="$DNS_IP" \
   --set application.properties.zoneConfig.SECONDARY_SERVER_2_IP="$DNS_IP" \
+  "${extra[@]}" \
 | awk -v ip="$DNS_IP" '
     /^---/                  { dns=0 }
     /^  name: .*-dns$/      { dns=1 }                                   # the DNS Service document

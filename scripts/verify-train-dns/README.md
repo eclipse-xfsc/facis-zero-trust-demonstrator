@@ -94,7 +94,10 @@ docker run --rm -v "$PWD/scripts/verify-train-dns:/w:ro" ubuntu:24.04 bash -c \
 to answer the DNSSEC questions before any client-side step: `zone-manager-up.sh` builds the image
 from the upstream Dockerfile at a pinned commit (with the two fixes it needs to start at all, see
 `zone-manager-findings.md`), installs the upstream chart with a ReadWriteOnce volume and a fixed
-ClusterIP for the DNS service, and prints the DS the zone manager generated. `toolbox.yaml` is the
+ClusterIP for the DNS service, and prints the DS the zone manager generated; `ZONE`, `ISSUER_URL` and
+`CLIENT_ID` in its environment pick the zone it serves and the OIDC issuer and audience its API trusts
+(the TSPA kit, `scripts/verify-tspa-api/kind-up.sh` with `TSPA_ZONE_MANAGER=1`, uses them to run the
+manager beside the TSPA). `toolbox.yaml` is the
 pod to run the inspector from; `unbound-up.sh "<DS>"` starts a validating resolver anchored on that
 DS, which is what the internet's resolvers become once the DS is published at the parent.
 
