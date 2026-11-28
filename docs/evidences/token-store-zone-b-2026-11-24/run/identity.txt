@@ -1,0 +1,5 @@
+issuer=C=ARPA, O=FACIS ZTD, CN=zone-b.trust.invalid, serialNumber=14124517092225300314263224327004414117
+X509v3 Subject Alternative Name: 
+    URI:spiffe://zone-b.trust.invalid/ns/ztd-m3-b/sa/ztd-token-store
+notBefore=Nov 24 09:04:10 2026 GMT
+notAfter=Nov 24 13:04:20 2026 GMT

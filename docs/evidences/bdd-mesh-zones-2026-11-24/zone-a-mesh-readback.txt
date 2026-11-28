@@ -1,0 +1,14 @@
+zone-a, context zerotrust-a, read 2026-11-24T11:05:35Z
+nodes: 3 (3 Ready)
+istio-system/istio-cni-node: desired 3, ready 3
+spire-system/spire-agent: desired 3, ready 3
+mesh mTLS mode: istio-system/default=STRICT tenant-a/tenant-data-mtls=STRICT tenant-b/tenant-data-mtls=STRICT ztd-data/ztd-guard-strict=STRICT ztd-data/ztd-policy-evaluator-strict=STRICT ztd-data/ztd-protected-resource-strict=STRICT
+SPIRE bundle: subject=C=ARPA, O=FACIS ZTD, CN=zone-a.trust.invalid, serialNumber=228533647272316730123167740181065321415
+namespace/pod | node | native sidecar | certificate SPIFFE ID | expected | verifies against the SPIRE bundle
+tenant-a/tenant-data-6c6bf85df7-xczm9 | 22p4h | yes | spiffe://zone-a.trust.invalid/ns/tenant-a/sa/tenant-data | same | yes
+tenant-b/tenant-data-649c557748-vb948 | 22p4h | yes | spiffe://zone-a.trust.invalid/ns/tenant-b/sa/tenant-data | same | yes
+ztd-data/ztd-connector-gateway-55d9978c85-bhs9n | fztmf | yes | spiffe://zone-a.trust.invalid/ns/ztd-data/sa/ztd-connector-gateway | same | yes
+ztd-data/ztd-guard-595f4d499c-582vk | fztmf | yes | spiffe://zone-a.trust.invalid/ns/ztd-data/sa/ztd-guard | same | yes
+ztd-data/ztd-policy-evaluator-9cfd75b4d-cmq48 | j82gf | yes | spiffe://zone-a.trust.invalid/ns/ztd-data/sa/ztd-policy-evaluator | same | yes
+ztd-mgmt/ztd-openbao-0 | j82gf | yes | spiffe://zone-a.trust.invalid/ns/ztd-mgmt/sa/ztd-openbao | same | yes
+meshed pods read: 6; own SPIFFE ID and verified: 6; native sidecar: 6; nodes with such a pod: 3

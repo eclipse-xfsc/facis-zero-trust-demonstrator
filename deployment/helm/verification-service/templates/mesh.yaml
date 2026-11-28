@@ -1,0 +1,32 @@
+# Inbound: the API port accepts the mesh's mutual TLS only.
+apiVersion: security.istio.io/v1
+kind: PeerAuthentication
+metadata:
+  name: {{ include "verification-service.name" . }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "verification-service.labels" . | nindent 4 }}
+spec:
+  selector:
+    matchLabels:
+      {{- include "verification-service.selector" . | nindent 6 }}
+  mtls:
+    mode: STRICT
+---
+# Outbound, at every caller: the caller's proxy accepts the server certificate only when it names
+# this service's SPIFFE ID. The token store's presentation hook delegates the authentication of
+# the service to exactly this.
+apiVersion: networking.istio.io/v1
+kind: DestinationRule
+metadata:
+  name: {{ include "verification-service.name" . }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "verification-service.labels" . | nindent 4 }}
+spec:
+  host: {{ printf "%s.%s.svc.cluster.local" (include "verification-service.name" .) .Release.Namespace }}
+  trafficPolicy:
+    tls:
+      mode: ISTIO_MUTUAL
+      subjectAltNames:
+        - {{ include "verification-service.spiffeID" . }}

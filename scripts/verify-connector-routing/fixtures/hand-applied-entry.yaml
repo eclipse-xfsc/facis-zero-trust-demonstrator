@@ -1,0 +1,78 @@
+# The kind rehearsal's copy of zone B's entry as it was applied by hand before the connector-gateway chart
+# (namespace ztd-m3-b, read from the cluster on 21 Nov 2026): the objects the chart's ingress role adopts
+# (scripts/verify-connector-routing/kind.sh). __NS__ is the rehearsal namespace, __IMAGE__ the Envoy image;
+# the Service is a NodePort here (kind has no load balancer), a LoadBalancer on zone B.
+apiVersion: v1
+kind: ServiceAccount
+metadata: { name: ztd-edge, namespace: __NS__ }
+---
+apiVersion: v1
+kind: ConfigMap
+metadata: { name: ztd-edge, namespace: __NS__ }
+data:
+  envoy.json: '{"static_resources": {"listeners": [{"name": "https", "address": {"socket_address": {"address": "0.0.0.0", "port_value": 8443}}, "filter_chains": [{"transport_socket": {"name": "envoy.transport_sockets.tls", "typed_config": {"@type": "type.googleapis.com/envoy.extensions.transport_sockets.tls.v3.DownstreamTlsContext", "common_tls_context": {"tls_params": {"tls_minimum_protocol_version": "TLSv1_2"}, "tls_certificates": [{"certificate_chain": {"filename": "/etc/tls/tls.crt"}, "private_key": {"filename": "/etc/tls/tls.key"}}]}}}, "filters": [{"name": "envoy.filters.network.http_connection_manager", "typed_config": {"@type": "type.googleapis.com/envoy.extensions.filters.network.http_connection_manager.v3.HttpConnectionManager", "stat_prefix": "participant_tls", "use_remote_address": true, "route_config": {"name": "participant", "virtual_hosts": [{"name": "participant", "domains": ["*"], "routes": [{"match": {"prefix": "/"}, "route": {"cluster": "participant", "timeout": "30s", "host_rewrite_literal": "ztd-participant.__NS__.svc.cluster.local"}}]}]}, "http_filters": [{"name": "envoy.filters.http.router", "typed_config": {"@type": "type.googleapis.com/envoy.extensions.filters.http.router.v3.Router", "suppress_envoy_headers": true}}]}}]}]}], "clusters": [{"name": "participant", "type": "STRICT_DNS", "connect_timeout": "2s", "load_assignment": {"cluster_name": "participant", "endpoints": [{"lb_endpoints": [{"endpoint": {"address": {"socket_address": {"address": "ztd-participant", "port_value": 8080}}}}]}]}}]}}'
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata: { name: ztd-edge, namespace: __NS__ }
+spec:
+  replicas: 1
+  selector: { matchLabels: { app.kubernetes.io/name: ztd-edge } }
+  template:
+    metadata:
+      annotations: { sidecar.istio.io/nativeSidecar: "true" }
+      labels: { app.kubernetes.io/name: ztd-edge, spiffe.io/spire-managed-identity: "true" }
+    spec:
+      serviceAccountName: ztd-edge
+      securityContext: { fsGroup: 65532, runAsGroup: 65532, runAsNonRoot: true, runAsUser: 65532, seccompProfile: { type: RuntimeDefault } }
+      containers:
+        - name: envoy
+          image: __IMAGE__
+          args: [-c, /etc/edge/envoy.json, --log-level, warning, --concurrency, "2"]
+          ports: [{ containerPort: 8443, name: https, protocol: TCP }]
+          readinessProbe: { tcpSocket: { port: 8443 }, periodSeconds: 10 }
+          resources: { limits: { memory: 256Mi }, requests: { cpu: 50m, memory: 64Mi } }
+          securityContext: { allowPrivilegeEscalation: false, capabilities: { drop: [ALL] }, readOnlyRootFilesystem: true }
+          volumeMounts:
+            - { mountPath: /etc/edge, name: config, readOnly: true }
+            - { mountPath: /etc/tls, name: tls, readOnly: true }
+            - { mountPath: /tmp, name: tmp }
+      volumes:
+        - { name: config, configMap: { name: ztd-edge } }
+        - { name: tls, secret: { secretName: ztd-edge-tls, defaultMode: 288 } }
+        - { name: tmp, emptyDir: {} }
+---
+apiVersion: v1
+kind: Service
+metadata: { name: ztd-edge, namespace: __NS__ }
+spec:
+  type: NodePort
+  selector: { app.kubernetes.io/name: ztd-edge }
+  ports: [{ name: https, port: 443, protocol: TCP, targetPort: 8443 }]
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata: { name: ztd-edge, namespace: __NS__ }
+spec:
+  podSelector: { matchLabels: { app.kubernetes.io/name: ztd-edge } }
+  policyTypes: [Ingress, Egress]
+  ingress: [{ from: [{ ipBlock: { cidr: 0.0.0.0/0 } }], ports: [{ port: 8443, protocol: TCP }] }]
+  egress:
+    - { to: [{ podSelector: { matchLabels: { app.kubernetes.io/name: ztd-participant } } }], ports: [{ port: 8080, protocol: TCP }] }
+    - { to: [{ namespaceSelector: { matchLabels: { kubernetes.io/metadata.name: istio-system } }, podSelector: { matchLabels: { app: istiod } } }], ports: [{ port: 15012, protocol: TCP }] }
+---
+apiVersion: security.istio.io/v1
+kind: PeerAuthentication
+metadata: { name: ztd-edge-tls, namespace: __NS__ }
+spec:
+  selector: { matchLabels: { app.kubernetes.io/name: ztd-edge } }
+  mtls: { mode: STRICT }
+  portLevelMtls: { "8443": { mode: DISABLE } }
+---
+apiVersion: security.istio.io/v1
+kind: AuthorizationPolicy
+metadata: { name: ztd-m3-edge-public, namespace: __NS__ }
+spec:
+  selector: { matchLabels: { app.kubernetes.io/name: ztd-edge } }
+  action: ALLOW
+  rules: [{ to: [{ operation: { ports: ["8443"] } }] }]

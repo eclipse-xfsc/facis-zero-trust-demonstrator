@@ -69,6 +69,8 @@ func (a *TokenAdapter) Request(ctx context.Context, request AdapterRequest) (*Ad
 	}
 	outbound.Header.Set("Content-Type", "application/json")
 	outbound.Header.Set("Accept", "application/json")
+	outbound.Header.Set("X-Request-ID", request.RequestID)
+	outbound.Header.Set("X-Correlation-ID", request.CorrelationID)
 	outbound.Header.Set("Authorization", authorization)
 	outbound.Header.Set("DPoP", proof)
 

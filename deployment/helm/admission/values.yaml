@@ -24,6 +24,11 @@ requestTimeout: 1s
 trust:
   repositories: []
   publicKeys: ""
+  # Third-party platform images admitted by exact reference, without signature, attestation or
+  # platform checks: "host/repository@sha256:<64 hex>", no tag (e.g. the injected Istio proxy). An
+  # image matches only when its reference is identical; another digest of the same repository is not
+  # admitted. The provider refuses a policy with a malformed entry. Empty by default.
+  allowedDigests: []
 
 # Validity of the generated provider CA and server certificate. Generated once and kept on upgrade;
 # delete the Secret to rotate (the Provider's caBundle is updated in the same release).
@@ -32,6 +37,12 @@ tls:
 
 # A plain-http registry host (host:port) - a local test registry only. Empty in any real deployment.
 insecurePlainHTTPRegistry: ""
+
+# Read credentials for private registries (a Harbor read-only robot account): the name of a
+# kubernetes.io/dockerconfigjson Secret in the release namespace. Empty: registries are read
+# anonymously. Read at start; restart the provider after rotating the Secret.
+registryAuth:
+  secretName: ""
 
 resources:
   requests:

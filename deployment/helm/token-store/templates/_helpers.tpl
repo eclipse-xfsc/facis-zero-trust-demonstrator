@@ -34,6 +34,15 @@ app.kubernetes.io/component: server
 {{- if not (regexMatch "^https?://(\\[[0-9A-Fa-f:.]+\\]|[A-Za-z0-9.-]+)(:[0-9]{1,5})?/?$" (.Values.openbao.address | toString)) -}}
 {{- fail "openbao.address must be the key-value store's base URL, http(s)://host[:port] with a DNS name or an IP, nothing more" -}}
 {{- end -}}
+{{- if and (eq .Values.openbao.auth.method "kubernetes") (not .Values.openbao.auth.role) -}}
+{{- fail "openbao.auth.method kubernetes needs openbao.auth.role" -}}
+{{- end -}}
+{{- if not (has .Values.openbao.auth.method (list "token" "kubernetes")) -}}
+{{- fail "openbao.auth.method must be token or kubernetes" -}}
+{{- end -}}
+{{- if lt (int .Values.openbao.auth.expirationSeconds) 600 -}}
+{{- fail "openbao.auth.expirationSeconds must be 600 or more (the kubelet's minimum)" -}}
+{{- end -}}
 {{- if not .Values.serviceAccount.name -}}
 {{- fail "serviceAccount.name must name the ServiceAccount the service runs as; it is the last segment of the store's SPIFFE ID" -}}
 {{- end -}}
@@ -60,6 +69,10 @@ app.kubernetes.io/component: server
 {{- fail "runtime requires acquisition ConfigMap and credential Secret key references" -}}
 {{- end -}}
 {{- if not (regexMatch "^[A-Za-z0-9._-]+$" .Values.runtime.openbaoTokenKey) -}}{{ fail "runtime.openbaoTokenKey must be a Secret data key" }}{{- end -}}
+{{- range .Values.runtime.credentialKeys -}}
+{{- if not (regexMatch "^[A-Za-z0-9._-]+$" .) -}}{{ fail "runtime.credentialKeys must be Secret data keys" }}{{- end -}}
+{{- if and (eq $.Values.openbao.auth.method "kubernetes") (eq . $.Values.runtime.openbaoTokenKey) -}}{{ fail "runtime.credentialKeys must not list the OpenBao token key with openbao.auth.method kubernetes" }}{{- end -}}
+{{- end -}}
 {{- if not .Values.identity.spireManagedIdentity -}}{{ fail "runtime requires SPIRE-managed identity" }}{{- end -}}
 {{- if not .Values.networkPolicy.enabled -}}{{ fail "runtime requires networkPolicy.enabled" }}{{- end -}}
 {{- range .Values.runtime.replayCallers -}}
@@ -68,18 +81,14 @@ app.kubernetes.io/component: server
 {{- end -}}
 {{- end -}}
 
-{{/* Preserve per-pod overrides but enforce the inbound XFCC prerequisite in runtime mode. */}}
+{{/* Per-pod overrides, and native sidecars in runtime mode. The inbound XFCC prerequisite (SANITIZE_SET) is
+mesh-wide (zone-policy, EnvoyFilter xfcc-sanitize-set): zone-policy refuses
+a per-pod proxy configuration in a plane namespace. */}}
 {{- define "token-store.annotations" -}}
 {{- $annotations := deepCopy .Values.podAnnotations -}}
+{{- if hasKey $annotations "proxy.istio.io/config" -}}{{ fail "podAnnotations: proxy.istio.io/config is refused at admission in a plane namespace (zone-policy); XFCC sanitization is mesh-wide, the EnvoyFilter xfcc-sanitize-set of zone-policy" }}{{- end -}}
 {{- if .Values.runtime.enabled -}}
 {{- $_ := set $annotations "sidecar.istio.io/nativeSidecar" "true" -}}
-{{- $proxy := dict -}}
-{{- if hasKey $annotations "proxy.istio.io/config" -}}
-{{- $proxy = fromYaml (index $annotations "proxy.istio.io/config") -}}
-{{- if hasKey $proxy "Error" -}}{{ fail "proxy.istio.io/config must be a YAML mapping" }}{{- end -}}
-{{- end -}}
-{{- $_ := set $proxy "proxyHeaders" (mergeOverwrite (get $proxy "proxyHeaders" | default dict) (dict "forwardedClientCert" "SANITIZE_SET")) -}}
-{{- $_ := set $annotations "proxy.istio.io/config" (toJson $proxy) -}}
 {{- end -}}
 {{- if $annotations }}
 annotations:

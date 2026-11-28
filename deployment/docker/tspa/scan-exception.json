@@ -1,0 +1,9 @@
+{
+  "expires": "2026-12-18",
+  "reason": "The HIGH/CRITICAL findings in this path belong to the dependency set of the upstream TRAIN trust-framework manager (eclipse-xfsc/train-trust-framework-manager at ecd5fdc: Spring Boot 3.2.2 with its embedded Tomcat 10.1.16, Spring Security 6.2.1, Jackson 2.15.3, Bouncy Castle 1.76 and others), 59 on 2026-11-24, some of them with no fixed version published. They cannot be fixed in this project's layer without changing the upstream component's dependencies. The Tomcat the image runs on (10.1.62) and its operating system packages scan clean and stay under the gate, as does everything else this project adds.",
+  "tracking": "Recorded on 2026-11-24, when the base image moved from Tomcat 10.1.16 to 10.1.62. Not yet raised with the upstream project. Remove this file when the pinned upstream commit builds on a dependency set that scans clean, or when the dependencies are overridden by a patch under deployment/docker/tspa/patches.",
+  "skipDirs": [],
+  "skipFiles": [
+    "/usr/local/tomcat/webapps/tspa-service.war"
+  ]
+}

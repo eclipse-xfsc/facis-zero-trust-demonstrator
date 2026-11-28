@@ -1,0 +1,86 @@
+{
+  "head": "c9a0d336f196d6600548740cffe73f007fd29145",
+  "branch": "local/m3-openbao-recovery",
+  "started": "2026-11-21T23:56:12.744757+00:00",
+  "mode": "run",
+  "status": "PASS",
+  "events": [
+    {
+      "time": "2026-11-21T23:56:18.679872+00:00",
+      "step": "zone-b-identity-configuration-and-health-verified"
+    },
+    {
+      "time": "2026-11-21T23:56:19.155445+00:00",
+      "step": "approved-temporary-listener-setting-applied"
+    },
+    {
+      "time": "2026-11-21T23:56:20.194615+00:00",
+      "step": "owned-openbao-pod-restart-requested"
+    },
+    {
+      "time": "2026-11-21T23:56:51.423743+00:00",
+      "step": "replacement-openbao-pod-unsealed-and-ready"
+    },
+    {
+      "time": "2026-11-21T23:56:53.659641+00:00",
+      "step": "temporary-administrator-created"
+    },
+    {
+      "time": "2026-11-21T23:57:01.663916+00:00",
+      "step": "kubernetes-auth-configured",
+      "namespace": "ztd-m3-b",
+      "roles": {
+        "ztd-m3-connector": "ztd-connector",
+        "ztd-m3-token-store": "ztd-token-store"
+      },
+      "audience": "openbao",
+      "ttlSeconds": 3600,
+      "newMount": true
+    },
+    {
+      "time": "2026-11-21T23:57:09.534246+00:00",
+      "step": "kubernetes-auth-logins-verified",
+      "roles": [
+        "ztd-m3-connector",
+        "ztd-m3-token-store"
+      ],
+      "refused": [
+        "wrong-audience",
+        "other-service-account"
+      ]
+    },
+    {
+      "time": "2026-11-21T23:57:10.410633+00:00",
+      "step": "temporary-administrator-revoked-and-refused"
+    },
+    {
+      "time": "2026-11-21T23:57:11.483584+00:00",
+      "step": "original-configmap-restored"
+    },
+    {
+      "time": "2026-11-21T23:57:12.507875+00:00",
+      "step": "owned-openbao-pod-restart-requested"
+    },
+    {
+      "time": "2026-11-21T23:57:41.621811+00:00",
+      "step": "replacement-openbao-pod-unsealed-and-ready"
+    },
+    {
+      "time": "2026-11-21T23:57:50.944118+00:00",
+      "step": "kubernetes-auth-logins-verified",
+      "roles": [
+        "ztd-m3-connector",
+        "ztd-m3-token-store"
+      ],
+      "refused": [
+        "wrong-audience",
+        "other-service-account"
+      ]
+    },
+    {
+      "time": "2026-11-21T23:57:50.944596+00:00",
+      "step": "original-configuration-health-and-endpoint-restored"
+    }
+  ],
+  "finished": "2026-11-21T23:57:50.947739+00:00"
+}

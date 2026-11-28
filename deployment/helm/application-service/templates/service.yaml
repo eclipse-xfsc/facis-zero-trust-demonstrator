@@ -12,3 +12,8 @@ spec:
     - name: http
       port: {{ .Values.port }}
       targetPort: http
+    {{- if .Values.grpcPort }}
+    - name: grpc
+      port: {{ .Values.grpcPort }}
+      targetPort: grpc
+    {{- end }}

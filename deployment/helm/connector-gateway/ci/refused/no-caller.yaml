@@ -1,0 +1,3 @@
+# The gateway admits named callers only.
+# expect: egress.callers: at least one caller
+egress: {callers: []}

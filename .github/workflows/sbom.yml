@@ -1,14 +1,16 @@
 name: Release SBOM (CycloneDX)
 
 # Every published release carries a signed CycloneDX SBOM of the Go module: sbom.json, checked by
-# cmd/sbomcheck, and sbom.json.sig, signed with the interim key and verifiable against
-# docs/contracts/keys/interim-cosign.pub (see docs/ci-cd.md). A release counts as done only when both
-# files are attached and the signature verifies; a release with no SBOM, an unsigned one, a half-finished
-# upload or a pair that does not verify is regenerated from its tag and attached again. A release run
+# cmd/sbomcheck, and sbom.json.sig, signed with the selected key (SIGNING_KEY_SOURCE, the interim key by
+# default) and verifiable against a key committed under docs/contracts/keys/ (see docs/ci-cd.md). A
+# release counts as done only when both files are attached and the signature verifies against a key of
+# that set; a release with no SBOM, an unsigned one or a half-finished upload is signed from its tag,
+# and a pair that verifies against no key is regenerated only if its release was signed with the current
+# key - an old release is never re-signed with a new one (scripts/supplychain/sbom-backfill.sh). A release run
 # covers the new tag, the scheduled run backfills anything that was missed, and a push to
 # candidate/<anything> runs it in a fork whose default branch does not carry this workflow.
 #
-# The interim key lives in the release environment. That environment admits main and candidate/*; for
+# The signing key lives in the release environment. That environment admits main and candidate/*; for
 # the run a published release starts (it runs on the tag) to reach the key, the environment must also
 # admit the release tags (v*) - a repository setting, recorded in docs/ci-cd.md.
 on:
@@ -28,9 +30,27 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
+  # The runner the job that holds the signing key runs on: the repository variable SIGNING_RUNNER, a
+  # JSON array of labels, checked here; GitHub's hosted runner while it is unset (docs/ci-cd.md).
+  signing-runner:
+    name: Signing runner
+    runs-on: ubuntu-latest
+    outputs:
+      labels: ${{ steps.labels.outputs.labels }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Check the runner labels
+        id: labels
+        env:
+          SIGNING_RUNNER: ${{ vars.SIGNING_RUNNER }}
+        run: echo "labels=$(scripts/supplychain/runner-labels.sh)" >> "$GITHUB_OUTPUT"
+
   sbom:
     name: Generate, sign and attach the SBOM
-    runs-on: ubuntu-latest
+    needs: [signing-runner]
+    runs-on: ${{ fromJSON(needs.signing-runner.outputs.labels) }}
     environment: release
     permissions:
       contents: write # uploads the SBOM and its signature onto the release
@@ -65,56 +85,57 @@ jobs:
           scripts/tools/install.sh "$RUNNER_TEMP/bin" cosign syft
           echo "$RUNNER_TEMP/bin" >> "$GITHUB_PATH"
 
+      # The key source (SIGNING_KEY_SOURCE) and its public key: references and paths only, into the job's env.
+      - name: Select the signing key
+        if: steps.go-mod.outputs.exists == 'true'
+        env:
+          SIGNING_KEY_SOURCE: ${{ vars.SIGNING_KEY_SOURCE }}
+          SIGNING_TRANSIT_KEY: ${{ vars.SIGNING_TRANSIT_KEY }}
+          SIGNING_TRANSIT_PATH: ${{ vars.SIGNING_TRANSIT_PATH }}
+          SIGNING_VAULT_ADDR: ${{ vars.SIGNING_VAULT_ADDR }}
+        run: scripts/supplychain/key-source.sh >> "$GITHUB_ENV"
+
       - name: Check the signing key
         if: steps.go-mod.outputs.exists == 'true'
         env:
-          COSIGN_INTERIM_KEY: ${{ secrets.COSIGN_INTERIM_KEY }}
-          COSIGN_PASSWORD: ${{ secrets.COSIGN_INTERIM_PASSWORD }}
+          COSIGN_INTERIM_KEY: ${{ (vars.SIGNING_KEY_SOURCE || 'interim') == 'interim' && secrets.COSIGN_INTERIM_KEY || '' }}
+          COSIGN_CLIENT_KEY: ${{ vars.SIGNING_KEY_SOURCE == 'client' && secrets.COSIGN_CLIENT_KEY || '' }}
+          COSIGN_PASSWORD: ${{ (vars.SIGNING_KEY_SOURCE || 'interim') == 'interim' && secrets.COSIGN_INTERIM_PASSWORD || (vars.SIGNING_KEY_SOURCE == 'client' && secrets.COSIGN_CLIENT_PASSWORD || '') }}
+          VAULT_TOKEN: ${{ vars.SIGNING_KEY_SOURCE == 'openbao-transit' && secrets.SIGNING_VAULT_TOKEN || '' }}
         run: scripts/supplychain/check-key.sh
 
       - name: Attach a signed SBOM to every release that lacks a verifying one
         if: steps.go-mod.outputs.exists == 'true'
         env:
-          COSIGN_KEY: env://COSIGN_INTERIM_KEY
-          COSIGN_INTERIM_KEY: ${{ secrets.COSIGN_INTERIM_KEY }}
-          COSIGN_PASSWORD: ${{ secrets.COSIGN_INTERIM_PASSWORD }}
-        run: |
-          public=docs/contracts/keys/interim-cosign.pub
-          failed=0
+          COSIGN_INTERIM_KEY: ${{ (vars.SIGNING_KEY_SOURCE || 'interim') == 'interim' && secrets.COSIGN_INTERIM_KEY || '' }}
+          COSIGN_CLIENT_KEY: ${{ vars.SIGNING_KEY_SOURCE == 'client' && secrets.COSIGN_CLIENT_KEY || '' }}
+          COSIGN_PASSWORD: ${{ (vars.SIGNING_KEY_SOURCE || 'interim') == 'interim' && secrets.COSIGN_INTERIM_PASSWORD || (vars.SIGNING_KEY_SOURCE == 'client' && secrets.COSIGN_CLIENT_PASSWORD || '') }}
+          VAULT_TOKEN: ${{ vars.SIGNING_KEY_SOURCE == 'openbao-transit' && secrets.SIGNING_VAULT_TOKEN || '' }}
+        run: scripts/supplychain/sbom-backfill.sh
 
-          # Every published release, all pages; a failed listing fails the run instead of looking empty.
-          tags="$(gh api --paginate "repos/$GITHUB_REPOSITORY/releases" --jq '.[] | select(.draft | not) | .tag_name')"
+  # ZT-10: the SBOM job.
+  # Once the signing jobs have completed, successful or not, their published logs must hold no private-key
+  # material (scripts/secrets/log_audit.py signing-audit); the record is counts and verdicts only.
+  signing-log-audit:
+    name: Signing log audit
+    needs: [sbom]
+    if: always()
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      actions: read # downloads the signing jobs' published logs
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
-          while read -r tag; do
-            [ -n "$tag" ] || continue
-            check="$(mktemp -d)"
+      - name: Audit the signing jobs' logs
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: python3 scripts/secrets/log_audit.py signing-audit --job "Generate, sign and attach the SBOM" --out bundles/signing
 
-            # Done only if both files are attached and the signature verifies.
-            if gh release download "$tag" --dir "$check" --pattern "$SBOM_NAME" --pattern "$SBOM_NAME.sig" 2>/dev/null \
-              && [ -s "$check/$SBOM_NAME" ] && [ -s "$check/$SBOM_NAME.sig" ] \
-              && cosign verify-blob --key "$public" --insecure-ignore-tlog=true \
-                   --signature "$check/$SBOM_NAME.sig" "$check/$SBOM_NAME" >/dev/null 2>&1; then
-              echo "Signed SBOM already attached to $tag"
-              rm -rf "$check"
-              continue
-            fi
-            rm -rf "$check"
-
-            if ! git cat-file -e "refs/tags/$tag:go.mod" 2>/dev/null; then
-              echo "No go.mod at $tag - skipped"
-              continue
-            fi
-
-            echo "Generating and signing the SBOM for $tag"
-            workdir="$(mktemp -d)" out="$(mktemp -d)/$SBOM_NAME"
-            git worktree add --quiet --detach "$workdir" "refs/tags/$tag"
-            if scripts/supplychain/repo-sbom.sh "$workdir" "$out"; then
-              gh release upload "$tag" "$out" "$out.sig" --clobber
-            else
-              echo "::error::could not produce a signed SBOM for $tag"
-              failed=1
-            fi
-            git worktree remove --force "$workdir"
-          done <<< "$tags"
-
-          exit "$failed"
+      - name: Keep the audit record
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: signing-log-audit
+          path: bundles/signing

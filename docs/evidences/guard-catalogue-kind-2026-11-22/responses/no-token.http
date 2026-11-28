@@ -1,0 +1,10 @@
+HTTP/1.1 401 Unauthorized
+content-type: application/json
+x-facis-reason-code: TOK-MISSING
+x-request-id: f974b7643bd977c07c46ee75a3367625
+content-length: 55
+date: Sun, 22 Nov 2026 00:38:28 GMT
+server: envoy
+x-envoy-upstream-service-time: 5
+
+{"error":"request_refused","reason_code":"TOK-MISSING"}

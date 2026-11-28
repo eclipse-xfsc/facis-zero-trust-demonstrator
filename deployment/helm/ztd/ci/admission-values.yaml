@@ -1,0 +1,28 @@
+# The admission release (values.yaml, "The admission release only"), layered on ci/values.yaml by
+# the chart check (scripts/ci/check-charts.sh renders ci/values.yaml, then each ci/*-values.yaml on
+# top of it). Gatekeeper, the provider, the constraint templates, the exemptions and the admission
+# pool; not the constraints, whose kinds exist only once Gatekeeper has generated them, so the
+# release gate's server dry-run could not map them (CI renders the constraints through
+# scripts/install-zone/install.sh render gatekeeper). A placeholder digest and a throwaway test key,
+# never deployed; the check runs in the default namespace, so the provider's Gatekeeper namespace
+# is set to match it, as in deployment/helm/admission/ci/values.yaml.
+gatekeeper:
+  enabled: true
+admissionProvider:
+  enabled: true
+  gatekeeper:
+    namespace: default
+  image:
+    digest: sha256:0000000000000000000000000000000000000000000000000000000000000000
+  trust:
+    repositories:
+      - ghcr.io/eclipse-xfsc/facis-zero-trust-demonstrator
+    publicKeys: |
+      -----BEGIN PUBLIC KEY-----
+      MFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAEmnFIdoy5ntDBScgR9l9q9YA4ePIq
+      oOb2eIKfvDzDVluCBDS7s4kkLQTL4hxKGjBmYsZYHbduz8H5uHFxkQalFA==
+      -----END PUBLIC KEY-----
+admissionPool:
+  enabled: true
+admissionPolicy:
+  templates: true

@@ -48,3 +48,27 @@ The authoritative allow/deny decision for a protected resource stays on the conn
 path. Keycloak is not asked to reinterpret it, and nothing outside that path overrides it. The
 reasoning, including why Keycloak's own DPoP and OID4VCI support is not depended on, is in
 [ADR-0003](adr/0003-oauth2-authorisation-surface-in-the-go-connector.md).
+
+## Packaged runtime and integration proof
+
+The viewer identity flows (OIDC UI at `/dev/facis-demo/`, identity endpoints at `/dev/ztd/`, the
+authenticated journey receiver) are proven as a component, not yet packaged: the ORCE image keeps its
+own built-in authentication and copies only the lifecycle flow, so a deployed ORCE does not serve these
+routes until they are packaged with a separate review. When they are, set the ORCE chart's `identity.issuer` to the Keycloak
+chart's `keycloak.publicUrl` plus `/realms/facis-ztd`; set `identity.uiOrigin` and the ingress host
+to the same UI origin configured in Keycloak's `ui.origin`. These become `FACIS_OIDC_ISSUER` and
+`FACIS_UI_ORIGIN` in the function runtime. Both require HTTPS. The realm's exact redirect/logout
+URLs must agree; no password grant or Keycloak service token is introduced.
+
+Viewer command decisions emit `ui.authorization` with `state`, `reason_code`, `action` and a
+server-generated `correlation_id`; the response carries the same ID in `X-Request-ID`. No session,
+password or token is logged. IF-08 keeps Basic authentication; only the exact identity routes and
+static UI assets use the viewer boundary. The legacy unauthenticated socket interface is not loaded.
+
+Run `PATH=/opt/homebrew/bin:$PATH scripts/verify-keycloak/run.sh` for the isolated local-services
+TDR-BDD-05 proof. It uses the Helm-rendered realm, real PKCE logins and JWKS, then verifies the
+machine chain and its refusal of a Keycloak viewer token. See the
+[proof instructions](../scripts/verify-keycloak/README.md) and
+[run record](evidences/bdd-keycloak-2026-11-23/README.md). Packaged sample journeys remain
+samples; the machine authorization proof runs the real Go services separately, as the identity
+model requires.

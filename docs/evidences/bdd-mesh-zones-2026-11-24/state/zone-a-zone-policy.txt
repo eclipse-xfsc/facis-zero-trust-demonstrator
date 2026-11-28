@@ -1,0 +1,7 @@
+zone-a zone-policy, read 2026-11-24T11:05:48Z (backup of the release taken 2026-11-24 before any run)
+release: revision 10, deployed, chart zone-policy-0.3.0, updated 2026-11-23T15:20:17.853525-01:00
+Telemetry mesh-default filter: response.code_details.startsWith("rbac_access_denied") || connection.termination_details.startsWith("rbac_access_denied") || response.code_details == "filter_chain_not_found"
+Telemetry mesh-default managed by: helm 2026-11-23T16:13:54Z
+stored values = rendered values file: equal
+stored manifest: 17 objects; render: 17 objects that are not hooks; equal: yes
+server-side dry run of the render's non-hook objects (kubectl diff --server-side --field-manager helm): exit 1, 17 objects reported, changed lines: 44, of them not a meta.helm.sh annotation: 0

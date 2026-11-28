@@ -9,6 +9,9 @@ on:
     paths:
       - cmd/policy-hook-probe/**
       - internal/policyhook/**
+      - services/guard/**
+      - services/policyevaluator/**
+      - deployment/helm/guard/**
       - scripts/verify-policy-hook/**
       - scripts/tools/pins.env
       - docs/contracts/fixtures/if05-policy-decision.v1/**
@@ -39,6 +42,15 @@ jobs:
       # The records go to the runner's temp directory, outside the checkout.
       - name: Run the proofs against the pinned Envoy
         run: scripts/verify-policy-hook/verify.sh --out "$RUNNER_TEMP/evidence"
+
+      # The guard's own path, REST and gRPC, through the same pinned Envoy configured with the guard
+      # chart's rendered bootstrap. The test skips without the image, so the skip is refused here.
+      - name: Run the guard's gRPC and REST path against the pinned Envoy
+        run: |
+          set -o pipefail
+          . scripts/tools/pins.env
+          GUARD_ENVOY_IMAGE="$ENVOY_IMAGE" go test ./services/guard -run TestGuardedGRPCThroughEnvoy -count=1 -v | tee "$RUNNER_TEMP/guard-grpc.log"
+          ! grep -q -- '--- SKIP' "$RUNNER_TEMP/guard-grpc.log"
 
       - name: Write the verdict to the job summary
         if: ${{ !cancelled() }}

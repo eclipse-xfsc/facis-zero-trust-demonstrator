@@ -11,10 +11,12 @@
 # key's reference and RFC 7638 thumbprint (checked against one computed with openssl), transit
 # refuses to export the key, `keys rotate` retires the previous version and transit no longer signs
 # with it, and with OpenBao gone readiness fails closed while no key material or OpenBao token
-# reaches the database or the records. Builds the image from the working tree, pushes it to a
-# registry on the kind network, runs PostgreSQL and OpenBao from the pinned images inside the
-# cluster with the connection URL in a Secret, as a real deployment has it, and writes its records
-# and verdict to --out.
+# reaches the database or the records; with OpenBao Kubernetes auth instead of the token, the
+# service logs in with its projected service-account token, logs in again before each token
+# expires, fails closed while its login is refused and recovers without a restart. Builds the
+# image from the working tree, pushes it to a registry on the kind network, runs PostgreSQL and
+# OpenBao from the pinned images inside the cluster with the connection URL in a Secret, as a real
+# deployment has it, and writes its records and verdict to --out.
 #
 #   scripts/verify-token-store/verify.sh [--out DIR]       default .dev/token-store-evidence (git-ignored)
 #   BIN=<dir with kind and kubectl> ...                    default .tools/bin (scripts/tools/install.sh kind kubectl)
@@ -389,6 +391,31 @@ spec:
   ports:
     - port: 5432
 ---
+# OpenBao's own account: the Kubernetes-auth stage has it review the store's projected token with
+# the API server's TokenReview (system:auth-delegator), over the API lane below.
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: openbao
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: token-store-verify-openbao-auth-delegator
+roleRef: {apiGroup: rbac.authorization.k8s.io, kind: ClusterRole, name: system:auth-delegator}
+subjects:
+  - {kind: ServiceAccount, name: openbao, namespace: $ns}
+---
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: openbao-kube-api
+spec:
+  endpointSelector:
+    matchLabels: {app: openbao}
+  egress:
+    - toEntities: [kube-apiserver]
+---
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -401,6 +428,7 @@ spec:
     metadata:
       labels: {app: openbao}
     spec:
+      serviceAccountName: openbao
       containers:
         - name: openbao
           image: "$OPENBAO_IMAGE"
@@ -740,6 +768,101 @@ if grep -q "exit [1-9]" "$out/key-retired-sign-refused.txt" && grep -qi "less th
   pass "transit refuses to sign with the retired version and signs with the active one"
 else
   fail "signing after the rotation: $(cat "$out/key-retired-sign-refused.txt" | tr '\n' ';')"
+fi
+
+# 3b. Kubernetes auth instead of the token: the service logs in with its projected, audience-bound
+# service-account token, logs in again before each OpenBao token expires (role ttl $auth_ttl, a short
+# one: it proves re-login, not a soak), fails closed while the login is refused and recovers without
+# a restart, and a restarted pod logs in fresh. The service token above is revoked first, so nothing
+# but the login can serve it.
+auth_ttl=30
+api_ip=$(kubectl get svc kubernetes -n default -o jsonpath='{.spec.clusterIP}')
+bao "$root" auth enable kubernetes </dev/null >/dev/null
+bao "$root" write auth/kubernetes/config "kubernetes_host=https://$api_ip:443" </dev/null >/dev/null
+auth_role() {
+  bao "$root" write auth/kubernetes/role/ztd-token-store bound_service_account_names=ztd-token-store \
+    "bound_service_account_namespaces=$1" audience=openbao token_policies=token-store \
+    "token_ttl=${auth_ttl}s" "token_max_ttl=${auth_ttl}s" </dev/null >/dev/null
+}
+auth_role "$ns"
+bao "$root" token revoke "$runtime_token" </dev/null >/dev/null
+if [ "$(bao "$runtime_token" token lookup </dev/null >/dev/null 2>&1; echo $?)" != 0 ]; then pass "kubernetes auth: the service token is revoked; only the login can serve the store"; else fail "kubernetes auth: the service token still works"; fi
+helm upgrade "$release" deployment/helm/token-store -n "$ns" "${values[@]}" --set schema.dropOnUninstall=true \
+  --set runtime.enabled=true --set runtime.existingConfigMap=ztd-token-store-acquisition \
+  --set runtime.credentialsSecret=ztd-token-store-credentials \
+  --set openbao.auth.method=kubernetes --set openbao.auth.role=ztd-token-store \
+  --wait --wait-for-jobs --timeout 3m >/dev/null
+kubectl -n "$ns" rollout status deploy/ztd-token-store --timeout=120s >/dev/null
+kubectl -n "$ns" get deploy ztd-token-store -o json | jq '.spec.template.spec | {automountServiceAccountToken, volumes: [.volumes[] | select(.projected) | .projected.sources[].serviceAccountToken]}' > "$out/kubeauth-pod-spec.json"
+if jq -e '.automountServiceAccountToken == false and .volumes == [{"audience":"openbao","expirationSeconds":600,"path":"token"}]' "$out/kubeauth-pod-spec.json" >/dev/null; then
+  pass "kubernetes auth: the pod mounts one projected token for audience openbao (600 s, rotated by the kubelet) and no API token"
+else
+  fail "kubernetes auth: pod spec $(tr -d '\n' < "$out/kubeauth-pod-spec.json")"
+fi
+code=$(probe 9090 /readyz "$out/kubeauth-readyz.json")
+if [ "$code" = 200 ] && [ "$(word "$out/kubeauth-readyz.json" signing_key)" = ok ]; then
+  pass "kubernetes auth: /readyz 200 with signing_key ok through the login alone"
+else
+  fail "kubernetes auth: /readyz after the switch: $code $(cat "$out/kubeauth-readyz.json" 2>/dev/null)"
+fi
+kpod=$(store_pod)
+bad=0
+: > "$work/login-accessors.txt"
+# The tokens the logins issued, by accessor (never the token): OpenBao lists the live ones, so a
+# sample every 5 s sees each before it expires.
+login_accessors() {
+  local a
+  for a in $(bao "$root" list -format=json auth/token/accessors </dev/null 2>/dev/null | jq -r '.[]'); do
+    if bao "$root" token lookup -format=json -accessor "$a" </dev/null 2>/dev/null | jq -e '.data.path == "auth/kubernetes/login"' >/dev/null; then
+      echo "$a" >> "$work/login-accessors.txt"
+    fi
+  done
+}
+for _ in $(seq 1 15); do  # 75 s, two and a half token lifetimes
+  sleep 5
+  code=$(probe 9090 /readyz "$work/kubeauth-hold.json")
+  if [ "$code" != 200 ] || [ "$(word "$work/kubeauth-hold.json" signing_key)" != ok ]; then bad=$((bad + 1)); fi
+  login_accessors
+done
+logins=$(sort -u "$work/login-accessors.txt" | wc -l | tr -d ' ')
+echo "distinct login tokens seen: $logins; readiness failures over 75 s: $bad" > "$out/kubeauth-relogin.txt"
+if [ "$bad" = 0 ] && [ "$logins" -ge 4 ]; then
+  pass "kubernetes auth: ready throughout 75 s of ${auth_ttl} s tokens, with $logins logins (re-login before each expiry)"
+else
+  fail "kubernetes auth: re-login: $(cat "$out/kubeauth-relogin.txt")"
+fi
+auth_role elsewhere
+if kubectl -n "$ns" wait --for=condition=Ready=false pod "$kpod" --timeout=90s >/dev/null 2>&1; then
+  code=$(probe 9090 /readyz "$out/kubeauth-refused-readyz.json")
+  if [ "$code" = 503 ] && [ "$(word "$out/kubeauth-refused-readyz.json" signing_key)" = unreachable ] && [ "$(word "$out/kubeauth-refused-readyz.json" openbao)" = ok ]; then
+    pass "kubernetes auth: with the login refused (role rebound to another namespace) readiness fails closed once the token expires: 503, signing_key unreachable, openbao ok"
+  else
+    fail "kubernetes auth: refused login: $code $(cat "$out/kubeauth-refused-readyz.json" 2>/dev/null)"
+  fi
+else
+  fail "kubernetes auth: the pod stayed Ready with its login refused"
+fi
+auth_role "$ns"
+if kubectl -n "$ns" wait --for=condition=Ready pod "$kpod" --timeout=90s >/dev/null 2>&1; then
+  pass "kubernetes auth: with the role restored the same pod is Ready again"
+else
+  fail "kubernetes auth: the pod did not recover after the role was restored"
+fi
+restarts=$(kubectl -n "$ns" get pod "$kpod" -o jsonpath='{.status.containerStatuses[?(@.name=="server")].restartCount}')
+if [ "$restarts" = 0 ]; then pass "kubernetes auth: no restart through re-logins, the refusal and the recovery"; else fail "kubernetes auth: $restarts restarts"; fi
+kubectl -n "$ns" logs "$kpod" -c server > "$out/kubeauth-store-logs.txt"
+if [ "$(grep -c 'eyJ' "$out/kubeauth-store-logs.txt" || true)" = 0 ] && [ "$(scan "$out/kubeauth-store-logs.txt" kubeauth-records)" = 0 ]; then
+  pass "kubernetes auth: no JWT, OpenBao token or key material in the records"
+else
+  fail "kubernetes auth: a credential in the records"
+fi
+kubectl -n "$ns" delete pod "$kpod" --wait=true >/dev/null
+kubectl -n "$ns" rollout status deploy/ztd-token-store --timeout=120s >/dev/null
+code=$(probe 9090 /readyz "$out/kubeauth-restarted-readyz.json")
+if [ "$code" = 200 ] && [ "$(word "$out/kubeauth-restarted-readyz.json" signing_key)" = ok ]; then
+  pass "kubernetes auth: a restarted pod logs in fresh and is ready"
+else
+  fail "kubernetes auth: restarted pod: $code $(cat "$out/kubeauth-restarted-readyz.json" 2>/dev/null)"
 fi
 
 # 4. OpenBao gone: readiness fails closed, liveness holds, and the records carry no key material.

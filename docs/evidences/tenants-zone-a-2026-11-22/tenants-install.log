@@ -1,0 +1,19 @@
+Zone file: deployment/helm/ztd/zones/zone-a.yaml   role: participant   context: zerotrust-a
+  1/13  ztd               into ztd-system        chart deployment/helm/ztd values the zone file
+  2/13  spire-crds        into spire-system      chart spire-crds 0.6.1 values deployment/helm/values/spire-crds.yaml
+  3/13  spire             into spire-system      chart spire 0.30.2 values deployment/helm/values/spire.yaml + zone facts global.spire.trustDomain=zone.trustDomain global.spire.clusterName=zone.name global.spire.persistence.storageClass=zone.storageClass global.spire.caSubject.commonName=zone.trustDomain
+  4/13  istio-base        into istio-system      chart base 1.31.1  values deployment/helm/values/istio-base.yaml
+  5/13  istiod            into istio-system      chart istiod 1.31.1 values deployment/helm/values/istiod.yaml + zone facts meshConfig.trustDomain=zone.trustDomain
+  6/13  istio-cni         into istio-system      chart cni 1.31.1   values deployment/helm/values/istio-cni.yaml
+  7/13  zone-policy       into istio-system      chart deployment/helm/zone-policy values chart defaults + zone facts trustDomain=zone.trustDomain planes.management.namespace=planes.management.namespace planes.data.namespace=planes.data.namespace pairs=allowMatrix+intraPlanePairs (wait-for-jobs)
+  8/13  ztd-openbao       into ztd-mgmt          chart deployment/helm/ztd-openbao values chart defaults + zone facts managementNamespace=planes.management.namespace openbao.global.namespace=planes.management.namespace openbao.server.dataStorage.storageClass=zone.storageClass cilium.enabled=cni.cilium.enabled trustDomain=zone.trustDomain mesh.mode=mesh.mode (wait-for-jobs)
+  9/13  otel-node         into ztd-otel-node     chart opentelemetry-collector 0.176.1 values deployment/helm/values/otel-node.yaml
+  10/13  otel-gateway      into ztd-mgmt          chart opentelemetry-collector 0.176.1 values deployment/helm/values/otel-gateway.yaml
+  11/13  ztd-guard         into ztd-data          chart deployment/helm/guard values guard + zone facts trustDomain=zone.trustDomain
+  12/13  ztd-tenant-tenant-a into tenant-a          chart deployment/helm/tenant values tenant:tenant-a + zone facts trustDomain=zone.trustDomain
+  13/13  ztd-tenant-tenant-b into tenant-b          chart deployment/helm/tenant values tenant:tenant-b + zone facts trustDomain=zone.trustDomain
+step 12/13: ztd-tenant-tenant-a into tenant-a ...
+step 12/13: ztd-tenant-tenant-a deployed, revision 1
+step 13/13: ztd-tenant-tenant-b into tenant-b ...
+step 13/13: ztd-tenant-tenant-b deployed, revision 1
+installed: ztd-tenant-tenant-a ztd-tenant-tenant-b

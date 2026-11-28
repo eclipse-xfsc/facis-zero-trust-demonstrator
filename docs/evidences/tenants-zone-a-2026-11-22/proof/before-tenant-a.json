@@ -1,0 +1,107 @@
+[
+  {
+    "kind": "AuthorizationPolicy",
+    "name": "tenant-data-members",
+    "resourceVersion": "28021454"
+  },
+  {
+    "kind": "ConfigMap",
+    "name": "istio-ca-crl",
+    "resourceVersion": "28020857"
+  },
+  {
+    "kind": "ConfigMap",
+    "name": "istio-ca-root-cert",
+    "resourceVersion": "28020856"
+  },
+  {
+    "kind": "ConfigMap",
+    "name": "kube-root-ca.crt",
+    "resourceVersion": "28020858"
+  },
+  {
+    "kind": "ConfigMap",
+    "name": "tenant-data",
+    "resourceVersion": "28021428"
+  },
+  {
+    "kind": "Deployment",
+    "name": "tenant-data",
+    "resourceVersion": "28021519"
+  },
+  {
+    "kind": "NetworkPolicy",
+    "name": "allow-dns-egress",
+    "resourceVersion": "28020961"
+  },
+  {
+    "kind": "NetworkPolicy",
+    "name": "allow-intra-plane",
+    "resourceVersion": "28020965"
+  },
+  {
+    "kind": "NetworkPolicy",
+    "name": "allow-mesh-control-plane-egress",
+    "resourceVersion": "28020968"
+  },
+  {
+    "kind": "NetworkPolicy",
+    "name": "default-deny",
+    "resourceVersion": "28020955"
+  },
+  {
+    "kind": "NetworkPolicy",
+    "name": "participant-to-tenant-guards",
+    "resourceVersion": "28021423"
+  },
+  {
+    "kind": "PeerAuthentication",
+    "name": "tenant-data-mtls",
+    "resourceVersion": "28021455"
+  },
+  {
+    "kind": "Role",
+    "name": "tenant-owner",
+    "resourceVersion": "28021431"
+  },
+  {
+    "kind": "RoleBinding",
+    "name": "tenant-owner",
+    "resourceVersion": "28021432"
+  },
+  {
+    "kind": "Secret",
+    "name": "sh.helm.release.v1.ztd-tenant-tenant-a.v1",
+    "resourceVersion": "28021525"
+  },
+  {
+    "kind": "Secret",
+    "name": "tenant-credentials",
+    "resourceVersion": "28021427"
+  },
+  {
+    "kind": "Service",
+    "name": "tenant-data",
+    "resourceVersion": "28021436"
+  },
+  {
+    "kind": "ServiceAccount",
+    "name": "default",
+    "resourceVersion": "28020859"
+  },
+  {
+    "kind": "ServiceAccount",
+    "name": "tenant-admin",
+    "resourceVersion": "28021424"
+  },
+  {
+    "kind": "ServiceAccount",
+    "name": "tenant-data",
+    "resourceVersion": "28021426"
+  },
+  {
+    "kind": "ServiceAccount",
+    "name": "ztd-participant",
+    "resourceVersion": "28021425"
+  }
+]

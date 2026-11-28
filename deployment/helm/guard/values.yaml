@@ -4,10 +4,21 @@ images:
   policy: {repository: ghcr.io/eclipse-xfsc/facis-zero-trust-demonstrator/policy-evaluator, digest: ""}
   # Mirror the pinned Envoy v1.36.10 image without changing its manifest digest.
   envoy: {repository: ghcr.io/eclipse-xfsc/facis-zero-trust-demonstrator/envoy, digest: "sha256:3a76238cdf52c7a3e33951f44c02d694108e6481feffe6663bf9319f55ec1394"}
+# The zone letter: the IF-01 v2 decision events carry source guard-<zone> and policy-<zone>.
+zone: b
 trustDomain: zone-b.trust.invalid
 participantServiceAccount: ztd-participant
 resourceName: ztd-protected-resource
 resourcePort: 8080
+# Unary gRPC methods guarded besides the REST route, as full method paths
+# (/package.Service/Method). Empty leaves the guard REST-only. Each method is authorised through
+# the same hook and policy as the REST route and forwarded to the resource's gRPC port over
+# cleartext HTTP/2, with the REST route's 15 s response timeout: a streaming method is cut off at
+# it. The guard's Service port is then named http2, the protocol Istio needs declared to carry
+# gRPC; the resource's Service must declare its gRPC port as HTTP/2 or gRPC too (README).
+grpc:
+  methods: []
+  resourcePort: 9090
 nodeSelector: {}
 podAnnotations: {}
 config:
@@ -22,6 +33,25 @@ config:
   allowed_callers: []
   scope_tenants: {"report:read": report-read, "report:summary": report-summary}
 policyRevision: m3-v1
+# Tenant mode (ZT-53): the release is a tenant's guard, installed in the tenant's namespace. Its
+# route belongs to that namespace (config target_tenant, from where it is installed, never from a
+# request) and its policy evaluator admits only that namespace's Participant as a member
+# (tenant_members). callerNamespaces are other tenants whose Participant may reach this guard over
+# the mesh, so that a cross-tenant request is decided, and recorded, by policy
+# (m3-tenant-membership) instead of being dropped unseen; nothing else of the namespace opens to them.
+tenant:
+  enabled: false
+  callerNamespaces: []
+# Rules of the M3 evaluator besides the scope routes: clients denied whatever their token
+# (rule m3-client-blocked), and scopes answered with POL-PRESENTATION-REQUIRED and this OID4VP link
+# (rule m3-presentation-required; https or openid4vp, scopes disjoint from config.scope_tenants).
+policyRules:
+  blockedClients: []
+  presentation: {scopes: [], oid4vpLink: ""}
+# Decide through the XFSC TSA policy service (deployment/helm/tsa-policy) instead of the built-in
+# rules, e.g. http://tsa-policy-engine.<ns>:8080/policy/policies/facis/guard/1.0/evaluation. Add the
+# matching egress to networkPolicy.egress. timeoutMS stays under the guard's 1 s policy bound.
+tsa: {evaluationURL: "", timeoutMS: 500}
 # Added to component-specific service and DNS rules; use only explicit dependency/control peers.
 networkPolicy:
   istiod: {enabled: false, namespace: istio-system}

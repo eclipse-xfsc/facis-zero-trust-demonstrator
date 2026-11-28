@@ -1,0 +1,73 @@
+{
+ "pod": "ztd-m3-b/ztd-connector-fd564b8df-9m42j",
+ "source": "istio-proxy admin config_dump (dynamic_listeners, dynamic_active_secrets), private key redacted by Envoy and not kept",
+ "inbound_8080_filter_chains": [
+  {
+   "name": "0.0.0.0_8080",
+   "match": {
+    "destination_port": 8080,
+    "transport_protocol": "tls"
+   },
+   "require_client_certificate": true,
+   "certificate_sds": [
+    "default"
+   ],
+   "validation_sds": "ROOTCA"
+  }
+ ],
+ "ROOTCA": {
+  "validator": "envoy.tls.cert_validator.spiffe",
+  "trust_domains": [
+   {
+    "trust_domain": "zone-b.trust.invalid",
+    "ca_serials": [
+     "serial=A5AF1E34424B56680C1050DCE7EA7885",
+     "serial=392AA99DC7456BC9E562E40B82462B75",
+     "serial=7F5E0237FDA8667E5AEA2AC1A4AE4A80",
+     "serial=9B0871292BEAA81754D697B0DEC75574"
+    ]
+   }
+  ]
+ },
+ "all_virtualInbound_filter_chains": [
+  {
+   "name": "virtualInbound-blackhole",
+   "match": {
+    "destination_port": 15006
+   },
+   "tls": false,
+   "require_client_certificate": null
+  },
+  {
+   "name": "virtualInbound-catchall-http",
+   "match": {
+    "transport_protocol": "tls",
+    "application_protocols": [
+     "istio-http/1.0",
+     "istio-http/1.1",
+     "istio-h2"
+    ]
+   },
+   "tls": true,
+   "require_client_certificate": true
+  },
+  {
+   "name": "virtualInbound",
+   "match": {
+    "transport_protocol": "tls"
+   },
+   "tls": true,
+   "require_client_certificate": true
+  },
+  {
+   "name": "0.0.0.0_8080",
+   "match": {
+    "destination_port": 8080,
+    "transport_protocol": "tls"
+   },
+   "tls": true,
+   "require_client_certificate": true
+  }
+ ],
+ "note": "virtualInbound-blackhole matches only the capture port 15006 itself (loop guard); every chain that serves traffic is TLS with a client certificate required"
+}

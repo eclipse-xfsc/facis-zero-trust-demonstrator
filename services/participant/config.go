@@ -7,6 +7,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/eclipse-xfsc/facis-zero-trust-demonstrator/internal/appevents"
 	"github.com/eclipse-xfsc/facis-zero-trust-demonstrator/internal/if03"
 	"github.com/eclipse-xfsc/facis-zero-trust-demonstrator/internal/if03/if03fixture"
 )
@@ -37,6 +38,8 @@ func (c Config) ServerWriteTimeout() time.Duration {
 }
 
 type Config struct {
+	// Events is the IF-01 log sink; the executable always wires it to stdout.
+	Events         *appevents.Sink
 	Address        string
 	RequestTimeout time.Duration
 	AdapterMode    string

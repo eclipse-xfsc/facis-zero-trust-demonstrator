@@ -1,0 +1,10 @@
+HTTP/1.1 401 Unauthorized
+content-type: application/json
+x-facis-reason-code: TOK-PROOF-INVALID
+x-request-id: 1721f2a15be4af4f3da726d792698b31
+content-length: 61
+date: Sun, 22 Nov 2026 00:38:30 GMT
+server: envoy
+x-envoy-upstream-service-time: 9
+
+{"error":"request_refused","reason_code":"TOK-PROOF-INVALID"}

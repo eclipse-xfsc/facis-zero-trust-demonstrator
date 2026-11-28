@@ -1,0 +1,31 @@
+# Zone B's declared public entries besides the Connector's entry (docs/architecture.md, the ZT-26 bypass
+# list), read by verify.sh (DECLARED_FILE): each exposed (Service, port, protocol), and every assertion of its
+# declared scope, all required, sent from outside the cluster to the Service's load-balancer address.
+
+# The TRAIN zone manager's authoritative DNS: its zone answered, any other name refused.
+entry ztd-train/train-zone-manager-dns:53/UDP
+entry ztd-train/train-zone-manager-dns:53/TCP
+probe ztd-train/train-zone-manager-dns|dns|trust.facis.cloud SOA|NOERROR
+probe ztd-train/train-zone-manager-dns|dns|example.com A|REFUSED
+
+# The TSPA public entry (did:web:tspa.facis.cloud, approved 21 Nov 2026): TLS 1.3 only, read-only.
+entry ztd-train/tspa-public:443/TCP
+probe ztd-train/tspa-public|tls12|tspa.facis.cloud|refused
+probe ztd-train/tspa-public|https|GET tspa.facis.cloud /.well-known/did.json|200
+probe ztd-train/tspa-public|trustlist|tspa.facis.cloud|valid
+# Every TSPA write route (docs/tspa-publish-api.md), with a body, and the read paths written to: 404 or 405.
+probe ztd-train/tspa-public|https|PUT tspa.facis.cloud /tspa-service/tspa/v1/trustframework/route-probe {"schemes":["route-probe"]}|404/405
+probe ztd-train/tspa-public|https|DELETE tspa.facis.cloud /tspa-service/tspa/v1/trustframework/route-probe|404/405
+probe ztd-train/tspa-public|https|PUT tspa.facis.cloud /tspa-service/tspa/v1/init/json/route-probe/trust-list {}|404/405
+probe ztd-train/tspa-public|https|PUT tspa.facis.cloud /tspa-service/tspa/v1/init/xml/route-probe/trust-list {}|404/405
+probe ztd-train/tspa-public|https|PUT tspa.facis.cloud /tspa-service/tspa/v1/route-probe/trust-list/tsp {"TSPID":"route-probe"}|404/405
+probe ztd-train/tspa-public|https|PATCH tspa.facis.cloud /tspa-service/tspa/v1/route-probe/trust-list/tsp/route-probe {"TSPID":"route-probe"}|404/405
+probe ztd-train/tspa-public|https|DELETE tspa.facis.cloud /tspa-service/tspa/v1/route-probe/trust-list/tsp/route-probe|404/405
+probe ztd-train/tspa-public|https|DELETE tspa.facis.cloud /tspa-service/tspa/v1/route-probe/trust-list|404/405
+probe ztd-train/tspa-public|https|PUT tspa.facis.cloud /tspa-service/tspa/v1/route-probe/did {"did":"did:web:route-probe"}|404/405
+probe ztd-train/tspa-public|https|DELETE tspa.facis.cloud /tspa-service/tspa/v1/route-probe/did|404/405
+probe ztd-train/tspa-public|https|POST tspa.facis.cloud /tspa-service/tspa/v1/route-probe/trust-list {}|404/405
+probe ztd-train/tspa-public|https|POST tspa.facis.cloud /tspa-service/tspa/v1/route-probe/vc/trust-list {}|404/405
+probe ztd-train/tspa-public|https|POST tspa.facis.cloud /.well-known/did.json {}|404/405
+probe ztd-train/tspa-public|https|GET tspa.facis.cloud /tspa-service/actuator/health|404/405
+probe ztd-train/tspa-public|https|GET tspa.facis.cloud /tspa-service/api/docs|404/405

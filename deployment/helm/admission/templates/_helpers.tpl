@@ -1,14 +1,18 @@
 {{- define "admission.name" -}}ztd-admission-provider{{- end -}}
 
 {{- define "admission.labels" -}}
-app.kubernetes.io/name: {{ include "admission.name" . }}
-app.kubernetes.io/instance: {{ .Release.Name }}
+{{ include "admission.selector" . }}
 app.kubernetes.io/managed-by: {{ .Release.Service }}
 {{- end -}}
 
+{{/*
+The Deployment selector is immutable, so it does not follow the release name: it stays "admission",
+the release the provider was first installed as (scripts/admission/install.sh), and the umbrella's
+admission release (deployment/helm/ztd, release gatekeeper) adopts the same Deployment in place.
+*/}}
 {{- define "admission.selector" -}}
 app.kubernetes.io/name: {{ include "admission.name" . }}
-app.kubernetes.io/instance: {{ .Release.Name }}
+app.kubernetes.io/instance: admission
 {{- end -}}
 
 {{/* The Service's DNS names, which the server certificate carries and the Provider URL uses. */}}

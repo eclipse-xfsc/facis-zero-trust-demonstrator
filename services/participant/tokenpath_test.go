@@ -19,12 +19,15 @@ import (
 	"net/http/httputil"
 	"net/url"
 	"os"
+	"path/filepath"
 	"slices"
 	"strings"
 	"sync"
 	"testing"
 	"time"
 
+	"github.com/eclipse-xfsc/facis-zero-trust-demonstrator/internal/appevents"
+	"github.com/eclipse-xfsc/facis-zero-trust-demonstrator/internal/appfeedtest"
 	"github.com/eclipse-xfsc/facis-zero-trust-demonstrator/internal/connectorclient"
 	"github.com/eclipse-xfsc/facis-zero-trust-demonstrator/internal/connectortest"
 	"github.com/eclipse-xfsc/facis-zero-trust-demonstrator/internal/dpopproof"
@@ -116,8 +119,9 @@ func credentials(t *testing.T, id, secret string) string {
 }
 
 type participantUnderTest struct {
-	url  string
-	logs *syncBuffer
+	url    string
+	logs   *syncBuffer
+	events *syncBuffer
 }
 
 // startParticipant builds the Participant from the environment, as cmd/participant does.
@@ -139,13 +143,18 @@ func startParticipant(t *testing.T, connector, credentialsFile, outcomeKeyFile, 
 		t.Fatalf("participant mode %q", cfg.ServingMode())
 	}
 	logs := &syncBuffer{}
+	events := &syncBuffer{}
+	cfg.Events, err = appevents.New(events, "participant-a")
+	if err != nil {
+		t.Fatal(err)
+	}
 	app := participant.NewServer(cfg, slog.New(slog.NewJSONHandler(logs, &slog.HandlerOptions{Level: slog.LevelDebug})))
 	ctx, cancel := context.WithCancel(context.Background())
 	t.Cleanup(cancel)
 	app.Start(ctx)
 	srv := httptest.NewServer(app.Handler())
 	t.Cleanup(srv.Close)
-	return participantUnderTest{url: srv.URL, logs: logs}
+	return participantUnderTest{url: srv.URL, logs: logs, events: events}
 }
 
 func getJSON(t *testing.T, method, target string, body string) (int, map[string]any, string) {
@@ -178,7 +187,7 @@ func waitReady(t *testing.T, p participantUnderTest, bodies *[]string) {
 				e := h.(map[string]any)
 				path = append(path, e["state"].(string)+"/"+e["reason"].(string))
 			}
-			want := []string{"presenting/step_started", "acquiring_token/step_started", "ready/step_completed"}
+			want := []string{"registering/step_started", "registered/step_completed", "presenting/step_started", "acquiring_token/step_started", "ready/step_completed"}
 			if !slices.Equal(path, want) || state["mode"] != "token" {
 				t.Fatalf("state path %v; want %v", path, want)
 			}
@@ -191,7 +200,12 @@ func waitReady(t *testing.T, p participantUnderTest, bodies *[]string) {
 	}
 }
 
-func TestTokenPathEndToEnd(t *testing.T) {
+func TestTokenPathEndToEnd(t *testing.T) { runTokenPath(t, false) }
+
+// TestApplicationFeedEndToEnd is the ZT-74/75 proof: real Connector, token verifier, services and feed.
+func TestApplicationFeedEndToEnd(t *testing.T) { runTokenPath(t, true) }
+
+func runTokenPath(t *testing.T, checkFeed bool) {
 	addr, token := os.Getenv("TRANSIT_TEST_ADDR"), os.Getenv("TRANSIT_TEST_TOKEN")
 	if addr == "" || token == "" {
 		t.Skip("TRANSIT_TEST_ADDR and TRANSIT_TEST_TOKEN not set")
@@ -209,6 +223,8 @@ func TestTokenPathEndToEnd(t *testing.T) {
 		ScopeMap: []connectortest.Scope{
 			{Role: "report-reader", Scopes: []string{protectedresource.ScopeReportRead}},
 			{Role: "report-viewer", Scopes: []string{protectedresource.ScopeReportSummary}},
+			{Role: "outsider", Scopes: []string{"other:write"}},
+			{Role: "report-both", Scopes: []string{protectedresource.ScopeReportRead, protectedresource.ScopeReportSummary}},
 		},
 	})
 	readerID, readerSecret := c.Register(t, "participant reader", protectedresource.ScopeReportRead, resourceAud, otherAudience)
@@ -232,6 +248,11 @@ func TestTokenPathEndToEnd(t *testing.T) {
 	rcfg, err := protectedresource.LoadConfig()
 	if err != nil || rcfg.ServingMode() != protectedresource.ModeToken {
 		t.Fatalf("resource config: %v %q", err, rcfg.ServingMode())
+	}
+	resourceEvents := &syncBuffer{}
+	rcfg.Events, err = appevents.New(resourceEvents, "protected-resource-b")
+	if err != nil {
+		t.Fatal(err)
 	}
 	resourceLogs := &syncBuffer{}
 	resource := httptest.NewServer(protectedresource.NewServer(rcfg, slog.New(slog.NewJSONHandler(resourceLogs, nil))).Handler())
@@ -292,6 +313,7 @@ func TestTokenPathEndToEnd(t *testing.T) {
 	direct := func(authorization, proof string) int {
 		req, _ := http.NewRequest(http.MethodPost, publicBase+"/demo", strings.NewReader(demo))
 		req.Header.Set("Content-Type", "application/json")
+		req.Header.Set("X-Correlation-ID", "verifier-refusal")
 		req.Header.Set("Authorization", authorization)
 		if proof != "" {
 			req.Header.Set("DPoP", proof)
@@ -303,6 +325,9 @@ func TestTokenPathEndToEnd(t *testing.T) {
 		raw, _ := io.ReadAll(resp.Body)
 		_ = resp.Body.Close()
 		bodies = append(bodies, string(raw))
+		if strings.Contains(string(raw), "FACIS-SAMPLE") || strings.Contains(string(raw), "safeData") {
+			t.Fatal("verifier refusal exposed protected content")
+		}
 		return resp.StatusCode
 	}
 	if s := direct(pairs[0][0], ""); s != http.StatusUnauthorized {
@@ -342,12 +367,101 @@ func TestTokenPathEndToEnd(t *testing.T) {
 		t.Errorf("%d refusals logged; want 3:\n%s", n, resourceLogs.String())
 	}
 
+	if checkFeed {
+		extraLogs := []string{}
+		for _, role := range []string{"outsider", "report-both"} {
+			scope := "other:write"
+			if role == "report-both" {
+				scope = "report:read report:summary"
+			}
+			id, secret := c.Register(t, role, scope, resourceAud)
+			p := startParticipant(t, c.Base, credentials(t, id, secret), verifierKeyFile, role, publicBase)
+			waitReady(t, p, &bodies)
+			status, result, raw := getJSON(t, http.MethodPost, p.url+"/demo", `{"resource":"sample-report","action":"read","correlationId":"`+role+`"}`)
+			bodies = append(bodies, raw)
+			safe, _ := result["safeData"].(map[string]any)
+			if role == "outsider" {
+				if status != 403 || result["reasonCode"] != participant.ReasonTokenForbidden || len(safe) != 0 {
+					t.Fatal("unauthorized role received content or no scope refusal")
+				}
+			} else if status != 200 || safe["report"] == nil {
+				t.Fatal("combined roles did not receive the report")
+			}
+			extraLogs = append(extraLogs, p.events.String())
+		}
+		// A real Connector refusal of provisioned credentials must also reach the feed.
+		bad := startParticipant(t, c.Base, credentials(t, readerID, "invalid-client-secret"), verifierKeyFile, "report-reader", publicBase)
+		deadline := time.Now().Add(10 * time.Second)
+		for {
+			_, state, _ := getJSON(t, http.MethodGet, bad.url+"/state", "")
+			if state["state"] == "failed_registration" {
+				break
+			}
+			if time.Now().After(deadline) {
+				t.Fatal("registration refusal not recorded")
+			}
+			time.Sleep(10 * time.Millisecond)
+		}
+		extraLogs = append(extraLogs, bad.events.String(), reader.events.String(), viewer.events.String(), resourceEvents.String())
+		events := appfeedtest.RoundTrip(t, "../../docs/contracts", extraLogs...)
+		want := map[string]bool{
+			"registration/registered": false, "registration/failed_registration": false,
+			"status/ready": false, "request/success": false, "request/denied": false,
+			"access role=reader/success": false, "access role=viewer/success": false,
+			"access role=reader_and_viewer/success": false, "access role=unauthorized/denied": false,
+			"access role=not_evaluated/denied": false,
+		}
+		for _, event := range events {
+			key := event.Payload.Detail + "/" + event.Payload.State
+			if _, ok := want[key]; ok {
+				want[key] = true
+			}
+			if event.Payload.Detail == "access role=unauthorized" || event.Payload.Detail == "request" && event.Payload.State == "denied" {
+				reason := "APP-RESOURCE-SCOPE-INSUFFICIENT"
+				if event.Payload.Detail == "request" {
+					reason = "APP-TOKEN-FORBIDDEN"
+				}
+				if event.CorrelationID != "outsider" || event.Payload.ReasonCode != reason {
+					t.Fatal("scope refusal event lost its reason or correlation")
+				}
+			}
+		}
+		for key, seen := range want {
+			if !seen {
+				t.Errorf("feed missing %s", key)
+			}
+		}
+		// Four original allowed calls, three verifier refusals, and two additional role combinations.
+		accesses := 0
+		for _, event := range events {
+			if event.Source == "protected-resource-b" {
+				accesses++
+			}
+		}
+		if accesses != 9 {
+			t.Fatalf("feed contains %d accesses, want all 9", accesses)
+		}
+		if out := os.Getenv("APPLICATION_FEED_RECORD"); out != "" {
+			raw, err := json.MarshalIndent(events, "", "  ")
+			if err != nil {
+				t.Fatal(err)
+			}
+			if err := os.MkdirAll(filepath.Dir(out), 0o755); err != nil {
+				t.Fatal(err)
+			}
+			if err := os.WriteFile(out, append(raw, '\n'), 0o600); err != nil {
+				t.Fatal(err)
+			}
+		}
+	}
+
 	// Canary: no token, proof or secret in any log or body.
+	pairs = rec.seen()
 	canaries := []string{readerSecret, viewerSecret, other.AccessToken, proof, outcome}
 	for _, p := range pairs {
 		canaries = append(canaries, strings.TrimPrefix(p[0], "DPoP "), p[1])
 	}
-	for _, s := range []string{reader.logs.String(), viewer.logs.String(), resourceLogs.String(), strings.Join(bodies, "\n")} {
+	for _, s := range []string{reader.logs.String(), viewer.logs.String(), resourceLogs.String(), reader.events.String(), viewer.events.String(), resourceEvents.String(), strings.Join(bodies, "\n")} {
 		for _, secret := range canaries {
 			for _, form := range []string{secret, base64.StdEncoding.EncodeToString([]byte(secret)), sha(secret)} {
 				if form != "" && strings.Contains(s, form) {

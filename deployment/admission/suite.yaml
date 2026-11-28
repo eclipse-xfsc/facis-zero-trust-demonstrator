@@ -58,6 +58,17 @@ tests:
         inventory: [tests/namespaces.yaml]
         assertions:
           - violations: no
+      - name: allow-listed third-party digest
+        object: tests/pod-allow-listed.yaml
+        inventory: [tests/namespaces.yaml]
+        assertions:
+          - violations: no
+      - name: allow-listed digest with its tag
+        object: tests/pod-allow-listed-tag.yaml
+        inventory: [tests/namespaces.yaml]
+        assertions:
+          - violations: 1
+            message: ADM-NOT-DIGEST
   - name: allowed-repositories
     template: templates/allowed-repositories.yaml
     constraint: constraints/allowed-repositories.yaml
@@ -95,6 +106,57 @@ tests:
         inventory: [tests/namespaces.yaml]
         assertions:
           - violations: no
+      - name: third-party digest not listed
+        object: tests/pod-allow-listed.yaml
+        inventory: [tests/namespaces.yaml]
+        assertions:
+          - violations: 1
+            message: ADM-REGISTRY-DENIED
+  # The same template with allowedDigests set, as install.sh renders it from ALLOWED_DIGESTS.
+  - name: allowed-repositories with allowed digests
+    template: templates/allowed-repositories.yaml
+    constraint: tests/constraint-allowed-repositories-digests.yaml
+    cases:
+      - name: compliant pod
+        object: tests/pod-compliant.yaml
+        inventory: [tests/namespaces.yaml]
+        assertions:
+          - violations: no
+      - name: allow-listed digest
+        object: tests/pod-allow-listed.yaml
+        inventory: [tests/namespaces.yaml]
+        assertions:
+          - violations: no
+      - name: other digest of the allow-listed repository
+        object: tests/pod-allow-listed-other-digest.yaml
+        inventory: [tests/namespaces.yaml]
+        assertions:
+          - violations: 1
+            message: ADM-REGISTRY-DENIED
+      - name: allow-listed digest with its tag
+        object: tests/pod-allow-listed-tag.yaml
+        inventory: [tests/namespaces.yaml]
+        assertions:
+          - violations: 1
+            message: ADM-REGISTRY-DENIED
+      - name: other registry
+        object: tests/pod-other-registry.yaml
+        inventory: [tests/namespaces.yaml]
+        assertions:
+          - violations: 1
+            message: ADM-REGISTRY-DENIED
+      - name: lookalike repository prefix
+        object: tests/pod-lookalike-repository.yaml
+        inventory: [tests/namespaces.yaml]
+        assertions:
+          - violations: 1
+            message: ADM-REGISTRY-DENIED
+      - name: same digest under a lookalike repository
+        object: tests/pod-allow-listed-lookalike.yaml
+        inventory: [tests/namespaces.yaml]
+        assertions:
+          - violations: 1
+            message: ADM-REGISTRY-DENIED
   - name: naming
     template: templates/naming.yaml
     constraint: constraints/naming.yaml

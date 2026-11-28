@@ -1,0 +1,56 @@
+# The identity deploy-ionos.yml deploys the ORCE chart (deployment/helm/orce) with, in the namespace
+# ztd-orce only: the kinds the chart renders, the ConfigMaps Helm keeps the release in
+# (HELM_DRIVER=configmap, so the deployer never needs Secrets and cannot read orce-credentials), and
+# read access to the ReplicaSets and Pods the rollout wait and the smoke test look at. A long-lived
+# token for the CI secret IONOS_DEPLOY_KUBECONFIG of the `ionos` environment
+# (docs/environments/ionos.md, "Deploying from the pipeline"). Delete the Secret to revoke it.
+# The namespace and ORCE's own ServiceAccount come from deployment/orce-minimal/base.yaml.
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: ztd-ionos-deployer
+  namespace: ztd-orce
+automountServiceAccountToken: false
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: ztd-ionos-deployer-token
+  namespace: ztd-orce
+  annotations:
+    kubernetes.io/service-account.name: ztd-ionos-deployer
+type: kubernetes.io/service-account-token
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: ztd-ionos-deployer
+  namespace: ztd-orce
+rules:
+  - apiGroups: ["apps"]
+    resources: ["deployments"]
+    verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
+  - apiGroups: [""]
+    resources: ["services"]
+    verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
+  # Helm's release records (HELM_DRIVER=configmap): no patch or watch needed.
+  - apiGroups: [""]
+    resources: ["configmaps"]
+    verbs: ["get", "list", "create", "update", "delete"]
+  - apiGroups: ["networking.k8s.io"]
+    resources: ["ingresses", "networkpolicies"]
+    verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
+  - apiGroups: ["apps"]
+    resources: ["replicasets"]
+    verbs: ["get", "list", "watch"]
+  - apiGroups: [""]
+    resources: ["pods"]
+    verbs: ["get", "list", "watch"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: ztd-ionos-deployer
+  namespace: ztd-orce
+roleRef: {apiGroup: rbac.authorization.k8s.io, kind: Role, name: ztd-ionos-deployer}
+subjects: [{kind: ServiceAccount, name: ztd-ionos-deployer, namespace: ztd-orce}]

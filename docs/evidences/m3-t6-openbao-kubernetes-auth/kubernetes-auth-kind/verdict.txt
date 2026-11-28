@@ -1,0 +1,8 @@
+PASS  the bootstrap enabled auth/kubernetes/, wrote role kubeauth-app, then revoked the root token
+PASS  the bootstrap Secret records the applied configuration (874b179d71dc3fef) and holds no root token
+PASS  system:auth-delegator is bound to ztd-mgmt/ztd-openbao only
+PASS  a pod of kubeauth-a/kubeauth-app logs in with its projected token (HTTP 200)
+PASS  token source: login, least privilege, renewal with a rotated token, re-login after expiry, restart, refused wrong SA/namespace/audience (8 passes)
+PASS  the upgrade failed: the bootstrap names the unapplied configuration and docs/secrets.md#kubernetes-auth
+
+verdict: PASS

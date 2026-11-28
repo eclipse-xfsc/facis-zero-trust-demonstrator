@@ -1,0 +1,25 @@
+{
+  "head": "c090d364c5ded3a2d4d9cc997b6bb307ddaffb32",
+  "namespaceUID": "ef71dd81-5629-4f9e-9b10-6adeb3e8298a",
+  "started": "2026-11-21T20:15:48.351791+00:00",
+  "url": "https://160.44.12.245",
+  "caSHA256": "a75983ba19d9e6f20282cc984bd3aaaf67e01b8b39ace3eae79ce1841e2fad47",
+  "status": "PASS",
+  "checks": {
+    "tls_verified": "PASS",
+    "repeatable_reset": "PASS"
+  },
+  "runs": [
+    {
+      "run": 1,
+      "businessSHA256": "86e76b6a8a65d654ce503de5cfcedc8c4960a3a89e8142bb90b94ca607ddc0c9",
+      "outcome": "success"
+    },
+    {
+      "run": 2,
+      "businessSHA256": "86e76b6a8a65d654ce503de5cfcedc8c4960a3a89e8142bb90b94ca607ddc0c9",
+      "outcome": "success"
+    }
+  ],
+  "finished": "2026-11-21T20:15:52.004056+00:00"
+}

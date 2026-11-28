@@ -69,6 +69,7 @@ type env struct {
 	loaded  acquire.Loaded
 	route   acquire.Route
 	logs    *testsupport.Buffer
+	issuer  *ecdsa.PrivateKey // signs the IF-03 outcomes zone B and the store trust
 }
 
 func newEnv(t *testing.T) *env {
@@ -96,6 +97,7 @@ func newEnv(t *testing.T) *env {
 	}
 	e.secrets = &secrets{Secrets: e.kv}
 	issuer, _ := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
+	e.issuer = issuer
 	e.b = acquiretest.StartConnector(t, dsnB, addr, token, &issuer.PublicKey)
 	e.route = acquire.Route{Name: "zone-b-api", PeerZone: "zone-b", Audience: acquiretest.Audience, ConnectorURL: e.b.Base,
 		ClientID: e.b.ClientID, ClientSecretFile: acquiretest.WriteFile(t, "secret", e.b.ClientSecret+"\n"),

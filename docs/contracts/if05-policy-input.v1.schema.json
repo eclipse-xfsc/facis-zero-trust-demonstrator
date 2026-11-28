@@ -120,6 +120,11 @@
         "string",
         "null"
       ]
+    },
+    "target_tenant": {
+      "type": "string",
+      "pattern": "^[a-z0-9]([-a-z0-9]{0,61}[a-z0-9])?$",
+      "description": "The tenant the guard's route belongs to, from the guard's configuration and never from the request (a Kubernetes namespace name). Absent on a guard that serves no tenant; policy decides whether the caller is a member of it."
     }
   }
 }

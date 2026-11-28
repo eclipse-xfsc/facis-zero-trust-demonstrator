@@ -161,7 +161,7 @@ paths:
                   fresh:
                     const: true
         '403':
-          description: TOK-CALLER-DENIED - the caller is not on the replay check's allow-list.
+          description: TOK-CALLER-DENIED - the caller is not on the replay check's allow-list; TOK-ROUTE-DENIED - the caller has substitution routes (a guard) and the htu is under none of its routes' target prefixes, so one tenant's guard cannot write or probe another's entries.
           content:
             application/json:
               schema:

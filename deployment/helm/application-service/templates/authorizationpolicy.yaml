@@ -1,0 +1,22 @@
+{{- with .Values.callers }}
+{{- if not $.Values.trustDomain }}{{ fail "trustDomain is required with callers" }}{{ end }}
+apiVersion: security.istio.io/v1
+kind: AuthorizationPolicy
+metadata:
+  name: {{ $.Values.name }}-callers
+  namespace: {{ $.Release.Namespace }}
+  labels:
+    {{- include "app.labels" $ | nindent 4 }}
+spec:
+  selector:
+    matchLabels:
+      {{- include "app.selector" $ | nindent 6 }}
+  action: ALLOW
+  rules:
+    - from:
+        - source:
+            principals: [{{ range $i, $c := . }}{{ if $i }}, {{ end }}{{ printf "%s/ns/%s/sa/%s" $.Values.trustDomain $c.namespace $c.name | quote }}{{ end }}]
+      to:
+        - operation:
+            ports: [{{ $.Values.port | quote }}]
+{{- end }}

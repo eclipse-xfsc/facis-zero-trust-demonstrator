@@ -1,0 +1,4 @@
+{"role":"egress","decision":"started","reason":"evidence_verified"}
+{"role":"egress","decision":"established","reason":"mutual_attestation","peer":"spiffe://zone-b/gateway","binding":"da8b74c52007ef4560c5b8aa814f987fc6d691ada0433fe9551d7c48c4d24c59","tlsVersion":772}
+{"role":"egress","decision":"refused","reason":"atls: local attester unavailable"}
+{"role":"egress","decision":"established","reason":"mutual_attestation","peer":"spiffe://zone-b/gateway","binding":"ab3bbc350d8d6cfa76c033f50f8ba5088f31d3897980b77aba5606bfa02357dd","tlsVersion":772}

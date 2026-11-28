@@ -1,0 +1,399 @@
+[
+  {
+    "case": "allowed (control)",
+    "status": 200,
+    "reason_code": "",
+    "rule_id": "m3-report-summary",
+    "correlation_id": "485a34811f54a70e78eade77b320fbf3",
+    "guard_event": {
+      "version": 2,
+      "run_id": "catalogue",
+      "seq": 4,
+      "ts": "2026-11-21T20:41:49.530479Z",
+      "source": "guard-b",
+      "kind": "decision",
+      "correlation_id": "485a34811f54a70e78eade77b320fbf3",
+      "payload": {
+        "state": "allowed",
+        "rule_id": "m3-report-summary",
+        "caller_spiffe_id": "spiffe://zone-b.test/ns/example/sa/ztd-participant",
+        "token_subject": "3XdbfVK9pZ0vrQb3hZ3DDAwHDLaKQ16RioQRCuO7mgNYUZrs1jLefm1eOmc1FzXY",
+        "resource": "POST https://resource.guard.test/demo",
+        "bundle_revision": "integration-1"
+      }
+    },
+    "policy_event": {
+      "version": 2,
+      "run_id": "catalogue",
+      "seq": 4,
+      "ts": "2026-11-21T20:41:49.38455Z",
+      "source": "policy-b",
+      "kind": "decision",
+      "correlation_id": "485a34811f54a70e78eade77b320fbf3",
+      "payload": {
+        "state": "allowed",
+        "rule_id": "m3-report-summary",
+        "caller_spiffe_id": "spiffe://zone-b.test/ns/example/sa/ztd-participant",
+        "token_subject": "3XdbfVK9pZ0vrQb3hZ3DDAwHDLaKQ16RioQRCuO7mgNYUZrs1jLefm1eOmc1FzXY",
+        "resource": "POST resource.guard.test/demo",
+        "bundle_revision": "integration-1"
+      }
+    },
+    "forwarded_request_id": "485a34811f54a70e78eade77b320fbf3"
+  },
+  {
+    "case": "no token",
+    "status": 401,
+    "reason_code": "TOK-MISSING",
+    "correlation_id": "5e2b5681645ba0add208c73f78562bae",
+    "guard_event": {
+      "version": 2,
+      "run_id": "catalogue",
+      "seq": 5,
+      "ts": "2026-11-21T20:41:49.533029Z",
+      "source": "guard-b",
+      "kind": "decision",
+      "correlation_id": "5e2b5681645ba0add208c73f78562bae",
+      "payload": {
+        "state": "denied",
+        "reason_code": "TOK-MISSING",
+        "rule_id": "not_evaluated",
+        "detail": "token_absent",
+        "caller_spiffe_id": "spiffe://zone-b.test/ns/example/sa/ztd-participant",
+        "token_subject": "not_evaluated",
+        "resource": "POST https://resource.guard.test/demo",
+        "bundle_revision": "not_evaluated"
+      }
+    }
+  },
+  {
+    "case": "missing proof",
+    "status": 401,
+    "reason_code": "TOK-PROOF-INVALID",
+    "correlation_id": "415577713b0fc50cc57166022e880307",
+    "guard_event": {
+      "version": 2,
+      "run_id": "catalogue",
+      "seq": 6,
+      "ts": "2026-11-21T20:41:49.534613Z",
+      "source": "guard-b",
+      "kind": "decision",
+      "correlation_id": "415577713b0fc50cc57166022e880307",
+      "payload": {
+        "state": "denied",
+        "reason_code": "TOK-PROOF-INVALID",
+        "rule_id": "not_evaluated",
+        "detail": "proof_absent",
+        "caller_spiffe_id": "spiffe://zone-b.test/ns/example/sa/ztd-participant",
+        "token_subject": "not_evaluated",
+        "resource": "POST https://resource.guard.test/demo",
+        "bundle_revision": "not_evaluated"
+      }
+    }
+  },
+  {
+    "case": "proof signed by the wrong key",
+    "status": 401,
+    "reason_code": "TOK-JKT-MISMATCH",
+    "correlation_id": "1b38c53f1e069106fe7aac4115f1c36d",
+    "guard_event": {
+      "version": 2,
+      "run_id": "catalogue",
+      "seq": 7,
+      "ts": "2026-11-21T20:41:49.537067Z",
+      "source": "guard-b",
+      "kind": "decision",
+      "correlation_id": "1b38c53f1e069106fe7aac4115f1c36d",
+      "payload": {
+        "state": "denied",
+        "reason_code": "TOK-JKT-MISMATCH",
+        "rule_id": "not_evaluated",
+        "detail": "key_binding_mismatch",
+        "caller_spiffe_id": "spiffe://zone-b.test/ns/example/sa/ztd-participant",
+        "token_subject": "not_evaluated",
+        "resource": "POST https://resource.guard.test/demo",
+        "bundle_revision": "not_evaluated"
+      }
+    }
+  },
+  {
+    "case": "insufficient scope",
+    "status": 403,
+    "reason_code": "POL-RULE-DENY",
+    "rule_id": "m3-scope-required",
+    "correlation_id": "422477f87814ea5cfbccbe22d10f511a",
+    "guard_event": {
+      "version": 2,
+      "run_id": "catalogue",
+      "seq": 8,
+      "ts": "2026-11-21T20:41:50.553524Z",
+      "source": "guard-b",
+      "kind": "decision",
+      "correlation_id": "422477f87814ea5cfbccbe22d10f511a",
+      "payload": {
+        "state": "denied",
+        "reason_code": "POL-RULE-DENY",
+        "rule_id": "m3-scope-required",
+        "caller_spiffe_id": "spiffe://zone-b.test/ns/example/sa/ztd-participant",
+        "token_subject": "Gs0JhUJ4tYS4HUDG5omcwOO8Q12jUeIYY1V2zYIOvgXA6rhnkGM5acGUJqPzzbgf",
+        "resource": "POST https://resource.guard.test/demo",
+        "bundle_revision": "integration-1"
+      }
+    },
+    "policy_event": {
+      "version": 2,
+      "run_id": "catalogue",
+      "seq": 5,
+      "ts": "2026-11-21T20:41:50.552571Z",
+      "source": "policy-b",
+      "kind": "decision",
+      "correlation_id": "422477f87814ea5cfbccbe22d10f511a",
+      "payload": {
+        "state": "denied",
+        "reason_code": "POL-RULE-DENY",
+        "rule_id": "m3-scope-required",
+        "caller_spiffe_id": "spiffe://zone-b.test/ns/example/sa/ztd-participant",
+        "token_subject": "Gs0JhUJ4tYS4HUDG5omcwOO8Q12jUeIYY1V2zYIOvgXA6rhnkGM5acGUJqPzzbgf",
+        "resource": "POST resource.guard.test/demo",
+        "bundle_revision": "integration-1"
+      }
+    }
+  },
+  {
+    "case": "policy-only denial",
+    "status": 403,
+    "reason_code": "POL-RULE-DENY",
+    "rule_id": "m3-client-blocked",
+    "correlation_id": "ced00a0fec22099010762d93f6f76a16",
+    "guard_event": {
+      "version": 2,
+      "run_id": "catalogue",
+      "seq": 9,
+      "ts": "2026-11-21T20:41:51.156625Z",
+      "source": "guard-b",
+      "kind": "decision",
+      "correlation_id": "ced00a0fec22099010762d93f6f76a16",
+      "payload": {
+        "state": "denied",
+        "reason_code": "POL-RULE-DENY",
+        "rule_id": "m3-client-blocked",
+        "caller_spiffe_id": "spiffe://zone-b.test/ns/example/sa/ztd-participant",
+        "token_subject": "O1fpzPQgOgLqId3ShD3uXfpCgTpItyUtyhkx9FoSCaxWKcxXUoCqCGk3HKH9CGcD",
+        "resource": "POST https://resource.guard.test/demo",
+        "bundle_revision": "integration-1"
+      }
+    },
+    "policy_event": {
+      "version": 2,
+      "run_id": "catalogue",
+      "seq": 6,
+      "ts": "2026-11-21T20:41:51.156185Z",
+      "source": "policy-b",
+      "kind": "decision",
+      "correlation_id": "ced00a0fec22099010762d93f6f76a16",
+      "payload": {
+        "state": "denied",
+        "reason_code": "POL-RULE-DENY",
+        "rule_id": "m3-client-blocked",
+        "caller_spiffe_id": "spiffe://zone-b.test/ns/example/sa/ztd-participant",
+        "token_subject": "O1fpzPQgOgLqId3ShD3uXfpCgTpItyUtyhkx9FoSCaxWKcxXUoCqCGk3HKH9CGcD",
+        "resource": "POST resource.guard.test/demo",
+        "bundle_revision": "integration-1"
+      }
+    }
+  },
+  {
+    "case": "presentation required",
+    "status": 401,
+    "reason_code": "POL-PRESENTATION-REQUIRED",
+    "rule_id": "m3-presentation-required",
+    "oid4vp_link": "openid4vp://authorize?client_id=verifier.guard.test\u0026request_uri=https%3A%2F%2Fverifier.guard.test%2Frequest",
+    "correlation_id": "2d6eefb4ebc6e11fda82f46081138f21",
+    "guard_event": {
+      "version": 2,
+      "run_id": "catalogue",
+      "seq": 10,
+      "ts": "2026-11-21T20:41:52.852584Z",
+      "source": "guard-b",
+      "kind": "decision",
+      "correlation_id": "2d6eefb4ebc6e11fda82f46081138f21",
+      "payload": {
+        "state": "denied",
+        "reason_code": "POL-PRESENTATION-REQUIRED",
+        "rule_id": "m3-presentation-required",
+        "caller_spiffe_id": "spiffe://zone-b.test/ns/example/sa/ztd-participant",
+        "token_subject": "ltyHgGVulP7tBOrDBZsE3XVNlL4Kob62F8DC4hKeKI6J1xMUUQ38NOf3Ye9VYCNb",
+        "resource": "POST https://resource.guard.test/demo",
+        "bundle_revision": "integration-1"
+      }
+    },
+    "policy_event": {
+      "version": 2,
+      "run_id": "catalogue",
+      "seq": 7,
+      "ts": "2026-11-21T20:41:52.851884Z",
+      "source": "policy-b",
+      "kind": "decision",
+      "correlation_id": "2d6eefb4ebc6e11fda82f46081138f21",
+      "payload": {
+        "state": "denied",
+        "reason_code": "POL-PRESENTATION-REQUIRED",
+        "rule_id": "m3-presentation-required",
+        "caller_spiffe_id": "spiffe://zone-b.test/ns/example/sa/ztd-participant",
+        "token_subject": "ltyHgGVulP7tBOrDBZsE3XVNlL4Kob62F8DC4hKeKI6J1xMUUQ38NOf3Ye9VYCNb",
+        "resource": "POST resource.guard.test/demo",
+        "bundle_revision": "integration-1"
+      }
+    }
+  },
+  {
+    "case": "wrong audience",
+    "status": 401,
+    "reason_code": "TOK-INVALID",
+    "correlation_id": "1468f03b1b4cf70a809eb5ba47659959",
+    "guard_event": {
+      "version": 2,
+      "run_id": "catalogue",
+      "seq": 11,
+      "ts": "2026-11-21T20:41:52.855509Z",
+      "source": "guard-b",
+      "kind": "decision",
+      "correlation_id": "1468f03b1b4cf70a809eb5ba47659959",
+      "payload": {
+        "state": "denied",
+        "reason_code": "TOK-INVALID",
+        "rule_id": "not_evaluated",
+        "detail": "audience_mismatch",
+        "caller_spiffe_id": "spiffe://zone-b.test/ns/example/sa/ztd-participant",
+        "token_subject": "not_evaluated",
+        "resource": "POST https://resource.guard.test/demo",
+        "bundle_revision": "not_evaluated"
+      }
+    }
+  },
+  {
+    "case": "replayed proof",
+    "status": 401,
+    "reason_code": "TOK-REPLAY",
+    "correlation_id": "0b6020a40e1fb849b739ddf98363eb00",
+    "guard_event": {
+      "version": 2,
+      "run_id": "catalogue",
+      "seq": 13,
+      "ts": "2026-11-21T20:41:52.98264Z",
+      "source": "guard-b",
+      "kind": "decision",
+      "correlation_id": "0b6020a40e1fb849b739ddf98363eb00",
+      "payload": {
+        "state": "denied",
+        "reason_code": "TOK-REPLAY",
+        "rule_id": "not_evaluated",
+        "detail": "proof_replayed",
+        "caller_spiffe_id": "spiffe://zone-b.test/ns/example/sa/ztd-participant",
+        "token_subject": "not_evaluated",
+        "resource": "POST https://resource.guard.test/demo",
+        "bundle_revision": "not_evaluated"
+      }
+    }
+  },
+  {
+    "case": "wrong mesh caller",
+    "status": 403,
+    "reason_code": "MESH-PAIR-DENIED",
+    "correlation_id": "859ac6d51e27a70c77299e1b66aa00c0",
+    "guard_event": {
+      "version": 2,
+      "run_id": "catalogue",
+      "seq": 14,
+      "ts": "2026-11-21T20:41:52.987058Z",
+      "source": "guard-b",
+      "kind": "decision",
+      "correlation_id": "859ac6d51e27a70c77299e1b66aa00c0",
+      "payload": {
+        "state": "denied",
+        "reason_code": "MESH-PAIR-DENIED",
+        "rule_id": "not_evaluated",
+        "detail": "mesh_caller_denied",
+        "caller_spiffe_id": "not_evaluated",
+        "token_subject": "not_evaluated",
+        "resource": "POST https://resource.guard.test/demo",
+        "bundle_revision": "not_evaluated"
+      }
+    }
+  },
+  {
+    "case": "policy engine down",
+    "status": 503,
+    "reason_code": "POL-PDP-UNAVAILABLE",
+    "correlation_id": "12fa453a6dc2ad04665cb039c93ffcb6",
+    "guard_event": {
+      "version": 2,
+      "run_id": "catalogue",
+      "seq": 15,
+      "ts": "2026-11-21T20:41:53.007662Z",
+      "source": "guard-b",
+      "kind": "decision",
+      "correlation_id": "12fa453a6dc2ad04665cb039c93ffcb6",
+      "payload": {
+        "state": "denied",
+        "reason_code": "POL-PDP-UNAVAILABLE",
+        "rule_id": "not_evaluated",
+        "detail": "policy unavailable or invalid",
+        "caller_spiffe_id": "spiffe://zone-b.test/ns/example/sa/ztd-participant",
+        "token_subject": "3XdbfVK9pZ0vrQb3hZ3DDAwHDLaKQ16RioQRCuO7mgNYUZrs1jLefm1eOmc1FzXY",
+        "resource": "POST https://resource.guard.test/demo",
+        "bundle_revision": "not_evaluated"
+      }
+    }
+  },
+  {
+    "case": "token store down",
+    "status": 503,
+    "reason_code": "TOK-STORE-UNAVAILABLE",
+    "correlation_id": "8c020d400a31e7defc631d50680f2952",
+    "guard_event": {
+      "version": 2,
+      "run_id": "catalogue",
+      "seq": 16,
+      "ts": "2026-11-21T20:41:53.013983Z",
+      "source": "guard-b",
+      "kind": "decision",
+      "correlation_id": "8c020d400a31e7defc631d50680f2952",
+      "payload": {
+        "state": "denied",
+        "reason_code": "TOK-STORE-UNAVAILABLE",
+        "rule_id": "not_evaluated",
+        "detail": "replay_unavailable",
+        "caller_spiffe_id": "spiffe://zone-b.test/ns/example/sa/ztd-participant",
+        "token_subject": "not_evaluated",
+        "resource": "POST https://resource.guard.test/demo",
+        "bundle_revision": "not_evaluated"
+      }
+    }
+  },
+  {
+    "case": "expired token",
+    "status": 401,
+    "reason_code": "TOK-EXPIRED",
+    "correlation_id": "2e1d2ba2b8d5494981c1face1bbb3fd7",
+    "guard_event": {
+      "version": 2,
+      "run_id": "catalogue",
+      "seq": 17,
+      "ts": "2026-11-21T20:43:54.01839Z",
+      "source": "guard-b",
+      "kind": "decision",
+      "correlation_id": "2e1d2ba2b8d5494981c1face1bbb3fd7",
+      "payload": {
+        "state": "denied",
+        "reason_code": "TOK-EXPIRED",
+        "rule_id": "not_evaluated",
+        "detail": "token_expired",
+        "caller_spiffe_id": "spiffe://zone-b.test/ns/example/sa/ztd-participant",
+        "token_subject": "not_evaluated",
+        "resource": "POST https://resource.guard.test/demo",
+        "bundle_revision": "not_evaluated"
+      }
+    }
+  }
+]

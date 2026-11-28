@@ -1,0 +1,24 @@
+# Render-only: the ingress role with the TRAIN allow list (ZT-18), layered on ci/values.yaml.
+name: ztd-edge
+egress: {enabled: false}
+ingress:
+  enabled: true
+  tlsSecret: ztd-edge-tls
+  sourceRanges: [0.0.0.0/0]
+  upstream: {name: ztd-participant, port: 8080}
+  peerAllowList:
+    enabled: true
+    image: {digest: "sha256:0000000000000000000000000000000000000000000000000000000000000000"}
+    zone: b
+    tspaUrl: http://tspa.ztd-train.svc.cluster.local:16003/tspa-service/tspa/v1
+    framework: facis-ztd.example
+    issuerDid: did:web:tspa.example
+    clientCaCert: |
+      -----BEGIN CERTIFICATE-----
+      MIIBfake
+      -----END CERTIFICATE-----
+    egress:
+      - to:
+          - namespaceSelector: {matchLabels: {kubernetes.io/metadata.name: ztd-train}}
+            podSelector: {matchLabels: {app.kubernetes.io/name: tspa}}
+        ports: [{protocol: TCP, port: 16003}]

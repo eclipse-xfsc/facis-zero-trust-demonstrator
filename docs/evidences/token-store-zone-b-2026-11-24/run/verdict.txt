@@ -1,0 +1,15 @@
+PASS  the store's pod is Ready, no container restarted since 2026-11-23T16:35:28Z
+PASS  readiness is green with PostgreSQL and OpenBao reachable: {"postgres":"ok","openbao":"ok","signing_key":"ok"}
+PASS  liveness answers 200
+PASS  the store's proxy holds spiffe://zone-b.trust.invalid/ns/ztd-m3-b/sa/ztd-token-store in a certificate that verifies against the SPIRE server's bundle (issuer=C=ARPA, O=FACIS ZTD, CN=zone-b.trust.invalid, serialNumber=14124517092225300314263224327004414117)
+PASS  every request record of the store's last 5000 log lines carries a correlation id (4596 records)
+PASS  the probe is not a ready endpoint of the guard's Service ({"slices":1,"probeEntries":[{"ready":false,"serving":false,"terminating":false}],"readyEndpoints":1})
+PASS  a proof not seen before is admitted (200, fresh)
+PASS  the same proof again is refused: 409 TOK-REPLAY
+PASS  of 20 concurrent identical proofs exactly one is admitted, 19 refused TOK-REPLAY
+PASS  a proof issued 120 s ago and one dated 120 s ahead are refused: 422 TOK-PROOF-INVALID (the window is 60 s back, 30 s ahead)
+PASS  a target outside the guard's routes is refused: 403 TOK-ROUTE-DENIED
+PASS  the store recorded the 25 calls, each of the 23 refusals once under the correlation id its answer carried, with the same status
+PASS  cleanup: no probe Job or Pod of run 25c70a7d remains
+PASS  no AuthorizationPolicy, PeerAuthentication, NetworkPolicy, Deployment, Service or Helm release of ztd-m3-b changed (resourceVersions and revisions equal)
+verdict: PASS

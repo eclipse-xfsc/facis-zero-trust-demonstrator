@@ -1,0 +1,19 @@
+# One release per tenant, into the tenant's namespace, which the umbrella creates as a data-plane
+# entry of planes.extra (default deny, DNS, intra-namespace lane, mesh label and SPIFFE identities).
+# The tenant is the release namespace.
+trustDomain: ""
+# The tenant's members: the accounts of its namespace its data service answers
+# (spiffe://<trustDomain>/ns/<tenant>/sa/<name>). Any other account, of this namespace or another,
+# is refused by the data service's proxy.
+members: [ztd-participant]
+# Other tenants whose guard this tenant's Participant may call (the guard chart's
+# tenant.callerNamespaces on their side); egress to those guards' port 8080 only.
+guardNamespaces: []
+# The tenant's own data service, the stand-in for its workload: an Envoy answering every request
+# with the tenant's name. Image by digest.
+data:
+  image: {repository: docker.io/envoyproxy/envoy, digest: ""}
+  resources:
+    requests: {cpu: 10m, memory: 32Mi}
+    limits: {memory: 128Mi}
+podAnnotations: {}

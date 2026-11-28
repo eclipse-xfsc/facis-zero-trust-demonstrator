@@ -1,0 +1,1 @@
+{"ready":true,"checks":{"postgres":"ok","openbao":"ok","signing_key":"ok"}}

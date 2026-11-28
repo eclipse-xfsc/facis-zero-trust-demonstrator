@@ -1,0 +1,8 @@
+# Render-only: the ingress role (zone B's entry to its Participant), layered on ci/values.yaml.
+name: ztd-edge
+egress: {enabled: false}
+ingress:
+  enabled: true
+  tlsSecret: ztd-edge-tls
+  sourceRanges: [0.0.0.0/0]
+  upstream: {name: ztd-participant, port: 8080}

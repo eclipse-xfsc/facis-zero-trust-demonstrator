@@ -2,25 +2,25 @@
 Feature: Authorization surface
   Annex A rows for Authorization surface, worded exactly as in the Annex.
 
-  @ZT-07 @BDD-ZT-007 @pending
+  @ZT-07 @BDD-ZT-007 @cluster
   Scenario: API Dock
     Given the documented participant-backend and protected-resource interfaces
     When a replacement API is docked in place of the supplied mock
     Then it serves the demonstrator flow with no change to Connector, policy or trust configuration AND an API that does not satisfy the documented interface is rejected at configuration time.
 
-  @ZT-20 @BDD-ZT-020 @pending
+  @ZT-20 @BDD-ZT-020 @cluster
   Scenario: Guarding Functionality
     Given a protected resource behind the Connector guard
     When a request with matching authorization and a request without matching authorization are executed
     Then the authorized request passes the PEP/PDP policy chain AND the unauthorized request is denied before the protected resource returns data.
 
-  @ZT-21 @BDD-ZT-021 @pending
+  @ZT-21 @BDD-ZT-021 @cluster
   Scenario: OAuth2 Server
     Given a registered participant backend and a valid OID4VP presentation
     When the Connector OAuth2 server processes the respective flows
     Then it issues the appropriate DPoP-bound access tokens AND an invalid presentation or unregistered/unauthorized client does not receive a usable access token.
 
-  @ZT-22 @BDD-ZT-022 @pending
+  @ZT-22 @BDD-ZT-022 @cluster
   Scenario: Token Storage
     Given a participant-backend token and a stored counter-connector resource token
     When the backend calls the protected resource through the Connector
@@ -38,19 +38,19 @@ Feature: Authorization surface
     When they request functions with different privilege requirements
     Then each receives only the minimum permitted access and any privileged entitlement is time-bound/explicitly approved AND requests beyond the granted privilege are denied.
 
-  @ZT-73 @BDD-ZT-073 @pending
+  @ZT-73 @BDD-ZT-073 @cluster
   Scenario: Authorized Upstreaming over the Zero Trust Connector
     Given a registered participant backend with valid authorization and an available protected resource
     When the backend calls through the Zero Trust Connector
     Then the request is authorized, traverses the trusted channel and receives the policy-permitted protected-resource response AND an unauthorized request does not return protected data.
 
-  @ZT-74 @BDD-ZT-074 @pending
+  @ZT-74 @BDD-ZT-074 @cluster
   Scenario: Participant Backend Mock
     Given the participant-backend mock is configured with the approved Connector endpoints
     When the demonstrator scenario runs
     Then the mock behaves as a participant backend using the trusted channel and publishes its registration/request/status events to the visualization.
 
-  @ZT-76 @BDD-ZT-076 @pending
+  @ZT-76 @BDD-ZT-076 @cluster
   Scenario: Credential Based Access
     Given credentials that map to different application roles and a credential that is invalid/revoked
     When they are exchanged/verified and used to access the protected resource
@@ -62,7 +62,7 @@ Feature: Authorization surface
     When each is replaced by a real-world API through the documented interface
     Then the demonstrator journey completes against the real API with no change to the Zero Trust core AND the replacement is demonstrated end to end at least once.
 
-  @TDR-BDD-05 @BDD-TDR-005 @pending
+  @TDR-BDD-05 @BDD-TDR-005 @cluster
   Scenario: Keycloak / policy / token integration
     Given the target Keycloak, policy and token services are reachable
     When a valid and an invalid access flow are executed

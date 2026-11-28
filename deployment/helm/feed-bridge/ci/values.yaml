@@ -1,0 +1,5 @@
+# Render-only, never deploy this placeholder digest.
+image: {digest: "sha256:0000000000000000000000000000000000000000000000000000000000000000"}
+trustDomain: zone-b.trust.invalid
+ui: {namespace: ztd-ui, serviceAccount: ztd-ui}
+producers: [{namespace: ztd-data, serviceAccount: ztd-guard}]

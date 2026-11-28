@@ -1,0 +1,26 @@
+[
+  {
+    "revision": 1,
+    "status": "superseded",
+    "chart": "ztd-0.3.0",
+    "description": "Install complete"
+  },
+  {
+    "revision": 2,
+    "status": "superseded",
+    "chart": "ztd-0.3.0",
+    "description": "Upgrade complete"
+  },
+  {
+    "revision": 3,
+    "status": "failed",
+    "chart": "ztd-0.3.0",
+    "description": "Upgrade \"ztd\" failed: post-upgrade hooks failed: resource Job/ztd-system/ztd-verify-layout not ready. status: InProgress, message: Job in progress\ncontext deadline exceeded"
+  },
+  {
+    "revision": 4,
+    "status": "deployed",
+    "chart": "ztd-0.3.0",
+    "description": "Rollback to 2"
+  }
+]

@@ -1,0 +1,3 @@
+# The entry's network lane names where the peer comes from.
+# expect: ingress.upstream.name and ingress.sourceRanges are required
+ingress: {sourceRanges: []}

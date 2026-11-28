@@ -1,0 +1,13 @@
+# ztd-connector sidecar (ztd-m3-b/ztd-connector-fd564b8df-9m42j), read 2026-11-22T02:37:30Z with pilot-agent request GET stats/prometheus and stats
+# istio_requests_total, reporter=destination: source principal, response code, connection security policy, count
+spiffe://zone-b.trust.invalid/ns/ztd-m3-b/sa/ztd-guard 200 mutual_tls 9
+spiffe://zone-b.trust.invalid/ns/ztd-m3-b/sa/ztd-participant 200 mutual_tls 54
+spiffe://zone-b.trust.invalid/ns/ztd-m3-b/sa/ztd-participant 400 mutual_tls 27
+spiffe://zone-b.trust.invalid/ns/ztd-m3-b/sa/ztd-protected-resource 200 mutual_tls 9
+spiffe://zone-b.trust.invalid/ns/ztd-m3-b/sa/ztd-token-store 200 mutual_tls 976
+spiffe://zone-b.trust.invalid/ns/ztd-m3-b/sa/ztd-token-store 400 mutual_tls 434
+# RBAC filter on the inbound 8080 listener
+http.inbound_0.0.0.0_8080;.rbac.allowed: 1522
+http.inbound_0.0.0.0_8080;.rbac.denied: 0
+http.inbound_0.0.0.0_8080;.rbac.istio_dry_run_allow_.shadow_allowed: 0
+http.inbound_0.0.0.0_8080;.rbac.istio_dry_run_allow_.shadow_denied: 0

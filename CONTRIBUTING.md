@@ -35,9 +35,12 @@ issue.
 
 ## Releases
 
-Releases are cut from `main` and tagged `vX.Y.Z`. Publishing the release packages the Helm charts at
-that version and attaches them — only once every CI gate has passed — and triggers the SBOM and
-Eclipse Dash licence workflows; see [docs/ci-cd.md](docs/ci-cd.md).
+Releases are cut from `main` by pushing a tag `vX.Y.Z` (or `vX.Y.Z-prerelease`). The tag starts the
+release workflow: once the chart gate has passed it builds, signs and verifies the images at that
+version and packages the charts at it; once the secrets baseline has been audited as well, it signs
+the repository SBOM, runs the BDD suite and creates the GitHub release with every artefact and release
+notes that list each one with its digest; see [docs/ci-cd.md](docs/ci-cd.md#release). A release
+created by hand on GitHub gets only its charts and SBOM, not the set.
 
 ## Eclipse Project Handbook
 

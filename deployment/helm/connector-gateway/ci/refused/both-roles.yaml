@@ -1,0 +1,3 @@
+# A release is one role.
+# expect: exactly one of egress.enabled and ingress.enabled
+ingress: {enabled: true, tlsSecret: t, sourceRanges: [0.0.0.0/0], upstream: {name: u}}

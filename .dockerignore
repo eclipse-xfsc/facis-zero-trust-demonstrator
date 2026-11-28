@@ -7,4 +7,7 @@ bundles
 node_modules
 specs
 docs
+# The feed bridge image validates against the IF-01 event schemas.
+!docs/contracts/if01-event.v1.schema.json
+!docs/contracts/if01-event.v2.schema.json
 **/test

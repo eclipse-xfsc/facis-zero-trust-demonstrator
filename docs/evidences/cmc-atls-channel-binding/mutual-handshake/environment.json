@@ -1,0 +1,12 @@
+{
+  "script": "scripts/atls-probe/prove-mutual-handshake.sh",
+  "commit": "f531ed63b8ef6f974008364393e74297f7ba3bd3",
+  "dirty": false,
+  "go_version": "go1.27.0",
+  "cmc_version": "v0.9.15",
+  "cmcd_binary": "github.com/Fraunhofer-AISEC/cmc@v0.9.15",
+  "date": "2026-11-06T17:14:24Z",
+  "host_kind": "local",
+  "os": "Linux 6.8.0-147-generic",
+  "arch": "x86_64"
+}

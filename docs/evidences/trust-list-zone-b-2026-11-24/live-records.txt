@@ -1,0 +1,61 @@
+# Sanitised records of the live change (zone B, ztd-train, 24 Nov 2026). No secret, token or address.
+
+## TSPA as deployed (read 10:33Z)
+sha256:cbe575d40cf1cb35c2217211c1d750b0aafb2c9023bdd3751d7504dfbc6d4da5, pulled from a temporary public copy of our image (our package was private)
+15:56:00-15:56:49Z: Deployment tspa-service set to ghcr.io/fune5tiatlas/facis-zero-trust-demonstrator/tspa@sha256:cbe575d40cf1cb35c2217211c1d750b0aafb2c9023bdd3751d7504dfbc6d4da5
+  (same digest, package now public, signature and attestation beside it); one restart; through the public entry the
+  list and its VC answer 200 with the same bytes before and after (SHA-256 f2e5219f…, d36844ef…), did.json 200
+16:05:40-16:06:40Z: helm upgrade of the release tspa to revision 4, deployed (chart tspa-service-0.2.1 as in revisions 1-2,
+  values equal to what was live: this image as candidate-2a2a65a8bcfd@sha256:cbe575d4…, the signing-key Secret mounted,
+  the configuration unchanged); revision 3 was refused on field ownership and changed nothing; one restart; list and VC
+  200 with the same bytes again
+cosign v3.1.4, anonymous, key docs/contracts/keys/interim-cosign.pub, transparency log not consulted: the signature of
+  this digest verifies, and so do its two attestations (https://cyclonedx.org/bom, https://facis.eu/ztd/mock-attestation/v1)
+18:54:20-18:55:25Z: helm upgrade of the release tspa to revision 5, deployed: the image rebuilt on Tomcat 10.1.62
+  (candidate-2c34b1e72933@sha256:5da1146629043a47051a7746d030a3d9e8462f918726475065d0ba4a75c62601, built and signed by
+  release.yml from candidate/m3-closeout at 2c34b1e7), nothing else in the values changed; its signature and both
+  attestations verify with the same key; scanned with the gate's settings and the WAR excluded, no HIGH or CRITICAL
+  finding; the pod logs Apache Tomcat/10.1.62; one restart; list and VC 200 with the same bytes, did.json 200
+trustlist.vc: issuer did:web:tspa.facis.cloud, signer key trust-list-1, validity P30D; tspa.signing-key-file /var/run/tspa/signing-key.jwk; request.get.mapping http://localhost:16003/tspa-service/tspa/v1/
+
+## TSPA store before the publication (find /tmp/train-tspa -type f, 09:56Z)
+/tmp/train-tspa/well-known/did-configuration.json
+
+## Keycloak realm ztd-train, admin CLI in the pod (09:57Z)
+clients before: ztd-partner, ztd-tspa, ztd-zone-manager (and the realm built-ins)
+create clients -r ztd-train: Created new client with id <id>   (clientId ztd-trustlist-publisher)
+add-roles --uusername service-account-ztd-trustlist-publisher --rolename enrolltf; get-roles: default-roles-ztd-train, enrolltf
+realm import (Secret keycloak-realm, key ztd-train.json) now: clients ztd-tspa, ztd-partner, ztd-zone-manager, ztd-trustlist-publisher
+
+## Publication (through a port-forward of the TSPA Service, token of ztd-trustlist-publisher)
+2026-11-24T09:59:28Z
+PUT /trustframework/trust.facis.cloud -> {"message":"Trust-framework created for trust.facis.cloud","status":201} HTTP 201
+PUT /init/json/trust.facis.cloud/trust-list -> {"message":"Trust-list initially created and stored in JSON format","status":201} HTTP 201
+PUT /trust.facis.cloud/trust-list/tsp -> {"MapN":{"message":"TSP published for trust.facis.cloud.","status":201}} HTTP 201
+2026-11-24T09:59:30Z
+
+## Helm, namespace ztd-train (history times are the operator's clock, UTC-1; read 10:33Z)
+REVISION UPDATED STATUS CHART APP VERSION DESCRIPTION 
+1 Tue Nov 24 09:01:42 2026 superseded tspa-republish-0.1.0
+2 Tue Nov 24 09:09:15 2026 deployed tspa-republish-0.1.0
+train-zone-manager revision 3 deployed train-zone-manager-0.1.0
+tspa revision 2 failed tspa-service-0.2.1
+tspa-republish revision 2 deployed tspa-republish-0.1.0
+
+## DNS (read 10:33Z)
+zone server, _scheme._trust.trust.facis.cloud PTR: status: NXDOMAIN
+zone server, trust.facis.cloud SOA serial: 1795478701 (before the publication, 09:56Z: 1795478701)
+public validating resolver, trust.facis.cloud SOA +dnssec: flags: qr rd ra ad
+tspa.facis.cloud A resolves to the entry: no
+
+## The ZT-26 runs of this record (decision.txt of each; go test exit from the runner)
+trustlist-b-20261124-r1: FAIL: direct-path: the caller's direct https attempt at <address>:443, around the gateway, is dropped by the network layer; entry: declared entry ztd-train/tspa-public: GET the VC of trust.facis.cloud's trust list answers 200 with a credential valid now; the record's result: Result: 2 failed check(s).
+trustlist-b-20261124-r2: FAIL: direct-path: the caller's direct https attempt at <address>:443, around the gateway, is dropped by the network layer; the record's result: Result: 1 failed check(s).
+trustlist-b-20261124-r3: FAIL: direct-path: the caller's direct https attempt at <address>:443, around the gateway, is dropped by the network layer; the record's result: Result: 1 failed check(s).
+trustlist-b-20261124-r4: PASS
+trustlist-b-20261124-r5: PASS
+
+## Runner output of r5
+kube-system uid a39ae8ea-ac02-4aec-9c13-cda127b17e2d; commit b3cbdcefd816231a61c2f381a2df30e9c4af9b83; start 2026-11-24T10:32:46Z
+ok  	github.com/eclipse-xfsc/facis-zero-trust-demonstrator/internal/bdd
+exit 0 end 2026-11-24T10:37:22Z

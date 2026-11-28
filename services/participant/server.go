@@ -56,6 +56,13 @@ func NewServerWithAdapter(config Config, logger *slog.Logger, adapter RequestAda
 	}
 	server.lifecycle = newLifecycle(config.Bootstrapper, config.BootstrapAttempts, config.BootstrapBackoff,
 		func() time.Time { return server.now() }, logger)
+	server.lifecycle.onTransition = func(state State, reason string) {
+		phase := "status"
+		if state == StateRegistering || state == StateRegistered || state == StateFailedRegister {
+			phase = "registration"
+		}
+		config.Events.Emit("", string(state), strings.ToUpper(reason), phase)
+	}
 	if config.Bootstrapper != nil {
 		server.adapter = NewTokenAdapter(config.ResourceURL, nil, server.lifecycle.currentSession)
 	}
@@ -242,6 +249,7 @@ func (s *Server) handleDemo(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) writeDemoResult(w http.ResponseWriter, status int, requestID, correlationID string, result AdapterResult) {
+	s.config.Events.Emit(correlationID, string(result.Outcome), result.ReasonCode, "request")
 	if result.SafeData == nil {
 		result.SafeData = emptySafeData()
 	}

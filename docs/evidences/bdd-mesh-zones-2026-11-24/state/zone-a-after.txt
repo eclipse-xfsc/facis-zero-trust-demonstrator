@@ -1,0 +1,7 @@
+zone-a after the runs, read 2026-11-24T11:05:55Z
+Helm releases whose revision, status or chart differs from the list taken before the runs:
+(end of differences; 16 releases)
+ValidatingAdmissionPolicy proxy-takes-spire-socket: generation 21 before, 25 now; managers now: helm, validatingadmissionpolicy-status; spec equal to the one before: yes
+objects labelled app.kubernetes.io/part-of=verify-plane-separation: 0
+probe Jobs or Pods (ztd.facis.io/probe=true): 0
+telemetry: releases named otel-*: 0; workloads in ztd-otel-node: 0; workloads named for a collector, Prometheus or a tracing backend outside kube-system: 0

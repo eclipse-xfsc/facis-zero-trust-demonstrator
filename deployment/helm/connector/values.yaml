@@ -7,10 +7,24 @@ zone: ""
 database:
   existingSecret: ""
   secretKey: url
+# The issuer schema, applied by the chart: a pre-install/pre-upgrade hook Job runs `token-store
+# migrate up` against the database above before the connector is created or updated. The migrations
+# are embedded in the token-store image only, so image is that image, by digest, of a build whose
+# migrations reach the version this connector expects. Off by default: where the connector shares
+# the token store's database, the token-store chart applies the schema. The Job runs as its own
+# ServiceAccount (created as a hook with serviceAccount.create) under its own NetworkPolicy: DNS and
+# `egress`, which must carry the database lane (and istiod's, where the namespace is meshed).
+schema:
+  enabled: false
+  image:
+    repository: ghcr.io/eclipse-xfsc/facis-zero-trust-demonstrator/token-store
+    digest: ""
+  serviceAccountName: ztd-connector-schema
+  egress: []
 credentials:
   existingSecret: ""
   keys:
-    openbaoToken: openbao-token
+    openbaoToken: openbao-token   # not mounted with openbao.auth.method kubernetes
     tokenHMAC: token-hmac
     registrationHMAC: registration-hmac
     registrarSecret: registrar-secret
@@ -18,6 +32,19 @@ openbao:
   address: http://ztd-openbao.ztd-mgmt.svc:8200
   signingKey: ""
   signingKeyVersion: 1
+  # How the service authenticates to OpenBao. token (the default): the token file from the
+  # credentials Secret. kubernetes: OpenBao's Kubernetes auth method with a projected service-account
+  # token for `audience`, which the kubelet rotates (expirationSeconds, 600 at least) and the service
+  # rereads at every login; the service logs in again at half its OpenBao token's lease and before it
+  # expires, so no token is held in a Secret and none expires under the service
+  # (docs/secrets.md#kubernetes-auth). role names the OpenBao role, which must bind this namespace,
+  # the ServiceAccount and the audience.
+  auth:
+    method: token
+    role: ""
+    mount: kubernetes
+    audience: openbao
+    expirationSeconds: 600
 oauth:
   issuer: ""
   registrationEndpoint: ""
@@ -43,6 +70,16 @@ serviceAccount:
   name: ztd-connector
 identity:
   spireManagedIdentity: true
+# The mesh callers the connector's sidecar admits (AuthorizationPolicy ztd-connector-callers), each by
+# namespace and service account in trustDomain (spiffe://<trustDomain>/ns/<namespace>/sa/<name>), on
+# the API port only. oauth: the OAuth2 endpoints (/oauth2/*: registration, challenge, token) and the
+# key set - the Participant and the token store. keySet: the key set (GET /.well-known/jwks.json)
+# alone - the guard and the protected resource, which only verify tokens (IF-02). With both empty no
+# policy renders and the mesh default deny refuses every caller.
+trustDomain: ""
+callers:
+  oauth: []    # - {namespace: ztd-data, name: ztd-participant}
+  keySet: []   # - {namespace: ztd-data, name: ztd-guard}
 podAnnotations: {}
 nodeSelector: {}
 server:

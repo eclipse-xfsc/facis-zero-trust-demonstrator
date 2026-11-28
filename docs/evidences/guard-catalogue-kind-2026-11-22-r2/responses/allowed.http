@@ -1,0 +1,9 @@
+HTTP/1.1 200 OK
+cache-control: no-store
+content-type: application/json
+date: Sun, 22 Nov 2026 01:44:40 GMT
+content-length: 520
+x-envoy-upstream-service-time: 621
+server: envoy
+
+{"requestId":"735b255923a12d35c44627844739fec4","correlationId":"735b255923a12d35c44627844739fec4","source":"sample","mode":"token","outcome":"success","reasonCode":"RESOURCE_SUMMARY_RETURNED","explanation":"The seeded report summary was returned for the report:summary scope.","timestamp":"2026-11-22T01:44:40.870971004Z","safeData":{"action":"read","resource":"sample-report","summary":{"id":"FACIS-SAMPLE-REPORT-001","summary":"Summary view of the local sample report.","title":"FACIS deterministic sample report"}}}

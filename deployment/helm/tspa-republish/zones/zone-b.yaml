@@ -1,0 +1,6 @@
+# Zone B's TRAIN instance (namespace ztd-train). The Secret tspa-republish-client is created beside
+# the release, not by it.
+framework: trust.facis.cloud
+tspaUrl: http://tspa-service.ztd-train:16003/tspa-service/tspa/v1
+tokenUrl: http://keycloak.ztd-train:8080/realms/ztd-train/protocol/openid-connect/token
+client: {id: ztd-trustlist-publisher, secretName: tspa-republish-client}

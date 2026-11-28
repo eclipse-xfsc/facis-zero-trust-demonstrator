@@ -83,8 +83,9 @@ var (
 	// ErrUnsupportedKey is an existing key that is not what this package creates: another type,
 	// exportable, or with a plaintext backup allowed. It is never used, whatever its versions.
 	ErrUnsupportedKey = errors.New("transit: key is not a non-exportable ecdsa-p256 key")
-	// ErrTokenSource is a token source that failed or yielded nothing: the token file is missing,
-	// unreadable or empty. The source's own error is never wrapped.
+	// ErrTokenSource is a token source that failed or yielded nothing: the Kubernetes auth login
+	// failed with no valid token left, or the token file is missing, unreadable or empty. The
+	// source's own error is never wrapped.
 	ErrTokenSource = errors.New("transit: token source failed")
 )
 

@@ -1,0 +1,16 @@
+{
+  "fixture": true,
+  "case": "unaccepted-vct",
+  "what": "a credential type the verifier does not accept",
+  "input": {
+    "vp_token": "eyJhbGciOiJFUzI1NiIsInR5cCI6ImRjK3NkLWp3dCIsImtpZCI6ImZpeHR1cmUtaXNzdWVyLTEifQ.eyJfc2QiOlsiNWlnUjBxczF2enRBeUxUWEZoRm1DbG5UUkFVeGtaMnBfTUJjX0R5WGtZQSIsIld1YXExaGs4WkU1RkdVZk5tU25CdHVLRU9obmJjdmlONUc0NWdyWkt4ZkEiLCJCZFdiSUVTQ3BkTkx4TXVyeEVyOWEyTGlsRksxTGhHWjN1SFVaLVV6cDBvIl0sIl9zZF9hbGciOiJzaGEtMjU2IiwiY25mIjp7Imp3ayI6eyJrdHkiOiJFQyIsImNydiI6IlAtMjU2IiwieCI6InRhRUV0c3F0LWhXbS01NnprNUkzS0UxQVRwMlVocmNHUVJSWG9XOFM2RW8iLCJ5IjoiR0x2cjJYNVNXR2NIVkVLOVV3NmswcDduclljNmdxWXVnRXZqd0k0MHlkWSJ9fSwiZXhwIjoyMDgyNzU4NDAwLCJpYXQiOjE3ODg4Njg4MDAsImlzcyI6Imh0dHBzOi8vaXNzdWVyLmZpeHR1cmUuaW52YWxpZCIsImp0aSI6InVybjp1dWlkOjAwMDAwMDAwLTAwMDAtNDAwMC04MDAwLTAwMDAwMDAwMDBhYSIsIm5iZiI6MTc4ODg2ODgwMCwic3RhdHVzIjp7InN0YXR1c19saXN0Ijp7ImlkeCI6NDIsInVyaSI6Imh0dHBzOi8vc3RhdHVzLmZpeHR1cmUuaW52YWxpZC9saXN0cy9wYXJ0aWNpcGFudC5qd3QifX0sInZjdCI6Imh0dHBzOi8vZmFjaXMuZXhhbXBsZS9jcmVkZW50aWFscy92aXNpdG9yIn0.f-oLy8UO2_fgH1pzzg4vPytcBRstEeop1njaCGhHEYAJSjZCvACVe-f1vj50JtKWHPD0OKx-Xn8mxDbdf_6fzw~WyIxTHZKS2N3SXdFQzBBNjJROTYzVVh3Iiwicm9sZSIsInBhcnRpY2lwYW50Il0~WyI2UDI3OXFVZ3ZUM012R2IxeXBFc3lnIiwiZW50aXRsZW1lbnQiLCJyZWFkIl0~eyJhbGciOiJFUzI1NiIsInR5cCI6ImtiK2p3dCJ9.eyJhdWQiOiJodHRwczovL3pvbmUtYi5leGFtcGxlL3Jlc291cmNlIiwiaWF0IjoxNzg4OTU1MTk1LCJub25jZSI6ImZ4LWNoYWxsZW5nZS0wMTIzNDU2Nzg5YWJjZGVmIiwic2RfaGFzaCI6IlR3eml5MjBqX2YwZk1SYzctZzl6SGtITHFBQ0VESWJwNGs2TE5zVnNuWk0ifQ.Ykd1nERjnjUgJpMecT3zgm9oOO77oAhi70PmS7DpKrDDcjh1Pa8s-MoLkELa6wbdpFBtVRyX1a-hKSSBvyB1jw",
+    "nonce": "fx-challenge-0123456789abcdef",
+    "audience": "https://zone-b.example/resource",
+    "now": "2026-09-09T12:00:00Z"
+  },
+  "status_list": "clear",
+  "expect": {
+    "status": "failed",
+    "reason_code": "CRED-INVALID"
+  }
+}

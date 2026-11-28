@@ -1,0 +1,37 @@
+# The probe-scoped network opening of design D5 (scripts/verify-plane-separation/verify.sh): one
+# NetworkPolicy pair that admits only the prober __PROBER__ of this run (by its pod name and the run-unique
+# label; a mesh prober or a proxy-less probe) in __NS__ to the pods of __DEST_NS__ selected by
+# __DEST_SELECTOR__, on port __PORT__ alone, in either direction between the planes. Applied
+# for one meshed destination and port, deleted right after the probe, and removed by the EXIT/INT/TERM
+# trap if a run stops in between.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: verify-plane-separation-egress-__RUN__
+  namespace: __NS__
+  labels: { app.kubernetes.io/part-of: verify-plane-separation }
+spec:
+  podSelector:
+    matchLabels: { verify-plane-separation/run: "__RUN__", verify-plane-separation/prober: __PROBER__ }
+  policyTypes: [Egress]
+  egress:
+    - to:
+        - namespaceSelector: { matchLabels: { kubernetes.io/metadata.name: __DEST_NS__ } }
+          podSelector: { matchLabels: __DEST_SELECTOR__ }
+      ports: [{ port: __PORT__, protocol: TCP }]
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: verify-plane-separation-ingress-__RUN__
+  namespace: __DEST_NS__
+  labels: { app.kubernetes.io/part-of: verify-plane-separation }
+spec:
+  podSelector:
+    matchLabels: __DEST_SELECTOR__
+  policyTypes: [Ingress]
+  ingress:
+    - from:
+        - namespaceSelector: { matchLabels: { kubernetes.io/metadata.name: __NS__ } }
+          podSelector: { matchLabels: { verify-plane-separation/run: "__RUN__", verify-plane-separation/prober: __PROBER__ } }
+      ports: [{ port: __PORT__, protocol: TCP }]

@@ -42,8 +42,12 @@ spec:
       containers:
         - name: {{ .Values.name }}
           image: "{{ .Values.image.repository }}@{{ .Values.image.digest }}"
-          {{- if or .Values.env .Values.secretEnv }}
+          {{- if or .Values.env .Values.secretEnv .Values.eventSource }}
           env:
+            {{- with .Values.eventSource }}
+            - name: IF01_SOURCE
+              value: {{ . | quote }}
+            {{- end }}
             {{- range $k, $v := .Values.env }}
             - name: {{ $k }}
               value: {{ $v | toString | quote }}
@@ -67,6 +71,10 @@ spec:
           ports:
             - name: http
               containerPort: {{ .Values.port }}
+            {{- if .Values.grpcPort }}
+            - name: grpc
+              containerPort: {{ .Values.grpcPort }}
+            {{- end }}
           readinessProbe:
             httpGet:
               path: {{ .Values.healthPath }}

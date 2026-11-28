@@ -66,6 +66,9 @@ flags of serve (each defaults to the TOKEN_STORE_* variable of the same name):
   --replay-callers IDS          comma-separated SPIFFE IDs allowed to call /internal/replay-check
   --acquire-config PATH         routes file, JSON: enables /internal/substitute and renewal
   --openbao-token-file PATH     file holding the OpenBao token, read on every call (with --acquire-config)
+  --openbao-auth-role ROLE      OpenBao Kubernetes auth role: log in with the projected service-account token instead of a token file
+  --openbao-auth-mount PATH     OpenBao Kubernetes auth mount (default kubernetes)
+  --openbao-jwt-file PATH       projected service-account token, reread at every login (default /var/run/secrets/openbao/token)
 
 flags of every migrate command:
   --database-url URL   PostgreSQL connection URL (default: $TOKEN_STORE_DATABASE_URL)

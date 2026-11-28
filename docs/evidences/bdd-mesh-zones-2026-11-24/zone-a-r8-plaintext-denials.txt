@@ -1,0 +1,21 @@
+from | destination | port | kind | verifier | forwarded (Hubble) | denial line of the destination's proxy
+istio-system/probe-1 | tenant-a/tenant-data-6c6bf85df7-xczm9 | 8080 | real | pass | Nov 24 10:25:08.738 | 2026-11-24T10:25:08.738Z detail=filter_chain_not_found flags=NR source=None
+istio-system/probe-1 | tenant-b/tenant-data-649c557748-vb948 | 8080 | real | pass | Nov 24 10:25:29.860 | 2026-11-24T10:25:29.861Z detail=filter_chain_not_found flags=NR source=None
+istio-system/probe-0 | ztd-data/ztd-connector-gateway-55d9978c85-bhs9n | 8080 | real | pass | Nov 24 10:25:52.320 | 2026-11-24T10:25:52.320Z detail=filter_chain_not_found flags=NR source=None
+istio-system/probe-0 | ztd-data/ztd-guard-595f4d499c-582vk | 8080 | real | pass | Nov 24 10:26:25.902 | 2026-11-24T10:26:25.902Z detail=filter_chain_not_found flags=NR source=None
+istio-system/probe-0 | ztd-data/ztd-guard-595f4d499c-582vk | 9090 | real | pass | Nov 24 10:26:32.060 | 2026-11-24T10:26:32.060Z detail=filter_chain_not_found flags=NR source=None
+istio-system/probe-0 | ztd-data/ztd-policy-evaluator-9cfd75b4d-cmq48 | 8080 | real | pass | Nov 24 10:26:51.163 | 2026-11-24T10:26:51.163Z detail=filter_chain_not_found flags=NR source=None
+spire-system/probe-1 | tenant-a/tenant-data-6c6bf85df7-xczm9 | 8080 | real | pass | Nov 24 10:27:10.131 | 2026-11-24T10:27:10.131Z detail=filter_chain_not_found flags=NR source=None
+spire-system/probe-1 | tenant-b/tenant-data-649c557748-vb948 | 8080 | real | pass | Nov 24 10:27:28.828 | 2026-11-24T10:27:28.828Z detail=filter_chain_not_found flags=NR source=None
+spire-system/probe-0 | ztd-data/ztd-connector-gateway-55d9978c85-bhs9n | 8080 | real | pass | Nov 24 10:27:46.995 | 2026-11-24T10:27:46.995Z detail=filter_chain_not_found flags=NR source=None
+spire-system/probe-0 | ztd-data/ztd-guard-595f4d499c-582vk | 8080 | real | pass | Nov 24 10:28:18.134 | 2026-11-24T10:28:18.134Z detail=filter_chain_not_found flags=NR source=None
+spire-system/probe-0 | ztd-data/ztd-guard-595f4d499c-582vk | 9090 | real | pass | Nov 24 10:28:24.893 | 2026-11-24T10:28:24.893Z detail=filter_chain_not_found flags=NR source=None
+spire-system/probe-0 | ztd-data/ztd-policy-evaluator-9cfd75b4d-cmq48 | 8080 | real | pass | Nov 24 10:28:43.434 | 2026-11-24T10:28:43.434Z detail=filter_chain_not_found flags=NR source=None
+ztd-mgmt/probe-0 | ztd-data/ztd-guard-595f4d499c-582vk | 9090 | real | pass | Nov 24 10:30:44.254 | 2026-11-24T10:30:44.254Z detail=filter_chain_not_found flags=NR source=None
+ztd-otel-node/probe-1 | tenant-a/tenant-data-6c6bf85df7-xczm9 | 8080 | real | pass | Nov 24 10:31:02.828 | 2026-11-24T10:31:02.828Z detail=filter_chain_not_found flags=NR source=None
+ztd-otel-node/probe-1 | tenant-b/tenant-data-649c557748-vb948 | 8080 | real | pass | Nov 24 10:31:21.459 | 2026-11-24T10:31:21.459Z detail=filter_chain_not_found flags=NR source=None
+ztd-otel-node/probe-0 | ztd-data/ztd-connector-gateway-55d9978c85-bhs9n | 8080 | real | pass | Nov 24 10:31:39.775 | 2026-11-24T10:31:39.775Z detail=filter_chain_not_found flags=NR source=None
+ztd-otel-node/probe-0 | ztd-data/ztd-guard-595f4d499c-582vk | 8080 | real | pass | Nov 24 10:32:10.499 | 2026-11-24T10:32:10.499Z detail=filter_chain_not_found flags=NR source=None
+ztd-otel-node/probe-0 | ztd-data/ztd-guard-595f4d499c-582vk | 9090 | real | pass | Nov 24 10:32:16.613 | 2026-11-24T10:32:16.613Z detail=filter_chain_not_found flags=NR source=None
+ztd-otel-node/probe-0 | ztd-data/ztd-policy-evaluator-9cfd75b4d-cmq48 | 8080 | real | pass | Nov 24 10:32:35.358 | 2026-11-24T10:32:35.359Z detail=filter_chain_not_found flags=NR source=None
+19 plain-text probe(s), 19 with the denial line; 19 line(s) collected, 0 of no plain-text probe

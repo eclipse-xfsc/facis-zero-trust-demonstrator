@@ -20,7 +20,7 @@ here before it counts as settled.
 | Admission provider: fork or first-party | 0014 | not written | Settled by 0002: built first-party, no separate record needed | as 0002 |
 | OAuth2 authorisation surface | 0003 | [In the Go connector](0003-oauth2-authorisation-surface-in-the-go-connector.md) | Accepted (governing) | DCR and DPoP spike |
 | vp_token to access-token mechanism | 0007 | not written | Superseded by 0003 | — |
-| OAuth2 library behind the provider contract | — | pull request #19, filed as 0012 | Proposed | Library evaluation in pull request #19. **Number conflict:** 0012 is allocated to the policy artefact chains |
+| OAuth2 library behind the provider contract | 0016 | [Behind the connector's provider contract](0016-oauth2-library-behind-the-connector-provider-contract.md) | Accepted on 22 November 2026 by the Project Leader | Library evaluation in pull request #19; version pin and frozen contract tests |
 | Key material store | 0004 | [OpenBao](0004-openbao-as-x509-key-value-store.md) | Accepted, pending the client's licence decision (F-07) | Secrets baseline in pull request #16 |
 | Connector token store | 0013 | not written | Planning record: design decided, storage engine proposed; not yet recorded here | — |
 | Target environment | 0005 | [Three-cluster reading](0005-three-cluster-reading-of-the-target-environment.md) | Accepted (governing), recorded assumption | — |
@@ -29,6 +29,7 @@ here before it counts as settled.
 | Mock TEE evidence | 0011 | [Format and provisioning](0011-mock-tee-evidence-format-and-provisioning.md) | Accepted for the format; provisioning items open | Mock-attestation samples in `docs/contracts/samples` |
 | Policy artefact chains (Gatekeeper and TSA) | 0012 | not written | Planning record: decided. The client has since answered that infrastructure policies load into Gatekeeper before TSA exists and software policies go through TSA; not yet recorded here | — |
 | Interface registry (IF-01 to IF-08) | 0015 | not written | Implemented as the registry in [API documentation](../api-docs.md) | Contract checks in CI |
+| Observability placement: collectors per cluster, backends central on the demonstrator cluster | 0017 | [Central observability backends](0017-central-observability-backends.md) | Proposed, refines 0005 | Observability proof in `scripts/verify-observability/` |
 | TRAIN launch-digest carrier | — | none | Open: no entry field exists. Asked of the client, who has defined no variant and asked us to propose one; our proposal is a `Type`/`Value` list ([Specification changes](../specifications.md)), not yet confirmed | TSPA API verification |
 | Observability without Grafana | — | [Specification changes](../specifications.md) | Declared deviation: the SRS's alternative clause is taken (Grafana is AGPL-3.0) | — |
 | Gateway API scope: a `GatewayClass`-scoped operator | — | [Specification changes](../specifications.md) | Declared reading, pending the client's confirmation | — |

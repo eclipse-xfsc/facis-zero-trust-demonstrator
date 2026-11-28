@@ -1,0 +1,37 @@
+Subject: [PATCH] Compute the trust-list VC's expirationDate from
+ trustlist.vc.validity
+
+---
+ .../eu/xfsc/train/tspa/services/VCServiceImpl.java   | 12 ++++++++++++
+ 1 file changed, 12 insertions(+)
+
+diff --git a/src/main/java/eu/xfsc/train/tspa/services/VCServiceImpl.java b/src/main/java/eu/xfsc/train/tspa/services/VCServiceImpl.java
+index 2900484..c58cb11 100644
+--- a/src/main/java/eu/xfsc/train/tspa/services/VCServiceImpl.java
++++ b/src/main/java/eu/xfsc/train/tspa/services/VCServiceImpl.java
+@@ -62,6 +62,10 @@ public class VCServiceImpl implements IVCService {
+ 	private String vcsigner_type;
+ 	@Value("${trustlist.vc.signer.key}")
+ 	private String vcsigner_key;
++	// ISO-8601 duration (for example P30D): expirationDate = issuanceDate + this period. Required: a
++	// trust-list VC without a real validity window is never issued.
++	@Value("${trustlist.vc.validity:}")
++	private String vcValidity;
+ 	
+ 	
+ 	// --> Set the Storage path and creating directory in local store.
+@@ -194,6 +198,14 @@ public class VCServiceImpl implements IVCService {
+ 
+ 		
+ 		PayloadJsonObject.addProperty("issuanceDate", issuancedateString);
++		if (vcValidity == null || vcValidity.isBlank()) {
++			throw new PropertiesAccessException("trustlist.vc.validity is not set; no trust-list VC is issued without a validity window");
++		}
++		java.time.Duration validity = java.time.Duration.parse(vcValidity);
++		if (validity.isNegative() || validity.isZero()) {
++			throw new PropertiesAccessException("trustlist.vc.validity must be a positive duration");
++		}
++		PayloadJsonObject.addProperty("expirationDate", dateFormat.format(Date.from(issuanceDate.toInstant().plus(validity))));
+ 		
+ 
+ 		//Credential subject

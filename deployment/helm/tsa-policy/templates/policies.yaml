@@ -1,0 +1,69 @@
+{{- include "tsa.validate" . -}}
+apiVersion: security.istio.io/v1
+kind: PeerAuthentication
+metadata:
+  name: tsa-policy-engine-strict
+  namespace: {{ .Release.Namespace }}
+spec:
+  selector:
+    matchLabels: {app.kubernetes.io/name: tsa-policy-engine}
+  mtls: {mode: STRICT}
+---
+apiVersion: security.istio.io/v1
+kind: AuthorizationPolicy
+metadata:
+  name: tsa-policy-engine-caller
+  namespace: {{ .Release.Namespace }}
+spec:
+  selector:
+    matchLabels: {app.kubernetes.io/name: tsa-policy-engine}
+  action: ALLOW
+  rules:
+    - from:
+        - source:
+            principals:
+              {{- range .Values.callers }}
+              - {{ printf "%s/ns/%s/sa/%s" $.Values.trustDomain .namespace .name | quote }}
+              {{- end }}
+      to:
+        - operation:
+            ports: ["8080"]
+            methods: ["POST"]
+            paths: [{{ include "tsa.evaluationPath" . | quote }}]
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: tsa-policy-engine
+  namespace: {{ .Release.Namespace }}
+spec:
+  podSelector:
+    matchLabels: {app.kubernetes.io/name: tsa-policy-engine}
+  policyTypes: [Ingress, Egress]
+  ingress:
+    - from:
+        {{- range .Values.callers }}
+        - namespaceSelector:
+            matchLabels: {kubernetes.io/metadata.name: {{ .namespace }}}
+          podSelector:
+            matchLabels: {app.kubernetes.io/name: {{ .name }}}
+        {{- end }}
+      ports: [{protocol: TCP, port: 8080}]
+  egress:
+    - to:
+        - namespaceSelector:
+            matchLabels: {kubernetes.io/metadata.name: kube-system}
+          podSelector:
+            matchLabels: {k8s-app: kube-dns}
+      ports: [{protocol: UDP, port: 53}, {protocol: TCP, port: 53}, {protocol: UDP, port: 8053}, {protocol: TCP, port: 8053}]
+    {{- if .Values.networkPolicy.istiod.enabled }}
+    - to:
+        - namespaceSelector:
+            matchLabels: {kubernetes.io/metadata.name: {{ .Values.networkPolicy.istiod.namespace }}}
+          podSelector:
+            matchLabels: {app: istiod}
+      ports: [{protocol: TCP, port: 15012}]
+    {{- end }}
+    {{- with .Values.networkPolicy.egress }}
+    {{- toYaml . | nindent 4 }}
+    {{- end }}

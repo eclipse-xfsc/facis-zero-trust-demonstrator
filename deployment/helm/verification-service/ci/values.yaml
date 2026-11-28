@@ -1,0 +1,27 @@
+# Renders the chart in CI: a placeholder digest and the names of Secrets and a ConfigMap a zone
+# creates before the install; never deployed as is. No credential values.
+image:
+  digest: sha256:0000000000000000000000000000000000000000000000000000000000000000
+issuer: https://verification.zone-a.trust.invalid
+callers:
+  - spiffe://zone-a.trust.invalid/ns/ztd-mgmt/sa/ztd-token-store
+database:
+  existingSecret: verification-service-database
+openbao:
+  address: http://openbao:8200
+  existingSecret: verification-service-credentials
+trust:
+  existingConfigMap: verification-service-trust
+  tcr:
+    url: http://tcr.ztd-mgmt.svc:8087
+    trustSchemePointers: [trust.zone-a.trust.invalid]
+acceptedVCT:
+  - https://facis.example/credentials/participant
+statusPrefixes:
+  - https://status.zone-a.trust.invalid/lists/
+mesh:
+  trustDomain: zone-a.trust.invalid
+networkPolicy:
+  enabled: true
+  ingressFrom:
+    - podSelector: {matchLabels: {app.kubernetes.io/name: ztd-token-store}}

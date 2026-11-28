@@ -2,113 +2,467 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "title": "ztd umbrella chart values",
   "type": "object",
-  "required": ["zone", "planes", "mesh", "cni", "networkPolicy", "allowMatrix", "verification"],
+  "required": [
+    "zone",
+    "planes",
+    "mesh",
+    "cni",
+    "networkPolicy",
+    "allowMatrix",
+    "verification"
+  ],
   "properties": {
+    "guard": {
+      "type": "object",
+      "description": "The namespace guard release (deployment/helm/guard), installed by the installer when install is true; the umbrella renders nothing from it.",
+      "additionalProperties": false,
+      "properties": {
+        "install": {
+          "type": "boolean"
+        },
+        "namespace": {
+          "type": "string",
+          "pattern": "^([a-z0-9]([-a-z0-9]{0,61}[a-z0-9])?)?$"
+        },
+        "values": {
+          "type": "object"
+        }
+      },
+      "if": {
+        "properties": {
+          "install": {
+            "const": true
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "namespace": {
+            "minLength": 1
+          }
+        }
+      }
+    },
+    "cmcd": {
+      "type": "object",
+      "description": "The zone's attester release (deployment/helm/cmcd, CMC's cmcd), installed by the installer into the management plane when install is true; the umbrella renders nothing from it.",
+      "additionalProperties": false,
+      "properties": {
+        "install": {
+          "type": "boolean"
+        },
+        "namespace": {
+          "type": "string",
+          "pattern": "^([a-z0-9]([-a-z0-9]{0,61}[a-z0-9])?)?$"
+        },
+        "values": {
+          "type": "object"
+        }
+      },
+      "if": {
+        "properties": {
+          "install": {
+            "const": true
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "namespace": {
+            "minLength": 1
+          }
+        }
+      }
+    },
+    "atlsGateway": {
+      "type": "object",
+      "description": "The attested-channel gateway release (deployment/helm/atls-gateway), installed by the installer into the data plane when install is true; the umbrella renders nothing from it.",
+      "additionalProperties": false,
+      "properties": {
+        "install": {
+          "type": "boolean"
+        },
+        "namespace": {
+          "type": "string",
+          "pattern": "^([a-z0-9]([-a-z0-9]{0,61}[a-z0-9])?)?$"
+        },
+        "values": {
+          "type": "object"
+        }
+      },
+      "if": {
+        "properties": {
+          "install": {
+            "const": true
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "namespace": {
+            "minLength": 1
+          }
+        }
+      }
+    },
     "zone": {
       "type": "object",
       "description": "Recorded per zone from the cluster baseline; no defaults on purpose.",
-      "required": ["name", "kubernetesVersion", "storageClass", "loadBalancer"],
+      "required": [
+        "name",
+        "kubernetesVersion",
+        "storageClass",
+        "loadBalancer"
+      ],
       "properties": {
-        "name": { "type": "string", "minLength": 1, "pattern": "^[a-z0-9-]+$" },
-        "kubernetesVersion": { "type": "string", "pattern": "^v[0-9]+\\.[0-9]+\\.[0-9]+" },
-        "storageClass": { "type": "string", "minLength": 1 },
+        "name": {
+          "type": "string",
+          "minLength": 1,
+          "pattern": "^[a-z0-9-]+$"
+        },
+        "kubernetesVersion": {
+          "type": "string",
+          "pattern": "^v[0-9]+\\.[0-9]+\\.[0-9]+"
+        },
+        "storageClass": {
+          "type": "string",
+          "minLength": 1
+        },
         "trustDomain": {
           "type": "string",
           "description": "The zone's SPIFFE trust domain, a name under the DNS zone delegated to the trust framework, one per zone; required (non-empty) whenever mesh.mode is not none.",
           "maxLength": 255,
           "pattern": "^$|^[a-z0-9]([-a-z0-9_]*[a-z0-9])?(\\.[a-z0-9]([-a-z0-9_]*[a-z0-9])?)*$"
         },
+        "role": {
+          "type": "string",
+          "enum": [
+            "participant",
+            "demonstrator"
+          ],
+          "description": "participant (a zone: planes, mesh, identity path, collectors) or demonstrator (the demonstrator cluster: the central observability backends only); scripts/install-zone/install.sh chooses the releases by it"
+        },
         "loadBalancer": {
           "type": "object",
-          "required": ["type"],
-          "properties": { "type": { "type": "string", "enum": ["cloud", "metallb", "none"] } }
+          "required": [
+            "type"
+          ],
+          "properties": {
+            "type": {
+              "type": "string",
+              "enum": [
+                "cloud",
+                "metallb",
+                "none"
+              ]
+            }
+          }
         }
       }
     },
     "planes": {
       "type": "object",
-      "required": ["management", "data"],
+      "required": [
+        "management",
+        "data"
+      ],
       "properties": {
-        "management": { "$ref": "#/$defs/plane" },
-        "data": { "$ref": "#/$defs/plane" },
+        "management": {
+          "$ref": "#/$defs/plane"
+        },
+        "data": {
+          "$ref": "#/$defs/plane"
+        },
         "extra": {
           "type": "array",
           "items": {
             "type": "object",
-            "required": ["name", "plane"],
+            "required": [
+              "name",
+              "plane"
+            ],
             "properties": {
-              "name": { "$ref": "#/$defs/namespaceName" },
-              "plane": { "type": "string", "enum": ["management", "data"] },
-              "mesh": { "type": "boolean", "description": "false leaves out the mesh label (control-plane namespaces); default true" }
+              "name": {
+                "$ref": "#/$defs/namespaceName"
+              },
+              "plane": {
+                "type": "string",
+                "enum": [
+                  "management",
+                  "data"
+                ]
+              },
+              "mesh": {
+                "type": "boolean",
+                "description": "false leaves out the mesh label (control-plane namespaces); default true"
+              },
+              "tenant": {
+                "type": "boolean",
+                "description": "a tenant's namespace (ZT-53): a meshed data-plane entry that admission.enforceDataPlane labels for admission control like planes.data.namespace; default false"
+              }
             }
           }
         },
-        "namespaceLabels": { "type": "object", "additionalProperties": { "type": "string" }, "description": "labels the cluster's provider asks of the namespaces it should leave alone, set on every namespace the umbrella creates; never the plane or the mesh label" }
+        "namespaceLabels": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "string"
+          },
+          "description": "labels the cluster's provider asks of the namespaces it should leave alone, set on every namespace the umbrella creates; never the plane, the mesh or the admission label"
+        }
+      }
+    },
+    "admission": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "enforceDataPlane": {
+          "type": "boolean",
+          "description": "label the data-plane namespace (planes.data.namespace) and every planes.extra entry with tenant: true facis.ztd/admission-proof=true, putting them under the Gatekeeper image policy; default false"
+        },
+        "policy": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "keep": {
+              "type": "boolean",
+              "description": "mark the policy objects helm.sh/resource-policy: keep, the first step of handing them to Argo CD; default false"
+            },
+            "managedBy": {
+              "type": "string",
+              "enum": [
+                "helm",
+                "argocd"
+              ],
+              "description": "who owns the admission policy objects: the admission release (helm) or an Argo CD on the cluster (argocd, the release renders none of them); default helm"
+            }
+          }
+        },
+        "install": {
+          "type": "boolean",
+          "description": "the zone installer installs and upgrades the admission stack from this chart, as release gatekeeper in gatekeeper-system; default false"
+        }
+      }
+    },
+    "admissionPolicy": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "templates": {
+          "type": "boolean",
+          "description": "admission release only: the constraint templates and the exemptions"
+        },
+        "constraints": {
+          "type": "boolean",
+          "description": "admission release only: the four constraints; needs the CRDs Gatekeeper generates from the templates"
+        }
       }
     },
     "mesh": {
       "type": "object",
-      "required": ["mode"],
+      "required": [
+        "mode"
+      ],
       "properties": {
-        "mode": { "type": "string", "enum": ["ambient", "sidecar", "none"] },
-        "revision": { "type": "string" }
+        "mode": {
+          "type": "string",
+          "enum": [
+            "ambient",
+            "sidecar",
+            "none"
+          ]
+        },
+        "revision": {
+          "type": "string"
+        },
+        "namespaceProxyImages": {
+          "type": "object",
+          "description": "Namespace -> injected proxy image by digest, admitted by zone-policy in that namespace only",
+          "additionalProperties": {
+            "type": "string",
+            "pattern": "^[a-z0-9./_-]+(:[A-Za-z0-9._-]+)?@sha256:[a-f0-9]{64}$"
+          }
+        }
       }
     },
     "cni": {
       "type": "object",
-      "properties": { "cilium": { "type": "object", "properties": { "enabled": { "type": "boolean" } } } }
+      "properties": {
+        "cilium": {
+          "type": "object",
+          "properties": {
+            "enabled": {
+              "type": "boolean"
+            },
+            "version": {
+              "type": "string",
+              "description": "The Cilium version the zone is verified against, bare major.minor.patch as read off the cilium DaemonSet's image tag; required whenever cni.cilium.enabled is true. The mesh identity proof fails when the running Cilium differs.",
+              "pattern": "^[0-9]+\\.[0-9]+\\.[0-9]+$"
+            }
+          },
+          "if": {
+            "properties": {
+              "enabled": {
+                "const": true
+              }
+            },
+            "required": [
+              "enabled"
+            ]
+          },
+          "then": {
+            "required": [
+              "version"
+            ]
+          }
+        }
+      }
     },
     "networkPolicy": {
       "type": "object",
       "properties": {
-        "defaultDeny": { "type": "boolean" },
-        "intraPlane": { "type": "boolean" },
+        "defaultDeny": {
+          "type": "boolean"
+        },
+        "intraPlane": {
+          "type": "boolean"
+        },
         "dns": {
           "type": "object",
           "properties": {
-            "enabled": { "type": "boolean" },
-            "namespace": { "$ref": "#/$defs/namespaceName" },
-            "podSelector": { "type": "object" },
-            "ports": { "type": "array", "minItems": 1, "items": { "type": "integer", "minimum": 1, "maximum": 65535 }, "description": "the port the resolver pods listen on (the targetPort of the DNS Service), UDP and TCP" }
+            "enabled": {
+              "type": "boolean"
+            },
+            "namespace": {
+              "$ref": "#/$defs/namespaceName"
+            },
+            "podSelector": {
+              "type": "object"
+            },
+            "ports": {
+              "type": "array",
+              "minItems": 1,
+              "items": {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 65535
+              },
+              "description": "the port the resolver pods listen on (the targetPort of the DNS Service), UDP and TCP"
+            }
           }
         },
         "kubeApi": {
           "type": "object",
           "properties": {
-            "enabled": { "type": "boolean" },
-            "cidrs": { "type": "array", "items": { "type": "string" } },
-            "ports": { "type": "array", "items": { "type": "integer" } }
+            "enabled": {
+              "type": "boolean"
+            },
+            "cidrs": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            },
+            "ports": {
+              "type": "array",
+              "items": {
+                "type": "integer"
+              }
+            }
           }
         },
         "meshControlPlane": {
           "type": "object",
           "description": "Declared opening: sidecars of every meshed plane namespace -> istiod on the xDS port.",
           "properties": {
-            "enabled": { "type": "boolean" },
-            "namespace": { "$ref": "#/$defs/namespaceName" },
-            "podSelector": { "$ref": "#/$defs/labels" },
-            "port": { "$ref": "#/$defs/port" }
+            "enabled": {
+              "type": "boolean"
+            },
+            "namespace": {
+              "$ref": "#/$defs/namespaceName"
+            },
+            "podSelector": {
+              "$ref": "#/$defs/labels"
+            },
+            "port": {
+              "$ref": "#/$defs/port"
+            }
           },
-          "if": { "properties": { "enabled": { "const": true } }, "required": ["enabled"] },
-          "then": { "required": ["namespace", "podSelector", "port"] }
+          "if": {
+            "properties": {
+              "enabled": {
+                "const": true
+              }
+            },
+            "required": [
+              "enabled"
+            ]
+          },
+          "then": {
+            "required": [
+              "namespace",
+              "podSelector",
+              "port"
+            ]
+          }
         },
         "controlPlaneWebhooks": {
           "type": "object",
           "description": "Declared opening: the API server (entities kube-apiserver, host, remote-node) -> the control planes' admission webhooks.",
           "properties": {
-            "enabled": { "type": "boolean" },
-            "fromEntities": { "type": "array", "minItems": 1, "items": { "type": "string", "enum": ["kube-apiserver", "host", "remote-node"] } },
-            "fromEndpoints": { "type": "array", "description": "Cilium endpoint selectors (matchLabels, with k8s:io.kubernetes.pod.namespace) of the pods through which the provider's API server reaches in-cluster webhooks, such as Gardener's vpn-shoot; a zone fact, empty by default; never an address", "items": { "type": "object", "minProperties": 2, "required": ["k8s:io.kubernetes.pod.namespace"], "additionalProperties": { "type": "string" } } },
+            "enabled": {
+              "type": "boolean"
+            },
+            "fromEntities": {
+              "type": "array",
+              "minItems": 1,
+              "items": {
+                "type": "string",
+                "enum": [
+                  "kube-apiserver",
+                  "host",
+                  "remote-node"
+                ]
+              }
+            },
+            "fromEndpoints": {
+              "type": "array",
+              "description": "Cilium endpoint selectors (matchLabels, with k8s:io.kubernetes.pod.namespace) of the pods through which the provider's API server reaches in-cluster webhooks, such as Gardener's vpn-shoot; a zone fact, empty by default; never an address",
+              "items": {
+                "type": "object",
+                "minProperties": 2,
+                "required": [
+                  "k8s:io.kubernetes.pod.namespace"
+                ],
+                "additionalProperties": {
+                  "type": "string"
+                }
+              }
+            },
             "targets": {
               "type": "array",
               "items": {
                 "type": "object",
-                "required": ["name", "namespace", "podSelector", "port"],
+                "required": [
+                  "name",
+                  "namespace",
+                  "podSelector",
+                  "port"
+                ],
                 "properties": {
-                  "name": { "type": "string", "pattern": "^[a-z0-9-]+$" },
-                  "namespace": { "$ref": "#/$defs/namespaceName" },
-                  "podSelector": { "$ref": "#/$defs/labels" },
-                  "port": { "$ref": "#/$defs/port" }
+                  "name": {
+                    "type": "string",
+                    "pattern": "^[a-z0-9-]+$"
+                  },
+                  "namespace": {
+                    "$ref": "#/$defs/namespaceName"
+                  },
+                  "podSelector": {
+                    "$ref": "#/$defs/labels"
+                  },
+                  "port": {
+                    "$ref": "#/$defs/port"
+                  }
                 }
               }
             }
@@ -118,103 +472,580 @@
           "type": "object",
           "description": "Declared opening: the host-networked SPIRE agents (entities host, remote-node) -> the SPIRE server.",
           "properties": {
-            "enabled": { "type": "boolean" },
-            "namespace": { "$ref": "#/$defs/namespaceName" },
-            "podSelector": { "$ref": "#/$defs/labels" },
-            "port": { "$ref": "#/$defs/port" },
-            "fromEntities": { "type": "array", "minItems": 1, "items": { "type": "string", "enum": ["host", "remote-node"] } }
+            "enabled": {
+              "type": "boolean"
+            },
+            "namespace": {
+              "$ref": "#/$defs/namespaceName"
+            },
+            "podSelector": {
+              "$ref": "#/$defs/labels"
+            },
+            "port": {
+              "$ref": "#/$defs/port"
+            },
+            "fromEntities": {
+              "type": "array",
+              "minItems": 1,
+              "items": {
+                "type": "string",
+                "enum": [
+                  "host",
+                  "remote-node"
+                ]
+              }
+            }
           },
-          "if": { "properties": { "enabled": { "const": true } }, "required": ["enabled"] },
-          "then": { "required": ["namespace", "podSelector", "port", "fromEntities"] }
+          "if": {
+            "properties": {
+              "enabled": {
+                "const": true
+              }
+            },
+            "required": [
+              "enabled"
+            ]
+          },
+          "then": {
+            "required": [
+              "namespace",
+              "podSelector",
+              "port",
+              "fromEntities"
+            ]
+          }
+        },
+        "observabilityScrape": {
+          "type": "object",
+          "description": "Declared opening: the zone gateway -> the SPIRE server's and the controller-manager's metrics ports, and a Service on those ports.",
+          "properties": {
+            "enabled": {
+              "type": "boolean"
+            },
+            "namespace": {
+              "$ref": "#/$defs/namespaceName"
+            },
+            "podSelector": {
+              "$ref": "#/$defs/labels"
+            },
+            "service": {
+              "$ref": "#/$defs/namespaceName"
+            },
+            "ports": {
+              "type": "array",
+              "minItems": 1,
+              "items": {
+                "type": "object",
+                "required": [
+                  "name",
+                  "port"
+                ],
+                "additionalProperties": false,
+                "properties": {
+                  "name": {
+                    "type": "string",
+                    "pattern": "^[a-z0-9-]+$",
+                    "maxLength": 15
+                  },
+                  "port": {
+                    "$ref": "#/$defs/port"
+                  }
+                }
+              }
+            }
+          },
+          "if": {
+            "properties": {
+              "enabled": {
+                "const": true
+              }
+            },
+            "required": [
+              "enabled"
+            ]
+          },
+          "then": {
+            "required": [
+              "namespace",
+              "podSelector",
+              "service",
+              "ports"
+            ]
+          }
         }
       }
     },
     "allowMatrix": {
       "type": "array",
+      "description": "The data plane -> management plane rows: a network-policy lane here, an allow rule by SPIFFE identity in zone-policy.",
       "items": {
         "type": "object",
-        "required": ["name", "from", "to"],
+        "required": [
+          "name",
+          "from",
+          "to",
+          "l7Owner"
+        ],
         "properties": {
-          "name": { "type": "string", "pattern": "^[a-z0-9-]+$" },
-          "from": { "$ref": "#/$defs/endpoint" },
-          "to": { "$ref": "#/$defs/endpoint" },
-          "enforcedBy": { "type": "string", "enum": ["mesh", "networkPolicy", "both"] }
+          "name": {
+            "type": "string",
+            "pattern": "^[a-z0-9-]+$"
+          },
+          "from": {
+            "allOf": [
+              {
+                "$ref": "#/$defs/endpoint"
+              },
+              {
+                "$ref": "#/$defs/sourceAccount"
+              }
+            ]
+          },
+          "to": {
+            "$ref": "#/$defs/endpoint"
+          },
+          "enforcedBy": {
+            "type": "string",
+            "enum": [
+              "mesh",
+              "networkPolicy",
+              "both"
+            ]
+          },
+          "l7Owner": {
+            "type": "string",
+            "enum": [
+              "sidecar",
+              "none"
+            ],
+            "description": "The single L7 enforcement owner of the row's path: sidecar (the destination's Envoy sidecar) or none (no component takes an L7 decision). Never cilium: under the mesh-wide STRICT mTLS Cilium sees only ciphertext on the path."
+          }
+        }
+      }
+    },
+    "intraPlanePairs": {
+      "type": "array",
+      "description": "Pairs inside one plane namespace between components of different releases: an allow rule by SPIFFE identity in zone-policy, nothing at the network layer (open inside a plane namespace).",
+      "items": {
+        "type": "object",
+        "required": [
+          "name",
+          "from",
+          "to"
+        ],
+        "additionalProperties": false,
+        "properties": {
+          "name": {
+            "type": "string",
+            "pattern": "^[a-z0-9-]+$"
+          },
+          "from": {
+            "allOf": [
+              {
+                "$ref": "#/$defs/endpoint"
+              },
+              {
+                "$ref": "#/$defs/sourceAccount"
+              }
+            ]
+          },
+          "to": {
+            "$ref": "#/$defs/endpoint"
+          }
         }
       }
     },
     "verification": {
       "type": "object",
-      "required": ["enabled", "image"],
+      "required": [
+        "enabled",
+        "image"
+      ],
       "properties": {
-        "enabled": { "type": "boolean" },
-        "image": { "type": "string", "pattern": "@sha256:[0-9a-f]{64}$" }
+        "enabled": {
+          "type": "boolean"
+        },
+        "image": {
+          "type": "string",
+          "pattern": "@sha256:[0-9a-f]{64}$"
+        }
       }
     },
     "openbao": {
       "type": "object",
-      "required": ["enabled"],
+      "description": "The umbrella installs no OpenBao: the release ztd-openbao does (deployment/helm/ztd-openbao). No key is read here: any key is a stale value of the umbrella that installed OpenBao, or of the zone files that placed that release on a node, and is refused.",
+      "additionalProperties": false,
+      "properties": {}
+    },
+    "telemetryExport": {
+      "type": "object",
+      "description": "Participant role: where the zone's telemetry goes (the demonstrator cluster's entry), the zone gateway's pods, the revocation status-list URL and the client-certificate Secret.",
+      "additionalProperties": false,
       "properties": {
-        "enabled": { "type": "boolean" }
+        "entry": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "address": {
+              "type": "string",
+              "pattern": "^$|^[0-9]{1,3}(\\.[0-9]{1,3}){3}/32$",
+              "description": "the entry's address as a /32 CIDR; empty until the demonstrator cluster's entry is known"
+            },
+            "port": {
+              "$ref": "#/$defs/port"
+            },
+            "serverName": {
+              "type": "string",
+              "minLength": 1
+            },
+            "transport": {
+              "type": "string",
+              "enum": [
+                "contingency-public-transit",
+                "cug",
+                "in-cluster"
+              ]
+            },
+            "inCluster": {
+              "type": "object",
+              "description": "kind only: the entry as a pod of the same cluster",
+              "additionalProperties": false,
+              "properties": {
+                "namespace": {
+                  "$ref": "#/$defs/namespaceName"
+                },
+                "podSelector": {
+                  "$ref": "#/$defs/labels"
+                },
+                "host": {
+                  "type": "string",
+                  "minLength": 1
+                }
+              },
+              "dependentRequired": {
+                "namespace": [
+                  "podSelector",
+                  "host"
+                ]
+              }
+            }
+          }
+        },
+        "gateway": {
+          "type": "object",
+          "properties": {
+            "podSelector": {
+              "$ref": "#/$defs/labels"
+            }
+          }
+        },
+        "revocationStatusListUrl": {
+          "type": "string",
+          "pattern": "^$|^https?://"
+        },
+        "clientSecret": {
+          "$ref": "#/$defs/namespaceName"
+        }
+      }
+    },
+    "observabilityBackends": {
+      "type": "object",
+      "description": "Demonstrator role: the namespace of the central backends, the entry's listeners and sources, and Prometheus's retention.",
+      "additionalProperties": false,
+      "properties": {
+        "namespace": {
+          "$ref": "#/$defs/namespaceName"
+        },
+        "entry": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "podSelector": {
+              "$ref": "#/$defs/labels"
+            },
+            "serverName": {
+              "type": "string",
+              "minLength": 1
+            },
+            "zones": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "required": [
+                  "name",
+                  "port"
+                ],
+                "additionalProperties": false,
+                "properties": {
+                  "name": {
+                    "type": "string",
+                    "pattern": "^[a-z0-9-]+$"
+                  },
+                  "port": {
+                    "$ref": "#/$defs/port"
+                  }
+                }
+              }
+            },
+            "sourceRanges": {
+              "type": "array",
+              "items": {
+                "type": "string",
+                "pattern": "^[0-9]{1,3}(\\.[0-9]{1,3}){3}/[0-9]{1,2}$"
+              }
+            },
+            "inClusterSources": {
+              "type": "object",
+              "description": "kind only: the zone gateway's namespaces and the node collectors' entities in the same cluster",
+              "additionalProperties": false,
+              "properties": {
+                "namespaces": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/$defs/namespaceName"
+                  }
+                },
+                "entities": {
+                  "type": "array",
+                  "items": {
+                    "type": "string",
+                    "enum": [
+                      "host",
+                      "remote-node"
+                    ]
+                  }
+                }
+              }
+            }
+          }
+        },
+        "retention": {
+          "type": "string",
+          "pattern": "^[0-9]+(h|d|w|y)$"
+        },
+        "retentionSize": {
+          "type": "string",
+          "pattern": "^[0-9]+(MB|GB|TB)$"
+        },
+        "volumes": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "string",
+            "pattern": "^[0-9]+(Mi|Gi|Ti)$"
+          }
+        }
       }
     },
     "openbaoBootstrap": {
-      "type": "object",
-      "required": ["image"],
-      "properties": {
-        "image": { "type": "string", "pattern": "@sha256:[0-9a-f]{64}$" }
-      }
+      "description": "Refused: the bootstrap moved to deployment/helm/ztd-openbao (bootstrap.image).",
+      "not": {}
     },
     "openbaoExternal": {
-      "type": "object",
-      "properties": {
-        "address": { "type": "string", "pattern": "^(|https?://.+)$" },
-        "verifyTokenSecret": { "type": "string" }
-      }
+      "description": "Refused: the external mode moved to deployment/helm/ztd-openbao (external.address, external.verifyTokenSecret).",
+      "not": {}
     }
   },
   "allOf": [
     {
       "description": "A meshed zone (mesh.mode not none) needs its trust domain and the lane to the Kubernetes API: the SPIRE server, the controller-manager and istiod call the API.",
-      "if": { "properties": { "mesh": { "properties": { "mode": { "not": { "const": "none" } } } } } },
+      "if": {
+        "properties": {
+          "mesh": {
+            "properties": {
+              "mode": {
+                "not": {
+                  "const": "none"
+                }
+              }
+            }
+          }
+        }
+      },
       "then": {
         "properties": {
-          "zone": { "required": ["trustDomain"], "properties": { "trustDomain": { "minLength": 1 } } },
+          "zone": {
+            "required": [
+              "trustDomain"
+            ],
+            "properties": {
+              "trustDomain": {
+                "minLength": 1
+              }
+            }
+          },
           "networkPolicy": {
-            "required": ["kubeApi"],
-            "properties": { "kubeApi": { "required": ["enabled"], "properties": { "enabled": { "const": true } } } }
+            "required": [
+              "kubeApi"
+            ],
+            "properties": {
+              "kubeApi": {
+                "required": [
+                  "enabled"
+                ],
+                "properties": {
+                  "enabled": {
+                    "const": true
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "description": "The demonstrator cluster runs no mesh and lists at least one zone's listener on its entry.",
+      "if": {
+        "properties": {
+          "zone": {
+            "properties": {
+              "role": {
+                "const": "demonstrator"
+              }
+            },
+            "required": [
+              "role"
+            ]
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "mesh": {
+            "properties": {
+              "mode": {
+                "const": "none"
+              }
+            }
+          },
+          "observabilityBackends": {
+            "required": [
+              "namespace",
+              "entry"
+            ],
+            "properties": {
+              "entry": {
+                "required": [
+                  "zones"
+                ],
+                "properties": {
+                  "zones": {
+                    "minItems": 1
+                  }
+                }
+              }
+            }
           }
         }
       }
     }
   ],
   "$defs": {
-    "labels": { "type": "object", "minProperties": 1, "additionalProperties": { "type": "string" } },
-    "port": { "type": "integer", "minimum": 1, "maximum": 65535 },
-    "namespaceName": { "type": "string", "pattern": "^[a-z0-9]([-a-z0-9]*[a-z0-9])?$", "maxLength": 63 },
+    "labels": {
+      "type": "object",
+      "minProperties": 1,
+      "additionalProperties": {
+        "type": "string"
+      }
+    },
+    "port": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 65535
+    },
+    "namespaceName": {
+      "type": "string",
+      "pattern": "^[a-z0-9]([-a-z0-9]*[a-z0-9])?$",
+      "maxLength": 63
+    },
     "plane": {
       "type": "object",
-      "required": ["namespace"],
-      "properties": { "namespace": { "$ref": "#/$defs/namespaceName" } }
+      "required": [
+        "namespace"
+      ],
+      "properties": {
+        "namespace": {
+          "$ref": "#/$defs/namespaceName"
+        }
+      }
     },
     "endpoint": {
       "type": "object",
       "properties": {
-        "plane": { "type": "string", "enum": ["management", "data"] },
-        "namespace": { "$ref": "#/$defs/namespaceName" },
-        "podSelector": { "type": "object" },
+        "plane": {
+          "type": "string",
+          "enum": [
+            "management",
+            "data"
+          ]
+        },
+        "namespace": {
+          "$ref": "#/$defs/namespaceName"
+        },
+        "podSelector": {
+          "type": "object"
+        },
+        "serviceAccount": {
+          "$ref": "#/$defs/namespaceName",
+          "description": "The service account the endpoint's pods run under, the last segment of their SPIFFE ID. Required on a source that names a workload; documentation on a destination."
+        },
         "ports": {
           "type": "array",
           "items": {
             "type": "object",
-            "required": ["port"],
+            "required": [
+              "port"
+            ],
             "properties": {
-              "port": { "type": "integer" },
-              "protocol": { "type": "string", "enum": ["TCP", "UDP", "SCTP"] }
+              "port": {
+                "type": "integer"
+              },
+              "protocol": {
+                "type": "string",
+                "enum": [
+                  "TCP",
+                  "UDP",
+                  "SCTP"
+                ]
+              }
             }
           }
         }
       },
-      "anyOf": [{ "required": ["plane"] }, { "required": ["namespace"] }]
+      "anyOf": [
+        {
+          "required": [
+            "plane"
+          ]
+        },
+        {
+          "required": [
+            "namespace"
+          ]
+        }
+      ]
+    },
+    "sourceAccount": {
+      "description": "A source that names a workload (a non-empty podSelector) names its service account, which the mesh rule admits by SPIFFE identity; a whole-plane source (podSelector {} or absent) names none, as the mesh rule admits its namespace.",
+      "if": {
+        "properties": {
+          "podSelector": {
+            "maxProperties": 0
+          }
+        }
+      },
+      "then": {
+        "not": {
+          "required": [
+            "serviceAccount"
+          ]
+        }
+      },
+      "else": {
+        "required": [
+          "serviceAccount"
+        ]
+      }
     }
   }
 }

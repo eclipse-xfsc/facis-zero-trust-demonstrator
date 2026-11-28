@@ -1,0 +1,6 @@
+apiVersion: v2
+name: tspa-republish
+description: Weekly re-publication of a TRAIN trust list, so that its signed VC never expires.
+type: application
+version: 0.1.0
+appVersion: 0.1.0

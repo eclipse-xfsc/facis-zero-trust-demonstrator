@@ -2,7 +2,7 @@
 Feature: Policy decision
   Annex A rows for Policy decision, worded exactly as in the Annex.
 
-  @ZT-06 @BDD-ZT-006 @pending
+  @ZT-06 @BDD-ZT-006 @cluster
   Scenario: Attribute/Credential Based Access Control
     Given one participant backend with the required credential attributes and one without them
     When both request the same protected resource
@@ -14,7 +14,7 @@ Feature: Policy decision
     When it is called with access tokens carrying different roles
     Then each role receives its configured response AND a token carrying no permitted role receives no protected content.
 
-  @ZT-75 @BDD-ZT-075 @pending
+  @ZT-75 @BDD-ZT-075 @cluster
   Scenario: Protected Resource Mock
     Given the protected-resource mock exposes responses for different access roles
     When requests with different authorized and unauthorized roles are executed

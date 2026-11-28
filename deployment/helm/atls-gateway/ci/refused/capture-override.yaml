@@ -1,0 +1,3 @@
+# The proxy configuration override is refused at admission in a plane namespace.
+# expect: proxy.istio.io/config is refused
+podAnnotations: {proxy.istio.io/config: "{}"}

@@ -22,8 +22,8 @@ licence.
 | Component | Version | Licence | Where |
 |---|---|---|---|
 | ORCE (upstream image `ecofacis/xfsc-orce`) and Node-RED | 2.0.13 / 4.0.9 | Apache-2.0 | base of the ORCE image, `deployment/docker/orce` |
-| Helm | v4.3.0 | Apache-2.0 | inside the ORCE image, and chart QA in CI |
-| kubectl | v1.35.8 | Apache-2.0 | inside the ORCE image |
+| Helm | v4.3.2 (ORCE image), v4.3.0 (chart QA in CI) | Apache-2.0 | inside the ORCE image, and chart QA in CI |
+| kubectl | v1.35.10 | Apache-2.0 | inside the ORCE image |
 | `pause` image (Kubernetes) | pinned by digest | Apache-2.0 | the lifecycle fixture chart (test data) |
 | Go module dependencies | see [OSS dependencies](dependencies.md#go-dependencies) | Apache-2.0, BSD-3-Clause, MIT | services and the acceptance harness |
 | `@cucumber/cucumber` | 13.2.1 | MIT | JavaScript acceptance runner (development only, not shipped) |
@@ -41,4 +41,4 @@ client's decision is open and tracked as follow-up requirement F-07.
 
 The ORCE image carries a time-boxed **vulnerability** scan exception for findings inside the
 upstream ORCE runtime ([CI/CD](ci-cd.md#image-scan-exceptions)). It concerns security findings, not
-licences, and it expires on 16 December 2026.
+licences, and it expires on 18 December 2026.

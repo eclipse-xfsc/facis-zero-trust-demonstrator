@@ -1,0 +1,2 @@
+# Render-only: the egress role presenting its own client certificate to the entry (ZT-18).
+egress: {peer: {clientTlsSecret: ztd-connector-gateway-client-tls}}

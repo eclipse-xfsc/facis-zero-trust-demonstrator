@@ -1,0 +1,29 @@
+# The bundled server with the Kubernetes auth method and the two workload roles of the token path,
+# layered on values.yaml. The policies are the services' least-privilege policies
+# (docs/token-store.md#key-custody, docs/secrets.md#kubernetes-auth).
+openbao:
+  server:
+    authDelegator:
+      enabled: true
+kubernetesAuth:
+  enabled: true
+  roles:
+    - name: ztd-connector
+      namespace: ztd-data
+      serviceAccount: ztd-connector
+      audience: openbao
+      ttl: 1h
+      policy: |
+        path "transit/keys/connector-at" { capabilities = ["read"] }
+        path "transit/sign/connector-at" { capabilities = ["update"] }
+    - name: ztd-token-store
+      namespace: ztd-data
+      serviceAccount: ztd-token-store
+      audience: openbao
+      ttl: 1h
+      policy: |
+        path "transit/keys/ztd-token-store" { capabilities = ["read"] }
+        path "transit/sign/ztd-token-store" { capabilities = ["update"] }
+        path "secret/data/ztd/token-store/upstream/*" { capabilities = ["create", "read"] }
+        path "secret/metadata/ztd/token-store/upstream" { capabilities = ["list"] }
+        path "secret/metadata/ztd/token-store/upstream/*" { capabilities = ["read", "list", "delete"] }

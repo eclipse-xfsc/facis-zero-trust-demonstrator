@@ -1,0 +1,17 @@
+# Lets the OpenBao server review Kubernetes-auth logins (TokenReview). Applied on zone B for T6;
+# the ztd-openbao chart renders the same binding with openbao.server.authDelegator.enabled.
+# Rollback: kubectl delete clusterrolebinding ztd-m3-openbao-auth-delegator
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: ztd-m3-openbao-auth-delegator
+  labels:
+    ztd.facis.io/closeout: m3
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: system:auth-delegator
+subjects:
+  - kind: ServiceAccount
+    name: ztd-openbao
+    namespace: ztd-mgmt

@@ -1,0 +1,278 @@
+[
+  {
+    "kind": "AuthorizationPolicy",
+    "name": "ztd-connector-identities",
+    "resourceVersion": "15737985",
+    "generation": 1
+  },
+  {
+    "kind": "AuthorizationPolicy",
+    "name": "ztd-edge-public",
+    "resourceVersion": "27935190",
+    "generation": 1
+  },
+  {
+    "kind": "AuthorizationPolicy",
+    "name": "ztd-guard-caller",
+    "resourceVersion": "15731649",
+    "generation": 1
+  },
+  {
+    "kind": "AuthorizationPolicy",
+    "name": "ztd-participant-identities",
+    "resourceVersion": "15737989",
+    "generation": 1
+  },
+  {
+    "kind": "AuthorizationPolicy",
+    "name": "ztd-policy-evaluator-caller",
+    "resourceVersion": "15731651",
+    "generation": 1
+  },
+  {
+    "kind": "AuthorizationPolicy",
+    "name": "ztd-postgres-identities",
+    "resourceVersion": "15737983",
+    "generation": 1
+  },
+  {
+    "kind": "AuthorizationPolicy",
+    "name": "ztd-protected-resource-caller",
+    "resourceVersion": "15731654",
+    "generation": 1
+  },
+  {
+    "kind": "AuthorizationPolicy",
+    "name": "ztd-token-store-identities",
+    "resourceVersion": "15737986",
+    "generation": 1
+  },
+  {
+    "kind": "PeerAuthentication",
+    "name": "ztd-connector",
+    "resourceVersion": "29025411",
+    "generation": 1
+  },
+  {
+    "kind": "PeerAuthentication",
+    "name": "ztd-edge-tls",
+    "resourceVersion": "27849730",
+    "generation": 1
+  },
+  {
+    "kind": "PeerAuthentication",
+    "name": "ztd-guard-strict",
+    "resourceVersion": "15731661",
+    "generation": 1
+  },
+  {
+    "kind": "PeerAuthentication",
+    "name": "ztd-namespace-strict",
+    "resourceVersion": "15737980",
+    "generation": 1
+  },
+  {
+    "kind": "PeerAuthentication",
+    "name": "ztd-policy-evaluator-strict",
+    "resourceVersion": "15731663",
+    "generation": 1
+  },
+  {
+    "kind": "PeerAuthentication",
+    "name": "ztd-protected-resource-strict",
+    "resourceVersion": "15731667",
+    "generation": 1
+  },
+  {
+    "kind": "PeerAuthentication",
+    "name": "ztd-token-store",
+    "resourceVersion": "29024673",
+    "generation": 1
+  },
+  {
+    "kind": "NetworkPolicy",
+    "name": "ztd-connector",
+    "resourceVersion": "11767113",
+    "generation": 1
+  },
+  {
+    "kind": "NetworkPolicy",
+    "name": "ztd-default-deny",
+    "resourceVersion": "11764885",
+    "generation": 1
+  },
+  {
+    "kind": "NetworkPolicy",
+    "name": "ztd-dns",
+    "resourceVersion": "11764888",
+    "generation": 1
+  },
+  {
+    "kind": "NetworkPolicy",
+    "name": "ztd-edge-entry",
+    "resourceVersion": "27935169",
+    "generation": 1
+  },
+  {
+    "kind": "NetworkPolicy",
+    "name": "ztd-edge-upstream",
+    "resourceVersion": "27935172",
+    "generation": 1
+  },
+  {
+    "kind": "NetworkPolicy",
+    "name": "ztd-guard-guard-path",
+    "resourceVersion": "11771209",
+    "generation": 1
+  },
+  {
+    "kind": "NetworkPolicy",
+    "name": "ztd-issuer-schema",
+    "resourceVersion": "11764898",
+    "generation": 1
+  },
+  {
+    "kind": "NetworkPolicy",
+    "name": "ztd-mesh-control",
+    "resourceVersion": "11764890",
+    "generation": 1
+  },
+  {
+    "kind": "NetworkPolicy",
+    "name": "ztd-participant",
+    "resourceVersion": "11771595",
+    "generation": 1
+  },
+  {
+    "kind": "NetworkPolicy",
+    "name": "ztd-policy-evaluator-guard-path",
+    "resourceVersion": "11771208",
+    "generation": 1
+  },
+  {
+    "kind": "NetworkPolicy",
+    "name": "ztd-postgres",
+    "resourceVersion": "11764895",
+    "generation": 1
+  },
+  {
+    "kind": "NetworkPolicy",
+    "name": "ztd-protected-resource",
+    "resourceVersion": "11768917",
+    "generation": 1
+  },
+  {
+    "kind": "NetworkPolicy",
+    "name": "ztd-protected-resource-guard-path",
+    "resourceVersion": "11771207",
+    "generation": 1
+  },
+  {
+    "kind": "NetworkPolicy",
+    "name": "ztd-token-store",
+    "resourceVersion": "11767545",
+    "generation": 1
+  },
+  {
+    "kind": "NetworkPolicy",
+    "name": "ztd-token-store-schema",
+    "resourceVersion": "29024434",
+    "generation": 1
+  },
+  {
+    "kind": "Deployment",
+    "name": "ztd-connector",
+    "resourceVersion": "29030156",
+    "generation": 6
+  },
+  {
+    "kind": "Deployment",
+    "name": "ztd-edge",
+    "resourceVersion": "27849852",
+    "generation": 4
+  },
+  {
+    "kind": "Deployment",
+    "name": "ztd-guard",
+    "resourceVersion": "15729508",
+    "generation": 2
+  },
+  {
+    "kind": "Deployment",
+    "name": "ztd-participant",
+    "resourceVersion": "15729606",
+    "generation": 3
+  },
+  {
+    "kind": "Deployment",
+    "name": "ztd-policy-evaluator",
+    "resourceVersion": "15729316",
+    "generation": 2
+  },
+  {
+    "kind": "Deployment",
+    "name": "ztd-postgres",
+    "resourceVersion": "15725571",
+    "generation": 2
+  },
+  {
+    "kind": "Deployment",
+    "name": "ztd-protected-resource",
+    "resourceVersion": "15729411",
+    "generation": 6
+  },
+  {
+    "kind": "Deployment",
+    "name": "ztd-token-store",
+    "resourceVersion": "29024737",
+    "generation": 7
+  },
+  {
+    "kind": "Service",
+    "name": "ztd-connector",
+    "resourceVersion": "11767120",
+    "generation": null
+  },
+  {
+    "kind": "Service",
+    "name": "ztd-edge",
+    "resourceVersion": "27849705",
+    "generation": null
+  },
+  {
+    "kind": "Service",
+    "name": "ztd-guard",
+    "resourceVersion": "11771218",
+    "generation": null
+  },
+  {
+    "kind": "Service",
+    "name": "ztd-participant",
+    "resourceVersion": "11771600",
+    "generation": null
+  },
+  {
+    "kind": "Service",
+    "name": "ztd-policy-evaluator",
+    "resourceVersion": "11771222",
+    "generation": null
+  },
+  {
+    "kind": "Service",
+    "name": "ztd-postgres",
+    "resourceVersion": "11765628",
+    "generation": null
+  },
+  {
+    "kind": "Service",
+    "name": "ztd-protected-resource",
+    "resourceVersion": "11768923",
+    "generation": null
+  },
+  {
+    "kind": "Service",
+    "name": "ztd-token-store",
+    "resourceVersion": "11767556",
+    "generation": null
+  }
+]

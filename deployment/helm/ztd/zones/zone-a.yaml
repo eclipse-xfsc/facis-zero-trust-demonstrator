@@ -24,12 +24,16 @@ zone:
 mesh:
   mode: sidecar
 
-# kubectl -n kube-system get ds cilium: Cilium 1.18.8, installed and upgraded by the provider, with
-# cni-exclusive=false already set (kubectl -n kube-system get cm cilium-config). Verified, never
-# installed or reconfigured by the zone.
+# kubectl -n kube-system get ds cilium: Cilium 1.19.6, installed and upgraded by the provider, with
+# cni-exclusive=false already set and tunnel routing over VXLAN (kubectl -n kube-system get cm
+# cilium-config: routing-mode, tunnel-protocol). Verified, never installed or reconfigured by the zone.
+# The version is the tag of the DaemonSet's image (kubectl -n kube-system get ds cilium -o
+# jsonpath='{.spec.template.spec.containers[0].image}', read 2026-10-25), without the leading v; the
+# mesh identity proof fails when the running Cilium differs, and the chain is then checked again.
 cni:
   cilium:
     enabled: true
+    version: 1.19.6
 
 # The control planes of the identity path and of the mesh: management-plane namespaces under the
 # default deny, without the mesh label (no sidecar for SPIRE or istiod).
@@ -37,6 +41,11 @@ planes:
   extra:
     - { name: spire-system, plane: management, mesh: false }
     - { name: istio-system, plane: management, mesh: false }
+    - { name: ztd-otel-node, plane: management, mesh: false }   # the node collectors: host network, no sidecar
+    # The two tenants (ZT-53): data-plane namespaces under the baseline (default deny, DNS,
+    # intra-namespace lane, mesh label, SPIFFE identities), their content from tenants below.
+    - { name: tenant-a, plane: data, tenant: true }
+    - { name: tenant-b, plane: data, tenant: true }
   # The provider's webhook kubernetes-service-host.resources.gardener.cloud (kubectl get
   # mutatingwebhookconfiguration gardener-resource-manager-shoot) sets KUBERNETES_SERVICE_HOST in
   # every new pod to the API server's public name, which Cilium sees as world, not as the
@@ -75,3 +84,103 @@ networkPolicy:
         type: tunnel
   identityServer:
     enabled: true
+  observabilityScrape:
+    enabled: true
+
+# Admission (deployment/admission). Recorded 2026-11-21 from the live releases that
+# scripts/admission/install.sh installed (helm get values gatekeeper|admission -n gatekeeper-system).
+# install stays false until the migration in docs/umbrella-chart.md ("Admission in the umbrella")
+# moves the stack into the umbrella's admission release; the values below are what that release
+# then installs. The key is docs/contracts/keys/interim-cosign.pub (interim, not the client's).
+admission:
+  install: false
+  # The policy objects (constraint templates, constraints, exemptions) are kept by the Argo CD on
+  # this cluster (Applications admission-templates, admission-constraints, admission-exemptions,
+  # under ztd-admission); the admission release installs Gatekeeper, the provider and the pool only.
+  policy:
+    managedBy: argocd
+gatekeeper:
+  replicas: 2
+admissionProvider:
+  replicas: 2
+  image:
+    repository: ghcr.io/fune5tiatlas/facis-zero-trust-demonstrator/admission-provider
+    digest: sha256:e54967a2433a57330947cb4821b99a8355daf27e226a8119ad7f8851b3fcb4f0
+  trust:
+    repositories:
+      - ghcr.io/fune5tiatlas/facis-zero-trust-demonstrator
+    publicKeys: |
+      -----BEGIN PUBLIC KEY-----
+      MFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAE0lFmUtbg0hz8DzhKG9mz6lKqU1Zf
+      ZGTwuAuoCwoIlaVI5RbLNt9Hiwe4/39DPyX+2qZonfl9p16mexhlc+vltw==
+      -----END PUBLIC KEY-----
+
+# The telemetry export to the demonstrator cluster (docs/adr/0017-central-observability-backends.md).
+# This zone's listener on the entry is 4317. The entry's address (the public address of its
+# LoadBalancer during the contingency period, the CUG address after the move) and the revocation
+# status-list URL are recorded once the demonstrator role is installed; until then the installer
+# refuses to render or install this zone's telemetry releases (otel-node, otel-gateway), and the
+# other releases are unaffected.
+telemetryExport:
+  entry:
+    address: ""
+    port: 4317
+    transport: contingency-public-transit
+  revocationStatusListUrl: ""
+
+# The second instance of the namespace guard, from these values only: release ztd-guard
+# into the data plane, installed by scripts/install-zone/install.sh. Images are the runtime builds of
+# the M3 close-out branch (linux/amd64) and zone B's Envoy runtime, by digest. The connector, token
+# store and resource it would call are not in this zone yet: until they are, every request is refused
+# (fail closed), which is what this instance shows.
+guard:
+  install: true
+  namespace: ztd-data
+  values:
+    zone: a
+    images:
+      guard: {repository: ghcr.io/fune5tiatlas/facis-zero-trust-demonstrator/guard, digest: "sha256:a885b46565ff082d50c4dadc887496aaaa2d941a06d8038171c67af6f58c809a"}
+      policy: {repository: ghcr.io/fune5tiatlas/facis-zero-trust-demonstrator/policy-evaluator, digest: "sha256:5f77bbe83e9a74fe6818a03fefe28c59578f36b47f7b811786407e8501088e98"}
+      envoy: {repository: ghcr.io/fune5tiatlas/facis-zero-trust-demonstrator/envoy-runtime, digest: "sha256:0cd70a69172bb144ba70ed7cad61f3f5172f971c5e130ef48116e60e5fa815c1"}
+    config:
+      issuer: https://connector.zone-a.invalid
+      jwks_url: http://ztd-connector:8080/.well-known/jwks.json
+      inbound_audience: https://guard.facis.invalid
+      upstream_audience: https://resource.facis.invalid
+      published_base_url: http://ztd-guard:8080
+      peer_zone: zone-a
+    policyRevision: zone-a-m3-v1
+    networkPolicy: {istiod: {enabled: true}}
+    podAnnotations: {sidecar.istio.io/nativeSidecar: "true"}
+
+# The two tenants (ZT-53), each a planes.extra namespace above with its own release of
+# deployment/helm/tenant (ztd-tenant-<name>): its identities, credentials, policy ownership and data
+# service, installed by scripts/install-zone/install.sh. The data service runs zone B's Envoy
+# runtime by digest. Each tenant's guard and policy evaluator (ztd-guard-<name>, deployment/helm/guard
+# in tenant mode, from tenants.guard.values) stay off (guard.install false) until the signed candidate
+# build carrying target_tenant and tenant_members is published: the digests below are the guard
+# instance's above, which refuse those keys. Replace them with that build's before turning it on.
+tenants:
+  install: true
+  names: [tenant-a, tenant-b]
+  values:
+    data:
+      image: {repository: ghcr.io/fune5tiatlas/facis-zero-trust-demonstrator/envoy-runtime, digest: "sha256:0cd70a69172bb144ba70ed7cad61f3f5172f971c5e130ef48116e60e5fa815c1"}
+    podAnnotations: {sidecar.istio.io/nativeSidecar: "true"}
+  guard:
+    install: false
+    values:
+      zone: a
+      images:
+        guard: {repository: ghcr.io/fune5tiatlas/facis-zero-trust-demonstrator/guard, digest: "sha256:a885b46565ff082d50c4dadc887496aaaa2d941a06d8038171c67af6f58c809a"}
+        policy: {repository: ghcr.io/fune5tiatlas/facis-zero-trust-demonstrator/policy-evaluator, digest: "sha256:5f77bbe83e9a74fe6818a03fefe28c59578f36b47f7b811786407e8501088e98"}
+        envoy: {repository: ghcr.io/fune5tiatlas/facis-zero-trust-demonstrator/envoy-runtime, digest: "sha256:0cd70a69172bb144ba70ed7cad61f3f5172f971c5e130ef48116e60e5fa815c1"}
+      config:
+        issuer: https://connector.zone-a.invalid
+        jwks_url: http://ztd-connector:8080/.well-known/jwks.json
+        inbound_audience: https://guard.facis.invalid
+        upstream_audience: https://resource.facis.invalid
+        peer_zone: zone-b
+      policyRevision: zone-a-tenants-v1
+      networkPolicy: {istiod: {enabled: true}}
+      podAnnotations: {sidecar.istio.io/nativeSidecar: "true"}

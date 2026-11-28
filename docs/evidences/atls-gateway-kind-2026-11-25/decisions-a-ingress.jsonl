@@ -1,0 +1,5 @@
+{"role":"ingress","decision":"started","reason":"evidence_verified"}
+{"role":"ingress","decision":"established","reason":"mutual_attestation","peer":"spiffe://zone-b/gateway","binding":"c52e506b5e29f3b5f6362e4c129493c99974c49b27bc5b5cde5369fe4009f102","tlsVersion":772}
+{"role":"ingress","decision":"refused","reason":"evidence_rejected"}
+{"role":"ingress","decision":"started","reason":"evidence_verified"}
+{"role":"ingress","decision":"established","reason":"mutual_attestation","peer":"spiffe://zone-b/gateway","binding":"ce9065b7d4a9c9404db01d2053eb12d7f5fc5ab6cec91d7e9c1e3b3a54cb3fdc","tlsVersion":772}

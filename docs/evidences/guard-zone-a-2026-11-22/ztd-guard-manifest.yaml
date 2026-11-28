@@ -1,0 +1,429 @@
+---
+# Source: guard/templates/policies.yaml
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: ztd-guard-guard-path
+  namespace: ztd-data
+spec:
+  podSelector:
+    matchLabels: {app.kubernetes.io/name: ztd-guard}
+  policyTypes: [Ingress, Egress]
+  ingress:
+    - from:
+        - podSelector:
+            matchLabels: {app.kubernetes.io/name: ztd-participant}
+      ports: [{protocol: TCP, port: 8080}]
+  egress:
+    - to:
+        - namespaceSelector:
+            matchLabels: {kubernetes.io/metadata.name: kube-system}
+          podSelector:
+            matchLabels: {k8s-app: kube-dns}
+      ports: [{protocol: UDP, port: 53}, {protocol: TCP, port: 53}, {protocol: UDP, port: 8053}, {protocol: TCP, port: 8053}]
+    - to:
+        - podSelector:
+            matchExpressions:
+              - key: app.kubernetes.io/name
+                operator: In
+                values: [ztd-policy-evaluator, ztd-token-store, ztd-connector]
+      ports: [{protocol: TCP, port: 8080}]
+    - to:
+        - podSelector:
+            matchLabels: {app.kubernetes.io/name: ztd-protected-resource}
+      ports: [{protocol: TCP, port: 8080}]
+    - to:
+        - namespaceSelector:
+            matchLabels: {kubernetes.io/metadata.name: istio-system}
+          podSelector:
+            matchLabels: {app: istiod}
+      ports: [{protocol: TCP, port: 15012}]
+---
+# Source: guard/templates/policies.yaml
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: ztd-policy-evaluator-guard-path
+  namespace: ztd-data
+spec:
+  podSelector:
+    matchLabels: {app.kubernetes.io/name: ztd-policy-evaluator}
+  policyTypes: [Ingress, Egress]
+  ingress:
+    - from:
+        - podSelector:
+            matchLabels: {app.kubernetes.io/name: ztd-guard}
+      ports: [{protocol: TCP, port: 8080}]
+  egress:
+    - to:
+        - namespaceSelector:
+            matchLabels: {kubernetes.io/metadata.name: kube-system}
+          podSelector:
+            matchLabels: {k8s-app: kube-dns}
+      ports: [{protocol: UDP, port: 53}, {protocol: TCP, port: 53}, {protocol: UDP, port: 8053}, {protocol: TCP, port: 8053}]
+    - to:
+        - namespaceSelector:
+            matchLabels: {kubernetes.io/metadata.name: istio-system}
+          podSelector:
+            matchLabels: {app: istiod}
+      ports: [{protocol: TCP, port: 15012}]
+---
+# Source: guard/templates/policies.yaml
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: ztd-protected-resource-guard-path
+  namespace: ztd-data
+spec:
+  podSelector:
+    matchLabels: {app.kubernetes.io/name: ztd-protected-resource}
+  policyTypes: [Ingress]
+  ingress:
+    - from:
+        - podSelector:
+            matchLabels: {app.kubernetes.io/name: ztd-guard}
+      ports: [{protocol: TCP, port: 8080}]
+---
+# Source: guard/templates/workloads.yaml
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: ztd-guard
+  namespace: ztd-data
+automountServiceAccountToken: false
+---
+# Source: guard/templates/workloads.yaml
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: ztd-policy-evaluator
+  namespace: ztd-data
+automountServiceAccountToken: false
+---
+# Source: guard/templates/config.yaml
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: ztd-guard-config
+  namespace: ztd-data
+data:
+  config.json: "{\"allowed_callers\":[\"spiffe://zone-a.trust.invalid/ns/ztd-data/sa/ztd-participant\"],\"event_source\":\"guard-a\",\"inbound_audience\":\"https://guard.facis.invalid\",\"issuer\":\"https://connector.zone-a.invalid\",\"jwks_url\":\"http://ztd-connector:8080/.well-known/jwks.json\",\"peer_zone\":\"zone-a\",\"policy_url\":\"http://ztd-policy-evaluator:8080\",\"published_base_url\":\"http://ztd-guard:8080\",\"scope_tenants\":{\"report:read\":\"report-read\",\"report:summary\":\"report-summary\"},\"store_url\":\"http://ztd-token-store:8080\",\"upstream_audience\":\"https://resource.facis.invalid\"}"
+  envoy.yaml: |
+    admin:
+      address:
+        socket_address: {address: 127.0.0.1, port_value: 9901}
+    static_resources:
+      listeners:
+        - name: guarded
+          address:
+            socket_address: {address: 0.0.0.0, port_value: 8080}
+          filter_chains:
+            - filters:
+                - name: envoy.filters.network.http_connection_manager
+                  typed_config:
+                    "@type": type.googleapis.com/envoy.extensions.filters.network.http_connection_manager.v3.HttpConnectionManager
+                    stat_prefix: guarded
+                    use_remote_address: true
+                    # Preserve only the trusted sidecar's XFCC for the local hook. The hook removes it upstream.
+                    forward_client_cert_details: ALWAYS_FORWARD_ONLY
+                    route_config:
+                      name: protected
+                      virtual_hosts:
+                        - name: protected
+                          domains: ["ztd-guard:8080"]
+                          routes:
+                            - match: {path: /demo}
+                              route:
+                                cluster: resource
+                                timeout: 15s
+                                host_rewrite_literal: "ztd-protected-resource.ztd-data.svc.cluster.local"
+                    http_filters:
+                      - name: envoy.filters.http.ext_authz
+                        typed_config:
+                          "@type": type.googleapis.com/envoy.extensions.filters.http.ext_authz.v3.ExtAuthz
+                          transport_api_version: V3
+                          failure_mode_allow: false
+                          status_on_error: {code: ServiceUnavailable}
+                          grpc_service:
+                            envoy_grpc: {cluster_name: hook}
+                            timeout: 9s
+                      - name: envoy.filters.http.router
+                        typed_config:
+                          "@type": type.googleapis.com/envoy.extensions.filters.http.router.v3.Router
+                          suppress_envoy_headers: true
+      clusters:
+        - name: resource
+          type: STRICT_DNS
+          connect_timeout: 1s
+          load_assignment:
+            cluster_name: resource
+            endpoints:
+              - lb_endpoints:
+                  - endpoint:
+                      address:
+                        socket_address: {address: ztd-protected-resource, port_value: 8080}
+        - name: hook
+          type: STATIC
+          connect_timeout: 1s
+          typed_extension_protocol_options:
+            envoy.extensions.upstreams.http.v3.HttpProtocolOptions:
+              "@type": type.googleapis.com/envoy.extensions.upstreams.http.v3.HttpProtocolOptions
+              explicit_http_config:
+                http2_protocol_options: {}
+          load_assignment:
+            cluster_name: hook
+            endpoints:
+              - lb_endpoints:
+                  - endpoint:
+                      address:
+                        socket_address: {address: 127.0.0.1, port_value: 50051}
+---
+# Source: guard/templates/config.yaml
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: ztd-policy-config
+  namespace: ztd-data
+data:
+  config.json: "{\"audience\":\"https://guard.facis.invalid\",\"event_source\":\"policy-a\",\"guard_callers\":[\"spiffe://zone-a.trust.invalid/ns/ztd-data/sa/ztd-guard\"],\"host\":\"ztd-guard:8080\",\"participant_callers\":[\"spiffe://zone-a.trust.invalid/ns/ztd-data/sa/ztd-participant\"],\"revision\":\"zone-a-m3-v1\",\"scope_tenants\":{\"report:read\":\"report-read\",\"report:summary\":\"report-summary\"}}"
+---
+# Source: guard/templates/workloads.yaml
+apiVersion: v1
+kind: Service
+metadata:
+  name: ztd-guard
+  namespace: ztd-data
+spec:
+  selector: {app.kubernetes.io/name: ztd-guard}
+  ports: [{name: http, port: 8080, targetPort: 8080}]
+---
+# Source: guard/templates/workloads.yaml
+apiVersion: v1
+kind: Service
+metadata:
+  name: ztd-policy-evaluator
+  namespace: ztd-data
+spec:
+  selector: {app.kubernetes.io/name: ztd-policy-evaluator}
+  ports: [{name: http, port: 8080, targetPort: 8080}]
+---
+# Source: guard/templates/workloads.yaml
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: ztd-guard
+  namespace: ztd-data
+spec:
+  replicas: 1
+  selector:
+    matchLabels: {app.kubernetes.io/name: ztd-guard}
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: ztd-guard
+        app.kubernetes.io/part-of: facis-zero-trust-demonstrator
+        spiffe.io/spire-managed-identity: "true"
+      annotations:
+        sidecar.istio.io/nativeSidecar: "true"
+    spec:
+      serviceAccountName: ztd-guard
+      automountServiceAccountToken: false
+      enableServiceLinks: false
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 65532
+        runAsGroup: 65532
+        fsGroup: 65532
+        seccompProfile: {type: RuntimeDefault}
+      containers:
+        - name: guard
+          image: "ghcr.io/fune5tiatlas/facis-zero-trust-demonstrator/guard@sha256:97f74a9cd2bc3bd1da0449dfbe2169fea66c1de87e030a0c9d67aa92140c488f"
+          args: ["--config=/etc/runtime/config.json"]
+          volumeMounts: [{name: config, mountPath: /etc/runtime, readOnly: true}]
+          ports:
+            - {name: ops, containerPort: 9090}
+          readinessProbe:
+            httpGet: {path: /healthz, port: ops}
+          livenessProbe:
+            httpGet: {path: /healthz, port: ops}
+          resources:
+            limits:
+              memory: 256Mi
+            requests:
+              cpu: 50m
+              memory: 64Mi
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities: {drop: [ALL]}
+        - name: envoy
+          image: "ghcr.io/fune5tiatlas/facis-zero-trust-demonstrator/envoy-runtime@sha256:0cd70a69172bb144ba70ed7cad61f3f5172f971c5e130ef48116e60e5fa815c1"
+          args: ["-c", "/etc/runtime/envoy.yaml", "--log-level", "warning", "--concurrency", "2"]
+          volumeMounts: [{name: config, mountPath: /etc/runtime, readOnly: true}, {name: tmp, mountPath: /tmp}]
+          ports: [{name: http, containerPort: 8080}]
+          readinessProbe:
+            tcpSocket: {port: http}
+          resources:
+            limits:
+              memory: 256Mi
+            requests:
+              cpu: 50m
+              memory: 64Mi
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities: {drop: [ALL]}
+      volumes:
+        - name: config
+          configMap: {name: ztd-guard-config}
+        - name: tmp
+          emptyDir: {sizeLimit: 32Mi}
+---
+# Source: guard/templates/workloads.yaml
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: ztd-policy-evaluator
+  namespace: ztd-data
+spec:
+  replicas: 1
+  selector:
+    matchLabels: {app.kubernetes.io/name: ztd-policy-evaluator}
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: ztd-policy-evaluator
+        app.kubernetes.io/part-of: facis-zero-trust-demonstrator
+        spiffe.io/spire-managed-identity: "true"
+      annotations:
+        sidecar.istio.io/nativeSidecar: "true"
+    spec:
+      serviceAccountName: ztd-policy-evaluator
+      automountServiceAccountToken: false
+      enableServiceLinks: false
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 65532
+        runAsGroup: 65532
+        fsGroup: 65532
+        seccompProfile: {type: RuntimeDefault}
+      containers:
+        - name: policy-evaluator
+          image: "ghcr.io/fune5tiatlas/facis-zero-trust-demonstrator/policy-evaluator@sha256:5958fd74fdef9467f413422cf81a21a677ccd4296aaf9c293564a997b186ed28"
+          args: ["--config=/etc/runtime/config.json"]
+          volumeMounts: [{name: config, mountPath: /etc/runtime, readOnly: true}]
+          ports:
+            - {name: ops, containerPort: 8080}
+          readinessProbe:
+            httpGet: {path: /healthz, port: ops}
+          livenessProbe:
+            httpGet: {path: /healthz, port: ops}
+          resources:
+            limits:
+              memory: 256Mi
+            requests:
+              cpu: 50m
+              memory: 64Mi
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities: {drop: [ALL]}
+      volumes:
+        - name: config
+          configMap: {name: ztd-policy-config}
+        - name: tmp
+          emptyDir: {sizeLimit: 32Mi}
+---
+# Source: guard/templates/policies.yaml
+apiVersion: security.istio.io/v1
+kind: AuthorizationPolicy
+metadata:
+  name: ztd-guard-caller
+  namespace: ztd-data
+spec:
+  selector:
+    matchLabels: {app.kubernetes.io/name: ztd-guard}
+  action: ALLOW
+  rules:
+    - from:
+        - source:
+            principals: ["zone-a.trust.invalid/ns/ztd-data/sa/ztd-participant"]
+      to:
+        - operation:
+            ports: ["8080"]
+            methods: ["POST"]
+            paths: ["/demo"]
+---
+# Source: guard/templates/policies.yaml
+apiVersion: security.istio.io/v1
+kind: AuthorizationPolicy
+metadata:
+  name: ztd-policy-evaluator-caller
+  namespace: ztd-data
+spec:
+  selector:
+    matchLabels: {app.kubernetes.io/name: ztd-policy-evaluator}
+  action: ALLOW
+  rules:
+    - from:
+        - source:
+            principals: ["zone-a.trust.invalid/ns/ztd-data/sa/ztd-guard"]
+      to:
+        - operation:
+            ports: ["8080"]
+            methods: ["POST"]
+            paths: ["/decision"]
+---
+# Source: guard/templates/policies.yaml
+apiVersion: security.istio.io/v1
+kind: AuthorizationPolicy
+metadata:
+  name: ztd-protected-resource-caller
+  namespace: ztd-data
+spec:
+  selector:
+    matchLabels: {app.kubernetes.io/name: ztd-protected-resource}
+  action: ALLOW
+  rules:
+    - from:
+        - source:
+            principals: ["zone-a.trust.invalid/ns/ztd-data/sa/ztd-guard"]
+      to:
+        - operation:
+            ports: ["8080"]
+            methods: ["POST"]
+            paths: ["/demo"]
+---
+# Source: guard/templates/policies.yaml
+apiVersion: security.istio.io/v1
+kind: PeerAuthentication
+metadata:
+  name: ztd-guard-strict
+  namespace: ztd-data
+spec:
+  selector:
+    matchLabels: {app.kubernetes.io/name: ztd-guard}
+  mtls: {mode: STRICT}
+---
+# Source: guard/templates/policies.yaml
+apiVersion: security.istio.io/v1
+kind: PeerAuthentication
+metadata:
+  name: ztd-policy-evaluator-strict
+  namespace: ztd-data
+spec:
+  selector:
+    matchLabels: {app.kubernetes.io/name: ztd-policy-evaluator}
+  mtls: {mode: STRICT}
+---
+# Source: guard/templates/policies.yaml
+apiVersion: security.istio.io/v1
+kind: PeerAuthentication
+metadata:
+  name: ztd-protected-resource-strict
+  namespace: ztd-data
+spec:
+  selector:
+    matchLabels: {app.kubernetes.io/name: ztd-protected-resource}
+  mtls: {mode: STRICT}
+

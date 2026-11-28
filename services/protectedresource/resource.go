@@ -84,6 +84,9 @@ func NewAlternativeAdapter(slowDelay time.Duration) *AlternativeAdapter {
 }
 
 func NewResourceAdapter(config Config) ResourceAdapter {
+	if config.AdapterMode == cloudMode {
+		return newCloudAdapter(config)
+	}
 	if config.AdapterMode == "sample-alternative" {
 		return NewAlternativeAdapter(config.SlowDelay)
 	}

@@ -80,6 +80,11 @@ The operator revokes the profile's credential (its status-list bit is set), then
 Ends in: a refusal showing `CRED-REVOKED` as the cause. No channel is opened and no decision is
 asked of the guard.
 
+Step 2 is where the outcome is first checked by its consumer. A caller that sends the outcome to
+the grant unread is refused there, as shown. The token store reads the outcome before it asks for
+a grant, so on a route it acquires for itself the same refusal comes from `token-store-a` and
+`connector-b` is not asked ([Token store](token-store.md#presentation-hook)).
+
 ### Wrong scope
 
 | # | Step | Source | Kind | State | Reason |

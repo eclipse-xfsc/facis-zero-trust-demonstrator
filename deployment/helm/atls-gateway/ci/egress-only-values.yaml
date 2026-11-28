@@ -1,0 +1,2 @@
+# The egress role alone (a zone that only originates channels to the peer).
+ingress: {enabled: false}

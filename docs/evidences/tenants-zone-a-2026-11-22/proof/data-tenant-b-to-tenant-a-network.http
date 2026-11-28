@@ -1,0 +1,4 @@
+curl: (28) Operation timed out after 8002 milliseconds with 0 bytes received
+
+HTTP_CODE=000
+command terminated with exit code 28

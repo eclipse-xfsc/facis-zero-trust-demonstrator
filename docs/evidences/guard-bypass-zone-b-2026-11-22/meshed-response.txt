@@ -1,0 +1,9 @@
+HTTP/1.1 403 Forbidden
+content-length: 19
+content-type: text/plain
+date: Sun, 22 Nov 2026 00:51:19 GMT
+server: envoy
+x-envoy-upstream-service-time: 5
+connection: close
+
+RBAC: access denied

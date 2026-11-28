@@ -11,6 +11,15 @@ app.kubernetes.io/instance: {{ .Release.Name }}
 
 {{/* Fail early on values the release cannot run with. */}}
 {{- define "app.validate" -}}
+{{- if .Values.eventSource -}}
+{{- if not (has .Values.eventSource (list "participant-a" "participant-b" "protected-resource-a" "protected-resource-b")) -}}
+{{- fail "eventSource must be participant-a/b or protected-resource-a/b" -}}
+{{- end -}}
+{{- if or (hasKey .Values.env "IF01_SOURCE") (hasKey .Values.secretEnv "IF01_SOURCE") -}}
+{{- fail "set eventSource or IF01_SOURCE, not both" -}}
+{{- end -}}
+{{- end -}}
+
 {{- if not (regexMatch "^[a-z][a-z0-9-]{0,62}$" (.Values.name | toString)) -}}
 {{- fail "name must be a DNS label" -}}
 {{- end -}}

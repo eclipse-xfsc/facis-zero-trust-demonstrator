@@ -1,0 +1,47 @@
+{{- define "token-store.principals" -}}
+[{{ range $i, $c := .callers }}{{ if $i }}, {{ end }}{{ printf "%s/ns/%s/sa/%s" $.td $c.namespace $c.name | quote }}{{ end }}]
+{{- end -}}
+{{- if and .Values.runtime.enabled .Values.runtime.callers }}
+{{- if not .Values.trustDomain }}{{ fail "trustDomain is required with runtime.callers" }}{{ end }}
+apiVersion: security.istio.io/v1
+kind: AuthorizationPolicy
+metadata:
+  name: ztd-token-store-callers
+  namespace: {{ .Release.Namespace }}
+spec:
+  selector:
+    matchLabels:
+      {{- include "token-store.selector" . | nindent 6 }}
+  action: ALLOW
+  rules:
+    - from:
+        - source:
+            principals: {{ include "token-store.principals" (dict "td" .Values.trustDomain "callers" .Values.runtime.callers) }}
+      to:
+        - operation:
+            ports: ["8080"]
+            methods: ["POST"]
+            paths: ["/internal/substitute", "/internal/replay-check"]
+{{- end }}
+{{- with .Values.database.mesh.selector }}
+{{- if not $.Values.trustDomain }}{{ fail "trustDomain is required with database.mesh.selector" }}{{ end }}
+{{- $own := list (dict "namespace" $.Release.Namespace "name" $.Values.serviceAccount.name) (dict "namespace" $.Release.Namespace "name" $.Values.serviceAccount.schemaName) }}
+---
+apiVersion: security.istio.io/v1
+kind: AuthorizationPolicy
+metadata:
+  name: ztd-token-store-database
+  namespace: {{ $.Release.Namespace }}
+spec:
+  selector:
+    matchLabels:
+      {{- toYaml . | nindent 6 }}
+  action: ALLOW
+  rules:
+    - from:
+        - source:
+            principals: {{ include "token-store.principals" (dict "td" $.Values.trustDomain "callers" (concat $own $.Values.database.mesh.callers)) }}
+      to:
+        - operation:
+            ports: [{{ $.Values.database.mesh.port | quote }}]
+{{- end }}

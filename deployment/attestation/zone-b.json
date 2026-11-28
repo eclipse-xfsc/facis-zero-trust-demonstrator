@@ -1,0 +1,22 @@
+{
+  "zone": "zone-b",
+  "validity_days": 30,
+  "components": [
+    {
+      "name": "atls-gateway",
+      "rootfs_sha256": "bf2702b0c16eb1838d7a10cbfd686464b3912e897da3918aa11edc0d5e0a258f",
+      "oci_config": {
+        "ociVersion": "1.2.0",
+        "process": {
+          "user": {"uid": 65532, "gid": 65532},
+          "args": ["/atls-gateway"],
+          "env": ["PATH=/usr/local/bin:/usr/bin:/bin"],
+          "cwd": "/",
+          "noNewPrivileges": true
+        },
+        "root": {"path": "rootfs", "readonly": true},
+        "hostname": "atls-gateway"
+      }
+    }
+  ]
+}

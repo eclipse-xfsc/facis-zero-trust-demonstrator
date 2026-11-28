@@ -1,0 +1,11 @@
+{
+  "slices": 1,
+  "probeEntries": [
+    {
+      "ready": false,
+      "serving": false,
+      "terminating": false
+    }
+  ],
+  "readyEndpoints": 1
+}

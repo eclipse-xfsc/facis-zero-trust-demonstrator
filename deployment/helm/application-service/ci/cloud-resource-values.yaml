@@ -1,0 +1,11 @@
+# Render-only overlay; use with guarded-resource-values.yaml for token verification.
+# Replace the image digest with the admitted build before a local deployment.
+env:
+  PROTECTED_RESOURCE_ADAPTER_MODE: cloud-api
+  PROTECTED_RESOURCE_CLOUD_TOKEN_FILE: /var/run/cloud-api/token
+secretMounts:
+  - name: cloud-api
+    secretName: protected-resource-cloud-api
+    mountPath: /var/run/cloud-api
+# Add a destination-scoped TCP/443 egress rule and mesh egress route in the local
+# environment. This fixture deliberately grants no blanket Internet egress.

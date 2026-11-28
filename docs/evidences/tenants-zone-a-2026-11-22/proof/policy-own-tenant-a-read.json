@@ -1,0 +1,7 @@
+{
+  "kind": "Status",
+  "status": "Failure",
+  "reason": "NotFound",
+  "code": 404,
+  "message": "configmaps \"ztd-policy-config\" not found"
+}

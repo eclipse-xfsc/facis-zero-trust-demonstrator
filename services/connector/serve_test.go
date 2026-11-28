@@ -90,6 +90,13 @@ func TestParseServe(t *testing.T) {
 		{name: "no database", env: required(map[string]string{"CONNECTOR_DATABASE_URL": ""}), wantErr: "--database-url"},
 		{name: "no OpenBao", env: required(map[string]string{"CONNECTOR_OPENBAO_URL": ""}), wantErr: "--openbao-url"},
 		{name: "no OpenBao token file", env: required(map[string]string{"CONNECTOR_OPENBAO_TOKEN_FILE": ""}), wantErr: "--openbao-token-file"},
+		{name: "Kubernetes auth instead of the token file", env: required(map[string]string{"CONNECTOR_OPENBAO_TOKEN_FILE": "", "CONNECTOR_OPENBAO_AUTH_ROLE": "ztd-connector"}),
+			check: func(t *testing.T, c config) {
+				if c.openBaoAuthRole != "ztd-connector" || c.openBaoAuthMount != "kubernetes" || c.openBaoJWTFile != "/var/run/secrets/openbao/token" {
+					t.Errorf("Kubernetes auth: %+v", c)
+				}
+			}},
+		{name: "token file and Kubernetes auth together", env: required(map[string]string{"CONNECTOR_OPENBAO_AUTH_ROLE": "ztd-connector"}), wantErr: "exactly one"},
 		{name: "no issuer", env: required(map[string]string{"CONNECTOR_ISSUER": ""}), wantErr: "--issuer"},
 		{name: "no signing key", env: required(map[string]string{"CONNECTOR_SIGNING_KEY": ""}), wantErr: "--signing-key"},
 		{name: "no key version", env: required(map[string]string{"CONNECTOR_SIGNING_KEY_VERSION": ""}), wantErr: "--signing-key-version"},
@@ -281,9 +288,17 @@ func (r *running) stop(t *testing.T) int {
 	if err := syscall.Kill(os.Getpid(), syscall.SIGTERM); err != nil {
 		t.Fatal(err)
 	}
-	// The listeners stay open for the drain delay while readiness already says draining.
+	// The listeners stay open for the drain delay while readiness already says draining. A refused
+	// connection means the delay passed before this poll ran (a loaded machine): sawDraining stays
+	// false, and only the tests that need it fail on that.
 	for range 20 {
-		if code, _, body := get(t, "http://"+r.opsAddr+"/readyz"); code == http.StatusServiceUnavailable && strings.Contains(body, `"draining":true`) {
+		resp, err := http.Get("http://" + r.opsAddr + "/readyz")
+		if err != nil {
+			break
+		}
+		body, _ := io.ReadAll(resp.Body)
+		_ = resp.Body.Close()
+		if resp.StatusCode == http.StatusServiceUnavailable && strings.Contains(string(body), `"draining":true`) {
 			r.sawDraining = true
 			break
 		}

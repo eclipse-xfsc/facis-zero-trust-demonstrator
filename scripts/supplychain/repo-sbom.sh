@@ -4,7 +4,8 @@
 # version), signed with cosign in the signing profile of sign-attest.sh (key-based, no transparency log)
 # and verified against the committed public key before it is handed back. Writes <out> and <out>.sig.
 #
-#   COSIGN_KEY=<key file or env://VAR> [COSIGN_PASSWORD=...] [SYFT=syft] [COSIGN=cosign] \
+#   COSIGN_KEY=<key file, env://VAR or hashivault://NAME> [COSIGN_PASSWORD=...] [SIGNING_PUBLIC_KEY=<.pub>] \
+#     [SYFT=syft] [COSIGN=cosign] \
 #     scripts/supplychain/repo-sbom.sh <module dir> <out.json>
 set -euo pipefail
 
@@ -14,7 +15,8 @@ dir="$(cd "$1" && pwd)"
 out="$(cd "$(dirname "$2")" && pwd)/$(basename "$2")"
 : "${COSIGN_KEY:?set COSIGN_KEY}"
 root="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
-public="$root/docs/contracts/keys/interim-cosign.pub"
+# The public key of the selected source (key-source.sh), relative to the repository root.
+public="$root/${SIGNING_PUBLIC_KEY:-docs/contracts/keys/interim-cosign.pub}"
 syft="${SYFT:-syft}" cosign="${COSIGN:-cosign}"
 
 # Only the Go module: the repository SBOM describes what the Go build is made of. Images have their own.

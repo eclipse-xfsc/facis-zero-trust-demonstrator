@@ -1,0 +1,2 @@
+# The ingress role alone (a zone that only accepts the peer's channels).
+egress: {enabled: false}

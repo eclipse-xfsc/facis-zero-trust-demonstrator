@@ -1,0 +1,9 @@
+{{- include "tsa.validate" . -}}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: tsa-policy-config
+  namespace: {{ .Release.Namespace }}
+data:
+  trust-root.pub: {{ .Values.trustRoot | quote }}
+  config.json: {{ toJson (dict "tsa_url" "http://127.0.0.1:8081" "trust_root" "/etc/tsa-bundle/trust-root.pub" "desired" "/etc/tsa-desired/desired.json" "state_dir" "/var/lib/tsa-bundle" "repository" .Values.bundle.repository "plain_http_registries" .Values.bundle.plainHTTPRegistries "poll_seconds" (int .Values.bundle.pollSeconds) "policy" .Values.policy) | quote }}

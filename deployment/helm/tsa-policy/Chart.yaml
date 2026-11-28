@@ -1,0 +1,17 @@
+apiVersion: v2
+name: tsa-policy
+description: >-
+  The XFSC TSA policy service (eclipse-xfsc/custom-policy-agent v1.1.4, pinned by digest) as the
+  guard's IF-05 decision engine, with the sidecar that verifies signed Rego bundles before import,
+  activates the revision Git declares without a restart, and exposes only the evaluation path.
+type: application
+version: 0.1.0
+appVersion: "1.1.4"
+keywords:
+  - facis
+  - zero-trust
+  - tsa
+  - rego
+sources:
+  - https://github.com/eclipse-xfsc/facis-zero-trust-demonstrator
+  - https://github.com/eclipse-xfsc/custom-policy-agent

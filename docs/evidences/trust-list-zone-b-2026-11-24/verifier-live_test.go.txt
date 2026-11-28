@@ -1,0 +1,35 @@
+package trustlist_test
+
+import (
+	"context"
+	"crypto/tls"
+	"net"
+	"net/http"
+	"testing"
+	"time"
+
+	"github.com/eclipse-xfsc/facis-zero-trust-demonstrator/internal/trustlist"
+)
+
+// Throwaway: the verification service's trust-list check against zone B's public entry. The name
+// is dialled at the entry's load-balancer address (ENTRY_ADDR is substituted before the run) and
+// the entry's internal certificate is not verified; the VC's trustlistURI (http://localhost:16003/...)
+// is served by a port-forward of the TSPA Service.
+func TestLiveZoneB(t *testing.T) {
+	d := &net.Dialer{Timeout: 10 * time.Second}
+	tr := &http.Transport{
+		TLSClientConfig: &tls.Config{InsecureSkipVerify: true},
+		DialContext: func(ctx context.Context, n, addr string) (net.Conn, error) {
+			if addr == "tspa.facis.cloud:443" {
+				addr = "ENTRY_ADDR:443"
+			}
+			return d.DialContext(ctx, n, addr)
+		},
+	}
+	v := &trustlist.Verifier{HTTP: &http.Client{Transport: tr}, Now: time.Now}
+	list, exp, err := v.TrustList(context.Background(), "did:web:tspa.facis.cloud", "https://tspa.facis.cloud/tspa-service/tspa/v1/trust.facis.cloud/vc/trust-list")
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Logf("verified at %s; VC expires %s; did:web:connector-b.trust.facis.cloud listed active: %v", time.Now().UTC().Format(time.RFC3339), exp.UTC().Format(time.RFC3339), trustlist.ListsActive(list, "did:web:connector-b.trust.facis.cloud"))
+}

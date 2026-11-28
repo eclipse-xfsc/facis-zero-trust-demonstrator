@@ -1,0 +1,135 @@
+name: TSA policy
+
+# proof: the TSA policy proof on kind (scripts/verify-tsa-policy/verify.sh) for every pull request
+# that touches the TSA path; the records are the run's artefact and the verdict goes to the summary.
+# publish: by hand, publishes the guard's Rego bundle signed with the interim key and prints the
+# digest reference a pull request then declares for a zone (docs/tsa-policy.md).
+on:
+  pull_request:
+    paths:
+      - cmd/tsa-bundle/**
+      - cmd/policy-evaluator/**
+      - internal/tsabundle/**
+      - internal/cosignverify/**
+      - internal/ociclient/**
+      - services/policyevaluator/**
+      - policies/tsa/**
+      - deployment/docker/tsa-bundle/**
+      - deployment/docker/tsa-git/**
+      - deployment/docker/policy-evaluator/**
+      - deployment/helm/tsa-policy/**
+      - deployment/helm/guard/**
+      - scripts/verify-tsa-policy/**
+      - scripts/supplychain/publish-tsa-bundle.sh
+      - scripts/tools/pins.env
+      - .github/workflows/tsa-policy.yml
+  workflow_dispatch:
+    inputs:
+      publish:
+        description: Publish the guard bundle at this commit (revision git-<commit>[-<zone data name>])
+        type: boolean
+        default: false
+      data:
+        description: Zone data.json replacing the policy directory's (path in the repository; empty for none)
+        type: string
+        default: ""
+
+permissions:
+  contents: read
+
+jobs:
+  proof:
+    name: TSA policy proof on kind
+    if: ${{ !inputs.publish }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Set up Go
+        uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version-file: go.mod
+
+      # The bundle's Rego in OPA at the TSA's version: the tenant-membership cases of the built-in
+      # evaluator's tests, against the same policy the proof below loads into the TSA.
+      - name: Test the guard policy's Rego
+        run: |
+          . scripts/tools/pins.env
+          docker run --rm -v "$PWD/policies/tsa/facis/guard/1.0:/p:ro" "$OPA_IMAGE" test -v /p
+
+      - name: Install the pinned tools
+        run: scripts/tools/install.sh "$RUNNER_TEMP/bin" kind kubectl cosign istio-crds
+
+      - name: Run the proof
+        run: BIN="$RUNNER_TEMP/bin" scripts/verify-tsa-policy/verify.sh --out "$RUNNER_TEMP/evidence"
+
+      - name: Write the verdict to the job summary
+        if: ${{ !cancelled() }}
+        run: |
+          {
+            echo '```'
+            cat "$RUNNER_TEMP/evidence/verdict.txt"
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload this run's records
+        if: ${{ !cancelled() }}
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: tsa-policy-evidence
+          path: ${{ runner.temp }}/evidence
+          if-no-files-found: error
+
+  publish:
+    name: Publish the guard bundle
+    if: ${{ inputs.publish }}
+    runs-on: ubuntu-24.04
+    # The interim signing key lives only in this protected environment's secrets.
+    environment: release
+    permissions:
+      contents: read
+      packages: write # pushes the bundle and its signature to GHCR
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Set up Go
+        uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version-file: go.mod
+
+      - name: Install the pinned signing tool
+        run: |
+          scripts/tools/install.sh "$RUNNER_TEMP/bin" cosign
+          echo "$RUNNER_TEMP/bin" >> "$GITHUB_PATH"
+
+      - name: Check the signing key
+        env:
+          COSIGN_INTERIM_KEY: ${{ secrets.COSIGN_INTERIM_KEY }}
+          COSIGN_PASSWORD: ${{ secrets.COSIGN_INTERIM_PASSWORD }}
+        run: scripts/supplychain/check-key.sh
+
+      - name: Log in to GHCR
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: echo "$GITHUB_TOKEN" | docker login ghcr.io -u "$GITHUB_ACTOR" --password-stdin
+
+      - name: Publish
+        env:
+          COSIGN_KEY: env://COSIGN_INTERIM_KEY
+          COSIGN_INTERIM_KEY: ${{ secrets.COSIGN_INTERIM_KEY }}
+          COSIGN_PASSWORD: ${{ secrets.COSIGN_INTERIM_PASSWORD }}
+          DATA: ${{ inputs.data }}
+        # One revision per commit and zone data; the script refuses a revision already published.
+        run: |
+          revision="git-${GITHUB_SHA::12}"
+          [ -z "$DATA" ] || revision="$revision-$(basename "$DATA" .json)"
+          ref=$(scripts/supplychain/publish-tsa-bundle.sh policies/tsa/facis/guard/1.0 "$revision" \
+            "ghcr.io/${GITHUB_REPOSITORY,,}/tsa-policy-bundles" docs/contracts/keys/interim-cosign.pub ${DATA:+"$DATA"})
+          {
+            echo "### TSA bundle (interim key)"
+            echo "- reference: \`$ref\`"
+            echo "- revision: \`$revision\`"
+          } >> "$GITHUB_STEP_SUMMARY"

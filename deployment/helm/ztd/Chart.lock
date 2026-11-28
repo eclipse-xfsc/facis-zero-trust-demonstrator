@@ -1,6 +1,12 @@
 dependencies:
-- name: openbao
-  repository: https://openbao.github.io/openbao-helm
-  version: 0.28.3
-digest: sha256:17b930b379b50be66835b7739a04db30971b322178fe25b789427cc566735a2f
-generated: "2026-10-01T08:35:18.05835-01:00"
+- name: gatekeeper
+  repository: https://open-policy-agent.github.io/gatekeeper/charts
+  version: 3.23.1
+- name: admission
+  repository: file://../admission
+  version: 0.1.0
+- name: admission-pool
+  repository: file://../admission-pool
+  version: 0.1.0
+digest: sha256:6cdffbfc961d312e74464e9079b6b525dd68d57065090e566e5b8bd01a308c18
+generated: "2026-11-21T16:37:20.173084-01:00"

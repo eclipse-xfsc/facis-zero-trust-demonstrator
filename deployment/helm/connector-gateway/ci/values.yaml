@@ -1,0 +1,13 @@
+# Render-only: the egress role (zone A's gateway to zone B's entry, documentation addresses only).
+trustDomain: kind.facis-ztd.local
+egress:
+  enabled: true
+  callers:
+    - { serviceAccount: backend, podSelector: { app.kubernetes.io/name: backend } }
+  peer:
+    name: zone-b
+    address: 192.0.2.10
+    caCert: |
+      -----BEGIN CERTIFICATE-----
+      MIIBfake
+      -----END CERTIFICATE-----

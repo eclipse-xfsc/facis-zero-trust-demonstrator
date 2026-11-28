@@ -1,0 +1,1 @@
+{"authority":"ztd-protected-resource:8080","code":403,"destination":"spiffe://zone-b.trust.invalid/ns/ztd-m3-b/sa/ztd-protected-resource","detail":"rbac_access_denied_matched_policy[none]","flags":"-","source":"spiffe://zone-b.trust.invalid/ns/ztd-m3-b/sa/ztd-participant","termination":null,"time":"2026-11-22T00:51:20.214Z"}

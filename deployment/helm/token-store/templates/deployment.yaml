@@ -62,15 +62,29 @@ spec:
             {{- if .Values.runtime.enabled }}
             - name: TOKEN_STORE_ACQUIRE_CONFIG
               value: {{ printf "/etc/token-store/%s" .Values.runtime.configKey | quote }}
+            {{- if eq .Values.openbao.auth.method "kubernetes" }}
+            - name: TOKEN_STORE_OPENBAO_AUTH_ROLE
+              value: {{ .Values.openbao.auth.role | quote }}
+            - name: TOKEN_STORE_OPENBAO_AUTH_MOUNT
+              value: {{ .Values.openbao.auth.mount | quote }}
+            - name: TOKEN_STORE_OPENBAO_JWT_FILE
+              value: /var/run/secrets/openbao/token
+            {{- else }}
             - name: TOKEN_STORE_OPENBAO_TOKEN_FILE
               value: {{ printf "/var/run/token-store/credentials/%s" .Values.runtime.openbaoTokenKey | quote }}
+            {{- end }}
             - name: TOKEN_STORE_REPLAY_CALLERS
               value: {{ join "," .Values.runtime.replayCallers | quote }}
             {{- end }}
           {{- if .Values.runtime.enabled }}
           volumeMounts:
             - {name: acquisition, mountPath: /etc/token-store, readOnly: true}
+            {{- if or (ne .Values.openbao.auth.method "kubernetes") .Values.runtime.credentialKeys }}
             - {name: credentials, mountPath: /var/run/token-store/credentials, readOnly: true}
+            {{- end }}
+            {{- if eq .Values.openbao.auth.method "kubernetes" }}
+            - {name: openbao-sa-token, mountPath: /var/run/secrets/openbao, readOnly: true}
+            {{- end }}
           {{- end }}
           ports:
             - name: http
@@ -100,8 +114,32 @@ spec:
         - name: acquisition
           configMap:
             name: {{ .Values.runtime.existingConfigMap | quote }}
+        {{- if ne .Values.openbao.auth.method "kubernetes" }}
         - name: credentials
           secret:
             secretName: {{ .Values.runtime.credentialsSecret | quote }}
             defaultMode: 0440
+        {{- else if .Values.runtime.credentialKeys }}
+        # Only the listed keys: the Secret's OpenBao token, if one is left there, is not mounted.
+        - name: credentials
+          secret:
+            secretName: {{ .Values.runtime.credentialsSecret | quote }}
+            defaultMode: 0440
+            items:
+              {{- range .Values.runtime.credentialKeys }}
+              - {key: {{ . | quote }}, path: {{ . | quote }}}
+              {{- end }}
+        {{- end }}
+        {{- if eq .Values.openbao.auth.method "kubernetes" }}
+        # An audience-bound token for the OpenBao login only: the API server refuses it (wrong
+        # audience), and the pod still mounts no API token (automountServiceAccountToken: false).
+        - name: openbao-sa-token
+          projected:
+            defaultMode: 0440
+            sources:
+              - serviceAccountToken:
+                  audience: {{ .Values.openbao.auth.audience | quote }}
+                  expirationSeconds: {{ int .Values.openbao.auth.expirationSeconds }}
+                  path: token
+        {{- end }}
       {{- end }}

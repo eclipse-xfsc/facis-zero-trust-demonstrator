@@ -19,11 +19,70 @@ and are the authoritative list. This page records the components chosen and why.
 ### Pending Eclipse IP review
 
 Dependencies Dash cannot clear yet. They are not exceptions: each stays here until Eclipse approves it,
-and is removed then. None is pending: the last two, `golang.org/x/text` v0.42.0
+and is removed then. The earlier two, `golang.org/x/text` v0.42.0
 ([iplab #32075](https://gitlab.eclipse.org/eclipsefdn/emo-team/iplab/-/work_items/32075)) and
 `github.com/santhosh-tekuri/jsonschema/v6` v6.0.3
 ([iplab #32387](https://gitlab.eclipse.org/eclipsefdn/emo-team/iplab/-/work_items/32387)), were approved
-by 23 October 2026.
+by 23 October 2026. Pending, each awaiting the IP review request a committer files:
+
+| Module | Version | Licence |
+|---|---|---|
+| `go.opentelemetry.io/otel` | v1.47.0 | Apache-2.0 AND BSD-3-Clause |
+| `go.opentelemetry.io/otel/metric` | v1.47.0 | Apache-2.0 AND BSD-3-Clause |
+| `go.opentelemetry.io/otel/trace` | v1.47.0 | Apache-2.0 AND BSD-3-Clause |
+| `go.opentelemetry.io/otel/log` | v1.47.0 | Apache-2.0 AND BSD-3-Clause |
+| `go.opentelemetry.io/otel/sdk` | v1.47.0 | Apache-2.0 AND BSD-3-Clause |
+| `go.opentelemetry.io/otel/sdk/metric` | v1.47.0 | Apache-2.0 AND BSD-3-Clause |
+| `go.opentelemetry.io/otel/exporters/otlp/otlptrace` | v1.47.0 | Apache-2.0 AND BSD-3-Clause |
+| `go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracehttp` | v1.47.0 | Apache-2.0 AND BSD-3-Clause |
+| `github.com/grpc-ecosystem/grpc-gateway/v2` | v2.30.0 | BSD-3-Clause |
+| `google.golang.org/genproto/googleapis/api` | v0.0.0-20260928230214-8a89bd6388cc | Apache-2.0 |
+| `google.golang.org/grpc` | v1.83.2 | Apache-2.0 |
+| `github.com/envoyproxy/protoc-gen-validate` | v1.3.3 | Apache-2.0 |
+| `golang.org/x/text` | v0.43.0 | BSD-3-Clause |
+
+Also pending, added 21 November 2026 for the verification service's own check of
+TRAIN trust-list VCs ([Verification service](verification-service.md)); no review requested yet:
+
+| Dependency | Version | Licence | Why |
+|---|---|---|---|
+| `github.com/piprate/json-gold` | v0.9.1 | Apache-2.0 | JSON-LD URDNA2015 canonicalisation for the JsonWebSignature2020 proof of a trust-list VC |
+| `github.com/cayleygraph/quad` | v1.3.0 | Apache-2.0 | N-Quads serialisation, required by json-gold |
+| `github.com/pquerna/cachecontrol` | v0.2.0 | Apache-2.0 | HTTP cache headers of json-gold's default document loader (not used: contexts are embedded), required by json-gold |
+
+The 17 below are what Dash did not verify automatically in two scans. Sixteen are recorded from the
+latest scan of the attested-channel dependencies, on 4 November 2026, which ran before those
+dependencies were rebased onto the current `main`. Each version below is the one in `go.sum` now, but
+four modules that reached `go.sum` from `main` with the policy hook were not in that scanned tree, so
+that scan says nothing about them: `github.com/cncf/xds/go`,
+`github.com/envoyproxy/go-control-plane/envoy`, `github.com/envoyproxy/protoc-gen-validate` and
+`github.com/planetscale/vtprotobuf`.
+
+The 6 November 2026 scan covered a `go.mod` and `go.sum` identical to `main`'s, which hold those four
+modules and not the 15 others below that came with CMC. Of the four it flagged only
+`github.com/envoyproxy/protoc-gen-validate` v1.3.3, the one row recorded from this scan, and it did
+not flag the other three. The only other module it flagged is `google.golang.org/grpc` v1.83.2, which
+the 4 November scan flagged too.
+
+| Dependency | Version | Why it is pending | Review |
+|---|---|---|---|
+| `github.com/Fraunhofer-AISEC/cmc` | v0.9.15 | not verified automatically by Dash | no work item recorded |
+| `github.com/containerd/containerd/v2` | v2.3.2 | not verified automatically by Dash | no work item recorded |
+| `github.com/edgelesssys/ego` | v1.9.0 | not verified automatically by Dash | no work item recorded |
+| `github.com/envoyproxy/protoc-gen-validate` (from `main`, with the policy hook; not new with CMC) | v1.3.3 | not verified automatically by Dash | no work item recorded |
+| `github.com/google/go-attestation` | v0.6.0 | not verified automatically by Dash | no work item recorded |
+| `github.com/google/go-configfs-tsm` | v0.3.3 | not verified automatically by Dash | no work item recorded |
+| `github.com/google/go-eventlog` | v0.0.2 | not verified automatically by Dash | no work item recorded |
+| `github.com/google/go-sev-guest` | v0.14.1 | not verified automatically by Dash | no work item recorded |
+| `github.com/google/go-tdx-guest` | v0.3.2-0.20250131194449-460f94c01da7 | not verified automatically by Dash | no work item recorded |
+| `github.com/google/go-tpm-tools` (in `go.sum` only, not in `go.mod`) | v0.4.6 | not verified automatically by Dash | no work item recorded |
+| `github.com/google/go-tpm` | v0.9.8 | not verified automatically by Dash | no work item recorded |
+| `github.com/google/logger` | v1.1.2 | not verified automatically by Dash | no work item recorded |
+| `github.com/opencontainers/runtime-spec` | v1.3.0 | not verified automatically by Dash | no work item recorded |
+| `github.com/pion/dtls/v3` | v3.1.4 | not verified automatically by Dash | no work item recorded |
+| `github.com/plgd-dev/go-coap/v3` | v3.5.1 | not verified automatically by Dash | no work item recorded |
+| `github.com/veraison/go-cose` | v1.3.0 | not verified automatically by Dash | no work item recorded |
+| `google.golang.org/grpc` (also on `main`, for the policy hook; not new with CMC) | v1.83.2 | not verified automatically by Dash | no work item recorded |
 
 ## Licence exceptions
 
@@ -58,6 +117,17 @@ The demonstrator integrates XFSC components rather than reimplementing them: the
 for policy evaluation, the Organisation Credential Manager for wallets, TRAIN for trust anchoring,
 and ORCE for orchestration. Versions are pinned at deployment and recorded with the release.
 
+| Component | Version | Licence | Consumed as |
+|---|---|---|---|
+| TSA policy service ([eclipse-xfsc/custom-policy-agent](https://github.com/eclipse-xfsc/custom-policy-agent)) | v1.1.4, image `tsa/policy:1.1.4@sha256:0275b144…` (`TSA_POLICY_IMAGE` in `scripts/tools/pins.env`) | Apache-2.0 | deployed service, called through its HTTP API ([TSA policy evaluation](tsa-policy.md)) |
+
+The TSA pod also runs two runtime images, not linked into project code: the NATS server the TSA's
+event client needs (`nats:2.15.3`, Apache-2.0, `NATS_IMAGE`) and a git daemon for its start-up clone
+(`deployment/docker/tsa-git`: Alpine 3.22 with `git-daemon` 2.49.1, GPL-2.0, run unmodified as a
+separate process). CI runs the guard bundle's Rego tests in OPA at the TSA's version (`opa:0.58.0-static`,
+Apache-2.0, `OPA_IMAGE`), a test tool only. The TSA integration adds no Go or npm dependency: bundle verification reuses the
+first-party OCI client and cosign verifier, the rest is the standard library.
+
 ## Go dependencies
 
 Direct dependencies of the Go module. Transitive dependencies are listed in the SBOM.
@@ -72,12 +142,122 @@ Direct dependencies of the Go module. Transitive dependencies are listed in the 
 | `github.com/santhosh-tekuri/jsonschema/v6` | v6.0.3 | Apache-2.0 | validates SBOMs and mock attestations against their JSON Schemas at admission |
 | `github.com/jackc/pgx/v5` | v5.11.0 | MIT | PostgreSQL driver of the token store: the schema migrations today (`services/token-store`), the service's queries as they land |
 | `github.com/envoyproxy/go-control-plane/envoy` | v1.37.0 | Apache-2.0 | the Envoy `ext_authz` and `ext_proc` API types the guard policy hook is served through (`cmd/policy-hook-probe`); only its `envoyhook` package may import them |
-| `google.golang.org/grpc` | v1.83.2 | Apache-2.0 | gRPC transport of the policy hook's Envoy services |
+| `google.golang.org/grpc` | v1.83.2 | Apache-2.0 | gRPC transport of the policy hook's Envoy services. Transport to the zone's `cmcd` (through CMC), and the in-process `cmcd` stand-in of the `internal/atls` tests. |
+| `go.opentelemetry.io/otel`, `/otel/sdk`, `/otel/trace`, `/otel/exporters/otlp/otlptrace/otlptracehttp` | v1.47.0 | Apache-2.0 AND BSD-3-Clause | the OpenTelemetry Go SDK of the observability proof's echo service (`tools/trace-echo`): W3C trace-context propagation and one server span per request, exported by OTLP/HTTP |
+| `github.com/piprate/json-gold` | v0.9.1 | Apache-2.0 | URDNA2015 canonicalisation of TRAIN trust-list VCs in the verification service (pending Eclipse IP review, above) |
+| `github.com/opencontainers/runtime-spec` | v1.3.0 | Apache-2.0 | the OCI runtime configuration type of a zone's measured containers (`internal/atls/provision`); already in the build through CMC |
+| `google.golang.org/genproto/googleapis/rpc` | v0.0.0-20260928230214-8a89bd6388cc | Apache-2.0 | the `google.rpc` `Status` type the guard policy hook sets in its `ext_authz` answers (`cmd/policy-hook-probe/internal/envoyhook`) |
+| `github.com/Fraunhofer-AISEC/cmc` | v0.9.15 (commit `6754d3c`) | Apache-2.0 | Attested TLS (CMC `attestedtls`) for the inter-zone channel, wrapped by `internal/atls`, the only package allowed to import it. Unmodified upstream. See [Attested channel control](attested-channel.md). Its types and hashing also render each zone's reference values and measurement log (`internal/atls/provision`), and the provisioning proof builds its `cmcd`, `estserver` and `metatool` at this version ([Attestation evidence provisioning](attestation-provisioning.md)). |
+| `github.com/go-jose/go-jose/v4` | v4.1.4 | Apache-2.0 | JWS signing of the throwaway attestation metadata in the `internal/atls` test fixtures. Also used by CMC. |
+| `github.com/sirupsen/logrus` | v1.9.4 | MIT | CMC's logger. The `internal/atls` tests set its level to keep CMC's per-handshake logging quiet. |
+
+The SD-JWT VC, Token Status List and OID4VP handling (`internal/sdjwt`, `internal/statuslist`,
+`internal/oid4vp`) is written on the standard library (`crypto/ecdsa`, `crypto/sha256`,
+`compress/zlib`, `net/http`) over the in-house JOSE subset (`internal/jose`); it adds no module.
 
 The admission check validates SBOMs against the official CycloneDX 1.5, 1.6 and 1.7 JSON Schemas and
 the schemas they reference (CycloneDX specification tag 1.7.2, Apache-2.0), vendored in
 `internal/cosignverify/schemas/` and pinned by SHA-256. CycloneDX 1.7 is accepted because it is what
 the pinned Syft and Grype write by default.
+
+### Brought in by CMC
+
+CMC v0.9.15 adds the following modules to `go.mod`, with one exception: `google.golang.org/protobuf`
+was already on `main` at v1.36.11, and CMC and `github.com/containerd/containerd/v2` raise it to the
+pseudo-version below. All of them are free and open-source software.
+Like every other third-party component, each is declared in writing with its licence (tender
+clause 9.5), and the client confirms the included FOSS components and their versions (TDR,
+"Open-Source Software"). That confirmation includes the CMC pin, v0.9.15, itself, and the two
+MPL-2.0 modules it adds, `github.com/veraison/go-cose` and `github.com/edgelesssys/ego` (see
+[MPL-2.0 dependencies](#mpl-20-dependencies)).
+
+The last column says whether a CGO-free production build with the tags `nodefaults,grpc` still
+links the module on Linux. That build keeps only the gRPC attester and drops the TEE drivers and
+the in-process backend.
+
+| Module | Version | Licence | Linked with `nodefaults,grpc` |
+|---|---|---|---|
+| `github.com/Microsoft/go-winio` | v0.6.3-0.20251027160822-ad3df93bed29 | MIT | no (Windows only; never linked on Linux) |
+| `github.com/containerd/containerd/v2` | v2.3.2 | Apache-2.0 | yes |
+| `github.com/containerd/continuity` | v0.5.0 | Apache-2.0 | yes |
+| `github.com/containerd/log` | v0.1.0 | Apache-2.0 | yes |
+| `github.com/dsnet/golib/memfile` | v1.0.0 | BSD-3-Clause | no |
+| `github.com/edgelesssys/ego` | v1.9.0 | MPL-2.0 | no (SGX driver, needs cgo) |
+| `github.com/fxamacker/cbor/v2` | v2.9.1 | MIT | yes |
+| `github.com/google/go-attestation` | v0.6.0 | Apache-2.0 | yes |
+| `github.com/google/go-configfs-tsm` | v0.3.3 | Apache-2.0 | no |
+| `github.com/google/go-eventlog` | v0.0.2 | Apache-2.0 | no |
+| `github.com/google/go-sev-guest` | v0.14.1 | Apache-2.0 | no |
+| `github.com/google/go-tdx-guest` | v0.3.2-0.20250131194449-460f94c01da7 | Apache-2.0 | yes |
+| `github.com/google/go-tpm` | v0.9.8 | Apache-2.0 | yes |
+| `github.com/google/logger` | v1.1.2 | Apache-2.0 | no |
+| `github.com/mattn/go-sqlite3` | v1.14.44 | MIT; bundles SQLite (`sqlite3-binding.c`), public domain — see below | no (default cgo build only) |
+| `github.com/opencontainers/runtime-spec` | v1.3.0 | Apache-2.0 | yes |
+| `github.com/pion/dtls/v3` | v3.1.4 | MIT | no |
+| `github.com/pion/logging` | v0.2.4 | MIT | no |
+| `github.com/pion/transport/v4` | v4.0.1 | MIT | no |
+| `github.com/plgd-dev/go-coap/v3` | v3.5.1 | Apache-2.0 | yes |
+| `github.com/robertkrimen/otto` | v0.5.1 | MIT | no |
+| `github.com/veraison/go-cose` | v1.3.0 | MPL-2.0 | yes (COSE signatures of CMC reports) |
+| `github.com/x448/float16` | v0.8.4 | MIT | yes |
+| `go.mozilla.org/pkcs7` | v0.9.0 | MIT | yes |
+| `go.uber.org/atomic` | v1.11.0 | MIT | no |
+| `go.uber.org/multierr` | v1.11.0 | MIT | no |
+| `golang.org/x/exp` | v0.0.0-20260410095643-746e56fc9e2f | BSD-3-Clause | yes |
+| `golang.org/x/sync` | v0.23.0 | BSD-3-Clause | yes |
+| `google.golang.org/protobuf` | v1.36.12-0.20260120151049-f2248ac996af | BSD-3-Clause | yes |
+| `gopkg.in/sourcemap.v1` | v1.0.5 | BSD-2-Clause | no |
+
+Licences were read from each module's licence file; Dash and the SBOM remain authoritative.
+
+**Build tags do not change the compliance scope.** `-tags nodefaults,grpc` shrinks what a binary
+links, but Eclipse Dash (`.github/workflows/eclipse-dash.yml`) scans `go.sum` and the SBOM is
+generated from the module graph. Every module above is therefore declared and scanned, whether a
+given binary links it or not.
+
+### MPL-2.0 dependencies
+
+MPL-2.0 is on the [Eclipse approved licence list](https://www.eclipse.org/legal/licenses.php#approved).
+The TDR requires third-party content under an approved licence and written notice only for
+exceptions; the SRS requires Apache-2.0-compatible, Eclipse-compatible licences (§2.3.1, §2.3.2);
+the tender requires every third-party component to be declared, with prior authorisation only for
+strong copyleft such as GPL or AGPL. MPL-2.0 modules are therefore **accepted and declared** like
+any other FOSS component; they are not licence exceptions. MPL-2.0 is file-level copyleft: it
+binds modifications to the MPL-2.0 files themselves, which the project does not modify, and does
+not extend to project code, which stays Apache-2.0.
+
+MPL-2.0 was already part of the module before CMC:
+
+| Module | Version | Reached through | Linked |
+|---|---|---|---|
+| `github.com/hashicorp/go-cleanhttp` | v0.5.2 | `authelia.com/provider/oauth2` | yes — production connector, also with `nodefaults,grpc` |
+| `github.com/hashicorp/go-retryablehttp` | v0.7.8 | `authelia.com/provider/oauth2` | yes — production connector, also with `nodefaults,grpc` |
+| `github.com/hashicorp/go-memdb` | v1.3.5 | `github.com/cucumber/godog` | tests only (BDD suite) |
+| `github.com/hashicorp/go-immutable-radix` | v1.3.1 | `github.com/cucumber/godog` | tests only (BDD suite) |
+| `github.com/hashicorp/golang-lru` | v0.5.4 | `github.com/cucumber/godog` | tests only (BDD suite) |
+
+CMC adds `github.com/veraison/go-cose` (always linked) and `github.com/edgelesssys/ego` (default
+cgo build only).
+
+These two modules are approved-licence components too: they need no exception notice, and they
+are covered by the client's confirmation of the included FOSS components and their versions, like
+the rest of [what CMC brings in](#brought-in-by-cmc). The TDR asks for written notice only for
+content outside the [Eclipse approved licence list](https://www.eclipse.org/legal/licenses.php#approved),
+which lists MPL-2.0 as approved.
+
+[ADR-0004](adr/0004-openbao-as-x509-key-value-store.md) records a licence exception notice for
+OpenBao, an MPL-2.0 service the requirements prescribe, filed under a stricter reading than the
+TDR wording: an exception for any non-Apache licence. The notice stands and remains the record for
+OpenBao. That reading is not applied to approved-licence modules linked into a deliverable, because
+the TDR wording summarised above does not ask for it.
+
+### Public-domain SQLite
+
+`github.com/mattn/go-sqlite3` is MIT, but it bundles the SQLite amalgamation (`sqlite3-binding.c`),
+which is in the public domain ("the author disclaims copyright … here is a blessing"). Public domain
+is not an entry on the Eclipse approved list, so Eclipse Dash may flag the module for IP-team review.
+It comes in through CMC's SGX driver and is linked only by the default cgo build, not by a
+`nodefaults,grpc` build; being in `go.sum`, it is scanned either way.
 
 ## JavaScript development dependencies
 
@@ -114,7 +294,7 @@ The JavaScript packages above are pinned by exact version with integrity hashes 
 | OPA Gatekeeper (Helm chart) | 3.23.1 | Apache-2.0 | admission control with the first-party external-data provider |
 | PostgreSQL | 16.10 (test service) | PostgreSQL License | token-store integration tests and lifecycle proof |
 | OpenBao | 2.7.0 (test service) | MPL-2.0 | the token-store lifecycle proof only; its use in the demonstrator is the declared licence exception |
-| OpenBao (Helm chart `openbao`) | chart 0.28.3, server v2.5.4 | MPL-2.0 | the umbrella's X.509 key-value store when a zone turns it on ([Secrets](secrets.md)); covered by the declared licence exception |
+| OpenBao (Helm chart `openbao`) | chart 0.28.3, server v2.5.4 | MPL-2.0 | the zone's X.509 key-value store, the release `ztd-openbao`: a dependency of the project chart `deployment/helm/ztd-openbao`, locked in its `Chart.lock`, its archive pinned by sha256 in `dependencies.sha256` ([Secrets](secrets.md)); covered by the declared licence exception |
 | Docker Distribution registry | 2.8.3 (test service) | Apache-2.0 | a local registry for signing and verification tests in CI |
 
 The admission provider talks to OCI registries through a small first-party client built on the Go
@@ -130,7 +310,8 @@ release archive). The container images the charts run are pinned separately, by 
 `deployment/helm/values/`: the SPIRE server, agent, controller-manager and SPIFFE CSI driver, the
 CSI node-driver registrar, the server's `busybox` init container and `kubectl` hook image, and
 Istio's `pilot`, `proxyv2` (the injected proxy and the injected `istio-validation` init container)
-and `install-cni`. The images the charts already pin by digest are left
+and `install-cni`; the two injected `proxyv2` references carry the 1.31.1 digest without the tag, so
+the admission digest allow-list can name them exactly. The images the charts already pin by digest are left
 as they ship. One image stays a tag: `busybox:1.28` in Istio's `grpc-simple` injection template,
 which only a pod that chooses its injection templates would run, and the `zone-policy` admission
 policy refuses such a pod in every plane namespace. The values the repository sets on the charts
@@ -140,7 +321,7 @@ are listed with their reasons in `deployment/helm/values/README.md`.
 |---|---|---|---|---|
 | SPIRE (server, agent, controller-manager, SPIFFE CSI driver) | v1.15.3 | chart `spire` 0.30.2 and chart `spire-crds` 0.6.1, from the SPIFFE hardened charts `https://spiffe.github.io/helm-charts-hardened/` | Apache-2.0 | the only issuer of workload and mesh identities (ZT-24): attests every pod and serves its SVID over the CSI-mounted Workload API socket and to the mesh proxy over SDS |
 | Istio, sidecar mode | 1.31.1 | charts `base`, `istiod` and `cni` 1.31.1, from the Istio release archive `istio-1.31.1-linux-amd64.tar.gz` (`manifests/charts`), pinned by its published sha256 | Apache-2.0 | the service mesh of [ADR-0009](adr/0009-service-mesh-mode-istio-sidecar-with-cilium.md): native sidecars that take their certificates from SPIRE, mesh-wide STRICT mTLS, the CNI plugin chained behind Cilium |
-| Cilium | 1.20.2 on kind; 1.18.8 on the participant clusters | kind: chart `cilium/cilium` 1.20.2, by `scripts/dev/kind-cilium-up.sh`, the version a kind run of `scripts/verify-mesh-identity/verify.sh` shows; the participant clusters of zone A and zone B: installed and upgraded by the provider (Gardener), never by the zone, found at 1.18.8, the version a participant-cluster run of the same script shows in its preconditions and `environment.json` (see `scripts/verify-mesh-identity/README.md`) (the chaining proven on every node; cross-node pod traffic masqueraded by the provider's configuration, so the mesh is proven node-locally there and fails across nodes until the provider changes it; a kind pass on 1.20.2 supports but does not prove a fix for the provider's 1.18.8 pod network) | Apache-2.0 | the CNI and the enforcer of the network policies, with `cni.exclusive=false` (`cni-exclusive=false` in `cilium-config`) so that the Istio plugin can chain |
+| Cilium | 1.20.2 on kind (1.19.6, then 1.20.2, in the upgrade proof); 1.19.6 in tunnel mode on the participant clusters | kind: chart `cilium/cilium` 1.20.2, by `scripts/dev/kind-cilium-up.sh`, the version a kind run of `scripts/verify-mesh-identity/verify.sh` shows; `scripts/verify-cni-chaining-upgrade/verify.sh` installs chart 1.19.6 on its own disposable kind cluster through the same script and upgrades it to the pin (`CILIUM_CRDS_VERSION`, 1.20.2) from `https://helm.cilium.io/`, checking the CNI chain on both sides; the participant clusters of zone A and zone B: installed and upgraded by the provider (Gardener), never by the zone, found at 1.19.6 with tunnel routing (VXLAN), the version and routing mode a participant-cluster run of the same script shows in its preconditions and `environment.json` (see `scripts/verify-mesh-identity/README.md`) (the chaining and the mesh on every node, with calls between nodes, are proven on the provider's network by the participant-cluster run, not by a kind pass on 1.20.2; that run, on 1.19.6 in tunnel mode, has passed on both zones with the keep opt-in) | Apache-2.0 | the CNI and the enforcer of the network policies, with `cni.exclusive=false` (`cni-exclusive=false` in `cilium-config`) so that the Istio plugin can chain |
 | istioctl | 1.31.1 | the operator's machine | Apache-2.0 | reads a proxy's secrets and sync status in the proof; never installs |
 
 The Istio 1.31 charts are taken from the release archive because Istio's Helm repository and OCI
@@ -152,8 +333,45 @@ digest of every image tag in the values files (`docker buildx imagetools inspect
 prints the index digest), then reruns `scripts/verify-mesh-identity/verify.sh`, whose record goes
 to the run directory outside the repository. The local proof runs on kind node v1.35.8 with Cilium
 1.20.2; the participant clusters run Kubernetes v1.34.7 with the provider's
-Cilium 1.18.8, and the same proof is re-run there with the keep opt-in. At every Istio minor upgrade the
+Cilium 1.19.6 in tunnel mode, and the same proof is re-run there with the keep opt-in after every
+upgrade, the provider's included: a kind pass does not prove the provider's network. A change of the
+Cilium pin or of the zones' Cilium version also reruns `scripts/verify-cni-chaining-upgrade/verify.sh`,
+which upgrades Cilium from the zones' version (1.19.6) to the pin on kind and checks that the Istio CNI
+plugin stays chained after Cilium on every node. At every Istio minor upgrade the
 [ADR-0009](adr/0009-service-mesh-mode-istio-sidecar-with-cilium.md) reopen check
 (`scripts/mesh-mode/check-upstream-state.sh`) runs alongside the proof. The SPIRE charts are
 upgraded as a pair (`spire-crds` first), because the controller-manager in `spire` is built
 against the CRDs of its `spire-crds`.
+
+## Observability
+
+The observability stack ([ADR-0017](adr/0017-central-observability-backends.md)) is installed from
+upstream charts by `scripts/install-zone/install.sh`: the collectors in each participant zone, the
+backends on the demonstrator cluster. Every chart is pinned by version and by the sha256 of its archive
+(the digest its repository's `index.yaml` publishes), and every image by tag and multi-arch index
+digest, all in `scripts/tools/pins.env`; the installer sets the images on the charts. The values the
+repository sets are in `deployment/helm/values/` (`otel-node.yaml`, `otel-gateway.yaml`,
+`otel-entry.yaml`, `prometheus.yaml`, `jaeger.yaml`).
+`scripts/verify-observability/check-rendered-images.sh` fails CI when a rendered image of these
+releases is not pinned by digest, is not in its list of accepted images with their licences, or is a
+Grafana or Loki component.
+
+| Component | Version | Installed through | Licence | Why |
+|---|---|---|---|---|
+| OpenTelemetry Collector (contrib distribution) | 0.162.0 | chart `opentelemetry-collector` 0.176.1, `https://open-telemetry.github.io/opentelemetry-helm-charts`, three releases: `otel-node`, `otel-gateway` (zones), `otel-entry` (demonstrator cluster) | Apache-2.0 | ZT-27's primary aggregation and export tool: pod logs, SPIRE metrics, OTLP from workloads and proxies, the revocation probe, the mutual-TLS entry |
+| Prometheus | v3.15.0 | chart `prometheus` 29.37.0, `https://prometheus-community.github.io/helm-charts`, release `prometheus`, subcharts off | Apache-2.0 | ZT-27's metrics store, by remote write; the alert rules of ZT-52 and ZT-51, whose `firing` state is the alert ("emit alerts via the observability stack"), read from the alerts API and the `ALERTS{ztd_source="collector"}` series |
+| Prometheus config reloader | v0.94.1 | the reloader the chart runs beside the server | Apache-2.0 | reloads the rules when their ConfigMap changes |
+| Jaeger (v2, all-in-one, Badger storage) | 2.22.0 | chart `jaeger` 4.16.1, `https://jaegertracing.github.io/helm-charts`, release `jaeger` | Apache-2.0 | ZT-27's OTel-compatible tracing backend |
+| cert-manager | v1.21.2 | on the demonstrator cluster: installed there already, found at v1.21.2; on kind: chart `cert-manager` v1.21.2, `https://charts.jetstack.io`, by `scripts/dev/kind-cert-manager-up.sh` | Apache-2.0 | issues the telemetry CA, the entry's server certificate and the zones' client certificates (project chart `deployment/helm/telemetry-issuers`) |
+| Cilium CLI | v0.20.1 | `scripts/tools/install.sh cilium-cli`, CI only | Apache-2.0 | waits for Cilium in the kind run of the observability proof |
+
+**Excluded: Grafana and Loki.** Both are AGPL-3.0, which breaches the Apache-2.0-compatibility rule;
+neither is installed. The Prometheus and Jaeger interfaces, reached with cluster access, are the
+visualization of the observability data on the IONOS cluster until the demonstrator UI takes over
+([Specifications](specifications.md)). The logs are exported to files by the receiving collector's
+`file` exporter (part of the pinned contrib image); no log query service is installed, so none has a
+row here.
+
+**Upgrades.** An upgrade changes a version and its digest in `scripts/tools/pins.env` (and, for an
+image, the index digest read with `docker buildx imagetools inspect <image>:<tag>`), then reruns
+`scripts/verify-observability/verify.sh` on kind.

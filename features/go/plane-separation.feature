@@ -14,7 +14,7 @@ Feature: Management and data plane separation
     When each tenant accesses its own and the other tenant's data, credentials or policy configuration
     Then own-tenant access follows authorization policy AND cross-tenant access is denied and evidenced.
 
-  @ZT-55 @BDD-ZT-055 @pending
+  @ZT-55 @BDD-ZT-055 @cluster
   Scenario: Management Plane / Data Plane Separation
     Given management-plane services and application/data-plane workloads are deployed
     When reachability is tested from both planes

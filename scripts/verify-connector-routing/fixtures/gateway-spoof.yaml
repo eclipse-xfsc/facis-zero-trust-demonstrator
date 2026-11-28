@@ -1,0 +1,18 @@
+# The egress role's label impostor: a pod carrying the gateway's own label (__GW__) under another service
+# account (route-impostor), which must get no lane out of the cluster. Its readiness never passes, so the
+# gateway's Service never sends it a request; the proof execs its probe in it all the same.
+apiVersion: v1
+kind: Pod
+metadata:
+  name: route-gateway-spoof
+  namespace: __NS__
+  labels: { app.kubernetes.io/name: __GW__, app.kubernetes.io/part-of: verify-connector-routing, spiffe.io/spire-managed-identity: "true" }
+spec:
+  activeDeadlineSeconds: 7200
+  terminationGracePeriodSeconds: 2
+  serviceAccountName: route-impostor
+  containers:
+    - name: app
+      image: docker.io/curlimages/curl:8.10.1@sha256:d9b4541e214bcd85196d6e92e2753ac6d0ea699f0af5741f8c6cccbfcf00ef4b
+      command: [sleep, "3600"]
+      readinessProbe: { exec: { command: ["false"] }, periodSeconds: 30 }

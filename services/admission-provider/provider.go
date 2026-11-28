@@ -20,6 +20,7 @@ import (
 	"sync"
 	"sync/atomic"
 	"time"
+	"unicode"
 
 	"github.com/eclipse-xfsc/facis-zero-trust-demonstrator/internal/cosignverify"
 )
@@ -111,6 +112,13 @@ func (h *handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	items := make([]item, len(req.Request.Keys))
 	var wg sync.WaitGroup
 	for i, key := range req.Request.Keys {
+		// A third-party platform image admitted by exact reference, without the profile's checks.
+		if h.trust.allowListed(key) {
+			slog.Info("image admitted by the digest allow-list", "image", key)
+			h.metrics.verdict("allow-listed")
+			items[i] = item{Key: key, Value: verifiedValue}
+			continue
+		}
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
@@ -140,7 +148,8 @@ func writeJSON(w http.ResponseWriter, status int, v any) {
 }
 
 // trust is the trust policy, read from one JSON file: {"repositories": ["host/path", ...],
-// "publicKeys": "<PEM>"}. One file, read at once, so an update can never be seen half applied (the
+// "publicKeys": "<PEM>", "allowedDigests": ["host/repository@sha256:<hex>", ...]} (allowedDigests
+// optional). One file, read at once, so an update can never be seen half applied (the
 // repositories of one revision with the keys of another). Its revision is the hash of the file, so
 // any edit empties the verifier's cache. An unreadable or invalid edit does not fall back to the
 // previous policy: the provider answers with a system error until the file is valid again.
@@ -151,6 +160,7 @@ type trust struct {
 	mu       sync.Mutex
 	revision string
 	loadErr  error
+	allowed  map[string]bool // allowedDigests of the current revision
 }
 
 func (t *trust) err() error {
@@ -159,11 +169,20 @@ func (t *trust) err() error {
 	return t.loadErr
 }
 
+// allowListed reports whether image equals an allowedDigests entry exactly: same host, repository
+// and digest, no tag. A repository prefix or another digest of the same repository is not enough.
+func (t *trust) allowListed(image string) bool {
+	t.mu.Lock()
+	defer t.mu.Unlock()
+	return t.allowed[image]
+}
+
 func (t *trust) load() error {
 	b, err := os.ReadFile(t.file)
 	var policy *cosignverify.Policy
+	var allowed map[string]bool
 	if err == nil {
-		policy, err = parsePolicy(b)
+		policy, allowed, err = parsePolicy(b)
 	}
 
 	t.mu.Lock()
@@ -174,25 +193,26 @@ func (t *trust) load() error {
 	}
 	if policy.Revision != t.revision {
 		t.apply(policy)
-		t.revision = policy.Revision
-		slog.Info("trust policy loaded", "revision", policy.Revision, "repositories", len(policy.Repositories), "keys", len(policy.Keys))
+		t.revision, t.allowed = policy.Revision, allowed
+		slog.Info("trust policy loaded", "revision", policy.Revision, "repositories", len(policy.Repositories), "keys", len(policy.Keys), "allowedDigests", len(allowed))
 	}
 	t.loadErr = nil
 	return nil
 }
 
-func parsePolicy(b []byte) (*cosignverify.Policy, error) {
+func parsePolicy(b []byte) (*cosignverify.Policy, map[string]bool, error) {
 	var doc struct {
-		Repositories []string `json:"repositories"`
-		PublicKeys   string   `json:"publicKeys"`
+		Repositories   []string `json:"repositories"`
+		PublicKeys     string   `json:"publicKeys"`
+		AllowedDigests []string `json:"allowedDigests"`
 	}
 	dec := json.NewDecoder(bytes.NewReader(b))
 	dec.DisallowUnknownFields()
 	if err := dec.Decode(&doc); err != nil {
-		return nil, fmt.Errorf("trust policy: %w", err)
+		return nil, nil, fmt.Errorf("trust policy: %w", err)
 	}
 	if dec.Decode(&struct{}{}) != io.EOF {
-		return nil, errors.New("trust policy: content after the policy object")
+		return nil, nil, errors.New("trust policy: content after the policy object")
 	}
 	var prefixes []string
 	for _, r := range doc.Repositories {
@@ -201,14 +221,22 @@ func parsePolicy(b []byte) (*cosignverify.Policy, error) {
 		}
 	}
 	if len(prefixes) == 0 {
-		return nil, errors.New("trust policy: no allowed repository")
+		return nil, nil, errors.New("trust policy: no allowed repository")
 	}
 	keys, err := cosignverify.ParsePublicKeys([]byte(doc.PublicKeys))
 	if err != nil {
-		return nil, err
+		return nil, nil, err
+	}
+	// Exact references only: "host/repository@sha256:<64 hex>", no tag, no implied registry.
+	allowed := map[string]bool{}
+	for _, d := range doc.AllowedDigests {
+		if ref, ok := cosignverify.ParseRef(d); !ok || ref.String() != d || strings.IndexFunc(d, unicode.IsSpace) >= 0 {
+			return nil, nil, fmt.Errorf("trust policy: allowedDigests entry %q is not host/repository@sha256:<digest>", d)
+		}
+		allowed[d] = true
 	}
 	sum := sha256.Sum256(b)
-	return &cosignverify.Policy{Repositories: prefixes, Keys: keys, Revision: hex.EncodeToString(sum[:])[:16]}, nil
+	return &cosignverify.Policy{Repositories: prefixes, Keys: keys, Revision: hex.EncodeToString(sum[:])[:16]}, allowed, nil
 }
 
 // tlsFiles serves TLS 1.3 only and requires a client certificate chaining to the client CA

@@ -21,9 +21,11 @@ import (
 type serveOptions struct {
 	cfg   server.Config
 	level slog.Level
-	// acquireConfig and openBaoTokenFile enable substitution (and renewal): the routes file, read at
-	// start, and the OpenBao token, read on every call.
+	// acquireConfig and openBaoTokenFile (or openBaoAuthRole) enable substitution (and renewal): the
+	// routes file, read at start, and the OpenBao token, read on every call (or from a login).
 	acquireConfig, openBaoTokenFile string
+	// Kubernetes auth instead of the token file: set by the role (exclusive with the file).
+	openBaoAuthRole, openBaoAuthMount, openBaoJWTFile string
 }
 
 // parseServe reads the serve flags. The environment fills what the command line did not set,
@@ -46,6 +48,9 @@ func parseServe(args []string, env func(string) string, stderr io.Writer) (serve
 	level := fs.String("log-level", "info", "debug, info, warn or error ($TOKEN_STORE_LOG_LEVEL)")
 	fs.StringVar(&opts.acquireConfig, "acquire-config", "", "routes file, JSON: enables /internal/substitute and renewal ($TOKEN_STORE_ACQUIRE_CONFIG)")
 	fs.StringVar(&opts.openBaoTokenFile, "openbao-token-file", "", "file holding the OpenBao token, read on every call ($TOKEN_STORE_OPENBAO_TOKEN_FILE)")
+	fs.StringVar(&opts.openBaoAuthRole, "openbao-auth-role", "", "OpenBao Kubernetes auth role; log in with the projected service-account token instead of a token file ($TOKEN_STORE_OPENBAO_AUTH_ROLE)")
+	fs.StringVar(&opts.openBaoAuthMount, "openbao-auth-mount", "kubernetes", "OpenBao Kubernetes auth mount ($TOKEN_STORE_OPENBAO_AUTH_MOUNT)")
+	fs.StringVar(&opts.openBaoJWTFile, "openbao-jwt-file", "/var/run/secrets/openbao/token", "projected service-account token for the Kubernetes auth login, reread at every login ($TOKEN_STORE_OPENBAO_JWT_FILE)")
 	if err := fs.Parse(args); err != nil {
 		return opts, err
 	}
@@ -69,6 +74,9 @@ func parseServe(args []string, env func(string) string, stderr io.Writer) (serve
 	fromEnv("replay-callers", "TOKEN_STORE_REPLAY_CALLERS", replayCallers)
 	fromEnv("acquire-config", "TOKEN_STORE_ACQUIRE_CONFIG", &opts.acquireConfig)
 	fromEnv("openbao-token-file", "TOKEN_STORE_OPENBAO_TOKEN_FILE", &opts.openBaoTokenFile)
+	fromEnv("openbao-auth-role", "TOKEN_STORE_OPENBAO_AUTH_ROLE", &opts.openBaoAuthRole)
+	fromEnv("openbao-auth-mount", "TOKEN_STORE_OPENBAO_AUTH_MOUNT", &opts.openBaoAuthMount)
+	fromEnv("openbao-jwt-file", "TOKEN_STORE_OPENBAO_JWT_FILE", &opts.openBaoJWTFile)
 	for _, id := range strings.Split(*replayCallers, ",") {
 		if id = strings.TrimSpace(id); id != "" {
 			opts.cfg.ReplayCallers = append(opts.cfg.ReplayCallers, id)
@@ -104,8 +112,11 @@ func parseServe(args []string, env func(string) string, stderr io.Writer) (serve
 	if opts.cfg.OpenBaoURL == "" {
 		return opts, errors.New("no key-value store: set --openbao-url or TOKEN_STORE_OPENBAO_URL")
 	}
-	if opts.acquireConfig != "" && opts.openBaoTokenFile == "" {
-		return opts, errors.New("--acquire-config needs --openbao-token-file or TOKEN_STORE_OPENBAO_TOKEN_FILE")
+	if opts.acquireConfig != "" && opts.openBaoTokenFile == "" && opts.openBaoAuthRole == "" {
+		return opts, errors.New("--acquire-config needs --openbao-token-file or TOKEN_STORE_OPENBAO_TOKEN_FILE, or --openbao-auth-role or TOKEN_STORE_OPENBAO_AUTH_ROLE")
+	}
+	if opts.openBaoTokenFile != "" && opts.openBaoAuthRole != "" {
+		return opts, errors.New("set only one of --openbao-token-file and --openbao-auth-role")
 	}
 	if err := opts.cfg.Validate(); err != nil {
 		return opts, err
@@ -123,11 +134,12 @@ func (o *serveOptions) loadAcquisition() error {
 	if err != nil {
 		return err
 	}
-	tokenFile := o.openBaoTokenFile
-	bao, err := transit.New(transit.Config{Addr: o.cfg.OpenBaoURL, Token: func(context.Context) (string, error) {
-		b, err := os.ReadFile(tokenFile)
-		return strings.TrimSpace(string(b)), err
-	}})
+	token := transit.FileToken(o.openBaoTokenFile)
+	if o.openBaoAuthRole != "" {
+		token = (&transit.KubernetesAuth{Addr: o.cfg.OpenBaoURL, Mount: o.openBaoAuthMount,
+			Role: o.openBaoAuthRole, JWTFile: o.openBaoJWTFile}).Token
+	}
+	bao, err := transit.New(transit.Config{Addr: o.cfg.OpenBaoURL, Token: token})
 	if err != nil {
 		return err
 	}

@@ -1,0 +1,15 @@
+# The trust framework whose list is re-published, e.g. trust.example.org.
+framework: ""
+# TSPA's API root, e.g. http://tspa-service:16003/tspa-service/tspa/v1
+tspaUrl: ""
+# The token endpoint of the realm TSPA trusts.
+tokenUrl: ""
+# A confidential client whose service account holds the realm role enrolltf; its secret is read from
+# an existing Secret (never from values).
+client: {id: "", secretName: "", secretKey: secret}
+# Weekly against a 30-day VC: a missed run leaves three weeks.
+schedule: "17 3 * * 1"
+image: {repository: docker.io/library/python, digest: "sha256:e5fa639e49b85986c4481e28faa2564b45aa8021413f31026c3856e5911618b1"}   # 3.13.9-alpine
+resources:
+  requests: {cpu: 10m, memory: 32Mi}
+  limits: {memory: 64Mi}

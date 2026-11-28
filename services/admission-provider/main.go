@@ -1,6 +1,7 @@
 // Command admission-provider is the Gatekeeper external-data provider that verifies container
 // images before admission: a cosign signature by a trusted key and the two required attestations,
-// by digest, from an allowed repository (internal/cosignverify).
+// by digest, from an allowed repository (internal/cosignverify). An image whose reference equals an
+// entry of the trust policy's allowedDigests (third-party platform images) is admitted without them.
 //
 // It serves ProviderRequests over HTTPS (TLS 1.3, client certificate required and verified against
 // Gatekeeper's CA) and its metrics and health endpoints over plain HTTP on a separate port.
@@ -28,28 +29,42 @@ func main() {
 		tlsCert     = flag.String("tls-cert", "/etc/admission-provider/tls/tls.crt", "server certificate (PEM)")
 		tlsKey      = flag.String("tls-key", "/etc/admission-provider/tls/tls.key", "server key (PEM)")
 		clientCA    = flag.String("client-ca", "/etc/admission-provider/client-ca/ca.crt", "CA that client certificates must chain to (Gatekeeper's)")
-		policy      = flag.String("trust-policy", "/etc/admission-provider/trust/policy.json", `trust policy: {"repositories": [...], "publicKeys": "<PEM>"}`)
+		policy      = flag.String("trust-policy", "/etc/admission-provider/trust/policy.json", `trust policy: {"repositories": [...], "publicKeys": "<PEM>", "allowedDigests": [...]}`)
 		timeout     = flag.Duration("request-timeout", time.Second, "deadline for answering one ProviderRequest")
 		concurrency = flag.Int("concurrency", 8, "registry verifications in flight at once")
 		reload      = flag.Duration("reload-interval", 10*time.Second, "how often TLS and trust files are re-read")
 		plainHTTP   = flag.String("insecure-plain-http-registry", "", "a registry host spoken to over http (a local test registry only)")
+		regAuth     = flag.String("registry-auth", "", "Docker config JSON with read credentials per registry host (a .dockerconfigjson); registries are read anonymously when empty")
 	)
 	flag.Parse()
 	slog.SetDefault(slog.New(slog.NewJSONHandler(os.Stderr, nil)))
 	if err := run(*addr, *metricsAddr, &tlsFiles{certFile: *tlsCert, keyFile: *tlsKey, clientCAFile: *clientCA},
-		*policy, *timeout, *concurrency, *reload, *plainHTTP); err != nil {
+		*policy, *timeout, *concurrency, *reload, *plainHTTP, *regAuth); err != nil {
 		slog.Error("admission-provider stopped", "err", err)
 		os.Exit(1)
 	}
 }
 
-func run(addr, metricsAddr string, tf *tlsFiles, policy string, timeout time.Duration, concurrency int, reload time.Duration, plainHTTP string) error {
+func run(addr, metricsAddr string, tf *tlsFiles, policy string, timeout time.Duration, concurrency int, reload time.Duration, plainHTTP, regAuth string) error {
 	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGTERM, os.Interrupt)
 	defer stop()
 
 	var opts ociclient.Options
 	if plainHTTP != "" {
 		opts.PlainHTTP = []string{plainHTTP}
+	}
+	// ponytail: read once at start; a rotated credential needs a restart (rollout restart), unlike trust.
+	if regAuth != "" {
+		creds, err := registryCredentials(regAuth)
+		if err != nil {
+			return err
+		}
+		opts.Credentials = creds
+		hosts := make([]string, 0, len(creds))
+		for h := range creds {
+			hosts = append(hosts, h)
+		}
+		slog.Info("registry read credentials loaded", "registries", hosts)
 	}
 	// The verifier starts with an empty policy (nothing allowed) until the trust files load.
 	v := cosignverify.New(ociclient.New(opts), &cosignverify.Policy{}, concurrency)

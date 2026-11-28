@@ -1,0 +1,10 @@
+HTTP/1.1 401 Unauthorized
+content-type: application/json
+x-facis-reason-code: TOK-JKT-MISMATCH
+x-request-id: 82a88e845347c9359850d95dece797e1
+content-length: 60
+date: Sun, 22 Nov 2026 01:44:47 GMT
+server: envoy
+x-envoy-upstream-service-time: 11
+
+{"error":"request_refused","reason_code":"TOK-JKT-MISMATCH"}

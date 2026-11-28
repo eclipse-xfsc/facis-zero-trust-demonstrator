@@ -1,0 +1,46 @@
+{
+  "schema": "atls-probe-record/v1",
+  "mode": "client",
+  "role": "dialer",
+  "identities": [
+    "spiffe://b/gateway",
+    "localhost"
+  ],
+  "cert_fingerprint": "3867dabea0bc80af7b58e9d9c638e9b5d206087a3e22e15c2248a3b4bc65387d",
+  "expected_peer_identity": "spiffe://a/gateway",
+  "cmcd_addr": "127.0.0.1:51116",
+  "connect_addr": "127.0.0.1:28209",
+  "hold_ms": 0,
+  "interval_ms": 1000,
+  "started_at": "2026-11-06T17:14:41.350680019Z",
+  "started_at_unix_ms": 1793985281350,
+  "finished_at": "2026-11-06T17:14:41.356177693Z",
+  "exit_code": 2,
+  "outcome": "refused",
+  "peer_addr": "127.0.0.1:28209",
+  "handshake_started_at": "2026-11-06T17:14:41.351275109Z",
+  "handshake_ms": 4,
+  "refusal": {
+    "sentinel": "ErrIdentityMismatch",
+    "message": "atls: peer certificate identity rejected: peer certificate rejected: peer certificate does not carry the expected identity \"spiffe://a/gateway\""
+  },
+  "refused_at": "2026-11-06T17:14:41.356134349Z",
+  "refused_at_unix_ms": 1793985281356,
+  "ended_at": "2026-11-06T17:14:41.356134349Z",
+  "ended_at_unix_ms": 1793985281356,
+  "ended": "refused",
+  "heartbeats": {
+    "sent": 0,
+    "received": 0,
+    "max_gap_ms": 0
+  },
+  "application_bytes_sent": 0,
+  "application_bytes_received": 0,
+  "environment": {
+    "commit": "f531ed63b8ef6f974008364393e74297f7ba3bd3",
+    "dirty": false,
+    "go_version": "go1.27.0",
+    "cmc_version": "v0.9.15",
+    "platform": "linux/amd64"
+  }
+}

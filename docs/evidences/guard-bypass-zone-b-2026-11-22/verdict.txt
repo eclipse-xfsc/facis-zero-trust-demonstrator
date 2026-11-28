@@ -1,0 +1,8 @@
+PASS  guarded: https://160.44.12.245/demo succeeds through the guard (request 5bdacb31-f4cb-4ae9-a4f5-22442fccfa9a)
+PASS  guarded: the resource recorded request 5bdacb31-f4cb-4ae9-a4f5-22442fccfa9a with the client of the token store's substituted token (ztd-store), which only the guard obtains
+PASS  unmeshed direct caller: refused at admission (ValidatingAdmissionPolicy proxy-takes-spire-socket), so no workload without the mesh can call the resource from ztd-m3-b
+PASS  meshed direct call (Participant identity): 403 RBAC: access denied; the resource's sidecar counted it (rbac.denied 0 -> 1)
+PASS  the resource application logged nothing while the probes called it: no direct request reached it
+PASS  cleanup: no probe Job or Pod of run 04fa9ff5 remains
+PASS  no policy, workload, Service or release of ztd-m3-b changed (resourceVersions equal)
+verdict: PASS

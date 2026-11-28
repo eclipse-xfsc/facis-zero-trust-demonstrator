@@ -1,0 +1,11 @@
+HTTP/1.1 403 Forbidden
+content-type: application/json
+x-facis-reason-code: POL-RULE-DENY
+x-request-id: 56b54e88a62227d511320f8f4c462006
+content-length: 88
+date: Sun, 22 Nov 2026 02:51:28 GMT
+server: envoy
+x-envoy-upstream-service-time: 33
+
+{"error":"access_denied","reason_code":"POL-RULE-DENY","rule_id":"m3-tenant-membership"}
+HTTP_CODE=403

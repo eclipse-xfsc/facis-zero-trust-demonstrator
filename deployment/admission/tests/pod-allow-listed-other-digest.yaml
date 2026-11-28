@@ -1,0 +1,12 @@
+apiVersion: v1
+kind: Pod
+metadata:
+  name: ztd-app
+  namespace: ztd-adm-001
+spec:
+  initContainers:
+    - name: istio-proxy
+      image: docker.io/istio/proxyv2@sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb
+  containers:
+    - name: app
+      image: ghcr.io/eclipse-xfsc/facis-zero-trust-demonstrator/app@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa

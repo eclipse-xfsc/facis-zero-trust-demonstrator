@@ -1,0 +1,7 @@
+zone a -> zone b: 200 from-zone-a
+zone b -> zone a: 200 from-zone-b
+stranger: curl: (56) OpenSSL SSL_read: OpenSSL/3.3.2: error:0A000418:SSL routines::tlsv1 alert unknown ca, errno 0
+status=000pod ztd-stranger/stranger terminated (Error)
+zone a -> zone b with A's cmcd away: 000 command terminated with exit code 56
+zone a -> zone b with A's cmcd back: 200 attester-back
+zone b -> zone a after the restore: 200 after-restore

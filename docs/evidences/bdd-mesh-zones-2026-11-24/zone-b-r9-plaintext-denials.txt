@@ -1,0 +1,6 @@
+from | destination | port | kind | verifier | forwarded (Hubble) | denial line of the destination's proxy
+istio-system/probe-1 | ztd-data/data-target | 8080 | stand-in | pass | Nov 24 10:24:32.116 | 2026-11-24T10:24:32.116Z detail=filter_chain_not_found flags=NR source=None
+spire-system/probe-1 | ztd-data/data-target | 8080 | stand-in | pass | Nov 24 10:24:53.390 | 2026-11-24T10:24:53.390Z detail=filter_chain_not_found flags=NR source=None
+ztd-otel-node/probe-1 | ztd-data/data-target | 8080 | stand-in | pass | Nov 24 10:25:31.292 | none
+line of no plain-text probe: ztd-mgmt/otel-collector 2026-11-24T10:20:47.683Z
+3 plain-text probe(s), 2 with the denial line; 3 line(s) collected, 1 of no plain-text probe

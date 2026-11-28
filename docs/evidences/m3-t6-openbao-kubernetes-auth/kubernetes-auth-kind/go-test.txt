@@ -1,0 +1,18 @@
+=== RUN   TestOpenBaoKubernetesAuth
+=== RUN   TestOpenBaoKubernetesAuth/login_and_least_privilege
+=== RUN   TestOpenBaoKubernetesAuth/renewal_at_half_the_lease_with_the_rotated_token
+=== RUN   TestOpenBaoKubernetesAuth/re-login_after_the_token_expired
+=== RUN   TestOpenBaoKubernetesAuth/a_restarted_client_logs_in_fresh
+=== RUN   TestOpenBaoKubernetesAuth/refused_wrong-sa
+=== RUN   TestOpenBaoKubernetesAuth/refused_wrong-ns
+=== RUN   TestOpenBaoKubernetesAuth/refused_wrong-aud
+--- PASS: TestOpenBaoKubernetesAuth (32.36s)
+    --- PASS: TestOpenBaoKubernetesAuth/login_and_least_privilege (0.22s)
+    --- PASS: TestOpenBaoKubernetesAuth/renewal_at_half_the_lease_with_the_rotated_token (11.06s)
+    --- PASS: TestOpenBaoKubernetesAuth/re-login_after_the_token_expired (21.03s)
+    --- PASS: TestOpenBaoKubernetesAuth/a_restarted_client_logs_in_fresh (0.02s)
+    --- PASS: TestOpenBaoKubernetesAuth/refused_wrong-sa (0.01s)
+    --- PASS: TestOpenBaoKubernetesAuth/refused_wrong-ns (0.01s)
+    --- PASS: TestOpenBaoKubernetesAuth/refused_wrong-aud (0.01s)
+PASS
+ok  	github.com/eclipse-xfsc/facis-zero-trust-demonstrator/internal/transit	33.017s

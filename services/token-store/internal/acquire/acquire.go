@@ -18,6 +18,7 @@ import (
 	"github.com/eclipse-xfsc/facis-zero-trust-demonstrator/internal/connectorclient"
 	"github.com/eclipse-xfsc/facis-zero-trust-demonstrator/internal/if03"
 	"github.com/eclipse-xfsc/facis-zero-trust-demonstrator/internal/transit"
+	"github.com/eclipse-xfsc/facis-zero-trust-demonstrator/internal/verificationclient"
 )
 
 // KVPrefix is where upstream token values live in KV v2: KVPrefix + "/" + token_id, create-only.
@@ -204,6 +205,10 @@ func (at *attempt) run(ctx context.Context) (Token, error) {
 	// 2. Outcome.
 	jws, err := r.Outcomes.Outcome(ctx, ch)
 	if err != nil {
+		// One code for every way of having no outcome; the record says which step it was, in the
+		// source's own fixed words, and whether the attempt was cut short rather than refused.
+		a.log().WarnContext(ctx, "outcome source failed", "route", r.Name, "attempt", at.id, "stage", verificationclient.Stage(err),
+			"cancelled", errors.Is(err, context.Canceled), "timed_out", errors.Is(err, context.DeadlineExceeded))
 		return Token{}, fail(CodeOutcomeSource, "outcome source failed")
 	}
 	// 3. A's own verification and receipt.

@@ -11,14 +11,36 @@ database:
   existingSecret: ""
   # The key of the connection URL in that Secret.
   secretKey: url
+  # When the database runs in the mesh: its pod labels and port. The chart then renders the allow
+  # rule ztd-token-store-database on that port for the store's two accounts (serviceAccount below)
+  # and `callers`, each by namespace and service account in trustDomain - the other owner of the
+  # schema, the connector. Empty selector: no rule (a database outside the mesh, or one whose rule
+  # is declared elsewhere).
+  mesh:
+    selector: {}   # e.g. {app.kubernetes.io/name: ztd-postgres}
+    port: 5432
+    callers: []    # - {namespace: ztd-data, name: ztd-connector}
 
 # The zone's key-value store, reached inside the management plane; the mesh carries the traffic
 # as mTLS, so the address is plain HTTP. Scheme and host only: the store appends its own paths.
 # The service asks it whether it is initialised and unsealed and is not ready until it is, so the
-# store at this address must exist: the default is the umbrella chart's OpenBao under the release
-# name ztd, which the umbrella ships disabled; enable it there or point this at the zone's.
+# store at this address must exist: the default is the zone's OpenBao, the release ztd-openbao
+# that the zone installer installs last; a zone without it points this at its own.
 openbao:
   address: http://ztd-openbao.ztd-mgmt.svc:8200
+  # How the service authenticates to OpenBao. token (the default): the token file from the
+  # credentials Secret. kubernetes: OpenBao's Kubernetes auth method with a projected service-account
+  # token for `audience`, which the kubelet rotates (expirationSeconds, 600 at least) and the service
+  # rereads at every login; the service logs in again at half its OpenBao token's lease and before it
+  # expires, so no token is held in a Secret and none expires under the service
+  # (docs/secrets.md#kubernetes-auth). role names the OpenBao role, which must bind this namespace,
+  # the ServiceAccount and the audience.
+  auth:
+    method: token
+    role: ""
+    mount: kubernetes
+    audience: openbao
+    expirationSeconds: 600
 
 # The service.
 replicas: 1
@@ -28,8 +50,19 @@ runtime:
   existingConfigMap: ""
   configKey: acquisition.json
   credentialsSecret: ""
-  openbaoTokenKey: openbao-token
+  openbaoTokenKey: openbao-token   # not used with openbao.auth.method kubernetes
+  # With openbao.auth.method kubernetes, the keys of credentialsSecret the routes read (holder
+  # credentials, client secrets): only these are mounted, so a static OpenBao token left in the
+  # Secret never reaches the pod. With token, the whole Secret is mounted, as before.
+  credentialKeys: []
   replayCallers: []
+  # The mesh callers of the store's API (AuthorizationPolicy ztd-token-store-callers): the guard, on
+  # POST /internal/substitute and /internal/replay-check of port 8080, by namespace and service
+  # account in trustDomain. Empty: no rule, and the mesh default deny refuses every caller.
+  callers: []      # - {namespace: ztd-data, name: ztd-guard}
+
+# The zone's trust domain: the callers' SPIFFE IDs are spiffe://<trustDomain>/ns/<namespace>/sa/<name>.
+trustDomain: ""
 podAnnotations: {}
 nodeSelector: {}
 networkPolicy:

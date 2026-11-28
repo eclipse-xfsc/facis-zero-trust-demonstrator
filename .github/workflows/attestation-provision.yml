@@ -1,0 +1,58 @@
+name: Attestation provisioning proof
+
+# Provisions each zone's mock attestation evidence from its configuration in Git, from zero, on a
+# hosted runner and without containers: the pinned estserver and cmcd per zone as plain processes,
+# the reference values signed with CMC's metatool, and the gateway's startup check against each
+# zone's cmcd. It then changes one measurement and shows the evidence change, and refuses reference
+# values signed outside the metadata CA. The signing key is created for the run and discarded.
+on:
+  pull_request:
+    paths:
+      - cmd/attestation-provision/**
+      - internal/atls/provision/**
+      - deployment/attestation/**
+      - scripts/attestation-provision/**
+      - go.mod
+      - go.sum
+      - .github/workflows/attestation-provision.yml
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  proof:
+    name: Attestation provisioning proof
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+
+      - name: Set up Go
+        uses: actions/setup-go@40f1582b2485089dde7abd97c1529aa768e1baff # v5.6.0
+        with:
+          go-version-file: go.mod
+
+      - name: Unit tests of the provisioning package
+        run: go test -count=1 ./internal/atls/provision/... ./cmd/attestation-provision/...
+
+      - name: Provision every zone from Git and check the evidence
+        run: scripts/attestation-provision/prove.sh --out "$RUNNER_TEMP/evidence"
+
+      - name: Upload this run's records
+        if: ${{ !cancelled() }}
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: attestation-provision-evidence
+          path: ${{ runner.temp }}/evidence
+          if-no-files-found: error
+
+      - name: The repository is unchanged
+        if: ${{ !cancelled() }}
+        run: |
+          if [ -n "$(git status --porcelain)" ]; then
+            git status --porcelain
+            echo "::error::the proof changed files in the repository"
+            exit 1
+          fi

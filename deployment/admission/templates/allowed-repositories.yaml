@@ -3,7 +3,9 @@ kind: ConstraintTemplate
 metadata:
   name: k8sztdallowedrepositories
   annotations:
-    description: Every container image comes from an allowed repository prefix (ADM-REGISTRY-DENIED).
+    description: >-
+      Every container image comes from an allowed repository prefix, or is one of the allow-listed
+      exact digest references (ADM-REGISTRY-DENIED).
 spec:
   crd:
     spec:
@@ -15,6 +17,13 @@ spec:
           properties:
             repositories:
               description: Allowed prefixes, "host/path"; an image is allowed when its name equals one or continues it with "/".
+              type: array
+              items:
+                type: string
+            allowedDigests:
+              description: >-
+                Third-party images admitted by exact reference, "host/repository@sha256:<digest>"
+                (the provider's trust.allowedDigests). Only an identical image string matches.
               type: array
               items:
                 type: string
@@ -59,6 +68,11 @@ spec:
           some prefix in input.parameters.repositories
           p := trim_suffix(prefix, "/")
           startswith(name(image), concat("", [p, "/"]))
+        }
+
+        allowed(image) if {
+          some ref in object.get(input.parameters, "allowedDigests", [])
+          image == ref
         }
 
         violation contains {"msg": msg} if {

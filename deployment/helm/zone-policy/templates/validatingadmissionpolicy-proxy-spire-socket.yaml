@@ -131,6 +131,15 @@ shareProcessNamespace, lets another container (as root, or as 1337) reach the pr
 Pod Security follow-up.
 */ -}}
 {{- $p := .Values.proxySocketPolicy }}
+{{- /* A CEL string literal holding the regular expression of an image reference by digest: the
+repository, an optional tag, the digest. Fails on a reference that is not by digest. */ -}}
+{{- define "zone-policy.imagePattern" -}}
+{{- $name := index . 0 }}{{- $img := index . 1 }}
+{{- if not (regexMatch "^[a-z0-9./_-]+(:[A-Za-z0-9._-]+)?@sha256:[a-f0-9]{64}$" $img) }}{{ fail (printf "%s must be an image by digest: %q" $name $img) }}{{ end }}
+{{- $parts := splitList "@" $img }}
+{{- $repo := regexReplaceAll ":[A-Za-z0-9._-]+$" (first $parts) "" }}
+{{- printf "^%s(:[A-Za-z0-9._-]+)?@%s$" (regexQuoteMeta $repo) (last $parts) | replace "\\" "\\\\" | squote }}
+{{- end }}
 {{- define "zone-policy.isProxy" -}}
 (c.name == 'istio-proxy'
   || (has(c.command) && c.command.exists(a, a.contains('pilot-agent')))
@@ -140,7 +149,7 @@ Pod Security follow-up.
 {{- end }}
 {{- define "zone-policy.isInjectedProxy" -}}
 (c.name == 'istio-proxy'
-  && has(c.image) && c.image == {{ .proxyImage | squote }} && !has(c.command)
+  && has(c.image) && c.image.matches(variables.expectedProxyImage) && !has(c.command)
   && has(c.args) && size(c.args) >= 7
   && c.args[0] == 'proxy' && c.args[1] == 'sidecar' && c.args[2] == '--domain'
   && c.args[3].matches('^[$][(]POD_NAMESPACE[)][.]svc[.][a-z0-9.-]+$')
@@ -223,6 +232,17 @@ spec:
     - name: changedEphemeralProxies
       expression: >-
         variables.ephemeralProxies.filter(c, !variables.oldEphemeral.exists(o, o.name == c.name && o.image == c.image))
+    # The injected proxy's image, as a pattern: proxySocketPolicy.proxyImage, or the namespace's own
+    # entry of proxySocketPolicy.namespaceProxyImages (a proxy runtime built for that namespace). The
+    # repository and the digest must match; a tag between them is accepted (istiod injects
+    # repo:tag@digest), since the digest alone pins the content.
+    - name: expectedProxyImage
+      expression: >-
+        {{- range $ns, $img := $p.namespaceProxyImages }}
+        {{- if not (regexMatch "^[a-z0-9]([-a-z0-9]*[a-z0-9])?$" $ns) }}{{ fail (printf "proxySocketPolicy.namespaceProxyImages: %q is not a namespace name" $ns) }}{{ end }}
+        namespaceObject.metadata.name == {{ $ns | squote }} ? {{ include "zone-policy.imagePattern" (list "proxySocketPolicy.namespaceProxyImages" $img) }} :
+        {{- end }}
+        {{ include "zone-policy.imagePattern" (list "proxySocketPolicy.proxyImage" $p.proxyImage) }}
     - name: proxyEnv
       expression: >-
         [

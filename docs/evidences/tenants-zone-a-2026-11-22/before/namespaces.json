@@ -1,0 +1,146 @@
+[
+  {
+    "name": "argocd",
+    "labels": {
+      "apiserver-proxy.networking.gardener.cloud/inject": "disable",
+      "kubernetes.io/metadata.name": "argocd"
+    }
+  },
+  {
+    "name": "default",
+    "labels": {
+      "kubernetes.io/metadata.name": "default"
+    }
+  },
+  {
+    "name": "gatekeeper-system",
+    "labels": {
+      "admission.gatekeeper.sh/ignore": "no-self-managing",
+      "kubernetes.io/metadata.name": "gatekeeper-system",
+      "name": "gatekeeper-system",
+      "pod-security.kubernetes.io/audit": "restricted",
+      "pod-security.kubernetes.io/audit-version": "latest",
+      "pod-security.kubernetes.io/enforce": "restricted",
+      "pod-security.kubernetes.io/enforce-version": "v1.24",
+      "pod-security.kubernetes.io/warn": "restricted",
+      "pod-security.kubernetes.io/warn-version": "latest"
+    }
+  },
+  {
+    "name": "istio-system",
+    "labels": {
+      "apiserver-proxy.networking.gardener.cloud/inject": "disable",
+      "app.kubernetes.io/instance": "ztd",
+      "app.kubernetes.io/managed-by": "Helm",
+      "app.kubernetes.io/name": "ztd",
+      "helm.sh/chart": "ztd-0.3.0",
+      "kubernetes.io/metadata.name": "istio-system",
+      "ztd.facis.io/plane": "management",
+      "ztd.facis.io/zone": "zone-a"
+    }
+  },
+  {
+    "name": "kube-node-lease",
+    "labels": {
+      "kubernetes.io/metadata.name": "kube-node-lease"
+    }
+  },
+  {
+    "name": "kube-public",
+    "labels": {
+      "kubernetes.io/metadata.name": "kube-public"
+    }
+  },
+  {
+    "name": "kube-system",
+    "labels": {
+      "gardener.cloud/purpose": "kube-system",
+      "high-availability-config.resources.gardener.cloud/consider": "true",
+      "kubernetes.io/metadata.name": "kube-system",
+      "resources.gardener.cloud/managed-by": "gardener",
+      "shoot.gardener.cloud/no-cleanup": "true"
+    }
+  },
+  {
+    "name": "spire-system",
+    "labels": {
+      "apiserver-proxy.networking.gardener.cloud/inject": "disable",
+      "app.kubernetes.io/instance": "ztd",
+      "app.kubernetes.io/managed-by": "Helm",
+      "app.kubernetes.io/name": "ztd",
+      "helm.sh/chart": "ztd-0.3.0",
+      "kubernetes.io/metadata.name": "spire-system",
+      "ztd.facis.io/plane": "management",
+      "ztd.facis.io/zone": "zone-a"
+    }
+  },
+  {
+    "name": "ztd-adm-001",
+    "labels": {
+      "app.kubernetes.io/instance": "admission-pool",
+      "app.kubernetes.io/managed-by": "Helm",
+      "app.kubernetes.io/name": "admission-pool",
+      "facis.ztd/admission-proof": "true",
+      "kubernetes.io/metadata.name": "ztd-adm-001",
+      "pod-security.kubernetes.io/enforce": "restricted"
+    }
+  },
+  {
+    "name": "ztd-adm-002",
+    "labels": {
+      "app.kubernetes.io/instance": "admission-pool",
+      "app.kubernetes.io/managed-by": "Helm",
+      "app.kubernetes.io/name": "admission-pool",
+      "facis.ztd/admission-proof": "true",
+      "kubernetes.io/metadata.name": "ztd-adm-002",
+      "pod-security.kubernetes.io/enforce": "restricted"
+    }
+  },
+  {
+    "name": "ztd-ci",
+    "labels": {
+      "kubernetes.io/metadata.name": "ztd-ci"
+    }
+  },
+  {
+    "name": "ztd-data",
+    "labels": {
+      "apiserver-proxy.networking.gardener.cloud/inject": "disable",
+      "app.kubernetes.io/instance": "ztd",
+      "app.kubernetes.io/managed-by": "Helm",
+      "app.kubernetes.io/name": "ztd",
+      "helm.sh/chart": "ztd-0.3.0",
+      "istio-injection": "enabled",
+      "kubernetes.io/metadata.name": "ztd-data",
+      "ztd.facis.io/plane": "data",
+      "ztd.facis.io/zone": "zone-a"
+    }
+  },
+  {
+    "name": "ztd-mgmt",
+    "labels": {
+      "apiserver-proxy.networking.gardener.cloud/inject": "disable",
+      "app.kubernetes.io/instance": "ztd",
+      "app.kubernetes.io/managed-by": "Helm",
+      "app.kubernetes.io/name": "ztd",
+      "helm.sh/chart": "ztd-0.3.0",
+      "istio-injection": "enabled",
+      "kubernetes.io/metadata.name": "ztd-mgmt",
+      "ztd.facis.io/plane": "management",
+      "ztd.facis.io/zone": "zone-a"
+    }
+  },
+  {
+    "name": "ztd-network-check",
+    "labels": {
+      "istio-injection": "disabled",
+      "kubernetes.io/metadata.name": "ztd-network-check"
+    }
+  },
+  {
+    "name": "ztd-system",
+    "labels": {
+      "kubernetes.io/metadata.name": "ztd-system"
+    }
+  }
+]

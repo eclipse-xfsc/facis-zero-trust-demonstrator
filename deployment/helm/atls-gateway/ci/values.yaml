@@ -1,0 +1,32 @@
+# Render-only: both roles of one zone, with documentation addresses and placeholder material.
+# Never deploy this placeholder digest.
+image: {digest: "sha256:0000000000000000000000000000000000000000000000000000000000000000"}
+trustDomain: kind.facis-ztd.local
+tlsSecret: atls-gateway-tls
+trustCaCert: |
+  -----BEGIN CERTIFICATE-----
+  MIIBfake
+  -----END CERTIFICATE-----
+attestation:
+  zone:
+    zone: zone-a
+    validity_days: 30
+    components:
+      - name: atls-gateway
+        rootfs_sha256: 1b4fc34dbf6f7fb5193aa21096b48abb378e7b547e1e8a0b904d12b6491e5b51
+        oci_config: {ociVersion: "1.2.0", process: {args: ["/atls-gateway"]}}
+  metadataCaCert: |
+    -----BEGIN CERTIFICATE-----
+    MIIBfake
+    -----END CERTIFICATE-----
+ingress:
+  enabled: true
+  peerIdentity: spiffe://zone-b/gateway
+  upstream: {name: ztd-connector, port: 8080}
+  service: {type: NodePort, port: 443}
+  sourceRanges: [192.0.2.0/24]
+egress:
+  enabled: true
+  callers:
+    - { serviceAccount: backend, podSelector: { app.kubernetes.io/name: backend } }
+  peer: {name: zone-b, address: 192.0.2.10, identity: spiffe://zone-b/gateway}

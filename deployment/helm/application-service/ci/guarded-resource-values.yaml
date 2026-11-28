@@ -10,6 +10,7 @@ identity:
   spireManagedIdentity: true
 ingress:
   enabled: false
+eventSource: protected-resource-b
 env:
   PROTECTED_RESOURCE_MODE: token
   PROTECTED_RESOURCE_TOKEN_ISSUER: https://connector.m3.invalid

@@ -1,0 +1,14 @@
+# The allow list is verified under a pinned issuer: without its DID nothing could be verified.
+# expect: ingress.peerAllowList.framework and a did:web issuerDid are required
+egress: {enabled: false}
+ingress:
+  enabled: true
+  tlsSecret: ztd-edge-tls
+  sourceRanges: [0.0.0.0/0]
+  upstream: {name: ztd-participant}
+  peerAllowList:
+    enabled: true
+    image: {digest: "sha256:0000000000000000000000000000000000000000000000000000000000000000"}
+    zone: b
+    tspaUrl: https://tspa.example/tspa-service/tspa/v1
+    framework: facis-ztd.example

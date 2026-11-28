@@ -1,0 +1,40 @@
+== ztd-connector-fd564b8df-9m42j.pem
+serial=4BE026FE4455FEFB89FD78AA288748C8
+issuer=C=ARPA, O=FACIS ZTD, CN=zone-b.trust.invalid, serialNumber=169300076370258026278462440549049584256
+notBefore=Nov 22 00:52:11 2026 GMT
+notAfter=Nov 22 04:52:21 2026 GMT
+X509v3 Authority Key Identifier: 
+36:B4:E2:8B:35:1E:0C:FF:22:08:6F:2E:A9:72:D8:48:CF:D6:FF:97
+X509v3 Subject Alternative Name: 
+URI:spiffe://zone-b.trust.invalid/ns/ztd-m3-b/sa/ztd-connector
+leaf-ztd-connector-fd564b8df-9m42j.pem: OK
+== ztd-guard-59757bdbc7-m746m.pem
+serial=95840CDC84A1E067D9B5DC74FF88991D
+issuer=C=ARPA, O=FACIS ZTD, CN=zone-b.trust.invalid, serialNumber=169300076370258026278462440549049584256
+notBefore=Nov 22 01:54:00 2026 GMT
+notAfter=Nov 22 05:54:10 2026 GMT
+X509v3 Authority Key Identifier: 
+36:B4:E2:8B:35:1E:0C:FF:22:08:6F:2E:A9:72:D8:48:CF:D6:FF:97
+X509v3 Subject Alternative Name: 
+URI:spiffe://zone-b.trust.invalid/ns/ztd-m3-b/sa/ztd-guard
+leaf-ztd-guard-59757bdbc7-m746m.pem: OK
+== ztd-participant-56785bf4d5-qjfbz.pem
+serial=95E68C58766679DA53E7D6C53CADFE2B
+issuer=C=ARPA, O=FACIS ZTD, CN=zone-b.trust.invalid, serialNumber=169300076370258026278462440549049584256
+notBefore=Nov 22 01:30:17 2026 GMT
+notAfter=Nov 22 05:30:27 2026 GMT
+X509v3 Authority Key Identifier: 
+36:B4:E2:8B:35:1E:0C:FF:22:08:6F:2E:A9:72:D8:48:CF:D6:FF:97
+X509v3 Subject Alternative Name: 
+URI:spiffe://zone-b.trust.invalid/ns/ztd-m3-b/sa/ztd-participant
+leaf-ztd-participant-56785bf4d5-qjfbz.pem: OK
+== ztd-token-store-85b879845b-tpdw9.pem
+serial=C5F9C16CB2A472DF36B64DDB7CFCDC05
+issuer=C=ARPA, O=FACIS ZTD, CN=zone-b.trust.invalid, serialNumber=169300076370258026278462440549049584256
+notBefore=Nov 22 00:46:47 2026 GMT
+notAfter=Nov 22 04:46:57 2026 GMT
+X509v3 Authority Key Identifier: 
+36:B4:E2:8B:35:1E:0C:FF:22:08:6F:2E:A9:72:D8:48:CF:D6:FF:97
+X509v3 Subject Alternative Name: 
+URI:spiffe://zone-b.trust.invalid/ns/ztd-m3-b/sa/ztd-token-store
+leaf-ztd-token-store-85b879845b-tpdw9.pem: OK

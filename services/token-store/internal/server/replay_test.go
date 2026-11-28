@@ -350,3 +350,50 @@ func TestReplayCheck_SharesTheRecordWithTheVerifier(t *testing.T) {
 		t.Fatalf("the verifier's use was not seen: %d %v", status, out)
 	}
 }
+
+// TestReplayCheck_GuardRecordsOnlyItsOwnTargets: a guard (a caller with substitution routes) cannot
+// write or probe another tenant guard's entries in the shared record; the connector, which has no
+// routes, is not restricted.
+func TestReplayCheck_GuardRecordsOnlyItsOwnTargets(t *testing.T) {
+	const guardA, guardB = "spiffe://zone-a.example/ns/tenant-a/sa/ztd-guard", "spiffe://zone-a.example/ns/tenant-b/sa/ztd-guard"
+	var buf testsupport.Buffer
+	dbURL := testDatabaseURL(t)
+	migrate(t, dbURL)
+	cfg := localConfig(dbURL, fakeOpenBao(t).URL)
+	cfg.ReplayCallers = []string{connectorID, guardA, guardB}
+	cfg.Callers = headerCaller{}
+	s, err := New(context.Background(), cfg, testLogger(&buf))
+	if err != nil {
+		t.Fatal(err)
+	}
+	route := func(guard, target string) meshcaller.Route {
+		return meshcaller.Route{Callers: []string{guard}, PeerZone: "zone-b", Audience: "https://resource.example", Tenant: "t", Methods: []string{"POST"}, TargetPrefix: target}
+	}
+	if s.routes, err = meshcaller.NewRoutes([]meshcaller.Route{route(guardA, "http://ztd-guard.tenant-a:8080/demo"), route(guardB, "http://ztd-guard.tenant-b:8080/demo")}); err != nil {
+		t.Fatal(err)
+	}
+	startServer(t, s)
+	url := "http://" + s.Addr().String() + "/internal/replay-check"
+	use := func(htu, jti string) map[string]any {
+		return map[string]any{"jkt": testJKT, "htm": "POST", "htu": htu, "jti": jti, "iat": time.Now().Unix()}
+	}
+	b := "http://ztd-guard.tenant-b:8080/demo"
+	for _, htu := range []string{b, "http://ztd-guard.tenant-b:8080/demox", "http://ztd-guard.tenant-a:8081/demo"} {
+		if status, body := postReplay(t, url, guardA, use(htu, "b-proof")); status != http.StatusForbidden || body["reason_code"] != "TOK-ROUTE-DENIED" {
+			t.Fatalf("guard A recorded %s: %d %v", htu, status, body)
+		}
+	}
+	// A's attempt left nothing: B's proof is fresh once, then a replay.
+	if status, _ := postReplay(t, url, guardB, use(b, "b-proof")); status != http.StatusOK {
+		t.Fatalf("guard A affected guard B's record: %d", status)
+	}
+	if status, _ := postReplay(t, url, guardB, use(b, "b-proof")); status != http.StatusConflict {
+		t.Fatal("guard B's replay not detected")
+	}
+	if status, _ := postReplay(t, url, guardA, use("http://ztd-guard.tenant-a:8080/demo", "a-proof")); status != http.StatusOK {
+		t.Fatal("guard A refused its own target")
+	}
+	if status, _ := postReplay(t, url, connectorID, use(b, "connector-proof")); status != http.StatusOK {
+		t.Fatal("the connector, which has no routes, was restricted")
+	}
+}

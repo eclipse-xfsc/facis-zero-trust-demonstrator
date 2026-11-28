@@ -1,0 +1,6 @@
+mode: live
+context: zerotrust-a
+trust domain: zone-a.trust.invalid
+probe run: 433b547d
+started: 2026-11-22T02:23:24Z
+finished: 2026-11-22T02:26:15Z

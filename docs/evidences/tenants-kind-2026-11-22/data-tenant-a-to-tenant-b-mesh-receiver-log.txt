@@ -1,0 +1,1 @@
+{"authority":"tenant-data.tenant-b:8080","code":403,"destination":"spiffe://kind.facis-ztd.local/ns/tenant-b/sa/tenant-data","detail":"rbac_access_denied_matched_policy[none]","flags":"-","source":"spiffe://kind.facis-ztd.local/ns/tenant-a/sa/ztd-participant","termination":null,"time":"2026-11-22T02:50:52.622Z"}

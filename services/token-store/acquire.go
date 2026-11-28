@@ -9,7 +9,6 @@ import (
 	"io"
 	"log/slog"
 	"os"
-	"strings"
 	"time"
 
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -89,11 +88,7 @@ func openStore(ctx context.Context, o acquireOptions) (store, error) {
 		st.what = "loading the acquisition config"
 		return st, err
 	}
-	tokenFile := o.openBaoTokenFile
-	tc, err := transit.New(transit.Config{Addr: o.openBaoURL, Token: func(context.Context) (string, error) {
-		b, err := os.ReadFile(tokenFile)
-		return strings.TrimSpace(string(b)), err
-	}})
+	tc, err := transit.New(transit.Config{Addr: o.openBaoURL, Token: transit.FileToken(o.openBaoTokenFile)})
 	if err != nil {
 		st.what = "OpenBao client"
 		return st, err

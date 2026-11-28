@@ -1,0 +1,40 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/eclipse-xfsc/facis-zero-trust-demonstrator/docs/contracts/if05-policy-decision.v1.schema.json",
+  "title": "IF-05 policy decision output (contracts v1)",
+  "description": "The policy engine's answer. A denial always names its reason; a rule denial names the rule; an allow may carry the substitution obligation, which the guard must fulfil or refuse the request.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["allow", "bundle_revision"],
+  "properties": {
+    "allow": { "type": "boolean" },
+    "reason_code": { "type": "string", "pattern": "^POL(-[A-Z0-9]+)+$" },
+    "rule_id": { "type": "string", "minLength": 1, "maxLength": 256 },
+    "bundle_revision": { "type": "string", "minLength": 1 },
+    "obligations": { "type": "array", "uniqueItems": true, "items": { "enum": ["substitute_upstream_token"] } },
+    "deny_body": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["error"],
+      "properties": {
+        "error": { "type": "string", "minLength": 1 },
+        "oid4vp_link": { "type": "string", "format": "uri" }
+      }
+    }
+  },
+  "allOf": [
+    {
+      "if": { "properties": { "allow": { "const": true } } },
+      "then": { "not": { "anyOf": [{ "required": ["reason_code"] }, { "required": ["deny_body"] }] } },
+      "else": { "required": ["reason_code", "deny_body"], "not": { "required": ["obligations"] } }
+    },
+    {
+      "if": { "required": ["reason_code"], "properties": { "reason_code": { "const": "POL-RULE-DENY" } } },
+      "then": { "required": ["rule_id"] }
+    },
+    {
+      "if": { "required": ["reason_code"], "properties": { "reason_code": { "const": "POL-PRESENTATION-REQUIRED" } } },
+      "then": { "properties": { "deny_body": { "required": ["oid4vp_link"] } } }
+    }
+  ]
+}

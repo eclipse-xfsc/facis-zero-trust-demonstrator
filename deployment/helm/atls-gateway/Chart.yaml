@@ -1,0 +1,17 @@
+apiVersion: v2
+name: atls-gateway
+description: >-
+  The attested-channel gateway of a zone (ZT-28, ZT-65): the one endpoint that speaks attested TLS
+  to the peer zone. An ingress terminates mutually attested channels from the peer and forwards each
+  stream to one in-zone upstream; an egress carries in-zone callers' streams to the peer zone's
+  ingress over a channel it originates and attests. Before it serves, each role verifies its own
+  zone's evidence against the configuration in Git and the metadata CA (fail closed).
+type: application
+version: 0.1.0
+appVersion: "0.1.0"
+keywords:
+  - facis
+  - zero-trust
+  - attested-tls
+sources:
+  - https://github.com/eclipse-xfsc/facis-zero-trust-demonstrator

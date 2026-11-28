@@ -72,6 +72,15 @@ func TestParseServe(t *testing.T) {
 				t.Errorf("routes file %q, token file %q", o.acquireConfig, o.openBaoTokenFile)
 			}
 		}},
+		{name: "routes file with Kubernetes auth", args: nil, env: serveEnv(map[string]string{
+			"TOKEN_STORE_DATABASE_URL": testDatabase, "TOKEN_STORE_OPENBAO_URL": testOpenBao,
+			"TOKEN_STORE_ACQUIRE_CONFIG": "/etc/routes.json", "TOKEN_STORE_OPENBAO_AUTH_ROLE": "ztd-token-store",
+		}), check: func(t *testing.T, o serveOptions) {
+			if o.openBaoAuthRole != "ztd-token-store" || o.openBaoAuthMount != "kubernetes" || o.openBaoJWTFile != "/var/run/secrets/openbao/token" || o.openBaoTokenFile != "" {
+				t.Errorf("Kubernetes auth: %+v", o)
+			}
+		}},
+		{name: "token file and Kubernetes auth together", args: []string{"--acquire-config", "/etc/routes.json", "--openbao-token-file", "/run/t", "--openbao-auth-role", "r"}, env: both, wantErr: "only one"},
 		{name: "no database", args: nil, env: serveEnv(map[string]string{"TOKEN_STORE_OPENBAO_URL": testOpenBao}), wantErr: "no database"},
 		{name: "no key-value store", args: nil, env: serveEnv(map[string]string{"TOKEN_STORE_DATABASE_URL": testDatabase}), wantErr: "no key-value store"},
 		{name: "key-value store without a scheme", args: []string{"--openbao-url", "bao:8200"}, env: both, wantErr: "http(s)://host"},

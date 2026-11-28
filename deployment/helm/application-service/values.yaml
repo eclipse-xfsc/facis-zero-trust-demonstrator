@@ -6,16 +6,29 @@ image:
   digest: ""
 # Container and Service port.
 port: 8080
+# A second, gRPC port of the container and the Service (Service port name grpc, the protocol the mesh
+# needs declared); 0: none. The process must be told to listen there (env), e.g. the Protected
+# Resource's PROTECTED_RESOURCE_GRPC_ADDRESS. The chart's own NetworkPolicy and AuthorizationPolicy
+# do not open it: the guard chart's policies for the Resource do (its grpc.resourcePort).
+grpcPort: 0
 # Path of the HTTP readiness and liveness probes.
 healthPath: /health
 # Environment of the process, as name: value. No secret values here.
 env: {}
+# IF-01 v2 stdout source; empty uses the executable default. No direct feed egress is needed.
+eventSource: ""
 # Opt-in runtime wiring; existing sample deployments keep their default account.
 serviceAccount:
   create: false
   name: ""
 identity:
   spireManagedIdentity: false
+# The mesh callers admitted on `port` (AuthorizationPolicy <name>-callers), each by namespace and
+# service account in trustDomain (spiffe://<trustDomain>/ns/<namespace>/sa/<name>): e.g. the
+# Participant's entry, ztd-edge. Empty: no rule, and in a meshed namespace the default deny refuses
+# every caller.
+trustDomain: ""
+callers: []   # - {namespace: ztd-data, name: ztd-edge}
 podAnnotations: {}
 nodeSelector: {}
 # NAME: {name: existing-secret, key: secret-key}; values never contain credentials.

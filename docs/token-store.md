@@ -208,9 +208,9 @@ current database changes nothing, which the lifecycle proof below checks to the 
 chart does not run PostgreSQL and never carries its credential: the database is the zone's, and
 its connection URL reaches the Job and the service from a Secret of the release namespace, created
 before the install and named in `database.existingSecret`. The key-value store's address is
-`openbao.address`, by default the umbrella chart's OpenBao under the release name `ztd`, which the
-umbrella ships disabled: it must be enabled there, or the address pointed at the zone's OpenBao,
-or the service never becomes ready. The pod's termination grace period is derived from the drain
+`openbao.address`, by default the zone's OpenBao, the release `ztd-openbao` that the zone installer
+installs last ([Secrets](secrets.md)); a zone without it points the address at its own OpenBao, or
+the service never becomes ready. The pod's termination grace period is derived from the drain
 delay, the shutdown timeout and the readiness budget, the service's worst case before it exits.
 With `schema.dropOnUninstall`, off by
 default, a `pre-delete` Job reverts every migration on `helm uninstall` and the schema is empty
@@ -219,8 +219,8 @@ migrations only add, so an older build runs against a newer schema and treats it
 
 ## Verification
 
-Two proofs, both run by `.github/workflows/token-store.yml` on every change to the store, its image,
-its chart or the pinned images:
+Three proofs, all run by `.github/workflows/token-store.yml` on every change to the store, its
+image, its chart or the pinned images:
 
 - **The runner, the queries and the service against an ephemeral database.**
   `go test ./services/token-store/...` with `TOKEN_STORE_TEST_DATABASE_URL` set runs against a
@@ -264,6 +264,22 @@ its chart or the pinned images:
   (`runtime-openbao-down-readyz.json`, `runtime-store-logs.txt`). The records and the verdict are
   the run's artefact and go to the job summary; nothing is committed. Locally, the script writes to
   the git-ignored `.dev/token-store-evidence/`.
+- **The failure catalogue on kind.** `scripts/verify-token-store-failures/verify.sh` runs the
+  store from the chart in runtime mode, with the real connector from the working tree as the peer
+  zone's issuer and one route registered at it through dynamic client registration, and induces
+  each failure the store was designed for, one at a time, as the guard would see it: a caller and
+  a target the routes refuse, a replay storm of one proof, PostgreSQL unreachable and then
+  crash-recovered (the unlogged replay record emptied, the bounded exposure logged and observed
+  once), OpenBao unreachable, the issuer down through a renewal until the row ends `failed` and
+  substitution answers `TOK-NO-UPSTREAM`, every token expired with the issuer refusing
+  (`TOK-NO-UPSTREAM` at once) and then silent (`TOK-STORE-UNAVAILABLE` at the caller's deadline),
+  and a renewer that died holding its claim. Each row is recorded with its status, reason code,
+  readiness words and audit rows and judged against this page; recovery is always the dependency
+  coming back, the two rows whose state the run cannot reach in time are induced with one `UPDATE`
+  each, and every statement the script ran is listed, so "no manual database surgery" is checked,
+  not assumed. The matrix, what each row expects and what is left to the Go tests are in
+  `scripts/verify-token-store-failures/README.md`; the records are the negative evidence of the
+  token-storage requirement.
 - **Key custody in the Go tests.** Against a real OpenBao (`TRANSIT_TEST_ADDR`,
   `TRANSIT_TEST_TOKEN`): the transit client's rotation and signing floor
   (`TestOpenBaoMinSigningVersionRefusesOlderVersions`), the database refusing a second active
@@ -304,9 +320,9 @@ are one proof. Refusals carry the reason code and the correlation id and nothing
 the `X-Forwarded-Client-Cert` its own sidecar sets from the client certificate it verified, and
 admits it only if its SPIFFE ID is on `--replay-callers`; otherwise 403 `TOK-CALLER-DENIED`. That is
 sound only under two deployment prerequisites, which the chart owes when the endpoints are
-deployed: the store's sidecar replaces any such header a client sent (pod annotation
-`proxy.istio.io/config: {"proxyHeaders":{"forwardedClientCert":"SANITIZE_SET"}}`, and no
-ProxyConfig overriding it), and the API port is reachable only through the sidecar (STRICT mTLS and
+deployed: the store's sidecar replaces any such header a client sent (`SANITIZE_SET`, mesh-wide through
+the `EnvoyFilter` `xfcc-sanitize-set` of `zone-policy`, as `zone-policy` refuses a per-pod
+`proxy.istio.io/config`; and no ProxyConfig overriding it), and the API port is reachable only through the sidecar (STRICT mTLS and
 a NetworkPolicy). As a second line the store accepts exactly one certificate element across every
 header field: a client-supplied element next to the sidecar's, which the default `APPEND_FORWARD`
 would produce, is refused.
@@ -334,8 +350,10 @@ for either.
 
 The calls to the Connector (the challenge, the grant with its DPoP proof and one nonce retry, and the
 response checks below) are the shared client `internal/connectorclient`, which the Participant also
-uses with its own key; acquire maps its errors to the reason codes below. The fixture outcome signer
-is `internal/if03/if03fixture`, and the zone-B harness of the tests is `internal/connectortest`
+uses with its own key; acquire maps its errors to the reason codes below. The outcome source that
+presents a credential is the presentation hook, `internal/verificationclient`
+([below](#presentation-hook)); the fixture outcome signer is `internal/if03/if03fixture`, and the
+zone-B harness of the tests is `internal/connectortest`
 (`acquiretest` configures it for the store's route).
 
 **Order.** For one route `(peer_zone, audience, tenant)`:
@@ -368,7 +386,8 @@ and the version it mints with is the one active `signing_key` row of that key, r
 transit before every acquisition; a row with another thumbprint or a retired one stops acquisition
 (`ACQ-STORE-UNAVAILABLE`), and a key retired between the grant and the activation activates
 nothing (`ACQ-KEY-RETIRED`). Proofs are signed by transit with the caller's context; no private
-key enters the process. The rules, the startup assertion, rotation and the OpenBao policies are
+key of the store's enters the process (a route's [presentation hook](#presentation-hook) has a
+holder key of its own). The rules, the startup assertion, rotation and the OpenBao policies are
 [key custody](#key-custody).
 
 **Recovery (D10).**
@@ -414,11 +433,126 @@ never secrets:
 
 `fixture_outcomes` is the fixture `OutcomeSource` for tests and the demo: it signs a verified IF-03
 outcome for each challenge with the configured key, a new `outcome_id` per call, valid 60 to 120 s
-(default 90 s). A route without an outcome source cannot be acquired. `callers`, `methods` and
+(default 90 s). `verification_outcomes` is the [presentation hook](#presentation-hook), which
+presents a credential to the verification service; a route has one of the two, never both. A route
+without an outcome source cannot be acquired. `callers`, `methods` and
 `target_prefix` make the route substitutable ([Substitution](#substitution)); a route without
 callers is acquired by the command line only, and `methods` or `target_prefix` without callers is
 refused. Two routes with the same `(peer_zone, audience, tenant)` are refused, so a route key names
 one route. Unknown members are refused.
+
+### Presentation hook
+
+A route with `verification_outcomes` gets its outcomes from a presentation: at every acquisition
+and at every renewal the store presents a credential to a verification service and uses the
+outcome that service signs. No person takes part, and no outcome is ever reused: the peer Connector
+has no refresh grant, so each renewal is a new challenge, a new presentation and a new outcome.
+
+This is the client side. The service it calls is specified by the
+[verification contract](contracts/verification.v1.openapi.yaml) and implemented by the
+[verification service](verification-service.md); the hook's own tests run it against an in-test
+implementation of that contract, the end-to-end test against the service. The holder that
+presents is a stand-in, described below.
+
+```json
+"verification_outcomes": {"url": "https://verification.zone-b.example", "timeout_seconds": 5,
+                          "holder": {"kind": "file",
+                                     "credential_file": "/var/run/token-store/credentials/holder-credential.sd-jwt",
+                                     "key_file": "/var/run/token-store/credentials/holder-key.pem"}}
+```
+
+| Member | Meaning |
+|---|---|
+| `url` | The verification service's base URL: absolute `http(s)`, no credentials, query or fragment |
+| `timeout_seconds` | The whole exchange, request to outcome: 1 to 10; absent or 0 means 5 |
+| `holder.kind` | Who presents. `file` is the only kind: the stand-in holder below |
+| `holder.credential_file` | The SD-JWT VC to present, as issued, with exactly the disclosures to reveal and a trailing tilde |
+| `holder.key_file` | PEM, P-256: the key the credential's `cnf` names; it signs the key-binding JWT |
+
+The hook is one step of an acquisition and shares its time. A renewal attempt has 30 s; an
+acquisition on demand runs inside the 10 s of a [substitution](#substitution), which is why the
+bound is 10 s. A value close to it leaves the on-demand path no time for the grant: the caller's
+deadline then ends the call with 503, and the next call starts again.
+
+For one challenge the hook (`internal/verificationclient`) does three things:
+
+1. `POST {url}/v1/requests` with the challenge, the route's client and audience, and the challenge's
+   expiry. The answer is an OID4VP request; it is used only when its `request_id` has the
+   contract's form, its `nonce` is the challenge, its `client_id` is the audience, its
+   `response_mode` is `direct_post` and it carries a query.
+2. The **holder** answers the request with a presentation: the credential and a key-binding JWT
+   over it whose `nonce` is the challenge and whose `aud` is the audience.
+3. `POST {url}/v1/responses/{request_id}` with the presentation as `vp_token`. The answer carries
+   the signed IF-03 outcome, which the hook returns unchanged when it has the shape of a compact
+   JWS.
+
+The presentation is posted to the configured `url`. The `response_uri` of the service's answer is
+not used, and the holder is told the hook's own address, so no answer can direct the credential
+elsewhere. A redirect is never followed, and an answer larger than 64 KiB is not read.
+
+**What the hook does not do.** It does not authenticate the verification service and it does not
+protect the transport: `http` is accepted, as for the peer Connector, because inside a zone the
+mesh carries the mutual TLS and between zones the attested channel does. Whatever answers at `url`
+with a request for the credential's type receives the credential with its disclosures. It cannot
+obtain a token that way: only an outcome signed by one of the store's `trusted_issuers` passes the
+store's verification, and the peer Connector checks again. Point `url` only at an address those
+layers protect. The hook also does not judge the outcome. A service that answers with a signed
+`failed` or `revoked` outcome has answered: the store's own verification (step 3 of the order
+above) refuses it with `CRED-OUTCOME-NOT-VERIFIED`, audited `upstream.refused`, and no grant is
+requested, so the peer Connector never sees it.
+
+**Failures.** Everything that leaves the hook without an outcome is `ACQ-OUTCOME-UNAVAILABLE`,
+the code a route with no outcome source also gets: an unreachable, refusing or silent service, an
+answer that is not bound to the challenge or is not a compact JWS, and a holder that presents
+nothing. The audit row does not say which. The store's log does: each such attempt writes one
+`outcome source failed` record with the route, the attempt's id (the one in the audit row) and a
+`stage` (`config`, `request`, `holder` or `response`; empty for a source that names none), and
+`cancelled` or `timed_out` when the attempt was cut short. Two things the store
+cannot tell apart at all: a revoked credential and an unavailable status list both arrive as a
+signed outcome it refuses with `CRED-OUTCOME-NOT-VERIFIED`; which of the two it was is in the
+verification service's records. Either way no token is issued, and a renewal that keeps failing
+ends as in [Renewal](#renewal): the row `failed`, then `TOK-NO-UPSTREAM`.
+
+**The holder.** The hook asks a holder through one interface, `verificationclient.Holder`: one
+OID4VP request in, one `dc+sd-jwt` presentation out, key binding signed with the credential's
+holder key. Kind `file` is a stand-in (`internal/verificationclient/fixtureholder`): it reads one
+credential and its key from two files and presents when the request's one query asks for an SD-JWT
+VC of the credential's type. It is not a wallet of record. A wallet that can answer an OID4VP
+request takes its place as another `kind`, behind the same interface.
+
+The two files are read at every presentation, like the route's client secret, and not when the
+routes file is read. A credential issued again is therefore presented from the next acquisition
+on, without a restart, and the commands that only read the routes (`keys`, `sweep-orphans`) need
+neither file. Before presenting, the holder refuses material a verifier would refuse whatever the
+request: a credential that is malformed, outside its validity, carrying a disclosure that is not
+its own, already bound, or too large to leave room for the key binding, and a key the credential's
+`cnf` does not name. That is a `holder` failure in the log, at the first acquisition, not a
+start-up error. The issuer's signature and the revocation state are the verifier's to judge.
+
+The holder key is the credential's, fixed when the credential was issued, and with this holder it
+is in the process while a presentation is built. It is not the store's transit key: that key signs
+the store's DPoP proofs and rotates, and a credential bound to it would have to be issued again at
+every rotation. Both files are credential-class: mount them from the credentials Secret, never
+from a ConfigMap.
+
+**Verification.** `go test ./internal/verificationclient/... ./internal/verificationtest/...`
+runs the hook against the in-test verification service (`internal/verificationtest`: the
+contract's two endpoints, the presentation policy of `internal/presentation`, outcomes signed with
+a test key). Each call presents again and yields a new outcome. For a verified, a revoked, a
+status-unavailable and a not-a-credential presentation, what comes out of the hook carries only
+the members the IF-03 v1 schemas define and is accepted or refused by `internal/if03` as the
+contract says; that pins the exchange and the test service, since the hook passes the outcome on
+unchanged. An answer not bound to the challenge, a redirect or an oversized answer at either step,
+an outcome that is not a compact JWS, an unreachable and a silent service yield no outcome and an
+error that repeats nothing the service said. The test service's own request rules (one answer per
+request, one open request per challenge, the expiry bounds) have tests of their own. With the
+database and OpenBao variables above, `go test ./services/token-store/internal/renew` runs the
+renewal worker with the hook on the route against the real `connector` binary: one acquisition and
+three renewals are four presentations and four outcomes, each the one zone B consumed, and a new
+active row per renewal; a credential revoked before a renewal ends at the store with
+`CRED-OUTCOME-NOT-VERIFIED` on each attempt and zone B issues nothing; a refusing or silent
+service, an unavailable status list and an outcome for another audience each leave the row `failed`
+with the attempt's code audited three times, and the first two with their `stage` in the log.
 
 **Commands.**
 
@@ -692,7 +826,8 @@ D11), in every replica; the replica's pod name is its `claimed_by`. Each cycle, 
    repeat the inner ones, so a row that changed meanwhile is never claimed twice. The returned
    `(claimed_by, claimed_at)` is the claim's fence.
 3. **Renew** through `Acquirer.Replace(route, fence)`: a full acquisition with a fresh challenge and
-   outcome and a new `token_id`. Its transaction consumes the receipt, retires the old row **only if
+   outcome and a new `token_id`. On a route with the [presentation hook](#presentation-hook) this
+   is where the credential is presented again, unattended. Its transaction consumes the receipt, retires the old row **only if
    it is still `renewing` under exactly this fence**, inserts the new row `active` and audits
    `upstream.renewed` (with `replaces`, the old `token_id`), in one commit: the route goes from the old
    live row to the new one, never through none or two (migration 4 refuses two). If the fence no

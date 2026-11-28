@@ -1,0 +1,6 @@
+# go test ./internal/trustlist -run TestLiveZoneB -count=1 -v   (verifier-live_test.go.txt, at b3cbdcef)
+=== RUN   TestLiveZoneB
+    zz_live_test.go:34: verified at 2026-11-24T10:33:05Z; VC expires 2026-12-24T10:09:20Z; did:web:connector-b.trust.facis.cloud listed active: true
+--- PASS: TestLiveZoneB ()
+PASS
+ok  	github.com/eclipse-xfsc/facis-zero-trust-demonstrator/internal/trustlist

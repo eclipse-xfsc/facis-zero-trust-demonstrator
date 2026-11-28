@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
-# Build every image under deployment/docker/ for linux/amd64, labelled as signed with the interim key,
+# Build every image under deployment/docker/ for linux/amd64, labelled with the signing key's source
+# (SIGNING_KEY_SOURCE, interim by default),
 # push it to <registry/path>/<name>:<tag>, and append its digest reference to <images.txt>. The release
 # candidate job runs this, then sign-verify.sh on the digests.
 #
@@ -14,7 +15,7 @@ for dockerfile in deployment/docker/*/Dockerfile; do
   name="$(basename "$(dirname "$dockerfile")")"
   ref="$repository/$name:$tag"
   docker build --platform linux/amd64 --provenance=false --sbom=false \
-    --label eu.facis.ztd.signing-key=interim --label "org.opencontainers.image.revision=$revision" \
+    --label "eu.facis.ztd.signing-key=${SIGNING_KEY_SOURCE:-interim}" --label "org.opencontainers.image.revision=$revision" \
     -f "$dockerfile" -t "$ref" .
   case "$name" in
     participant|protected-resource) python3 scripts/ci/check-runtime-files.py "$ref" "$name" ;;

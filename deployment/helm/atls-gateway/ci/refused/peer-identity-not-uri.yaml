@@ -1,0 +1,3 @@
+# The peer's identity is the URI its certificate carries.
+# expect: egress.peer.identity must be the peer gateway's identity URI
+egress: {peer: {identity: zone-b}}

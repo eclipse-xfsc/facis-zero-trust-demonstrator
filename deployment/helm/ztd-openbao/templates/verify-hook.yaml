@@ -1,0 +1,130 @@
+{{- /*
+OpenBao verification, band "platform": after install or upgrade a Job reads the server back with the
+narrow verification token and fails the release unless it is initialised and unsealed, secret/ is
+kv version 2 and transit/ is transit. With the bundled server it also reads the fixture KV value and
+round-trips the fixture transit key, and every run renews the periodic token. It runs in the
+management namespace next to the server (no new network lane) and needs no Kubernetes API access:
+the token comes from a Secret volume. It is kept until the next run replaces it, so its log can be
+collected (docs/secrets.md). Install with --wait --wait-for-jobs, so the bootstrap Job has finished.
+
+The Job keeps the name ztd-verify-openbao whatever the release is called, and runs with a
+ServiceAccount of its own, ztd-verify-openbao, that holds no role and mounts no API token. On a
+meshed zone its pod carries the identity label, so it is created with a sidecar and an SVID
+(spiffe://<trust domain>/ns/<namespace>/sa/ztd-verify-openbao) and reads the server as mesh mTLS;
+the native sidecar exits with the verify container. The ServiceAccount of its own keeps that SPIFFE
+ID apart from any other labelled pod of the namespace left on the default ServiceAccount, so a mesh
+policy for OpenBao can name the hook. The ServiceAccount is a hook of the same phase and delete
+policy as the Job, one weight lower, so Helm creates it just before the Job and replaces both on the
+next run; in external mode the release thus holds the verification hook and nothing else.
+*/ -}}
+{{- $bundled := eq (include "ztd-openbao.bundled" .) "true" }}
+{{- if or $bundled .Values.external.address }}
+{{- $secret := ternary "ztd-openbao-bootstrap" .Values.external.verifyTokenSecret $bundled }}
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: ztd-verify-openbao
+  namespace: {{ .Values.managementNamespace }}
+  labels:
+    {{- include "ztd-openbao.labels" . | nindent 4 }}
+  annotations:
+    {{- include "ztd-openbao.hook.annotations" (dict "phase" "post-install,post-upgrade" "band" "platform" "offset" 9 "deletePolicy" "before-hook-creation") | nindent 4 }}
+automountServiceAccountToken: false
+---
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: ztd-verify-openbao
+  namespace: {{ .Values.managementNamespace }}
+  labels:
+    {{- include "ztd-openbao.labels" . | nindent 4 }}
+  annotations:
+    {{- include "ztd-openbao.hook.annotations" (dict "phase" "post-install,post-upgrade" "band" "platform" "offset" 10 "deletePolicy" "before-hook-creation") | nindent 4 }}
+spec:
+  backoffLimit: 0
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: ztd-verify-openbao
+        app.kubernetes.io/instance: {{ .Release.Name }}
+        {{- include "ztd-openbao.podIdentity" . | nindent 8 }}
+    spec:
+      serviceAccountName: ztd-verify-openbao
+      automountServiceAccountToken: false
+      restartPolicy: Never
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 100
+        runAsGroup: 101
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: verify
+          image: {{ .Values.bootstrap.image | quote }}
+          imagePullPolicy: IfNotPresent
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: ["ALL"]
+          env:
+            - name: BAO_ADDR
+              value: {{ include "ztd-openbao.address" . | quote }}
+            - name: BUNDLED
+              value: {{ $bundled | quote }}
+          volumeMounts:
+            - name: token
+              mountPath: /token
+              readOnly: true
+            - name: work
+              mountPath: /work
+          command: ["/bin/sh", "-eu", "-c"]
+          args:
+            - |
+              umask 077
+              W=/work
+              printf 'X-Vault-Token: %s' "$(cat /token/verify-token)" > "$W/h"
+              fail=0
+              ok() { echo "ok   $*"; }
+              no() { echo "FAIL $*"; fail=$((fail + 1)); }
+              get() { curl -sS -o "$W/body" -w '%{http_code}' ${2:+-H "@$W/h"} "$BAO_ADDR/v1/$1" || true; }
+              post() { printf '%s' "$2" > "$W/req"; curl -sS -X POST -H "@$W/h" --data-binary "@$W/req" -o "$W/body" -w '%{http_code}' "$BAO_ADDR/v1/$1" || true; }
+              flat() { tr -d '\n ' < "$W/body"; }
+
+              code=$(get "sys/health?uninitcode=200&sealedcode=200&standbycode=200")
+              if [ "$code" = 200 ] && flat | grep -q '"initialized":true' && flat | grep -q '"sealed":false'; then
+                ok "initialised and unsealed"
+              else
+                no "not initialised and unsealed (HTTP $code; sealed after a restart? scripts/secrets/unseal.sh)"
+              fi
+              [ "$(post auth/token/renew-self '{}')" = 200 ] && ok "verification token renewed" || no "verification token cannot be renewed"
+              code=$(get sys/mounts/secret t)
+              [ "$code" = 200 ] && flat | grep -q '"type":"kv".*"version":"2"' && ok "secret/ is kv version 2" || no "secret/ is not kv version 2 (HTTP $code)"
+              code=$(get sys/mounts/transit t)
+              [ "$code" = 200 ] && flat | grep -q '"type":"transit"' && ok "transit/ is transit" || no "transit/ is not transit (HTTP $code)"
+              if [ "$BUNDLED" = true ]; then
+                # The value's short hash, never the value: the same hash before and after a restart shows the
+                # data persisted.
+                [ "$(get secret/data/ztd-fixture/canary t)" = 200 ] && ok "fixture KV value readable (sha256 $(flat | sed -n 's/.*"data":{"value":"\([^"]*\)".*/\1/p' | sha256sum | cut -c1-12))" || no "fixture KV value not readable"
+                plain=enRkLXZlcmlmeQ==
+                code=$(post transit/encrypt/ztd-fixture "{\"plaintext\":\"$plain\"}")
+                cipher=$(flat | sed -n 's/.*"ciphertext":"\([^"]*\)".*/\1/p')
+                code=$(post transit/decrypt/ztd-fixture "{\"ciphertext\":\"$cipher\"}")
+                [ "$code" = 200 ] && flat | grep -q "\"plaintext\":\"$plain\"" && ok "transit round trip with ztd-fixture" || no "transit round trip failed (HTTP $code)"
+              fi
+              rm -f "$W/h" "$W/body" "$W/req"
+              [ "$fail" = 0 ] || { echo "OpenBao verification failed ($fail check(s))"; exit 1; }
+              echo "OpenBao verified"
+      volumes:
+        - name: token
+          secret:
+            secretName: {{ $secret | quote }}
+            items:
+              - key: verify-token
+                path: verify-token
+        - name: work
+          emptyDir:
+            medium: Memory
+            sizeLimit: 1Mi
+{{- end }}

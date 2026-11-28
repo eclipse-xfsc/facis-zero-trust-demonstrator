@@ -8,4 +8,9 @@ metadata:
 # One key, so the provider reads repositories and keys of the same revision in a single read.
 data:
   policy.json: |
-    {{- dict "repositories" .Values.trust.repositories "publicKeys" .Values.trust.publicKeys | toPrettyJson | nindent 4 }}
+    {{- $policy := dict "repositories" .Values.trust.repositories "publicKeys" .Values.trust.publicKeys }}
+    {{- /* Only when set, so a release without it renders the policy it always had. */}}
+    {{- with .Values.trust.allowedDigests }}
+    {{- $_ := set $policy "allowedDigests" . }}
+    {{- end }}
+    {{- $policy | toPrettyJson | nindent 4 }}

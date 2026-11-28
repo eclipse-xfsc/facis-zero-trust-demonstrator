@@ -53,7 +53,6 @@ spec:
               "CONNECTOR_OPS_ADDR" ":9090"
               "CONNECTOR_ZONE" .Values.zone
               "CONNECTOR_OPENBAO_URL" .Values.openbao.address
-              "CONNECTOR_OPENBAO_TOKEN_FILE" "/var/run/connector/credentials/openbao-token"
               "CONNECTOR_SIGNING_KEY" .Values.openbao.signingKey
               "CONNECTOR_SIGNING_KEY_VERSION" (.Values.openbao.signingKeyVersion | toString)
               "CONNECTOR_ISSUER" .Values.oauth.issuer
@@ -74,6 +73,14 @@ spec:
               "CONNECTOR_DRAIN_DELAY" (printf "%ds" (int .Values.server.drainDelaySeconds))
               "CONNECTOR_SHUTDOWN_TIMEOUT" (printf "%ds" (int .Values.server.shutdownTimeoutSeconds))
               "CONNECTOR_LOG_LEVEL" .Values.server.logLevel }}
+            {{- $kube := eq .Values.openbao.auth.method "kubernetes" }}
+            {{- if $kube }}
+            {{- $_ := set $env "CONNECTOR_OPENBAO_AUTH_ROLE" .Values.openbao.auth.role }}
+            {{- $_ := set $env "CONNECTOR_OPENBAO_AUTH_MOUNT" .Values.openbao.auth.mount }}
+            {{- $_ := set $env "CONNECTOR_OPENBAO_JWT_FILE" "/var/run/secrets/openbao/token" }}
+            {{- else }}
+            {{- $_ := set $env "CONNECTOR_OPENBAO_TOKEN_FILE" "/var/run/connector/credentials/openbao-token" }}
+            {{- end }}
             {{- if .Values.verifiedPresentation.enabled }}
             {{- $_ := set $env "CONNECTOR_VP_TRUSTED_ISSUERS_FILE" "/etc/connector/verification/trusted-issuers.json" }}
             {{- $_ := set $env "CONNECTOR_VP_SCOPE_MAP_FILE" "/etc/connector/verification/scope-map.json" }}
@@ -86,6 +93,11 @@ spec:
             - name: credentials
               mountPath: /var/run/connector/credentials
               readOnly: true
+            {{- if $kube }}
+            - name: openbao-sa-token
+              mountPath: /var/run/secrets/openbao
+              readOnly: true
+            {{- end }}
             {{- if .Values.verifiedPresentation.enabled }}
             - name: verification
               mountPath: /etc/connector/verification
@@ -115,10 +127,24 @@ spec:
             secretName: {{ .Values.credentials.existingSecret | quote }}
             defaultMode: 0440
             items:
+              {{- if not $kube }}
               - {key: {{ .Values.credentials.keys.openbaoToken | quote }}, path: openbao-token}
+              {{- end }}
               - {key: {{ .Values.credentials.keys.tokenHMAC | quote }}, path: token-hmac}
               - {key: {{ .Values.credentials.keys.registrationHMAC | quote }}, path: registration-hmac}
               - {key: {{ .Values.credentials.keys.registrarSecret | quote }}, path: registrar-secret}
+        {{- if $kube }}
+        # An audience-bound token for the OpenBao login only: the API server refuses it (wrong
+        # audience), and the pod still mounts no API token (automountServiceAccountToken: false).
+        - name: openbao-sa-token
+          projected:
+            defaultMode: 0440
+            sources:
+              - serviceAccountToken:
+                  audience: {{ .Values.openbao.auth.audience | quote }}
+                  expirationSeconds: {{ int .Values.openbao.auth.expirationSeconds }}
+                  path: token
+        {{- end }}
         {{- if .Values.verifiedPresentation.enabled }}
         - name: verification
           configMap:

@@ -1,0 +1,100 @@
+openapi: 3.1.0
+info:
+  title: FACIS ZTD security-state feed (IF-01, contracts v2)
+  version: 2.0.0
+  description: >-
+    Version 2 of the feed, served next to version 1 by the same bridge: the client selects the
+    version by its path. /v2/snapshot and /v2/events carry every IF-01 event as its producer wrote
+    it, v1 or v2 (a v2 event carries "version": 2), and snapshot panels for every v2 source, the
+    policy evaluators included. The v1 paths (/snapshot, /events, if01-feed.v1.openapi.yaml) stay
+    valid against the v1 schemas: a v2 event is served there in its v1 form (the decision members
+    and "version" removed) and a source v1 does not name is left out. Delivery, deduplication and
+    gaps are as in version 1. A run the bridge no longer holds because of its memory budget is
+    answered 410. The bridge is reachable inside the mesh only, from the UI's workload identity;
+    producers post their lines to /ingest from their own identities.
+  license:
+    name: Apache-2.0
+    identifier: Apache-2.0
+paths:
+  /v2/snapshot:
+    get:
+      summary: The state of one run as of a sequence number, every v2 source
+      operationId: getSnapshotV2
+      parameters:
+        - $ref: '#/components/parameters/runId'
+      responses:
+        '200':
+          description: The snapshot.
+          content:
+            application/json:
+              schema:
+                $ref: if01-snapshot.v2.schema.json
+        '404':
+          $ref: '#/components/responses/unknownRun'
+        '410':
+          $ref: '#/components/responses/evictedRun'
+  /v2/events:
+    get:
+      summary: The events of one run from a sequence number on, as server-sent events
+      operationId: streamEventsV2
+      parameters:
+        - $ref: '#/components/parameters/runId'
+        - name: from_seq
+          in: query
+          required: true
+          schema:
+            type: integer
+            minimum: 0
+      responses:
+        '200':
+          description: >-
+            A text/event-stream. Each message has the event's seq as its id and one IF-01 event, v1
+            or v2, serialised as JSON on a single data line.
+          content:
+            text/event-stream:
+              schema:
+                type: string
+              x-facis-message-schema:
+                - if01-event.v1.schema.json
+                - if01-event.v2.schema.json
+        '404':
+          $ref: '#/components/responses/unknownRun'
+        '410':
+          $ref: '#/components/responses/evictedRun'
+  /ingest:
+    post:
+      summary: IF-01 log lines from a producer, one event per line
+      operationId: ingest
+      requestBody:
+        required: true
+        content:
+          application/x-ndjson:
+            schema:
+              type: string
+      responses:
+        '200':
+          description: The counts of the lines taken and of those refused (not IF-01, or longer than 64 KiB).
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: false
+                required: [accepted, refused, oversized]
+                properties:
+                  accepted: {type: integer, minimum: 0}
+                  refused: {type: integer, minimum: 0}
+                  oversized: {type: integer, minimum: 0}
+components:
+  parameters:
+    runId:
+      name: run_id
+      in: query
+      required: true
+      schema:
+        type: string
+        pattern: '^[A-Za-z0-9._-]{1,64}$'
+  responses:
+    unknownRun:
+      description: No run with this identifier is known to the bridge.
+    evictedRun:
+      description: The run was dropped to keep the bridge within its memory budget; read it from the exported logs.

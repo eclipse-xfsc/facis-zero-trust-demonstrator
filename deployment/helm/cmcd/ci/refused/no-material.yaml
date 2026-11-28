@@ -1,0 +1,3 @@
+# Without the zone's provisioned material there is no evidence to sign and nothing to verify against.
+# expect: materialSecret is required
+materialSecret: ""

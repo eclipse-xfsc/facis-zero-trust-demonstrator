@@ -1,0 +1,9 @@
+# The chart applying the issuer schema itself (schema), layered on values.yaml. Render-only.
+schema:
+  enabled: true
+  image:
+    digest: sha256:0000000000000000000000000000000000000000000000000000000000000000
+  egress:
+    - to:
+        - podSelector: {matchLabels: {app: postgres}}
+      ports: [{port: 5432, protocol: TCP}]

@@ -1,0 +1,29 @@
+PASS  kind zone installed through scripts/install-zone: tenant-a and tenant-b as planes.extra tenant entries, each with its ztd-tenant release and its guard (ztd-guard-<tenant>, tenant mode)
+PASS  tenant-a: guard (target tenant tenant-a, callers of tenant-b admitted to the guard only), policy evaluator and stand-in ready
+PASS  tenant-b: guard (target tenant tenant-b, callers of tenant-a admitted to the guard only), policy evaluator and stand-in ready
+PASS  probes ready: tenant-probe-322bae1e in tenant-a tenant-b, each meshed under its tenant's ztd-participant
+PASS  data, control: tenant-a's Participant reads tenant-a's data service (200, tenant tenant-a)
+PASS  data-tenant-b-to-tenant-a: network layer drops it (no answer; Cilium DROPPED flow from the tenant-b probe to 10.244.0.216, data-tenant-b-to-tenant-a-network-flows.txt)
+PASS  data-tenant-b-to-tenant-a: behind a probe-scoped opening the receiver's sidecar refuses it (status 403, rbac.denied 0 -> 1)
+PASS  secret-store-tenant-a: network layer drops it (no answer; Cilium DROPPED flow from the tenant-a probe to 10.244.0.212, secret-store-tenant-a-network-flows.txt)
+PASS  secret-store-tenant-a: behind a probe-scoped opening the receiver's sidecar refuses it (status 403, rbac.denied 0 -> 1)
+PASS  credentials, control: tenant-a's administrator reads tenant-a's secrets/tenant-credentials (200)
+PASS  credentials: tenant-b's administrator can neither read nor change tenant-a's secrets/tenant-credentials (403 Forbidden from the API server, both)
+PASS  policy, control: tenant-a's administrator reads tenant-a's configmaps/ztd-policy-config (200)
+PASS  policy: tenant-b's administrator can neither read nor change tenant-a's configmaps/ztd-policy-config (403 Forbidden from the API server, both)
+PASS  guard, control: tenant-a's member through tenant-a's guard reaches tenant-a's data (200); guard and policy events carry tenant tenant-a (request b4881ae2ba7dc5cca4fdae0bb439e084)
+PASS  guard: tenant-b's member through tenant-a's guard: 403 POL-RULE-DENY m3-tenant-membership, decided by tenant-a's policy, both events carry tenant tenant-a (request e642cfa58fa2023f15b0410f1e0a674a)
+PASS  data, control: tenant-b's Participant reads tenant-b's data service (200, tenant tenant-b)
+PASS  data-tenant-a-to-tenant-b: network layer drops it (no answer; Cilium DROPPED flow from the tenant-a probe to 10.244.0.247, data-tenant-a-to-tenant-b-network-flows.txt)
+PASS  data-tenant-a-to-tenant-b: behind a probe-scoped opening the receiver's sidecar refuses it (status 403, rbac.denied 0 -> 1)
+PASS  secret-store-tenant-b: network layer drops it (no answer; Cilium DROPPED flow from the tenant-b probe to 10.244.0.212, secret-store-tenant-b-network-flows.txt)
+PASS  secret-store-tenant-b: behind a probe-scoped opening the receiver's sidecar refuses it (status 403, rbac.denied 1 -> 2)
+PASS  credentials, control: tenant-b's administrator reads tenant-b's secrets/tenant-credentials (200)
+PASS  credentials: tenant-a's administrator can neither read nor change tenant-b's secrets/tenant-credentials (403 Forbidden from the API server, both)
+PASS  policy, control: tenant-b's administrator reads tenant-b's configmaps/ztd-policy-config (200)
+PASS  policy: tenant-a's administrator can neither read nor change tenant-b's configmaps/ztd-policy-config (403 Forbidden from the API server, both)
+PASS  guard, control: tenant-b's member through tenant-b's guard reaches tenant-b's data (200); guard and policy events carry tenant tenant-b (request 74ea2b0dae766920f08880107e0e5b13)
+PASS  guard: tenant-a's member through tenant-b's guard: 403 POL-RULE-DENY m3-tenant-membership, decided by tenant-b's policy, both events carry tenant tenant-b (request 56b54e88a62227d511320f8f4c462006)
+PASS  cleanup: no probe pod or network policy of run 322bae1e remains
+PASS  no object of tenant-a tenant-b or ztd-mgmt changed (resourceVersions equal before and after)
+verdict: PASS

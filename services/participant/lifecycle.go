@@ -8,6 +8,7 @@ type State string
 
 const (
 	StateRegistering     State = "registering"
+	StateRegistered      State = "registered"
 	StatePresenting      State = "presenting"
 	StateAcquiringToken  State = "acquiring_token"
 	StateReady           State = "ready"

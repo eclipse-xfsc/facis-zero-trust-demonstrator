@@ -1,0 +1,38 @@
+[
+  {
+    "name": "ztd-connector",
+    "revision": "5",
+    "status": "deployed",
+    "chart": "connector-0.1.0"
+  },
+  {
+    "name": "ztd-edge",
+    "revision": "3",
+    "status": "deployed",
+    "chart": "connector-gateway-0.1.0"
+  },
+  {
+    "name": "ztd-guard",
+    "revision": "2",
+    "status": "deployed",
+    "chart": "guard-0.1.0"
+  },
+  {
+    "name": "ztd-participant",
+    "revision": "5",
+    "status": "deployed",
+    "chart": "application-service-0.2.0"
+  },
+  {
+    "name": "ztd-resource",
+    "revision": "5",
+    "status": "deployed",
+    "chart": "application-service-0.2.0"
+  },
+  {
+    "name": "ztd-token-store",
+    "revision": "7",
+    "status": "deployed",
+    "chart": "token-store-0.3.0"
+  }
+]

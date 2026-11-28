@@ -1,0 +1,38 @@
+# The proof's own pairs under the mesh default deny of zone-policy, which serves a meshed fixture only
+# through a declared pair: the data-plane client to the echo, and the zone gateway (its revocation
+# probe) to the status list. Applied before the fixtures are called and removed with them.
+apiVersion: security.istio.io/v1
+kind: AuthorizationPolicy
+metadata:
+  name: proof-obs-client-to-trace-echo
+  namespace: ${NS_DATA}
+  labels: { app.kubernetes.io/part-of: verify-observability }
+spec:
+  selector:
+    matchLabels: { app.kubernetes.io/name: trace-echo }
+  action: ALLOW
+  rules:
+    - from:
+        - source:
+            principals: ["${TRUST_DOMAIN}/ns/${NS_DATA}/sa/default"]
+      to:
+        - operation:
+            ports: ["8080"]
+---
+apiVersion: security.istio.io/v1
+kind: AuthorizationPolicy
+metadata:
+  name: proof-otel-gateway-to-status-list
+  namespace: ${NS_MGMT}
+  labels: { app.kubernetes.io/part-of: verify-observability }
+spec:
+  selector:
+    matchLabels: { app.kubernetes.io/name: status-list }
+  action: ALLOW
+  rules:
+    - from:
+        - source:
+            principals: ["${TRUST_DOMAIN}/ns/${NS_MGMT}/sa/otel-gateway"]
+      to:
+        - operation:
+            ports: ["8080"]

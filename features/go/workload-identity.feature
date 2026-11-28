@@ -2,25 +2,25 @@
 Feature: Workload identity
   Annex A rows for Workload identity, worded exactly as in the Annex.
 
-  @ZT-24 @BDD-ZT-024 @pending
+  @ZT-24 @BDD-ZT-024 @cluster
   Scenario: SPIFFE/SPIRE Deployment
     Given each target Kubernetes cluster is running
     When SPIRE node and workload registration is applied
     Then SPIRE is deployed in every cluster, all mesh services obtain SPIRE-backed identities and the service mesh uses those identities AND a workload that cannot attest does not receive an identity.
 
-  @ZT-57 @BDD-ZT-057 @pending
+  @ZT-57 @BDD-ZT-057 @cluster
   Scenario: SPIFFE/SPIRE Setup
     Given the target Kubernetes nodes are ready
     When SPIFFE/SPIRE is installed and workloads are registered
     Then each relevant microservice has access to a SPIRE Agent on its node and can request workload identity.
 
-  @ZT-59 @BDD-ZT-059 @pending
+  @ZT-59 @BDD-ZT-059 @cluster
   Scenario: Successful Identification
     Given a correctly registered microservice satisfying SPIRE attestation
     When it requests its workload identity
     Then SPIRE attests the workload successfully and issues the expected identity, which is then usable by the mesh.
 
-  @ZT-60 @BDD-ZT-060 @pending
+  @ZT-60 @BDD-ZT-060 @cluster
   Scenario: Unsuccessful Identification
     Given a workload cannot satisfy SPIRE attestation
     When it requests a workload identity and attempts mesh communication

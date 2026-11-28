@@ -1,0 +1,1 @@
+docs/evidences/token-store-zone-b-2026-11-24/run/identity-chain.pem: OK

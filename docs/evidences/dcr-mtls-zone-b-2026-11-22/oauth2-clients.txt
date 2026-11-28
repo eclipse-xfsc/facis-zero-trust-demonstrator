@@ -1,0 +1,14 @@
+# zone B, database issuer (the connector's), read-only SELECTs through psql in ztd-postgres; no secret column read
+client_id | grant_types | scopes | dpop_bound | created_at
+ztd-participant | {urn:facis:params:oauth:grant-type:verified-presentation} | {report:read,report:summary} | t | 2026-10-27 13:32:15.994601+00
+ztd-store | {urn:facis:params:oauth:grant-type:verified-presentation} | {report:read,report:summary} | t | 2026-10-27 13:32:17.032154+00
+ztd-registrar | {client_credentials} | {connector:client_registration} | t | 2026-10-27 13:32:43.21316+00
+(3 rows)
+
+# registration audit rows (issuer and requester databases)
+registration_audit_rows
+0
+(1 row)
+registration_audit_rows
+0
+(1 row)

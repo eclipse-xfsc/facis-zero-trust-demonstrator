@@ -1,0 +1,1 @@
+{"run_id":"run-001","seq":9,"ts":"2026-11-21T12:00:02Z","source":"guard-b","kind":"decision","payload":{"state":"allowed","caller_spiffe_id":"not_evaluated","token_subject":"not_evaluated","resource":"POST https://guard.zone-b.invalid/demo","bundle_revision":"not_evaluated","rule_id":"not_evaluated"}}

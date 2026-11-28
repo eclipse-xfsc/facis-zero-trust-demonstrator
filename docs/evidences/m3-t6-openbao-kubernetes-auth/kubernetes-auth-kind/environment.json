@@ -1,0 +1,8 @@
+{
+  "commit": "54473773356301f5ad5ce75aadf73bf43e7a041e",
+  "tree": "clean",
+  "date": "2026-11-22T00:05:00Z",
+  "kind_node_image": "kindest/node:v1.35.8@sha256:07b2536e30b803ed61d1677a79df6115f798ce64c80f9e22f6ed45afd09323c0",
+  "helm": "v4.3.0+gbec5b06",
+  "role_ttl": "20s"
+}

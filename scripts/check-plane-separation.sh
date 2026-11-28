@@ -3,13 +3,22 @@
 # Fails when the plane-separation section of the architecture document breaks an invariant it
 # states about its own tables: the management-plane role inventory, the allow matrix, the
 # supporting-services table and the staleness matrix. It checks that the design is complete and
-# consistent; it does not probe reachability, which only a test against a cluster can prove.
-# Usage: scripts/check-plane-separation.sh [document]   (default: docs/architecture.md)
+# consistent; it does not probe reachability, which only a test against a cluster can prove. It
+# also reads the umbrella's allowMatrix (the place of record of each path's L7 owner, ADR-0009): the
+# L7 owner a permitted row of the allow matrix names must be the one its allowMatrix row records.
+# Usage: scripts/check-plane-separation.sh [document [values]]
+#   document  default: docs/architecture.md
+#   values    the umbrella's values file holding allowMatrix (default: deployment/helm/ztd/values.yaml)
+# The values file is read with awk, in the block layout of the chart's values (`allowMatrix:` at the
+# top level, each row starting `  - name: <name>`, its `    l7Owner: <owner>` among the row's keys);
+# no row read is a failure, never an empty matrix.
 
 set -euo pipefail
 
+repo="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 doc="${1:-docs/architecture.md}"
-rows_file="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)/features/annex-rows.txt"
+values="${2:-$repo/deployment/helm/ztd/values.yaml}"
+rows_file="$repo/features/annex-rows.txt"
 status=0
 
 fail() {
@@ -22,102 +31,13 @@ if [ ! -f "$doc" ]; then
   exit $status
 fi
 
-# Prints the header and data lines of the first pipe-delimited table under the heading whose text
-# starts with $1, stopping at the next heading. The separator line is dropped. Tables are found by
-# heading, never by line number, so edits to the surrounding prose do not move them.
-table_under() {
-  awk -v title="$1" '
-    /^#+[[:space:]]/ {
-      if (inside) exit
-      text = $0
-      sub(/^#+[[:space:]]+/, "", text)
-      if (index(text, title) == 1) inside = 1
-      next
-    }
-    inside && /^\|/ { started = 1; if ($0 !~ /^\|[[:space:]:|-]*$/) print; next }
-    inside && started { exit }
-  ' "$doc"
-}
-
-# Splits one table line into the global array `cells`, trimmed.
-split_row() {
-  local line="$1" cell
-  line="${line#|}"
-  line="${line%|}"
-  cells=()
-  IFS='|' read -ra parts <<<"$line"
-  for cell in "${parts[@]}"; do
-    cell="${cell#"${cell%%[![:space:]]*}"}"
-    cell="${cell%"${cell##*[![:space:]]}"}"
-    cells+=("$cell")
-  done
-}
-
-# Sets the global `col` to the index of the header cell starting with $2 in table $1, or fails.
-column() {
-  local table="$1" name="$2" i
-  col=-1
-  for i in "${!header[@]}"; do
-    if [[ "${header[$i]}" == "$name"* ]]; then
-      col=$i
-      return 0
-    fi
-  done
-  fail "$table: no '$name' column"
-  return 1
-}
-
-# Loads table $2 (heading prefix) into the global arrays `header` and `lines`. Returns non-zero,
-# after reporting it, when the table cannot be located.
-load() {
-  local table="$1" heading="$2"
-  mapfile -t lines < <(table_under "$heading")
-  if [ ${#lines[@]} -lt 1 ]; then
-    fail "$table: no table found under a heading starting '$heading'"
-    return 1
-  fi
-  split_row "${lines[0]}"
-  header=("${cells[@]}")
-  lines=("${lines[@]:1}")
-  return 0
-}
-
-strip_qualifier() {
-  local s="$1"
-  s="${s%% (*}"
-  printf '%s' "$s"
-}
-
-destination_of() {
-  local s="${1#*→}"
-  s="${s#"${s%%[![:space:]]*}"}"
-  strip_qualifier "$s"
-}
+# shellcheck source=scripts/lib/doc-table.sh
+. "$(dirname "${BASH_SOURCE[0]}")/lib/doc-table.sh"
 
 # The L7 owner a permitted row must name: the mesh's L7 proxy, stated neutrally as both proxies,
 # since the zone's mesh.mode selects which one it is (the sidecar proxy under sidecar mode, the
 # waypoint under ambient). A row naming one proxy alone takes a side the design does not take.
 l7_owner='L7 owner \(mesh proxy: sidecar or waypoint, per `mesh\.mode`\)'
-
-# Sets `np` and `mesh` to the dispositions an enforcement cell states, and `mesh_text` to the
-# text of its mesh part. A disposition the cell does not state is left empty.
-dispositions() {
-  local cell="$1"
-  np=""
-  mesh=""
-  mesh_text=""
-  if [[ "$cell" =~ NetworkPolicy:[[:space:]]*(ALLOW|DENY) ]]; then
-    np="${BASH_REMATCH[1]}"
-  fi
-  if [[ "$cell" =~ mesh:[[:space:]]*(.*)$ ]]; then
-    mesh_text="${BASH_REMATCH[1]}"
-    if [[ "$mesh_text" =~ ^(ALLOW|DENY) ]]; then
-      mesh="${BASH_REMATCH[1]}"
-    elif [[ "$mesh_text" == "not applicable"* ]]; then
-      mesh="not applicable"
-    fi
-  fi
-}
 
 # Reports each tag in a test cell that the acceptance row list does not hold, and an empty cell.
 check_tags() {
@@ -137,6 +57,36 @@ check_tags() {
   if [ $found -eq 0 ]; then
     fail "$table row '$row': test column names no scenario tag"
   fi
+}
+
+# The configured L7 owner of every allowMatrix row, one "<name> <l7Owner>" line per row ("-" when the
+# row records none). A values file without a readable row is a failure, never an empty matrix.
+configured=""
+if [ ! -f "$values" ]; then
+  fail "$values: values file not found"
+else
+  configured="$(awk '
+    function emit() { if (name != "") print name, (owner == "" ? "-" : owner); name = ""; owner = "" }
+    /^allowMatrix:[[:space:]]*(#.*)?$/ { inside = 1; next }
+    inside && /^[^[:space:]#]/ { emit(); inside = 0 }
+    inside && /^  - name:/ { emit(); name = $3 }
+    inside && /^    l7Owner:/ { owner = $2 }
+    END { emit() }
+  ' "$values")"
+  [ -n "$configured" ] || fail "$values: no allowMatrix row could be read"
+fi
+
+# Sets `row_name` to the allowMatrix name a row of the document gives in its From cell: the last
+# backticked word of the cell, as in "PDP adapter → TSA policy engine (`pdp-adapter-to-tsa`)".
+# Empty when the cell names none.
+row_name_of() {
+  row_name="$(grep -oE '`[a-z0-9-]+`' <<<"$1" | tail -1 | tr -d '`' || true)"
+}
+
+# Sets `owner_cfg` to the l7Owner the allowMatrix row named $1 records: its value, "-" when the row
+# records none, or empty when no row has that name.
+configured_owner() {
+  owner_cfg="$(awk -v n="$1" '$1 == n { print $2; exit }' <<<"$configured")"
 }
 
 if [ -f "$rows_file" ]; then
@@ -210,6 +160,29 @@ if load "allow matrix" "Allow matrix" &&
         l7_count=$(grep -ow 'L7' <<<"${cells[$c_enf]}" | wc -l)
         if [ "$l7_count" -ne 1 ]; then
           fail "allow matrix row '$row': permitted path names $l7_count L7 decision points, not a single L7 owner"
+        fi
+        # The architecture's owner must be the configured one: the mesh's L7 proxy is the sidecar
+        # (ADR-0009), recorded as l7Owner: sidecar on the allowMatrix row of the same name.
+        row_name_of "$row"
+        if [ -z "$row_name" ]; then
+          fail "allow matrix row '$row': names the mesh proxy as L7 owner but gives no allowMatrix row name to check it against"
+        else
+          configured_owner "$row_name"
+          if [ -z "$owner_cfg" ]; then
+            fail "allow matrix row '$row': the architecture names the L7 owner sidecar (the mesh proxy), the configuration records no allowMatrix row named $row_name"
+          elif [ "$owner_cfg" != sidecar ]; then
+            fail "allow matrix row '$row': the architecture names the L7 owner sidecar (the mesh proxy), the configuration records l7Owner $owner_cfg on allowMatrix row $row_name"
+          fi
+        fi
+      elif [ "$mesh" = "not applicable" ]; then
+        # A permitted path the mesh does not govern has no L7 owner: if the allowMatrix records the
+        # row at all, it must record none.
+        row_name_of "$row"
+        if [ -n "$row_name" ]; then
+          configured_owner "$row_name"
+          if [ -n "$owner_cfg" ] && [ "$owner_cfg" != none ]; then
+            fail "allow matrix row '$row': the architecture records that the mesh does not apply (L7 owner none), the configuration records l7Owner $owner_cfg on allowMatrix row $row_name"
+          fi
         fi
       fi
     elif [ "$verdict" = DENY ]; then

@@ -1,0 +1,18 @@
+Subject: [PATCH] Define the trust-list subject terms so the proof covers them
+
+---
+ src/main/resources/templates/VC.json | 3 ++-
+ 1 file changed, 2 insertions(+), 1 deletion(-)
+
+diff --git a/src/main/resources/templates/VC.json b/src/main/resources/templates/VC.json
+index 67a5e45..d05a60d 100644
+--- a/src/main/resources/templates/VC.json
++++ b/src/main/resources/templates/VC.json
+@@ -1,5 +1,6 @@
+ {
+-  "@context" : [ "https://www.w3.org/2018/credentials/v1", "https://w3id.org/security/suites/ed25519-2020/v1", "https://w3id.org/security/suites/jws-2020/v1" ],
++  "@context" : [ "https://www.w3.org/2018/credentials/v1", "https://w3id.org/security/suites/ed25519-2020/v1", "https://w3id.org/security/suites/jws-2020/v1",
++    { "trustlisttype" : "https://tspa.facis.cloud/ns/trustlist#trustlisttype", "trustlistURI" : { "@id" : "https://tspa.facis.cloud/ns/trustlist#trustlistURI", "@type" : "@id" }, "hash" : "https://tspa.facis.cloud/ns/trustlist#hash" } ],
+   "type" : [ "VerifiableCredential" ],
+   "id" : "did:web:company1.com#issuer-lists",
+   "issuer" : "did:web:company1.com",

@@ -1,0 +1,3 @@
+# The gateway verifies the peer entry: no CA, no route.
+# expect: egress.peer.caCert must hold the PEM CA certificate
+egress: {peer: {caCert: ""}}

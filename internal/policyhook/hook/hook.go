@@ -30,6 +30,9 @@ type Input struct {
 	Token         Token       `json:"token"`
 	// Tenant is serialised as null when there is none; the member is always present.
 	Tenant *string `json:"tenant"`
+	// TargetTenant is the tenant the guard's route belongs to, from the guard's configuration and
+	// never from the request; absent on a guard that serves no tenant.
+	TargetTenant string `json:"target_tenant,omitempty"`
 }
 
 // Source is the workload the request comes from.
@@ -228,6 +231,9 @@ type Refusal struct {
 const (
 	HeaderReasonCode = "x-facis-reason-code"
 	HeaderRequestID  = "x-request-id"
+	// HeaderOID4VPLink carries a presentation-required refusal's OID4VP link, beside the body's
+	// oid4vp_link: a gRPC caller is answered in headers only and never sees the body.
+	HeaderOID4VPLink = "x-facis-oid4vp-link"
 	ContentTypeJSON  = "application/json"
 )
 

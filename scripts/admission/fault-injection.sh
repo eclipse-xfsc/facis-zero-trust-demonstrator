@@ -5,23 +5,55 @@
 # namespaces are checked with server-side dry runs, so nothing is created there.
 #
 #   ADMIN_KUBECONFIG=... TESTER_KUBECONFIG=... FIXTURES=<case ref list> EVIDENCE=<dir> \
-#   BIN=... PROVIDER_IMAGE=... TRUST_REPOSITORY=... TRUST_KEY=... [OUTSIDE_NAMESPACES="ns ..."] \
-#   [CLUSTER_KIND=target|non-target] scripts/admission/fault-injection.sh
+#   [BIN=...] [OUTSIDE_NAMESPACES="ns ..."] \
+#   [CLUSTER_KIND=target|non-target] [DATA_NAMESPACE=ztd-data] [MGMT_NAMESPACE=ztd-mgmt] \
+#   scripts/admission/fault-injection.sh
 #
 # OUTSIDE_NAMESPACES are the namespaces outside admission control that must stay schedulable while
-# admission is down (default: the IONOS proof's ztd-orce, kube-system, ztd-bdd-tdr-001). CLUSTER_KIND
-# is recorded with the evidence (default non-target, as on IONOS).
+# admission is down (default: the IONOS proof's ztd-orce, kube-system, ztd-bdd-tdr-001); any of them
+# that carries facis.ztd/admission-proof=true on the cluster is under admission control, so it is left
+# out - a caller cannot make an enforced data plane count as outside. CLUSTER_KIND is recorded with
+# the evidence (default non-target, as on IONOS).
+#
+# Data plane: when DATA_NAMESPACE carries facis.ztd/admission-proof=true (the umbrella's
+# admission.enforceDataPlane), the provider-down and Gatekeeper-down steps also expect a pod there to
+# be denied, and pods in MGMT_NAMESPACE and kube-system to stay admitted. Read from the namespace, so
+# there is nothing to set; without the label (or without the namespace) the steps are unchanged.
+#
+# Restore: before anything is changed, the provider's settings as installed are snapshotted
+# (admission_installed_provider: image, replicas, trust keys, repositories, allowedDigests,
+# registryAuth.secretName) and every restore puts them back - never values given by the caller, so an
+# interruption after the key-removal step never leaves the test key installed and a private-registry
+# credential is never dropped. The standalone layout (scripts/admission/install.sh) is restored with
+# install.sh RESTORE=1 from that snapshot and needs BIN (the pinned Gatekeeper chart); the umbrella
+# layout (release gatekeeper of deployment/helm/ztd) by upgrading that release with its own values and
+# needs the umbrella's dependencies built (helm dependency build deployment/helm/ztd). The restore is
+# proven runnable first - a server-side dry run of it - and the script refuses to inject any fault
+# otherwise, so a restore that cannot run never follows a fault (the break-glass removes the webhook).
 #
 # Steps: ZT-13 mechanism (non-Linux and index refused), provider down, Gatekeeper down, trusted key
 # removed while the provider cache is warm, break-glass (webhook removed, then restored with
-# install.sh), and the admission latency (Gatekeeper's own webhook histogram, and the provider's).
-# The admission path is restored after every step; the script exits non-zero if any case failed.
+# install.sh or the umbrella upgrade), and the admission latency (Gatekeeper's own webhook histogram,
+# and the provider's). The admission path is restored after every step; the script exits non-zero if
+# any case failed.
 set -euo pipefail
 
 root="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 cd "$root"
+# shellcheck source=scripts/admission/checks.sh
+. scripts/admission/checks.sh
 : "${ADMIN_KUBECONFIG:?}" "${TESTER_KUBECONFIG:?}" "${FIXTURES:?}" "${EVIDENCE:?}"
-: "${BIN:?}" "${PROVIDER_IMAGE:?}" "${TRUST_REPOSITORY:?}" "${TRUST_KEY:?}"
+layout=$(KUBECONFIG="$ADMIN_KUBECONFIG" admission_layout)
+helm_home="$(mktemp -d)"
+case "$layout" in
+  standalone) : "${BIN:?set BIN, the directory with the pinned Gatekeeper chart}" ;;
+  umbrella) KUBECONFIG="$ADMIN_KUBECONFIG" admission_helm_home "$helm_home" ;;
+  *) echo "admission path not installed" >&2; exit 1 ;;
+esac
+snapshot="$helm_home/provider.json"
+KUBECONFIG="$ADMIN_KUBECONFIG" admission_installed_provider > "$snapshot" || { echo "cannot read the installed provider" >&2; exit 1; }
+TRUST_KEY="$helm_home/trusted.pub"
+jq -j '.trust.publicKeys' "$snapshot" > "$TRUST_KEY"
 mkdir -p "$EVIDENCE"
 ns=ztd-adm-001
 log="$EVIDENCE/fault-injection.log"
@@ -73,13 +105,29 @@ eventually_denied() { # case code name image
   echo "$out" >> "$log"
   if [ "$status" -eq 0 ]; then fail "$1: admitted, expected $2"; elif grep -q -- "$2" <<<"$out"; then pass "$1: denied ($2)"; else fail "$1: denied without $2: $out"; fi
 }
+# The namespaces outside admission: the given ones without any that carries the admission label.
+enforced_namespaces=" $(admin get namespaces -l facis.ztd/admission-proof=true -o jsonpath='{.items[*].metadata.name}') "
+outside=()
+for n in ${OUTSIDE_NAMESPACES:-ztd-orce kube-system ztd-bdd-tdr-001}; do
+  [[ "$enforced_namespaces" == *" $n "* ]] || outside+=("$n")
+done
 outside_admitted() { # step
   local n
-  for n in ${OUTSIDE_NAMESPACES:-ztd-orce kube-system ztd-bdd-tdr-001}; do
+  for n in ${outside[@]+"${outside[@]}"}; do
     expect_admitted "$1: $n pod" admin ztd-other "$(fixture unsigned)" "$n"
   done
 }
 signed="$(fixture app)"
+data_ns=${DATA_NAMESPACE:-ztd-data}
+mgmt_ns=${MGMT_NAMESPACE:-ztd-mgmt}
+data_enforced=$(admin get namespace "$data_ns" -o jsonpath='{.metadata.labels.facis\.ztd/admission-proof}' 2>/dev/null || true)
+# With the data plane enforced, an outage denies there (fail closed) and nowhere outside the label.
+data_plane() { # step code
+  [ "$data_enforced" = true ] || return 0
+  expect_denied "$1: $data_ns pod (data plane enforced)" "$2" admin ztd-fi-data "$signed" "$data_ns"
+  expect_admitted "$1: $mgmt_ns pod" admin ztd-other "$(fixture unsigned)" "$mgmt_ns"
+  expect_admitted "$1: kube-system pod" admin ztd-other "$(fixture unsigned)" kube-system
+}
 provider=deploy/ztd-admission-provider
 gatekeeper=deploy/gatekeeper-controller-manager
 
@@ -88,9 +136,37 @@ gatekeeper=deploy/gatekeeper-controller-manager
 provider_replicas=$(admin -n gatekeeper-system get "$provider" -o jsonpath='{.spec.replicas}')
 gatekeeper_replicas=$(admin -n gatekeeper-system get "$gatekeeper" -o jsonpath='{.spec.replicas}')
 [ -n "$provider_replicas" ] && [ -n "$gatekeeper_replicas" ] || { echo "admission path not installed" >&2; exit 1; }
+# The installed digest allow-list (the provider's trust policy and the ztd-allowed-repositories
+# constraint must hold the same one), passed to every reinstall so a restore never drops it; the
+# installed list wins over any ALLOWED_DIGESTS in the environment.
+allowed_provider=$(admin -n gatekeeper-system get configmap ztd-admission-provider-trust -o jsonpath='{.data.policy\.json}' | jq -r '.allowedDigests // [] | sort | join(" ")')
+allowed_constraint=$(admin get k8sztdallowedrepositories ztd-allowed-repositories -o json | jq -r '.spec.parameters.allowedDigests // [] | sort | join(" ")')
+[ "$allowed_provider" = "$allowed_constraint" ] ||
+  { echo "allowedDigests differ: provider [$allowed_provider], constraint [$allowed_constraint]; reinstall first" >&2; exit 1; }
 other="$(mktemp)"
-# install.sh with the recorded replica counts, so a restore never changes them.
-reinstall() { KUBECONFIG="$ADMIN_KUBECONFIG" GATEKEEPER_REPLICAS="$gatekeeper_replicas" PROVIDER_REPLICAS="$provider_replicas" scripts/admission/install.sh; }
+# install.sh, or the umbrella release upgraded with its own values, with the recorded replica counts
+# and allow-list, so a restore never changes them. In the umbrella layout the allow-list is the
+# provider's trust.allowedDigests, from which the release renders the constraint's too (where it
+# owns the constraint; where Argo CD does, the constraint is Argo CD's and left alone).
+reinstall() {
+  if [ "$layout" = standalone ]; then
+    KUBECONFIG="$ADMIN_KUBECONFIG" GATEKEEPER_REPLICAS="$gatekeeper_replicas" PROVIDER_REPLICAS="$provider_replicas" \
+      RESTORE=1 RESTORE_FROM="$snapshot" scripts/admission/install.sh &&
+      trusted_key_installed
+  else
+    KUBECONFIG="$ADMIN_KUBECONFIG" admission_umbrella_upgrade --set gatekeeper.replicas="$gatekeeper_replicas" \
+      --set admissionProvider.replicas="$provider_replicas" \
+      --set-json "admissionProvider.trust.allowedDigests=$(jq -Rc 'split(" ") | map(select(. != ""))' <<<"$allowed_provider")" \
+      --set-file admissionProvider.trust.publicKeys="$TRUST_KEY" --wait --timeout 8m &&
+      KUBECONFIG="$ADMIN_KUBECONFIG" admission_wait_enforced &&
+      trusted_key_installed
+  fi
+}
+# The provider's trust policy holds the snapshotted key again.
+trusted_key_installed() {
+  [ "$(admin -n gatekeeper-system get configmap ztd-admission-provider-trust -o jsonpath='{.data.policy\.json}' | jq -j '.publicKeys')" = "$(cat "$TRUST_KEY")" ] ||
+    { echo "the provider's trust policy does not hold the trusted key of the start" >&2; return 1; }
+}
 restore() {
   local status=$?
   set +e
@@ -98,12 +174,31 @@ restore() {
   # Every recovery step runs; any that fails makes the run fail.
   admin -n gatekeeper-system scale "$gatekeeper" --replicas="$gatekeeper_replicas" >/dev/null || { note "FAIL  restore: scaling Gatekeeper"; status=1; }
   admin -n gatekeeper-system scale "$provider" --replicas="$provider_replicas" >/dev/null || { note "FAIL  restore: scaling the provider"; status=1; }
-  reinstall >> "$log" 2>&1 || { note "FAIL  restore: install.sh failed"; status=1; }
+  reinstall >> "$log" 2>&1 || { note "FAIL  restore: the $layout reinstall failed"; status=1; }
   admin -n gatekeeper-system rollout status "$gatekeeper" --timeout=300s >/dev/null || { note "FAIL  restore: Gatekeeper rollout"; status=1; }
   admin -n gatekeeper-system rollout status "$provider" --timeout=300s >/dev/null || { note "FAIL  restore: provider rollout"; status=1; }
-  rm -f "$other"
+  rm -rf "$other" "$helm_home"
   exit "$status"
 }
+# The restore must be able to run before any fault is injected: a server-side dry run of it, which
+# also proves the charts it needs are there (the pinned Gatekeeper chart, or the umbrella's built
+# dependencies).
+restore_runnable() {
+  if [ "$layout" = standalone ]; then
+    # install.sh's own preflight: the archive against its pinned digest, then server dry runs of the
+    # Gatekeeper release (through the webhook-scope post-renderer) and of the provider from the snapshot.
+    KUBECONFIG="$ADMIN_KUBECONFIG" GATEKEEPER_REPLICAS="$gatekeeper_replicas" PROVIDER_REPLICAS="$provider_replicas" \
+      RESTORE=1 RESTORE_FROM="$snapshot" PREFLIGHT=1 scripts/admission/install.sh
+  else
+    KUBECONFIG="$ADMIN_KUBECONFIG" admission_umbrella_upgrade --set gatekeeper.replicas="$gatekeeper_replicas" \
+      --set admissionProvider.replicas="$provider_replicas" --set-file admissionProvider.trust.publicKeys="$TRUST_KEY" --dry-run=server >/dev/null
+  fi
+}
+if ! out=$(restore_runnable 2>&1); then
+  echo "the $layout restore cannot run, so no fault is injected: $out" >&2
+  rm -rf "$other" "$helm_home"
+  exit 1
+fi
 trap restore EXIT
 trap 'exit 130' INT TERM
 
@@ -128,8 +223,7 @@ revisions() {
 set_trust() { # key-file replicas
   local before after
   before=$(revisions) || return 1
-  KUBECONFIG="$ADMIN_KUBECONFIG" helm upgrade admission deployment/helm/admission -n gatekeeper-system --reuse-values \
-    --set replicas="$2" --set-file trust.publicKeys="$1" --wait >/dev/null
+  KUBECONFIG="$ADMIN_KUBECONFIG" admission_provider_upgrade --set replicas="$2" --set-file trust.publicKeys="$1" --wait >/dev/null
   for _ in $(seq 120); do
     if after=$(revisions) && [ "$(awk '{print $1}' <<<"$after")" = "$(awk '{print $1}' <<<"$before")" ] &&
       ! grep -qxF -f <(echo "$before") <<<"$after" && [ "$(awk '{print $2}' <<<"$after" | sort -u | wc -l)" -eq 1 ] &&
@@ -141,7 +235,8 @@ set_trust() { # key-file replicas
   return 1
 }
 
-note "== $(now) baseline"
+note "== $(now) baseline ($layout layout)"
+if [ "$data_enforced" = true ]; then note "data plane $data_ns enforced (facis.ztd/admission-proof=true)"; else note "data plane $data_ns not enforced"; fi
 admin get pods -A -o wide > "$EVIDENCE/pods-before.txt"
 admin get validatingwebhookconfiguration gatekeeper-validating-webhook-configuration -o yaml > "$EVIDENCE/webhook.yaml"
 eventually_admitted "signed image" ztd-fi-signed "$signed"
@@ -156,6 +251,7 @@ admin -n gatekeeper-system scale "$provider" --replicas=0 >/dev/null
 admin -n gatekeeper-system wait --for=delete pod -l app.kubernetes.io/name=ztd-admission-provider --timeout=180s >/dev/null 2>&1 || true
 expect_denied "signed image, provider down" ADM-PROVIDER-DOWN tester ztd-fi-signed "$signed" "$ns"
 outside_admitted "provider down"
+data_plane "provider down" ADM-PROVIDER-DOWN
 admin -n gatekeeper-system scale "$provider" --replicas="$provider_replicas" >/dev/null
 admin -n gatekeeper-system rollout status "$provider" --timeout=300s >/dev/null
 eventually_admitted "signed image, provider back" ztd-fi-signed "$signed"
@@ -165,6 +261,7 @@ admin -n gatekeeper-system scale "$gatekeeper" --replicas=0 >/dev/null
 admin -n gatekeeper-system wait --for=delete pod -l control-plane=controller-manager --timeout=180s >/dev/null 2>&1 || true
 expect_denied "signed image, Gatekeeper down" "failed calling webhook" tester ztd-fi-signed "$signed" "$ns"
 outside_admitted "Gatekeeper down"
+data_plane "Gatekeeper down" "failed calling webhook"
 admin -n gatekeeper-system scale "$gatekeeper" --replicas="$gatekeeper_replicas" >/dev/null
 admin -n gatekeeper-system rollout status "$gatekeeper" --timeout=300s >/dev/null
 eventually_admitted "signed image, Gatekeeper back" ztd-fi-signed "$signed"
@@ -206,8 +303,8 @@ note "== $(now) break-glass"
 admin delete validatingwebhookconfiguration gatekeeper-validating-webhook-configuration >/dev/null
 expect_admitted "break-glass: unsigned image admitted while the webhook is removed" tester ztd-fi-unsigned "$(fixture unsigned)" "$ns"
 outside_admitted "break-glass"
-note "restoring with scripts/admission/install.sh"
-reinstall >> "$log" 2>&1 || fail "break-glass: install.sh did not restore"
+note "restoring ($layout layout)"
+reinstall >> "$log" 2>&1 || fail "break-glass: the $layout restore did not complete"
 eventually_denied "after restore: unsigned image" ADM-UNSIGNED ztd-fi-unsigned "$(fixture unsigned)"
 eventually_admitted "after restore: signed image" ztd-fi-signed "$signed"
 

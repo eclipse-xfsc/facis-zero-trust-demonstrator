@@ -1,0 +1,22 @@
+# The zone's attester (docs/attestation-provisioning.md): CMC's cmcd at the version go.mod pins,
+# software driver only, no TEE. Its pods carry the label app.kubernetes.io/name=cmcd and the service
+# account cmcd: the destination the umbrella's lane atls-gateway-to-cmcd names (deployment/helm/ztd).
+# The gRPC API is reached in the mesh, under mesh mutual TLS, by the attested-channel gateway only.
+name: ztd-cmcd
+# The cmcd image, by digest only (deployment/docker/cmcd).
+image: {repository: ghcr.io/eclipse-xfsc/facis-zero-trust-demonstrator/cmcd, digest: ""}
+port: 9955
+nodeSelector: {}
+podAnnotations: {}
+resources:
+  requests: {cpu: 50m, memory: 64Mi}
+  limits: {memory: 256Mi}
+
+# The zone's provisioned material, a Secret the pipeline (or the proof) creates and the chart never
+# renders: `manifest.json` and `image-description.json`, the reference metadata signed by the
+# pipeline's metadata signer (CMC's metatool); `measurements.json`, the container measurement log
+# rendered from deployment/attestation/<zone>.json; `metadata-ca.pem`, the CA the signer chains to.
+# cmcd reads the signed metadata from files, so no enrolment server runs in the zone and nothing is
+# fetched: the material is what the pipeline delivered, verified against the CA on every report.
+materialSecret: ""
+logLevel: info

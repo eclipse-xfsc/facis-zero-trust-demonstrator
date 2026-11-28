@@ -1,24 +1,29 @@
 # IONOS Cloud cluster (CI/CD and visualization, ADR-0005). Recorded 2026-09-23 from the live
 # cluster with the kubeconfig the client provided and re-read 2026-09-26; the cluster baseline task
 # confirms or corrects every value here. Facts, not choices: change them only when the cluster
-# changes. Recorded, not installed: this cluster holds no demonstration workload and runs no mesh,
-# and whether it takes the umbrella at all is decided with its visualization stage. Until then this
-# file is only validated against the cluster's API (helm --dry-run=server, nothing persisted).
+# changes. Recorded, not installed: this cluster holds no demonstration workload, and SPIRE and the
+# mesh here are in progress (docs/specifications.md, "The mesh and SPIRE on each cluster"). Until
+# that work installs them this file is only validated against the cluster's API
+# (helm --dry-run=server, nothing persisted).
 zone:
   name: ionos
+  role: demonstrator
   kubernetesVersion: v1.35.6      # kubectl version, server, 2026-09-23; unchanged 2026-09-26
   storageClass: ionos-cloud-essential   # the default of four ionos.cloud.com classes
   loadBalancer:
     type: cloud                   # IONOS provisions Services of type LoadBalancer; not yet exercised here
 
 # The CNI is Calico v3.30.7 (IONOS managed), not Cilium: the Cilium-only pieces stay off and the
-# mesh baseline of ADR-0009 (Istio CNI chained behind Cilium) does not apply to this cluster as is.
+# mesh baseline of ADR-0009 (Istio CNI chained behind Cilium) does not apply to this cluster as is:
+# the mesh in progress here chains the Istio CNI plugin behind Calico.
 cni:
   cilium:
     enabled: false
 
-# This cluster holds no demonstration workload, so no mesh label is applied until the mesh task
-# decides whether the CI/visualization cluster joins a mesh at all.
+# SPIRE and the mesh on this cluster are in progress: Istio in sidecar mode as on the zones, the Istio
+# CNI plugin chained behind Calico, the SPIRE datastore on a persistent volume, the trust domain
+# decided with the final trust domains (docs/specifications.md, "The mesh and SPIRE on each
+# cluster"). The mode stays none until that work sets it.
 mesh:
   mode: none
 
@@ -36,3 +41,46 @@ networkPolicy:
     enabled: false
     cidrs: []
     ports: [15700]
+
+# Admission (deployment/admission). Recorded 2026-11-21 from the live releases that
+# scripts/admission/install.sh installed (helm get values gatekeeper|admission -n gatekeeper-system).
+# install stays false until the migration in docs/umbrella-chart.md ("Admission in the umbrella")
+# moves the stack into the umbrella's admission release; the values below are what that release
+# then installs. The key is docs/contracts/keys/interim-cosign.pub (interim, not the client's).
+admission:
+  install: false
+gatekeeper:
+  replicas: 2
+admissionProvider:
+  replicas: 2
+  image:
+    repository: ghcr.io/fune5tiatlas/facis-zero-trust-demonstrator/admission-provider
+    digest: sha256:24dc3d201394f20ae8de8c2a65cbefd36fcfd2566d302886f78f5d4417c30e65
+  trust:
+    repositories:
+      - ghcr.io/fune5tiatlas/facis-zero-trust-demonstrator
+    publicKeys: |
+      -----BEGIN PUBLIC KEY-----
+      MFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAE0lFmUtbg0hz8DzhKG9mz6lKqU1Zf
+      ZGTwuAuoCwoIlaVI5RbLNt9Hiwe4/39DPyX+2qZonfl9p16mexhlc+vltw==
+      -----END PUBLIC KEY-----
+
+# The central observability backends. One listener per participant zone on the receiving collector
+# (zone A 4317, zone B 4417, matching telemetryExport.entry.port of each zone file). The zones' egress
+# addresses are recorded when the entry is installed (the LoadBalancer's loadBalancerSourceRanges and
+# the entry's ingress sources); the installer refuses this file while they are empty, so the entry is
+# never published without its source ranges. Metrics are kept for the project's duration; the logs of
+# every zone are exported to files on the `logs` volume, rotated by size.
+observabilityBackends:
+  namespace: ztd-observability
+  entry:
+    zones:
+      - { name: zone-a, port: 4317 }
+      - { name: zone-b, port: 4417 }
+    sourceRanges: []
+  retention: 400d
+  retentionSize: 45GB
+  volumes:
+    prometheus: 50Gi
+    jaeger: 20Gi
+    logs: 20Gi

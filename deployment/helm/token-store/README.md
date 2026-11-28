@@ -9,11 +9,12 @@ reachable with the schema current and the key-value store is initialised and uns
 service's endpoints land on top of it; the design is in
 [docs/token-store.md](../../../docs/token-store.md).
 
-Install into the zone's management plane after the umbrella chart, with the PostgreSQL the store
-owns reachable, its connection URL in a Secret of the release namespace, and the key-value store
-answering at `openbao.address`. The default address is the umbrella chart's OpenBao under the
-release name `ztd`, which the umbrella ships **disabled** (`openbao.enabled: false`): enable it
-there, or point `openbao.address` at the zone's OpenBao, or the service never becomes ready and
+Install into the zone's management plane after the zone's releases
+([install-zone](../../../scripts/install-zone/README.md)), with the PostgreSQL the store owns
+reachable, its connection URL in a Secret of the release namespace, and the key-value store
+answering at `openbao.address`. The default address is the zone's OpenBao, the release
+`ztd-openbao` the zone installer installs last ([Secrets](../../../docs/secrets.md)); a zone
+without it points `openbao.address` at its own OpenBao, or the service never becomes ready and
 `--wait` times out with `/readyz` saying `openbao: unreachable`. The chart never carries the
 database credential: the Secret exists before the install and the Jobs and the service read it.
 
@@ -38,6 +39,12 @@ both dependencies answered.
 | `database.existingSecret` | none, required | Secret in the release namespace holding the connection URL under `database.secretKey` |
 | `database.secretKey` | `url` | Key of the connection URL in that Secret |
 | `openbao.address` | `http://ztd-openbao.ztd-mgmt.svc:8200` | The key-value store's base URL, `http(s)://host[:port]` without a path; the chart refuses anything else |
+| `openbao.auth.method` | `token` | `token`: runtime mode reads `runtime.openbaoTokenKey` from the credentials Secret. `kubernetes`: log in with a projected service-account token ([Secrets: Kubernetes auth](../../../docs/secrets.md#kubernetes-auth)) |
+| `runtime.credentialKeys` | `[]` | With `kubernetes`: the only keys of the credentials Secret mounted (the routes' files); the OpenBao token key is refused, so a static token left in the Secret never reaches the pod |
+| `openbao.auth.role` | `""` | The OpenBao role; required with `kubernetes` |
+| `openbao.auth.mount` | `kubernetes` | The auth mount |
+| `openbao.auth.audience` | `openbao` | The projected token's audience, bound by the role |
+| `openbao.auth.expirationSeconds` | `600` | The projected token's lifetime; the kubelet rotates it, 600 at least |
 | `replicas` | `1` | Pods of the service |
 | `server.readinessTimeoutSeconds` | `2` | Budget of one `/readyz` evaluation; the probe's `timeoutSeconds` is this plus one |
 | `server.drainDelaySeconds` | `5` | On SIGTERM, how long `/readyz` answers 503 while the listeners stay open, so routing leaves the pod before it stops answering |
@@ -151,14 +158,24 @@ Public issuer keys can be included in the ConfigMap; use absolute paths below
 `/var/run/token-store/credentials`; do not put credentials in values or ConfigMaps.
 
 Runtime mode requires SPIRE identity and NetworkPolicy. It renders STRICT
-PeerAuthentication and enforces inbound `SANITIZE_SET` for XFCC, preserving other
-JSON `proxy.istio.io/config` fields. This annotation is a prerequisite, not proof
+PeerAuthentication; inbound `SANITIZE_SET` for XFCC is mesh-wide, set by the platform in
+`zone-policy` (`EnvoyFilter` `xfcc-sanitize-set`), and the chart refuses a
+`proxy.istio.io/config` in `podAnnotations` (`zone-policy` refuses it at admission in a
+plane namespace). That setting is a prerequisite, not proof
 of effective mesh configuration: verify the injected proxy and refuse forged XFCC
 before live use. `runtime.replayCallers` lists allowed SPIFFE service accounts;
-acquisition route callers remain in the acquisition configuration.
+acquisition route callers remain in the acquisition configuration. The mesh layer's rule for the
+same callers is `runtime.callers` with `trustDomain` (namespace and service account each): the
+AuthorizationPolicy `ztd-token-store-callers` admits them to `POST /internal/substitute` and
+`/internal/replay-check` on port 8080; none listed, none renders, and the mesh default deny refuses
+every caller. When the database runs in the mesh, `database.mesh.selector` (its pod labels) and
+`database.mesh.port` render `ztd-token-store-database`, admitting the store's two accounts and
+`database.mesh.callers` (the connector) to that port.
 
 Configure explicit ingress peers and egress rules for PostgreSQL, OpenBao,
-Connector and mesh control traffic. DNS allows both service port 53 and Gardener's
+Connector and mesh control traffic, and for the verification service of every
+route that uses the presentation hook: egress is denied by default, and without
+that rule each acquisition of such a route ends without an outcome. DNS allows both service port 53 and Gardener's
 translated port 8053. Set `networkPolicy.schemaEgress` to the schema Jobs' database peers. A separate
 egress-only NetworkPolicy hook is created one weight before migrate/drop Jobs;
 it permits DNS and, in runtime mode, istiod TCP 15012 in
@@ -194,7 +211,12 @@ OpenBao policy must permit only the selected prefix.
 The acquisition ConfigMap is mounted in full at `/etc/token-store`, including
 public issuer key files referenced by `trusted_issuers[].public_key_file`.
 `runtime.configKey` selects its acquisition JSON file. Keep private fixture keys
-and client secrets in the credentials Secret, never this ConfigMap. Configure
+and client secrets in the credentials Secret, never this ConfigMap. The same
+holds for a route's presentation hook (`verification_outcomes.holder`): the
+credential it presents and its holder key (for example `holder-credential.sd-jwt`
+and `holder-key.pem`) are keys of the credentials Secret, referenced by their
+paths below `/var/run/token-store/credentials`. They are read at every
+presentation, so a credential replaced in the Secret is used without a restart. Configure
 `connector_signing_key` with the issuer's transit key name; the optional name check rejects equality with the store's `signing_key`.
 Readiness independently compares the public key material against every route
 Connector JWKS, and fails closed on overlap or unavailable keys. These roles need separate

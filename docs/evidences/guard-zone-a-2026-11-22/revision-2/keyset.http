@@ -1,0 +1,10 @@
+HTTP/1.1 503 Service Unavailable
+content-type: application/json
+x-facis-reason-code: TOK-KEYSET-UNAVAILABLE
+x-request-id: 08cd081abdc4088c93fee0dcb3774a07
+content-length: 66
+date: Sun, 22 Nov 2026 01:30:08 GMT
+server: envoy
+x-envoy-upstream-service-time: 18
+
+{"error":"request_refused","reason_code":"TOK-KEYSET-UNAVAILABLE"}

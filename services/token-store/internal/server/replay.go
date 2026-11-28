@@ -46,7 +46,8 @@ type replayCheck struct {
 // handleReplayCheck is POST /internal/replay-check. The caller is authenticated first; nothing is
 // read from the body of a refused meshcaller.
 func (s *Server) handleReplayCheck(w http.ResponseWriter, r *http.Request) {
-	if c, err := s.callers.Authenticate(r); err != nil || !s.replayCaller(c) {
+	c, err := s.callers.Authenticate(r)
+	if err != nil || !s.replayCaller(c) {
 		s.refuse(w, r, http.StatusForbidden, "TOK-CALLER-DENIED")
 		return
 	}
@@ -63,6 +64,13 @@ func (s *Server) handleReplayCheck(w http.ResponseWriter, r *http.Request) {
 	htu, err := dpopproof.NormalizeURI(req.HTU)
 	if err != nil {
 		s.refuse(w, r, http.StatusUnprocessableEntity, "TOK-PROOF-INVALID")
+		return
+	}
+	// A caller with substitution routes (a guard) records proofs only for its own routes' targets, so
+	// one tenant's guard can neither fill nor probe another's entries in the shared record. A caller
+	// without routes (the connector) is not restricted.
+	if s.routes.Admits(c) && !s.routes.Covers(c, htu) {
+		s.refuse(w, r, http.StatusForbidden, "TOK-ROUTE-DENIED")
 		return
 	}
 	now := s.now()

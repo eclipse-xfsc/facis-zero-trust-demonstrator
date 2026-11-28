@@ -1,0 +1,3 @@
+# The image is pinned by digest only.
+# expect: image.digest must be a sha256 digest
+image: {digest: latest}

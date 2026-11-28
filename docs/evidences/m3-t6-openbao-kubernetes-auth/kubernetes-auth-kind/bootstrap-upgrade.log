@@ -1,0 +1,16 @@
+bootstrap: waiting for pod ztd-openbao-0 to run the update revision of StatefulSet ztd-openbao
+bootstrap: waiting for http://ztd-openbao.ztd-mgmt.svc:8200
+bootstrap: initialized=true sealed=false secret=yes
+bootstrap: FAIL the Kubernetes auth configuration is not applied to this store (Secret key kubernetes-auth: '874b179d71dc3fef', rendered: 0fd341e977013a0b): the bootstrap configures it only before it revokes the root token. An administrator applies it and records the hash (docs/secrets.md#kubernetes-auth)
+bootstrap: waiting for pod ztd-openbao-0 to run the update revision of StatefulSet ztd-openbao
+bootstrap: waiting for http://ztd-openbao.ztd-mgmt.svc:8200
+bootstrap: initialized=true sealed=false secret=yes
+bootstrap: FAIL the Kubernetes auth configuration is not applied to this store (Secret key kubernetes-auth: '874b179d71dc3fef', rendered: 0fd341e977013a0b): the bootstrap configures it only before it revokes the root token. An administrator applies it and records the hash (docs/secrets.md#kubernetes-auth)
+bootstrap: waiting for pod ztd-openbao-0 to run the update revision of StatefulSet ztd-openbao
+bootstrap: waiting for http://ztd-openbao.ztd-mgmt.svc:8200
+bootstrap: initialized=true sealed=false secret=yes
+bootstrap: FAIL the Kubernetes auth configuration is not applied to this store (Secret key kubernetes-auth: '874b179d71dc3fef', rendered: 0fd341e977013a0b): the bootstrap configures it only before it revokes the root token. An administrator applies it and records the hash (docs/secrets.md#kubernetes-auth)
+bootstrap: waiting for pod ztd-openbao-0 to run the update revision of StatefulSet ztd-openbao
+bootstrap: waiting for http://ztd-openbao.ztd-mgmt.svc:8200
+bootstrap: initialized=true sealed=false secret=yes
+bootstrap: FAIL the Kubernetes auth configuration is not applied to this store (Secret key kubernetes-auth: '874b179d71dc3fef', rendered: 0fd341e977013a0b): the bootstrap configures it only before it revokes the root token. An administrator applies it and records the hash (docs/secrets.md#kubernetes-auth)

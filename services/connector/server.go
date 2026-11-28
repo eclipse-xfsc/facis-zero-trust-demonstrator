@@ -12,7 +12,6 @@ import (
 	"log/slog"
 	"net"
 	"net/http"
-	"os"
 	"slices"
 	"strings"
 	"sync"
@@ -113,14 +112,12 @@ func newServer(ctx context.Context, cfg config, log *slog.Logger, events *eventS
 	if err != nil {
 		return nil, err
 	}
-	tokenFile := cfg.openBaoTokenFile
-	tc, err := transit.New(transit.Config{Addr: cfg.openBaoURL, Token: func(context.Context) (string, error) {
-		b, err := os.ReadFile(tokenFile)
-		if err != nil {
-			return "", err
-		}
-		return strings.TrimSpace(string(b)), nil
-	}})
+	token := transit.FileToken(cfg.openBaoTokenFile)
+	if cfg.openBaoAuthRole != "" {
+		token = (&transit.KubernetesAuth{Addr: cfg.openBaoURL, Mount: cfg.openBaoAuthMount,
+			Role: cfg.openBaoAuthRole, JWTFile: cfg.openBaoJWTFile}).Token
+	}
+	tc, err := transit.New(transit.Config{Addr: cfg.openBaoURL, Token: token})
 	if err != nil {
 		return nil, err
 	}

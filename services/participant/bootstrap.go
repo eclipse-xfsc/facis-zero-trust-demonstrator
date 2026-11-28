@@ -39,14 +39,14 @@ var transitionReasons = map[string]bool{
 }
 
 var knownStates = map[State]bool{
-	StateIdle: true, StateRegistering: true, StatePresenting: true, StateAcquiringToken: true, StateReady: true,
+	StateIdle: true, StateRegistering: true, StateRegistered: true, StatePresenting: true, StateAcquiringToken: true, StateReady: true,
 	StateFailedRegister: true, StateFailedPresent: true, StateFailedToken: true, StateFailedConnector: true,
 }
 
 // failedFor is the failure state of a bootstrap that stopped while in a progress state.
 var failedFor = map[State]State{
 	StateIdle: StateFailedConnector, StateRegistering: StateFailedRegister,
-	StatePresenting: StateFailedPresent, StateAcquiringToken: StateFailedToken, StateReady: StateFailedToken,
+	StateRegistered: StateFailedPresent, StatePresenting: StateFailedPresent, StateAcquiringToken: StateFailedToken, StateReady: StateFailedToken,
 }
 
 const (
@@ -73,11 +73,12 @@ type StateSnapshot struct {
 // lifecycle runs the Bootstrapper and records its states. Only connector-unreachable failures are
 // retried, up to attempts with doubling backoff; any other failure is final until /reset.
 type lifecycle struct {
-	boot     Bootstrapper
-	attempts int
-	backoff  time.Duration
-	now      func() time.Time
-	logger   *slog.Logger
+	boot         Bootstrapper
+	attempts     int
+	backoff      time.Duration
+	now          func() time.Time
+	logger       *slog.Logger
+	onTransition func(State, string)
 
 	resetSlot chan struct{} // 1-slot semaphore serialising resets; acquiring it honours the request context
 
@@ -198,6 +199,9 @@ func (l *lifecycle) report(state State, reason string) {
 
 func (l *lifecycle) recordLocked(state State, reason string) {
 	l.state, l.progress = state, state
+	if l.onTransition != nil {
+		l.onTransition(state, reason)
+	}
 	if isFailed(state) && reason != TransitionRetryScheduled && reason != TransitionRetriesExhausted {
 		l.lastError = reason
 	}

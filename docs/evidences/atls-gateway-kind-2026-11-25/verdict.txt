@@ -1,0 +1,18 @@
+PASS  zone a: base releases installed (umbrella, SPIRE, Istio sidecar mode, zone-policy)
+PASS  zone b: base releases installed (umbrella, SPIRE, Istio sidecar mode, zone-policy)
+PASS  zone a: ztd-cmcd (management plane) and ztd-atls-gateway (data plane, both roles) installed from the zone file
+PASS  zone a ingress: the startup check verified the zone's own evidence against Git before serving
+PASS  zone a egress: the startup check verified the zone's own evidence against Git before serving
+PASS  zone b: ztd-cmcd (management plane) and ztd-atls-gateway (data plane, both roles) installed from the zone file
+PASS  zone b ingress: the startup check verified the zone's own evidence against Git before serving
+PASS  zone b egress: the startup check verified the zone's own evidence against Git before serving
+PASS  zone a -> zone b: the caller's HTTP request was answered by the peer zone's echo (200)
+PASS  zone a -> zone b: both ends recorded one channel (mutual attestation, TLS 1.3, the same binding da8b74c52007ef45…, the peer identity each expected)
+PASS  zone b -> zone a: the caller's HTTP request was answered by the peer zone's echo (200)
+PASS  zone b -> zone a: both ends recorded one channel (mutual attestation, TLS 1.3, the same binding c52e506b5e29f3b5…, the peer identity each expected)
+PASS  zone B entry: the stranger's TLS got no application answer and the ingress recorded the refusal (atls: peer certificate identity rejected)
+PASS  zone A: with its attester away the egress refused the new channel (atls: local attester unavailable), and the caller got no answer
+PASS  zone A: with its attester back the next call went through
+PASS  zone A ingress: with the configuration changed under it, the new pod exited 2, recorded evidence_rejected and was never Ready; the rollout kept the verified pod serving
+PASS  zone A ingress: restored to the configuration in Git it serves again (zone B's call answered)
+verdict: all checks passed
