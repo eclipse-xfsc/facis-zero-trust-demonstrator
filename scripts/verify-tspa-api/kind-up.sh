@@ -5,6 +5,7 @@
 #
 #   TSPA_REPO=<clone of eclipse-xfsc/train-trust-framework-manager, with train-shared in shared/> \
 #     scripts/verify-tspa-api/kind-up.sh      # first image build takes about 15 minutes
+#   TSPA_SKIP_BUILD=1 reuses a tspa-service:local image already present instead of building.
 set -euo pipefail
 
 here="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -30,7 +31,13 @@ else
 fi
 chmod 600 "$KUBECONFIG"
 
-docker build -t tspa-service:local "$repo"
+# TSPA_SKIP_BUILD=1 reuses an image already present (CI restores it from its cache); without it
+# the image is always built, which Docker's own layer cache keeps short after the first time.
+if [ "${TSPA_SKIP_BUILD:-}" = 1 ] && docker image inspect tspa-service:local >/dev/null 2>&1; then
+  echo "TSPA_SKIP_BUILD=1: using the tspa-service:local image already present"
+else
+  docker build -t tspa-service:local "$repo"
+fi
 kind load docker-image tspa-service:local --name "$cluster"
 
 kubectl create namespace tspa --dry-run=client -o yaml | kubectl apply -f - >/dev/null
